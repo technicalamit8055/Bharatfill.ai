@@ -185,6 +185,51 @@ describe('operator can do day-to-day work but not admin actions', () => {
   });
 });
 
+describe('organization AI vendor settings are owner-only to write', () => {
+  it('lets an owner create the row', async () => {
+    const { error } = await fixture.orgA.usersByRole.owner.client
+      .from('organization_ai_settings')
+      .insert({ organization_id: fixture.orgA.id, provider: 'deepseek' });
+    expect(error).toBeNull();
+  });
+
+  it('lets any active member read it (but never returns the key column here — the app layer never selects it for a non-owner)', async () => {
+    const { data, error } = await fixture.orgA.usersByRole.operator.client
+      .from('organization_ai_settings')
+      .select('organization_id, provider')
+      .eq('organization_id', fixture.orgA.id);
+    expect(error).toBeNull();
+    expect(data).toHaveLength(1);
+  });
+
+  it('blocks a manager from changing it — this is owner-only, unlike ordinary org settings', async () => {
+    const { data, error } = await fixture.orgA.usersByRole.manager.client
+      .from('organization_ai_settings')
+      .update({ model: 'gpt-4o' })
+      .eq('organization_id', fixture.orgA.id)
+      .select('organization_id');
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+  });
+
+  it('blocks an operator from inserting one for their own org', async () => {
+    const { error } = await fixture.orgA.usersByRole.operator.client
+      .from('organization_ai_settings')
+      .insert({ organization_id: fixture.orgA.id, provider: 'openai' });
+    expect(error).not.toBeNull();
+  });
+
+  it('blocks an owner from deleting another organization\'s row', async () => {
+    const { data, error } = await fixture.orgB.usersByRole.owner.client
+      .from('organization_ai_settings')
+      .delete()
+      .eq('organization_id', fixture.orgA.id)
+      .select('organization_id');
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+  });
+});
+
 describe('anonymous access', () => {
   it('returns zero rows for every tenant table read anonymously', async () => {
     const anon = anonClient();

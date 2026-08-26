@@ -117,7 +117,12 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
       ) : null}
 
       {canUpdate || canUploadDocument ? (
-        <AddProfileInfo customerId={row.id} canPaste={canUpdate} canUpload={canUploadDocument} />
+        <AddProfileInfo
+          customerId={row.id}
+          canPaste={canUpdate}
+          canUpload={canUploadDocument}
+          canReview={session.permissions.has('extraction.review')}
+        />
       ) : null}
 
       {session.permissions.has('document.view') ? (

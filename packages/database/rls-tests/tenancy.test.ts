@@ -60,6 +60,11 @@ beforeAll(async () => {
   });
   if (consentError) throw consentError;
 
+  const { error: aiSettingsError } = await owner
+    .from('organization_ai_settings')
+    .insert({ organization_id: orgA.id, provider: 'deepseek' });
+  if (aiSettingsError) throw aiSettingsError;
+
   fixture.orgA.usersByRole.owner.client = owner;
   (fixture as unknown as { seeded: Record<string, string> }).seeded = {
     customerId: customer.id,
@@ -122,6 +127,18 @@ describe('cross-organization denial', () => {
     const { data, error } = await fixture.orgB.usersByRole.owner.client
       .from('consent_records')
       .select('id')
+      .eq('organization_id', fixture.orgA.id);
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+  });
+
+  it('returns zero organization_ai_settings rows when org B reads org A', async () => {
+    // This row carries a third-party API key ciphertext, so it gets the same tenancy
+    // guarantee as every other tenant table — never just because a member is an owner
+    // somewhere, only because they are a member of *this* organization (docs/SECURITY.md §4).
+    const { data, error } = await fixture.orgB.usersByRole.owner.client
+      .from('organization_ai_settings')
+      .select('organization_id')
       .eq('organization_id', fixture.orgA.id);
     expect(error).toBeNull();
     expect(data).toEqual([]);

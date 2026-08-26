@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AssistigoLogo } from './assistigo-logo';
+import { BharatfillLogo } from './bharatfill-logo';
 
 export function Footer() {
   return (
@@ -48,7 +48,7 @@ export function Footer() {
           {/* Brand Col */}
           <div className="md:col-span-5">
             <Link href="/" className="inline-block bg-white px-3 py-2 rounded-xl shadow-sm">
-              <AssistigoLogo height={80} />
+              <BharatfillLogo height={80} />
             </Link>
             <p className="mt-4 text-xs leading-relaxed text-slate-400 max-w-sm font-medium">
               India-first AI form-filling extension and candidate profile vault for CSCs, cyber cafes, VLEs, and individual applicants.
@@ -87,10 +87,10 @@ export function Footer() {
         {/* Disclaimer & Copyright */}
         <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <p>
-            &copy; {new Date().getFullYear()} Assistigo.ai. All rights reserved.
+            &copy; {new Date().getFullYear()} Bharatfill.ai. All rights reserved.
           </p>
           <p className="text-[11px] max-w-2xl text-center md:text-right">
-            Disclaimer: Assistigo is an independent software tool. It is not affiliated with, endorsed by, or connected to any government department or official portal.
+            Disclaimer: Bharatfill is an independent software tool. It is not affiliated with, endorsed by, or connected to any government department or official portal.
           </p>
         </div>
 

@@ -13,6 +13,8 @@
 import {
   aadhaarLastFour,
   getCustomerField,
+  isCustomerFieldKey,
+  isForbiddenFieldKey,
   looksLikeAadhaar,
   normalizeMobile,
   normalizeName,
@@ -20,6 +22,7 @@ import {
   normalizePincode,
   parseIndianDate,
   requiresReview,
+  type CustomerFieldDataType,
   type DocumentType,
 } from '@assistigo/core';
 import { FIELDS_BY_DOCUMENT_TYPE, LABEL_RULES, type FieldDataKind, type LabelRule } from './rules';
@@ -33,6 +36,7 @@ import {
   type OcrBlock,
   type OcrResult,
   type ReviewReason,
+  type StructuredExtractedField,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -447,4 +451,129 @@ export function meanConfidence(fields: readonly ExtractedField[]): number | null
 /** Human-readable label for a field key, for the review UI. */
 export function fieldLabel(key: string, locale: 'en' | 'hi'): string {
   return getCustomerField(key)?.label[locale] ?? key;
+}
+
+// ---------------------------------------------------------------------------
+// Structured-mode extraction (an organization's custom prompt)
+// ---------------------------------------------------------------------------
+
+/**
+ * Full Aadhaar storage is gated behind `organizations.settings.allow_full_aadhaar`, which has
+ * no write path anywhere in the app yet (docs/SECURITY.md §4) — the field exists in the registry
+ * only for a future legal-reviewed opt-in. A free-text custom prompt must never be the first
+ * thing that makes it reachable, so structured mode refuses this key outright rather than
+ * relying on `sanitizeExtractedFields`, which preserves it for that future date (§19.3).
+ */
+const STRUCTURED_MODE_DISALLOWED_KEYS = new Set(['customer.aadhaar']);
+
+/** Maps a registry field to the normalisation `extract.ts` already knows how to do. */
+function kindForField(key: string, dataType: CustomerFieldDataType): FieldDataKind {
+  if (key === 'customer.pan') return 'pan';
+  if (key === 'customer.aadhaar_last4') return 'aadhaar';
+  if (key === 'customer.gender') return 'gender';
+  if (key === 'customer.category') return 'category';
+
+  switch (dataType) {
+    case 'name':
+    case 'date':
+    case 'mobile':
+    case 'pincode':
+    case 'number':
+    case 'year':
+    case 'longtext':
+      return dataType;
+    default:
+      return 'text';
+  }
+}
+
+/**
+ * Builds review-ready fields from a vendor's structured-mode response — a custom prompt asked
+ * the model to map the document to `customer.*` fields directly, so there is no OCR text to
+ * line-split or label-match here (§4, cf. `extractFields`).
+ *
+ * What does not change: every value still goes through the same per-kind normaliser the manual
+ * entry path and the rules engine use, high-risk keys still always require review
+ * (`reviewReasonFor`), and every field still passes through `sanitizeExtractedFields` before it
+ * is returned — a custom prompt changes how a field is proposed, never whether it is checked.
+ *
+ * A key the model invented that is not in the registry, or that has no legitimate storage
+ * location, is dropped with a warning rather than shown: the review screen only ever displays
+ * fields it can look up a label and a storage location for.
+ */
+export function buildFieldsFromStructuredOutput(input: {
+  fields: readonly StructuredExtractedField[];
+}): { fields: ExtractedField[]; warnings: ExtractionWarning[] } {
+  const warnings: ExtractionWarning[] = [];
+  const best = new Map<string, ExtractedField>();
+
+  for (const raw of input.fields) {
+    const value = raw.value.trim();
+    if (value === '') continue;
+
+    if (isForbiddenFieldKey(raw.key) || STRUCTURED_MODE_DISALLOWED_KEYS.has(raw.key)) {
+      warnings.push({
+        code: 'STRUCTURED_FIELD_NOT_ALLOWED',
+        messageKey: 'documents.warnings.structuredFieldNotAllowed',
+        fieldKey: raw.key,
+      });
+      continue;
+    }
+
+    if (!isCustomerFieldKey(raw.key)) {
+      warnings.push({
+        code: 'STRUCTURED_UNKNOWN_FIELD',
+        messageKey: 'documents.warnings.structuredUnknownField',
+        fieldKey: raw.key,
+      });
+      continue;
+    }
+
+    const definition = getCustomerField(raw.key);
+    if (!definition || definition.storage.kind === 'derived') continue;
+
+    const normalised = normaliseValue(value, kindForField(raw.key, definition.dataType));
+    if (normalised.value === null) {
+      warnings.push({
+        code: 'VALUE_NOT_UNDERSTOOD',
+        messageKey: 'documents.warnings.valueNotUnderstood',
+        fieldKey: raw.key,
+      });
+      continue;
+    }
+
+    let confidence = clamp01(raw.confidence);
+    if (!normalised.valid) confidence *= 0.6;
+    confidence = Number(confidence.toFixed(3));
+
+    const reviewReason = reviewReasonFor(raw.key, confidence, normalised.valid);
+
+    const candidate: ExtractedField = {
+      key: raw.key,
+      label: (raw.label.trim() !== '' ? raw.label : definition.label.en).slice(0, 200),
+      value: normalised.value,
+      confidence,
+      // What the model claimed to have read, before normalisation — there is no OCR line to
+      // point back to in structured mode, so the pre-normalised answer is the closest thing to
+      // "read from" an operator can check the model against.
+      sourceText: value.slice(0, 500),
+      page: 1,
+      bbox: null,
+      status: reviewReason === null ? 'ok' : 'needs_review',
+      reviewReason,
+    };
+
+    const existing = best.get(candidate.key);
+    if (!existing || candidate.confidence > existing.confidence) {
+      best.set(candidate.key, candidate);
+    }
+  }
+
+  const fields = sanitizeExtractedFields([...best.values()]);
+
+  if (fields.length === 0) {
+    warnings.push({ code: 'NO_FIELDS_FOUND', messageKey: 'documents.warnings.noFieldsFound' });
+  }
+
+  return { fields, warnings };
 }

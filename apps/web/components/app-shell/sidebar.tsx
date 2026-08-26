@@ -5,42 +5,71 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@assistigo/ui';
 import type { Permission } from '@assistigo/core';
 import { useTranslations } from '@/lib/i18n/client';
+import {
+  HomeIcon,
+  CustomersIcon,
+  DocumentsIcon,
+  ToolsIcon,
+  ApplicationsIcon,
+  LibraryIcon,
+  FillSessionsIcon,
+  BillingIcon,
+  SettingsIcon,
+} from './nav-icons';
 
 type NavItem = {
   href: string;
   labelKey: string;
+  icon: (props: { className?: string }) => React.ReactElement;
   /** Hidden when the role lacks this permission. The server gates the page as well. */
   permission?: Permission;
 };
 
 const PRIMARY: NavItem[] = [
-  { href: '/dashboard', labelKey: 'nav.home' },
-  { href: '/customers', labelKey: 'nav.customers', permission: 'customer.view' },
-  { href: '/documents', labelKey: 'nav.documents', permission: 'document.view' },
-  { href: '/document-tools', labelKey: 'nav.documentTools', permission: 'documenttool.use' },
-  { href: '/applications', labelKey: 'nav.applications', permission: 'application.view' },
+  { href: '/dashboard', labelKey: 'nav.home', icon: HomeIcon },
+  { href: '/customers', labelKey: 'nav.customers', icon: CustomersIcon, permission: 'customer.view' },
+  { href: '/documents', labelKey: 'nav.documents', icon: DocumentsIcon, permission: 'document.view' },
+  {
+    href: '/document-tools',
+    labelKey: 'nav.documentTools',
+    icon: ToolsIcon,
+    permission: 'documenttool.use',
+  },
+  {
+    href: '/applications',
+    labelKey: 'nav.applications',
+    icon: ApplicationsIcon,
+    permission: 'application.view',
+  },
 ];
 
 const SECONDARY: NavItem[] = [
-  { href: '/form-library', labelKey: 'nav.formLibrary', permission: 'fill.run' },
-  { href: '/fill-sessions', labelKey: 'nav.fillSessions', permission: 'fill.run' },
-  { href: '/billing', labelKey: 'nav.billing', permission: 'billing.view' },
-  { href: '/settings', labelKey: 'nav.settings' },
+  { href: '/form-library', labelKey: 'nav.formLibrary', icon: LibraryIcon, permission: 'fill.run' },
+  { href: '/fill-sessions', labelKey: 'nav.fillSessions', icon: FillSessionsIcon, permission: 'fill.run' },
+  { href: '/billing', labelKey: 'nav.billing', icon: BillingIcon, permission: 'billing.view' },
+  { href: '/settings', labelKey: 'nav.settings', icon: SettingsIcon },
 ];
 
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   const t = useTranslations();
+  const Icon = item.icon;
   return (
     <Link
       href={item.href}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'block rounded-md px-3 py-2 text-sm transition-colors',
+        'group flex items-center gap-2.5 rounded-md border-l-2 px-2.5 py-2 text-sm transition-all duration-150',
         active
-          ? 'bg-brand-50 font-medium text-brand-800'
-          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
+          ? 'border-brand-600 bg-brand-50 font-medium text-brand-800'
+          : 'border-transparent text-slate-700 hover:translate-x-0.5 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900',
       )}
     >
+      <Icon
+        className={cn(
+          'shrink-0 transition-colors',
+          active ? 'text-brand-700' : 'text-slate-400 group-hover:text-slate-600',
+        )}
+      />
       {t(item.labelKey)}
     </Link>
   );

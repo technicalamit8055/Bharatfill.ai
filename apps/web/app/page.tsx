@@ -9,13 +9,13 @@ import { FAQ } from '@/components/landing/faq';
 import { Footer } from '@/components/landing/footer';
 
 export const metadata = {
-  title: 'Assistigo — AI Form Autofill Chrome Extension for CSCs & Applicants',
+  title: 'Bharatfill — AI Form Autofill Chrome Extension for CSCs & Applicants',
   description:
-    'Assistigo is an AI-powered Chrome extension that auto-fills web forms in one click. Store customer data once, then fill CRM fields, government portals, job applications, and tickets instantly.',
+    'Bharatfill is an AI-powered Chrome extension that auto-fills web forms in one click. Store customer data once, then fill CRM fields, government portals, job applications, and tickets instantly.',
 };
 
 /**
- * Clean Light Theme Landing Page for Assistigo.ai
+ * Clean Light Theme Landing Page for Bharatfill.ai
  */
 export default function LandingPage() {
   return (

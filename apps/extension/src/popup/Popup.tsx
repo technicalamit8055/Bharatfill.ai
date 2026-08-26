@@ -72,7 +72,7 @@ export function Popup() {
               Fill any form in <span className="gradient-text">one click</span>
             </h1>
             <p className="small muted" style={{ marginTop: 4 }}>
-              Connect your Assistigo account to fill forms from a saved customer profile.
+              Connect your Bharatfill account to fill forms from a saved customer profile.
             </p>
           </div>
 
@@ -108,7 +108,7 @@ export function Popup() {
           <div className="notice notice-info">
             <ShieldIcon size={13} />
             <span>
-              You sign in on the Assistigo dashboard. Your password is never typed into this
+              You sign in on the Bharatfill dashboard. Your password is never typed into this
               extension.
             </span>
           </div>

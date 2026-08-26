@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Assistigo — form filling for service centres",
-  "short_name": "Assistigo",
+  "name": "Bharatfill — form filling for service centres",
+  "short_name": "Bharatfill",
   "version": "0.1.0",
   "description": "Fill supported online forms from a saved customer profile. You review every field, and you press submit.",
   "minimum_chrome_version": "116",
@@ -21,7 +21,7 @@
   },
 
   "action": {
-    "default_title": "Assistigo",
+    "default_title": "Bharatfill",
     "default_popup": "src/popup/index.html",
     "default_icon": {
       "16": "icons/icon-16.png",

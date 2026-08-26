@@ -3,14 +3,14 @@
  *
  *   node scripts/generate-icons.mjs
  *
- * Source of truth is Assests/assistfill-logo.png. The rounded-square mark is the leftmost
+ * Source of truth is Assests/Bharatfill-logo.png. The rounded-square mark is the leftmost
  * element of that lockup, so the ink bounding box is measured and a square of that height is
  * taken from the left edge — no hand-tuned pixel offsets to go stale when the logo is redrawn.
  *
  * Outputs (apps/extension/public/icons, copied into dist by Vite's publicDir):
  *   icon-16 / 32 / 48 / 128.png   manifest + toolbar
  *   wordmark.png                  the panel header lockup
- * and the 512px store tile at Assests/assistigo-mark-512.png, deliberately outside the bundle.
+ * and the 512px store tile at Assests/bharatfill-mark-512.png, deliberately outside the bundle.
  *
  * Needs `sharp`, which is present as a transitive dependency of Next. If that ever stops being
  * true, `npm i -D sharp`.
@@ -33,7 +33,7 @@ try {
 
 const SOURCE = path.join(root, 'Assests/Bharatfill-logo.png');
 const ICONS = path.join(root, 'apps/extension/public/icons');
-const STORE_TILE = path.join(root, 'Assests/assistigo-mark-512.png');
+const STORE_TILE = path.join(root, 'Assests/bharatfill-mark-512.png');
 
 const MANIFEST_SIZES = [16, 32, 48, 128];
 /** Keeps the rounded square off the very edge of the tile. */
@@ -71,4 +71,4 @@ await sharp(mark)
   .toFile(STORE_TILE);
 
 console.log(`✓ icons ${MANIFEST_SIZES.join('/')} + wordmark → apps/extension/public/icons`);
-console.log('✓ 512px store tile → Assests/assistigo-mark-512.png');
+console.log('✓ 512px store tile → Assests/bharatfill-mark-512.png');

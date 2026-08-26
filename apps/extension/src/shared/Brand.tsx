@@ -14,13 +14,13 @@ const asset = (file: string): string =>
     ? chrome.runtime.getURL(`icons/${file}`)
     : `icons/${file}`;
 
-/** Full logo lockup — mark plus "Assistigo.ai" and the tagline. */
+/** Full logo lockup — mark plus "Bharatfill.ai" and the tagline. */
 export function Wordmark({ height = 36, className = '' }: { height?: number; className?: string }) {
   return (
     <img
       className={`brand-logo ${className}`.trim()}
       src={asset('wordmark.png')}
-      alt="Assistigo.ai"
+      alt="Bharatfill.ai"
       style={{ height, width: 'auto' }}
       draggable={false}
     />

@@ -18,8 +18,8 @@ const jakarta = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Assistigo — AI form filling for CSCs and cyber cafes',
-    template: '%s · Assistigo',
+    default: 'Bharatfill — AI form filling for CSCs and cyber cafes',
+    template: '%s · Bharatfill',
   },
   description:
     'Save a customer once. Extract details from Indian documents, fill supported online forms after review, prepare photos and PDFs, and track every application.',

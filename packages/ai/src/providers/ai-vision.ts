@@ -1,19 +1,28 @@
 /**
  * AI vision provider — the high-accuracy reader (docs/AI_PIPELINE.md §2).
  *
- * Speaks the OpenAI chat-completions shape, which DeepSeek, OpenAI, OpenRouter, vLLM and most
- * hosted gateways all implement. The endpoint and model are configuration, not code, because
- * §12.3 forbids hard-coding the product to one vendor — pointing this at a different provider,
- * or at a self-hosted vision model, is an environment change.
+ * Speaks two wire shapes, chosen by `wireFormat`: the OpenAI chat-completions shape (DeepSeek,
+ * OpenAI, OpenRouter, Ollama, vLLM and most hosted gateways implement this) and the Anthropic
+ * messages shape. The endpoint, model and shape are configuration, not code, because §12.3
+ * forbids hard-coding the product to one vendor — pointing this at a different provider, or at a
+ * self-hosted vision model, is a configuration change, never a code change.
  *
- * Two decisions are worth explaining, because both are load-bearing.
+ * Three decisions are worth explaining, because all three are load-bearing.
  *
- * **It transcribes; it does not extract.** The model is asked for the text on the page, and the
- * existing rules engine (../extract.ts) turns that text into `customer.*` fields. Letting the
- * model emit field keys directly would route customer data around every guarantee downstream of
- * OCR: the Aadhaar masking gate (../safety.ts), the normalisers, the high-risk review rules and
- * the golden tests. A vision model is very good at reading a blurry certificate and has no
- * business deciding what `customer.category` means.
+ * **It transcribes by default; it does not extract.** The model is asked for the text on the
+ * page, and the existing rules engine (../extract.ts) turns that text into `customer.*` fields.
+ * Letting the model emit field keys directly would route customer data around every guarantee
+ * downstream of OCR: the Aadhaar masking gate (../safety.ts), the normalisers, the high-risk
+ * review rules and the golden tests. A vision model is very good at reading a blurry certificate
+ * and has no business deciding what `customer.category` means.
+ *
+ * **An organization may opt into structured mode with its own prompt.** When `customPrompt` is
+ * set, the model is asked to map the document to `customer.*` fields itself, using the
+ * organization's own instructions. This still does not bypass the guarantees above: the model's
+ * answer is treated as a set of *candidate* fields, and `../extract.ts`'s
+ * `buildFieldsFromStructuredOutput` still runs every one of them through the same per-kind
+ * normaliser, the same high-risk review rules, and the same safety gate before a human ever sees
+ * one — a custom prompt changes how a field is proposed, never whether it is checked.
  *
  * **It sends bytes to a third party, so it refuses to run without organization opt-in.** The
  * pipeline checks this too — that is the authoritative gate — but a provider that ships
@@ -21,12 +30,24 @@
  */
 
 import { z } from 'zod';
-import { providerUnavailable } from '@assistigo/core';
+import { isAppError, providerUnavailable } from '@assistigo/core';
 import { paragraphBlocks, readLocalText } from './local-ocr';
-import type { OcrInput, OcrProvider, OcrProviderConfig, OcrResult } from '../types';
+import {
+  structuredExtractionResponseSchema,
+  type AiWireFormat,
+  type OcrInput,
+  type OcrProvider,
+  type OcrProviderConfig,
+  type OcrResult,
+  type StructuredExtractedField,
+} from '../types';
 
 export const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
 export const DEEPSEEK_MODEL = 'deepseek-chat';
+
+export const ANTHROPIC_BASE_URL = 'https://api.anthropic.com';
+export const ANTHROPIC_MODEL = 'claude-3-5-sonnet-latest';
+const ANTHROPIC_VERSION = '2023-06-01';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 
@@ -44,7 +65,11 @@ const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 const VISION_CONFIDENCE = 0.85;
 
 /** Why the vision reader produced nothing. Turned into an operator warning by the pipeline. */
-export type VisionUnreadableReason = 'pdf_needs_image' | 'file_too_large' | 'empty_response';
+export type VisionUnreadableReason =
+  | 'pdf_needs_image'
+  | 'file_too_large'
+  | 'empty_response'
+  | 'invalid_structured_response';
 
 const TRANSCRIBE_SYSTEM_PROMPT = [
   'You transcribe scanned Indian identity and certificate documents for a data-entry assistant.',
@@ -59,17 +84,48 @@ const TRANSCRIBE_SYSTEM_PROMPT = [
   '- Output the transcription only: no commentary, no headings, no markdown, no code fences.',
 ].join('\n');
 
+/**
+ * Appended to an organization's own custom prompt. The prompt says *what* to extract; this says
+ * *how* to answer, so the response can always be parsed the same way regardless of what the
+ * organization asked for.
+ */
+const STRUCTURED_OUTPUT_INSTRUCTIONS = [
+  '',
+  '',
+  'Respond with ONLY a single JSON object, no commentary, no markdown, no code fences, in exactly',
+  'this shape:',
+  '{"fields": [{"key": "customer.full_name", "label": "Name", "value": "Amit Kumar", "confidence": 0.9}]}',
+  '- "key" must be one of the customer field keys given above.',
+  '- "value" must be copied from the document, character for character. Never guess or complete a value.',
+  '- "confidence" is a number from 0 to 1: how sure you are the value was read correctly.',
+  '- Omit any field you could not read. Never invent a value.',
+].join('\n');
+
 const TRANSCRIBE_IMAGE_PROMPT = 'Transcribe this document.';
+const STRUCTURED_IMAGE_PROMPT = 'Read this document and extract the requested fields as JSON.';
 
 const TRANSCRIBE_TEXT_PROMPT = [
   'The text below was extracted from a PDF and may have lost its layout.',
   'Re-emit it as "Label: Value" lines following your rules. Add nothing that is not present.',
 ].join(' ');
 
+const STRUCTURED_TEXT_PROMPT = [
+  'The text below was extracted from a PDF and may have lost its layout.',
+  'Extract the requested fields as JSON from it, following your rules. Add nothing that is not present.',
+].join(' ');
+
+/** A trivial, harmless request used only to check that an endpoint and key work (§7.3.4.12). */
+const PING_PROMPT = 'Reply with exactly the single word: OK';
+
 /** Only the shape we read. An unknown extra field is not an error. */
-const completionSchema = z.object({
+const openAiCompletionSchema = z.object({
   id: z.string().max(200).optional(),
   choices: z.array(z.object({ message: z.object({ content: z.string().nullable() }) })).min(1),
+});
+
+const anthropicMessageSchema = z.object({
+  id: z.string().max(200).optional(),
+  content: z.array(z.object({ type: z.string(), text: z.string().optional() })).min(1),
 });
 
 function base64(bytes: Uint8Array): string {
@@ -104,6 +160,23 @@ export function cleanTranscription(content: string): string {
     .trim();
 }
 
+/** Strips a code fence a model wrapped its JSON in anyway. Returns null if nothing parses. */
+function parseJsonResponse(content: string): unknown | null {
+  let text = content.trim();
+  const fence = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i.exec(text);
+  if (fence?.[1] !== undefined) text = fence[1].trim();
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+type ChatContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image'; mimeType: string; base64Data: string };
+
 export type AiVisionProviderOptions = OcrProviderConfig & {
   /** Recorded as `OcrResult.provider` and stored on the extraction row for audit. */
   name?: string;
@@ -117,6 +190,8 @@ export class AiVisionOcrProvider implements OcrProvider {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly model: string;
+  private readonly wireFormat: AiWireFormat;
+  private readonly customPrompt: string | undefined;
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
 
@@ -129,6 +204,11 @@ export class AiVisionOcrProvider implements OcrProvider {
     this.apiKey = options.apiKey;
     this.baseUrl = (options.baseUrl ?? DEEPSEEK_BASE_URL).replace(/\/+$/, '');
     this.model = options.model ?? DEEPSEEK_MODEL;
+    this.wireFormat = options.wireFormat ?? 'openai_compatible';
+    this.customPrompt =
+      options.customPrompt !== undefined && options.customPrompt.trim() !== ''
+        ? options.customPrompt.trim()
+        : undefined;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
@@ -139,12 +219,19 @@ export class AiVisionOcrProvider implements OcrProvider {
       throw providerUnavailable('errors.ai_processing_not_enabled');
     }
 
-    const content = await this.buildContent(input);
+    const structured = this.customPrompt !== undefined;
+    const content = await this.buildContent(input, structured);
     if (typeof content === 'string') return this.unreadable(content as VisionUnreadableReason);
 
-    const response = await this.complete(content);
-    const text = cleanTranscription(response.text);
+    const systemPrompt = structured
+      ? `${this.customPrompt}${STRUCTURED_OUTPUT_INSTRUCTIONS}`
+      : TRANSCRIBE_SYSTEM_PROMPT;
 
+    const response = await this.complete(systemPrompt, content);
+
+    if (structured) return this.buildStructuredResult(response);
+
+    const text = cleanTranscription(response.text);
     if (text === '') return this.unreadable('empty_response', response.requestId);
 
     const blocks = paragraphBlocks(text, VISION_CONFIDENCE);
@@ -161,59 +248,96 @@ export class AiVisionOcrProvider implements OcrProvider {
   }
 
   /**
-   * The `messages[].content` array to send, or a reason code when the document cannot be sent.
-   *
-   * A chat-completions endpoint takes images, not PDFs. Rather than refuse every PDF, a
-   * text-bearing one is read locally and its text is sent instead — the model is still worth
-   * asking, because turning a layout-mangled column dump back into `Label: Value` lines is
-   * exactly what it is good at. A *scanned* PDF has no text to send and no image to make
-   * without a rasteriser, so it is refused with a reason the operator can act on.
+   * Sends a trivial, harmless prompt so a settings page can confirm an endpoint and key work
+   * without processing any document. Never throws: a settings UI wants a pass/fail and a reason,
+   * not an exception to catch (§7.3.4.12).
    */
-  private async buildContent(input: OcrInput): Promise<unknown[] | VisionUnreadableReason> {
+  async testConnection(): Promise<{ ok: true } | { ok: false; reason: string }> {
+    try {
+      const response = await this.complete(PING_PROMPT, [{ type: 'text', text: PING_PROMPT }]);
+      if (response.text.trim() === '') {
+        return { ok: false, reason: 'errors.ocr_provider_failed' };
+      }
+      return { ok: true };
+    } catch (thrown) {
+      const reason =
+        thrown instanceof Error && thrown.message !== '' ? thrown.message : 'errors.ocr_provider_failed';
+      return { ok: false, reason };
+    }
+  }
+
+  private buildStructuredResult(response: { text: string; requestId: string | null }): OcrResult {
+    const parsedJson = parseJsonResponse(response.text);
+    const parsed = parsedJson === null ? null : structuredExtractionResponseSchema.safeParse(parsedJson);
+
+    if (parsed === null || !parsed.success) {
+      return this.unreadable('invalid_structured_response', response.requestId);
+    }
+
+    const fields: StructuredExtractedField[] = parsed.data.fields;
+    // The masked JSON text is the closest thing to "raw text" for this reader — retained only
+    // until review, exactly like a transcription (docs/AI_PIPELINE.md §7).
+    const rawText = response.text.trim();
+
+    return {
+      provider: this.name,
+      providerRequestId: response.requestId,
+      rawText,
+      pageCount: fields.length > 0 ? 1 : 0,
+      blocks: [],
+      confidence:
+        fields.length === 0
+          ? null
+          : Number((fields.reduce((sum, f) => sum + f.confidence, 0) / fields.length).toFixed(3)),
+      structuredFields: fields,
+    };
+  }
+
+  /**
+   * The content parts to send, or a reason code when the document cannot be sent.
+   *
+   * A chat endpoint takes images, not PDFs. Rather than refuse every PDF, a text-bearing one is
+   * read locally and its text is sent instead — the model is still worth asking, because turning
+   * a layout-mangled column dump back into structured output is exactly what it is good at. A
+   * *scanned* PDF has no text to send and no image to make without a rasteriser, so it is refused
+   * with a reason the operator can act on.
+   */
+  private async buildContent(
+    input: OcrInput,
+    structured: boolean,
+  ): Promise<ChatContentPart[] | VisionUnreadableReason> {
     if (input.mimeType === 'application/pdf') {
       const local = await readLocalText(input.bytes);
       if (local.text === '') return 'pdf_needs_image';
-      return [{ type: 'text', text: `${TRANSCRIBE_TEXT_PROMPT}\n\n${local.text}` }];
+      const prompt = structured ? STRUCTURED_TEXT_PROMPT : TRANSCRIBE_TEXT_PROMPT;
+      return [{ type: 'text', text: `${prompt}\n\n${local.text}` }];
     }
 
     if (input.bytes.length > MAX_IMAGE_BYTES) return 'file_too_large';
 
     return [
-      { type: 'text', text: TRANSCRIBE_IMAGE_PROMPT },
-      {
-        type: 'image_url',
-        // A data URL, so no document is ever uploaded to a bucket a third party can re-fetch.
-        image_url: { url: `data:${input.mimeType};base64,${base64(input.bytes)}` },
-      },
+      { type: 'text', text: structured ? STRUCTURED_IMAGE_PROMPT : TRANSCRIBE_IMAGE_PROMPT },
+      { type: 'image', mimeType: input.mimeType, base64Data: base64(input.bytes) },
     ];
   }
 
-  private async complete(content: unknown[]): Promise<{ text: string; requestId: string | null }> {
+  private async complete(
+    systemPrompt: string,
+    content: ChatContentPart[],
+  ): Promise<{ text: string; requestId: string | null }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
-    let response: Response;
     try {
-      response = await this.fetchImpl(`${this.baseUrl}/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${this.apiKey}`,
-          'content-type': 'application/json',
-        },
-        // The filename is deliberately not sent: it routinely carries the customer's name and
-        // adds nothing to a transcription (§19.6).
-        body: JSON.stringify({
-          model: this.model,
-          temperature: 0,
-          max_tokens: 4096,
-          messages: [
-            { role: 'system', content: TRANSCRIBE_SYSTEM_PROMPT },
-            { role: 'user', content },
-          ],
-        }),
-        signal: controller.signal,
-      });
-    } catch {
+      const response =
+        this.wireFormat === 'anthropic_messages'
+          ? await this.callAnthropic(systemPrompt, content, controller.signal)
+          : await this.callOpenAiCompatible(systemPrompt, content, controller.signal);
+      return response;
+    } catch (error) {
+      // Already a typed provider error from callOpenAiCompatible/callAnthropic — pass it through
+      // rather than relabelling it as a transport failure.
+      if (isAppError(error)) throw error;
       // Timeout or transport failure. The cause is not attached: an error from a body-carrying
       // request can echo page content back into a log line (§24.2).
       throw providerUnavailable(
@@ -222,6 +346,42 @@ export class AiVisionOcrProvider implements OcrProvider {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  private async callOpenAiCompatible(
+    systemPrompt: string,
+    content: ChatContentPart[],
+    signal: AbortSignal,
+  ): Promise<{ text: string; requestId: string | null }> {
+    const userContent = content.map((part) =>
+      part.type === 'text'
+        ? part
+        : {
+          type: 'image_url',
+          // A data URL, so no document is ever uploaded to a bucket a third party can re-fetch.
+          image_url: { url: `data:${part.mimeType};base64,${part.base64Data}` },
+        },
+    );
+
+    const response = await this.fetchImpl(`${this.baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${this.apiKey}`,
+        'content-type': 'application/json',
+      },
+      // The filename is deliberately not sent: it routinely carries the customer's name and
+      // adds nothing to a transcription (§19.6).
+      body: JSON.stringify({
+        model: this.model,
+        temperature: 0,
+        max_tokens: 4096,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userContent },
+        ],
+      }),
+      signal,
+    });
 
     if (!response.ok) {
       // Status only. A provider error body can quote the prompt, and the prompt is the document.
@@ -232,13 +392,63 @@ export class AiVisionOcrProvider implements OcrProvider {
       );
     }
 
-    const parsed = completionSchema.safeParse(await response.json());
+    const parsed = openAiCompletionSchema.safeParse(await response.json());
     if (!parsed.success) throw providerUnavailable('errors.ocr_provider_failed');
 
     return {
       text: parsed.data.choices[0]?.message.content ?? '',
       requestId: parsed.data.id ?? null,
     };
+  }
+
+  private async callAnthropic(
+    systemPrompt: string,
+    content: ChatContentPart[],
+    signal: AbortSignal,
+  ): Promise<{ text: string; requestId: string | null }> {
+    const userContent = content.map((part) =>
+      part.type === 'text'
+        ? part
+        : {
+          type: 'image',
+          source: { type: 'base64', media_type: part.mimeType, data: part.base64Data },
+        },
+    );
+
+    const response = await this.fetchImpl(`${this.baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': this.apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.model,
+        max_tokens: 4096,
+        temperature: 0,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userContent }],
+      }),
+      signal,
+    });
+
+    if (!response.ok) {
+      throw providerUnavailable(
+        response.status === 401 || response.status === 403
+          ? 'errors.ocr_provider_not_configured'
+          : 'errors.ocr_provider_failed',
+      );
+    }
+
+    const parsed = anthropicMessageSchema.safeParse(await response.json());
+    if (!parsed.success) throw providerUnavailable('errors.ocr_provider_failed');
+
+    const text = parsed.data.content
+      .filter((block) => block.type === 'text' && block.text !== undefined)
+      .map((block) => block.text)
+      .join('\n');
+
+    return { text, requestId: parsed.data.id ?? null };
   }
 
   /**
@@ -263,7 +473,12 @@ export class AiVisionOcrProvider implements OcrProvider {
   }
 }
 
-const VISION_REASONS = ['pdf_needs_image', 'file_too_large', 'empty_response'] as const;
+const VISION_REASONS = [
+  'pdf_needs_image',
+  'file_too_large',
+  'empty_response',
+  'invalid_structured_response',
+] as const;
 
 /** The reason code carried back in `providerRequestId`, if this result came from this provider. */
 export function visionUnreadableReason(result: OcrResult): VisionUnreadableReason | null {

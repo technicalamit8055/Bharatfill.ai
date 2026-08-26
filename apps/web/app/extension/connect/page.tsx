@@ -1,10 +1,10 @@
 import { Alert } from '@assistigo/ui';
 import { requireSession } from '@/lib/auth/session';
 import { resolveExtensionId } from '@/lib/extension/pairing';
-import { AssistigoLogo } from '@/components/landing/assistigo-logo';
+import { BharatfillLogo } from '@/components/landing/bharatfill-logo';
 import { ConnectExtension } from './connect-extension';
 
-export const metadata = { title: 'Connect the Assistigo extension' };
+export const metadata = { title: 'Connect the Bharatfill extension' };
 
 /**
  * Pairs the Chrome extension with the signed-in account (docs/EXTENSION.md §3).
@@ -28,7 +28,7 @@ export default async function ExtensionConnectPage({
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-6 px-4 py-12">
-      <AssistigoLogo height={44} />
+      <BharatfillLogo height={44} />
 
       {extensionId ? (
         <ConnectExtension
@@ -37,8 +37,8 @@ export default async function ExtensionConnectPage({
           email={session.email}
         />
       ) : (
-        <Alert tone="danger" title="This link did not come from the Assistigo extension">
-          Open the Assistigo extension from your browser toolbar and choose{' '}
+        <Alert tone="danger" title="This link did not come from the Bharatfill extension">
+          Open the Bharatfill extension from your browser toolbar and choose{' '}
           <strong>Connect account</strong>. That is the only way to start pairing, and it stops a
           shared link from connecting someone else&rsquo;s extension to your account.
         </Alert>

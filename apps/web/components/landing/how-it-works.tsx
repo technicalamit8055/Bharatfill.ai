@@ -16,7 +16,7 @@ export function HowItWorks() {
       step: '02',
       title: 'Open Web Portal & Pick Candidate',
       description:
-        'Navigate to any government, job, or recruitment portal. The Assistigo Chrome Extension automatically highlights input fields and maps them to your selected profile.',
+        'Navigate to any government, job, or recruitment portal. The Bharatfill Chrome Extension automatically highlights input fields and maps them to your selected profile.',
       badge: 'Smart Field Detection',
       icon: (
         <svg className="h-6 w-6 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -48,7 +48,7 @@ export function HowItWorks() {
             Simple 3-Step Process
           </span>
           <h2 className="mt-2 text-3xl font-extrabold text-slate-900 sm:text-5xl">
-            How Assistigo AI Works
+            How Bharatfill AI Works
           </h2>
           <p className="mt-4 text-base text-slate-600 sm:text-lg">
             No complex setup or training needed. Fill any application form in seconds with total confidence.

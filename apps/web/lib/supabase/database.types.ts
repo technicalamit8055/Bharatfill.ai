@@ -43,6 +43,26 @@ export type OrganizationRow = Timestamps & {
   deleted_at: string | null;
 };
 
+export type OrganizationAiProvider =
+  | 'openai'
+  | 'anthropic'
+  | 'deepseek'
+  | 'gemini'
+  | 'ollama'
+  | 'openrouter'
+  | 'custom';
+
+export type OrganizationAiSettingsRow = Timestamps & {
+  organization_id: string;
+  provider: OrganizationAiProvider;
+  wire_format: 'openai_compatible' | 'anthropic_messages';
+  base_url: string | null;
+  model: string | null;
+  api_key_encrypted: string | null;
+  custom_prompt: string | null;
+  updated_by: string | null;
+};
+
 export type OrgRoleValue = 'owner' | 'manager' | 'operator' | 'viewer' | 'billing_admin';
 
 export type OrganizationMemberRow = Timestamps & {

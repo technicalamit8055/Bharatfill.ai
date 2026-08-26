@@ -20,7 +20,7 @@
 
 import type { DocumentType } from '@assistigo/core';
 import { classifyDocument } from './classify';
-import { extractFields, meanConfidence } from './extract';
+import { buildFieldsFromStructuredOutput, extractFields, meanConfidence } from './extract';
 import {
   getOcrProvider,
   isAiProviderConfigured,
@@ -82,6 +82,7 @@ const WARNING_MESSAGE_KEYS: Record<string, string> = {
   AI_NEEDS_IMAGE: 'documents.warnings.aiNeedsImage',
   AI_FILE_TOO_LARGE: 'documents.warnings.aiFileTooLarge',
   AI_RETURNED_NO_TEXT: 'documents.warnings.aiReturnedNoText',
+  AI_STRUCTURED_INVALID: 'documents.warnings.aiStructuredInvalid',
   LOCAL_CANNOT_READ_IMAGES: 'documents.warnings.localCannotReadImages',
   PDF_HAS_NO_TEXT: 'documents.warnings.pdfHasNoText',
   EMPTY_FILE: 'documents.warnings.emptyFile',
@@ -112,6 +113,8 @@ function unreadableWarning(ocr: OcrResult): ExtractionWarning | null {
       return warn('AI_FILE_TOO_LARGE');
     case 'empty_response':
       return warn('AI_RETURNED_NO_TEXT');
+    case 'invalid_structured_response':
+      return warn('AI_STRUCTURED_INVALID');
     default:
       return null;
   }
@@ -168,10 +171,13 @@ function interpret(
     hintedType: input.hintedType ?? null,
   });
 
-  const { fields, warnings } = extractFields({
-    ocr,
-    documentType: classification.documentType,
-  });
+  // Structured mode: an organization's custom prompt already mapped the document to
+  // `customer.*` fields, so there is no OCR text to line-split or label-match. Either path still
+  // ends at the same safety gate and review rules (docs/AI_PIPELINE.md §2, §9).
+  const { fields, warnings } =
+    ocr.structuredFields != null
+      ? buildFieldsFromStructuredOutput({ fields: ocr.structuredFields })
+      : extractFields({ ocr, documentType: classification.documentType });
 
   return {
     documentType: classification.documentType,

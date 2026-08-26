@@ -18,18 +18,21 @@ const TAB_INACTIVE = 'border-transparent text-slate-500 hover:text-slate-700';
  * the same destination — proposed profile fields a human must accept before anything is saved —
  * so they live behind one set of tabs instead of two separate cards an operator has to discover.
  *
- * Paste review happens inline, right here. Document review does not: extraction runs as a
- * background job, so uploading here only queues it — the operator reviews it on the document's
- * own page once reading finishes, linked from the confirmation and from the Documents list below.
+ * Both reviews happen inline, right here. A document upload still queues the same background
+ * `ocr.extract` job the standalone Documents flow uses, but the panel polls for the result and
+ * shows the same accept/edit/reject table as soon as it lands, instead of sending the operator to
+ * the document's own page. That page (and the Documents list below) still work as a fallback.
  */
 export function AddProfileInfo({
   customerId,
   canPaste,
   canUpload,
+  canReview,
 }: {
   customerId: string;
   canPaste: boolean;
   canUpload: boolean;
+  canReview: boolean;
 }) {
   const t = useTranslations();
   const [mode, setMode] = useState<Mode>(canPaste ? 'paste' : 'upload');
@@ -68,7 +71,9 @@ export function AddProfileInfo({
       ) : null}
 
       {mode === 'paste' && canPaste ? <PasteTextPanel customerId={customerId} /> : null}
-      {mode === 'upload' && canUpload ? <UploadDocumentPanel customerId={customerId} /> : null}
+      {mode === 'upload' && canUpload ? (
+        <UploadDocumentPanel customerId={customerId} canReview={canReview} />
+      ) : null}
     </Card>
   );
 }

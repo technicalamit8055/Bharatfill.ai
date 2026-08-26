@@ -4,9 +4,9 @@ import { useState } from 'react';
 
 const FAQS = [
   {
-    question: 'Is Assistigo safe to use on government and personal form portals?',
+    question: 'Is Bharatfill safe to use on government and personal form portals?',
     answer:
-      'Yes, 100%. Assistigo is a guided autofill extension. It populates input fields for your review. It NEVER submits forms automatically, NEVER bypasses CAPTCHAs, and NEVER handles OTPs. You inspect the form and press submit yourself.',
+      'Yes, 100%. Bharatfill is a guided autofill extension. It populates input fields for your review. It NEVER submits forms automatically, NEVER bypasses CAPTCHAs, and NEVER handles OTPs. You inspect the form and press submit yourself.',
   },
   {
     question: 'How is candidate data and Aadhaar information kept private?',
@@ -14,7 +14,7 @@ const FAQS = [
       'Privacy is engineered into our architecture. Only the last 4 digits of Aadhaar numbers are stored. Documents are stored in encrypted private storage using short-lived access links. Customer data is never sold or used to train public AI models.',
   },
   {
-    question: 'Does Assistigo work on forms in Hindi or regional Indian languages?',
+    question: 'Does Bharatfill work on forms in Hindi or regional Indian languages?',
     answer:
       'Yes! Our AI smart detection recognizes both English and Hindi field labels, as well as complex bilingual input forms common across state e-district portals.',
   },
@@ -24,7 +24,7 @@ const FAQS = [
       'Simply click the "Add to Chrome — Free" button to install directly from the Google Chrome Web Store. Pin the extension to your browser bar and sign in to access your profile vault.',
   },
   {
-    question: 'Can I use Assistigo for my Cyber Cafe or CSC Service Centre with multiple staff?',
+    question: 'Can I use Bharatfill for my Cyber Cafe or CSC Service Centre with multiple staff?',
     answer:
       'Absolutely! Our Service Centre plan supports up to 5 operator logins, a shared searchable candidate vault, and complete audit access logs so you can manage your team seamlessly.',
   },
@@ -55,7 +55,7 @@ export function FAQ() {
             Frequently Asked Questions
           </h2>
           <p className="mt-4 text-base text-slate-600 sm:text-lg">
-            Everything you need to know about Assistigo AI form autofill extension.
+            Everything you need to know about Bharatfill AI form autofill extension.
           </p>
         </div>
 

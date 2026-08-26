@@ -79,7 +79,7 @@ export function publicEnv(): PublicEnv {
     const missing = parsed.error.issues.map((issue) => issue.path.join('.')).join(', ');
     throw new Error(
       `Missing or invalid public environment variables: ${missing}. ` +
-        'Copy .env.example to .env.local and run `npm run verify:env`.',
+      'Copy .env.example to .env.local and run `npm run verify:env`.',
     );
   }
   cachedPublic = parsed.data;

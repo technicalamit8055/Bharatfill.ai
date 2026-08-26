@@ -40,7 +40,7 @@ export function WhereItWorks() {
             Universal Compatibility
           </span>
           <h2 className="mt-2 text-3xl font-extrabold text-slate-900 sm:text-5xl">
-            Where Assistigo AI Works
+            Where Bharatfill AI Works
           </h2>
           <p className="mt-4 text-base text-slate-600 sm:text-lg">
             Works out-of-the-box across major Indian government services, global career portals, and custom web applications.
@@ -84,7 +84,7 @@ export function WhereItWorks() {
         {/* Guarantee Banner */}
         <div className="mt-12 text-center">
           <p className="text-xs text-slate-500 font-medium">
-            Have a custom internal web portal or unique form? Assistigo AI smart detection adapts dynamically to custom field IDs and labels.
+            Have a custom internal web portal or unique form? Bharatfill AI smart detection adapts dynamically to custom field IDs and labels.
           </p>
         </div>
 

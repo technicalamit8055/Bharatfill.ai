@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "Assistigo",
+    "name": "Bharatfill",
     "tagline": "India's AI form-filling assistant for CSCs and cyber cafes"
   },
   "common": {
@@ -40,15 +40,15 @@
   "auth": {
     "signIn": "Sign in",
     "signUp": "Create account",
-    "signInTitle": "Sign in to Assistigo",
-    "signUpTitle": "Create your Assistigo account",
+    "signInTitle": "Sign in to Bharatfill",
+    "signUpTitle": "Create your Bharatfill account",
     "email": "Email",
     "password": "Password",
     "confirmPassword": "Confirm password",
     "forgotPassword": "Forgot password?",
     "resetPassword": "Reset password",
     "resetSent": "If that email is registered, a reset link is on its way.",
-    "noAccount": "New to Assistigo?",
+    "noAccount": "New to Bharatfill?",
     "haveAccount": "Already have an account?",
     "consent": "I accept the Terms of Service and the Privacy Policy",
     "consentRequired": "Please accept the terms to continue.",
@@ -79,7 +79,7 @@
       "badge": "AI form autofill for Indian portals",
       "headlineLead": "Save a customer once, then fill any form in",
       "headlineAccent": "one click",
-      "subtitle": "Assistigo reads Indian documents, keeps every profile in one place, and fills supported portals after you review each field.",
+      "subtitle": "Bharatfill reads Indian documents, keeps every profile in one place, and fills supported portals after you review each field.",
       "pointProfiles": "One customer profile reused across every form",
       "pointExtract": "Details extracted from photos and PDFs",
       "pointReview": "Nothing is submitted without your review",
@@ -119,11 +119,16 @@
       "uploadDocument": "Upload a document",
       "installExtension": "Install the Chrome extension",
       "tryDemoForm": "Try a demo form",
-      "done": "Done"
+      "done": "Done",
+      "progress": "{done} of {total} done"
     }
   },
   "dashboard": {
     "title": "Today at your centre",
+    "greetingMorning": "Good morning",
+    "greetingAfternoon": "Good afternoon",
+    "greetingEvening": "Good evening",
+    "subtitle": "Here's what's happening at {org} today.",
     "fillsToday": "Forms filled today",
     "customersServed": "Customers served today",
     "documentsProcessed": "Documents processed today",
@@ -134,6 +139,7 @@
     "quickActions": "Quick actions",
     "recentCustomers": "Recent customers",
     "recentApplications": "Recent applications",
+    "viewAll": "View all",
     "extensionStatus": "Chrome extension",
     "extensionConnected": "Connected",
     "extensionNotConnected": "Not connected",
@@ -187,7 +193,7 @@
     },
     "paste": {
       "title": "Add customer details",
-      "help": "Paste a customer’s details as text — from a portal, an email, a spreadsheet or a message. Assistigo reads it into profile fields. Nothing is saved until you review it.",
+      "help": "Paste a customer’s details as text — from a portal, an email, a spreadsheet or a message. Bharatfill reads it into profile fields. Nothing is saved until you review it.",
       "placeholder": "Name: Amit Kumar\nFather’s Name: Ram Kumar\nDate of Birth: 14/08/1996\nMobile: 9900012345\nDistrict: Ghazipur",
       "privacyNote": "The pasted text is read and discarded — it is not stored. Aadhaar numbers are removed automatically; only the last four digits are kept.",
       "parse": "Read details",
@@ -198,13 +204,14 @@
       "startOver": "Paste different text",
       "saved": "Saved {count} fields to the profile.",
       "prefill": "Paste details instead",
-      "prefillHelp": "Paste the customer’s details and Assistigo will fill this form. Check every value before saving.",
+      "prefillHelp": "Paste the customer’s details and Bharatfill will fill this form. Check every value before saving.",
       "prefilled": "Filled {count} fields below.",
       "prefillExtra": "{count} more details were found — paste the same text on the profile after saving to add them.",
       "tabPaste": "Paste text",
-      "uploadIntro": "Upload an ID, certificate or marksheet. Assistigo reads it and proposes profile fields the same way pasted text does.",
+      "uploadIntro": "Upload an ID, certificate or marksheet. Bharatfill reads it and proposes profile fields the same way pasted text does.",
       "uploadedTitle": "Document uploaded",
-      "uploadedHelp": "Assistigo is reading it now. It will appear in Documents below — review and save the details from there once reading finishes.",
+      "uploadedHelp": "The details from this document have been saved to the profile.",
+      "uploadAnother": "Upload another document",
       "warnings": {
         "noText": "There was nothing to read in that text.",
         "noFieldsFound": "No profile fields could be read from this text.",
@@ -247,7 +254,33 @@
     "joined": "Joined",
     "removeMember": "Remove",
     "youBadge": "You",
-    "lastOwner": "An organization must keep at least one owner."
+    "lastOwner": "An organization must keep at least one owner.",
+    "ai": {
+      "navLabel": "AI settings",
+      "title": "AI settings",
+      "subtitle": "Choose the AI vendor this workspace sends documents to for AI-assisted reading, and whether AI reading is allowed at all.",
+      "vendorTitle": "Vendor",
+      "provider": "AI provider",
+      "baseUrl": "Base URL",
+      "baseUrlHint": "The vendor's API address. Must be HTTPS and reachable from Bharatfill's servers — not a localhost or private-network address.",
+      "model": "Model name",
+      "apiKey": "API key",
+      "apiKeyConfigured": "•••••••• (configured)",
+      "apiKeyPlaceholder": "Not set",
+      "apiKeyHintConfigured": "A key is already saved. Leave this blank to keep it, or type a new one to replace it.",
+      "apiKeyHintEmpty": "This key is stored encrypted and is never shown again after saving.",
+      "testConnection": "Test connection",
+      "testSuccess": "Connected. The vendor and key both work.",
+      "promptTitle": "Custom extraction prompt",
+      "promptHelp": "Optional. Tells the AI reader which customer fields to look for and what to call them. Leave blank to use the default: read the page as plain text and let Bharatfill's own rules map it to fields.",
+      "promptPlaceholder": "Read this Indian identity or certificate document and extract: full name, father's name, date of birth, address, and the last four digits of any Aadhaar number.",
+      "promptVariablesTitle": "Customer field keys you can reference",
+      "promptSafetyNote": "Every value the AI reader proposes is still checked before it can be saved to a profile — Aadhaar-like numbers are masked automatically, and high-risk fields always need a human review. This prompt only changes what the AI reader looks for.",
+      "processingTitle": "AI processing",
+      "enableLabel": "Allow documents to be sent to this AI vendor",
+      "enableHint": "Off by default. When off, uploads are only ever read on this server — no document byte leaves it. Turning this on applies to every document this workspace reads with the AI reader.",
+      "saved": "AI settings saved."
+    }
   },
   "roles": {
     "owner": "Owner",
@@ -298,7 +331,10 @@
     "text_too_long": "This text is too long to read.",
     "unknown_preset": "That preset is not recognised. Refresh the page and try again.",
     "tool_type_mismatch": "That does not match the tool that produced it.",
-    "preset_mismatch": "That preset does not match the file."
+    "preset_mismatch": "That preset does not match the file.",
+    "ai_base_url_invalid": "Enter an HTTPS address that Bharatfill's servers can reach — not a localhost or private-network address.",
+    "ai_base_url_required": "Enter the base URL for this provider.",
+    "ai_api_key_required": "Enter an API key before testing the connection."
   },
   "errors": {
     "unauthenticated": "Please sign in to continue.",
@@ -307,7 +343,7 @@
     "validation_failed": "Please check the highlighted fields.",
     "conflict": "That conflicts with something that already exists.",
     "unsupported_media": "That file type is not supported.",
-    "provider_unavailable": "A service Assistigo depends on is unavailable. Please try again.",
+    "provider_unavailable": "A service Bharatfill depends on is unavailable. Please try again.",
     "internal": "Something went wrong at our end.",
     "traceId": "Reference: {traceId}",
     "noOrganization": "You are not a member of any workspace yet.",
@@ -327,7 +363,7 @@
   },
   "privacy": {
     "sensitiveNotice": "Sensitive value. Revealing it is recorded in the audit log.",
-    "aadhaarNotice": "Assistigo stores only the last four digits of an Aadhaar number.",
+    "aadhaarNotice": "Bharatfill stores only the last four digits of an Aadhaar number.",
     "demoDataNotice": "This workspace contains demo data. Do not enter real customer details."
   },
   "documents": {
@@ -335,13 +371,13 @@
     "subtitle": "Uploaded documents, extraction status and review.",
     "upload": "Upload document",
     "uploadTitle": "Upload a document",
-    "uploadSubtitle": "Assistigo reads the document and proposes profile fields. Nothing is saved until you review it.",
+    "uploadSubtitle": "Bharatfill reads the document and proposes profile fields. Nothing is saved until you review it.",
     "emptyTitle": "No documents yet",
     "emptyDescription": "Upload an ID, certificate or marksheet to pull details into a customer profile.",
     "file": "File",
     "fileHint": "JPG, PNG, WEBP or PDF, up to {size}.",
     "type": "Document type",
-    "typeHint": "Optional. Assistigo detects the type and will correct this if needed.",
+    "typeHint": "Optional. Bharatfill detects the type and will correct this if needed.",
     "detectType": "Detect automatically",
     "size": "Size",
     "customer": "Customer",
@@ -382,6 +418,9 @@
       "aiNeedsImage": "This PDF is a scan with no text in it. The AI reader needs a photo — upload the page as a JPG or PNG.",
       "aiFileTooLarge": "This file is too large to send to the AI reader. Upload a smaller image.",
       "aiReturnedNoText": "The AI reader could not make out any text on this document.",
+      "aiStructuredInvalid": "The AI reader's answer could not be understood. Try reading again, or check the workspace's custom prompt in AI settings.",
+      "structuredFieldNotAllowed": "The AI reader tried to fill a field that is not allowed here, so it was skipped.",
+      "structuredUnknownField": "The AI reader proposed a field that is not part of a customer profile, so it was skipped.",
       "localCannotReadImages": "The basic reader cannot read photos. Choose the AI reader to read this one.",
       "pdfHasNoText": "This PDF is a scan rather than text, so the basic reader found nothing in it. Choose the AI reader, or upload the page as an image.",
       "emptyFile": "This file is empty.",
@@ -422,7 +461,9 @@
         "non_ai": "Instant and free. Reads PDFs that already contain text. Cannot read a photo or a scan.",
         "ai": "Best for phone photos and scanned certificates. Sends the document to an AI provider."
       },
-      "aiNotice": "The AI reader sends this document to an outside AI provider to be read. It only runs if your workspace owner has turned on AI processing."
+      "aiNotice": "The AI reader sends this document to an outside AI provider to be read. It only runs if your workspace owner has turned on AI processing.",
+      "activeVendor": "Currently reads with: {vendor}.",
+      "aiNotConfigured": "AI reading is not set up for this workspace yet. A workspace owner can configure it in AI settings."
     }
   },
   "legal": {
@@ -525,7 +566,7 @@
       "enable": "Print name and date on the photo",
       "name": "Name",
       "date": "Date photo was taken",
-      "privacy": "The name is printed on the image only — it is not saved or sent anywhere by Assistigo."
+      "privacy": "The name is printed on the image only — it is not saved or sent anywhere by Bharatfill."
     },
     "output": {
       "title": "Result",
@@ -547,7 +588,7 @@
       "overLimit": "Could not get under the maximum size without a bigger quality loss. Check the result before using it.",
       "padded": "Extra data was added to reach the minimum size. This does not change how the image looks.",
       "downscaled": "The image was shrunk to reach the target size.",
-      "tooLargeToSave": "This file is larger than Assistigo’s prepared-file limit and cannot be saved to a customer profile. You can still download it.",
+      "tooLargeToSave": "This file is larger than Bharatfill’s prepared-file limit and cannot be saved to a customer profile. You can still download it.",
       "sheetFull": "The sheet could not fit every photo requested. Some were left out."
     },
     "grid": {
@@ -594,7 +635,7 @@
       "sheet": "Print sheet",
       "copies": "Copies",
       "copiesHint": "How many card faces to place on one 4×6 sheet.",
-      "notice": "A masked Aadhaar card shows only the last four digits, matching UIDAI’s own masked-Aadhaar format. The full number is never stored by Assistigo."
+      "notice": "A masked Aadhaar card shows only the last four digits, matching UIDAI’s own masked-Aadhaar format. The full number is never stored by Bharatfill."
     },
     "pdf": {
       "choose": "Add PDFs or photos",

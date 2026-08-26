@@ -37,11 +37,14 @@ export function ExtractionReview({
   fields,
   hasCustomer,
   canReview,
+  onSaved,
 }: {
   documentId: string;
   fields: ReviewField[];
   hasCustomer: boolean;
   canReview: boolean;
+  /** Called after a successful save, before the router refresh it triggers. */
+  onSaved?: () => void;
 }) {
   const t = useTranslations();
   const { locale } = useI18n();
@@ -92,6 +95,7 @@ export function ExtractionReview({
         return;
       }
 
+      onSaved?.();
       router.refresh();
     } catch {
       setError('errors.internal');

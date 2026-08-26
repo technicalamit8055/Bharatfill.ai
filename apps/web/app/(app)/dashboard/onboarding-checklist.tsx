@@ -60,11 +60,26 @@ export function OnboardingChecklist({
   const t = useTranslations();
   const extensionInstalled = useExtensionInstalled();
 
+  const steps = [hasCustomers, hasDocuments, extensionInstalled, false];
+  const doneCount = steps.filter(Boolean).length;
   const allDone = hasCustomers && hasDocuments && extensionInstalled;
   if (allDone) return null;
 
   return (
-    <Card title={t('onboarding.checklist.title')}>
+    <Card
+      title={t('onboarding.checklist.title')}
+      actions={
+        <span className="text-xs font-medium text-slate-500">
+          {t('onboarding.checklist.progress', { done: doneCount, total: steps.length })}
+        </span>
+      }
+    >
+      <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-brand-400 to-brand-600 transition-all duration-500"
+          style={{ width: `${(doneCount / steps.length) * 100}%` }}
+        />
+      </div>
       <ul className="divide-y divide-slate-100">
         <ChecklistRow
           done={hasCustomers}

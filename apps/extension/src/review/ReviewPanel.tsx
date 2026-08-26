@@ -300,7 +300,7 @@ export function ReviewPanel() {
               Review and fill, <span className="gradient-text">safely</span>
             </h1>
             <p className="small muted">
-              Connect your Assistigo account to fill this page from a saved customer profile.
+              Connect your Bharatfill account to fill this page from a saved customer profile.
             </p>
           </div>
 
@@ -321,9 +321,9 @@ export function ReviewPanel() {
               <ShieldIcon size={17} />
             </span>
             <div className="safety-card__body">
-              <p className="strong">Your data is safe with Assistigo</p>
+              <p className="strong">Your data is safe with Bharatfill</p>
               <p className="small muted">
-                You sign in on the Assistigo dashboard. Your password is never typed into this
+                You sign in on the Bharatfill dashboard. Your password is never typed into this
                 extension.
               </p>
             </div>
@@ -581,7 +581,7 @@ export function ReviewPanel() {
             <div className="notice notice-info">
               <ShieldIcon size={13} />
               <span>
-                Assistigo fills the fields you ticked. Check the form, complete any CAPTCHA or OTP
+                Bharatfill fills the fields you ticked. Check the form, complete any CAPTCHA or OTP
                 yourself, then press the portal&rsquo;s own submit button.
               </span>
             </div>

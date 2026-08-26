@@ -8,7 +8,12 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { AiVisionOcrProvider, cleanTranscription, visionUnreadableReason } from './ai-vision';
+import {
+  ANTHROPIC_BASE_URL,
+  AiVisionOcrProvider,
+  cleanTranscription,
+  visionUnreadableReason,
+} from './ai-vision';
 import type { OcrInput } from '../types';
 
 const encoder = new TextEncoder();
@@ -257,5 +262,177 @@ describe('cleanTranscription', () => {
 
   it('does not eat a single line that reads like a preamble', () => {
     expect(cleanTranscription('Transcription')).toBe('Transcription');
+  });
+});
+
+/** A fetch stub that replies with an Anthropic-shaped `/v1/messages` response. */
+function stubAnthropicFetch(text: string, init: { status?: number; id?: string } = {}) {
+  const calls: { url: string; body: Record<string, unknown>; headers: Record<string, string> }[] =
+    [];
+
+  const impl = vi.fn(async (url: string | URL | Request, options?: RequestInit) => {
+    calls.push({
+      url: String(url),
+      body: JSON.parse(String(options?.body ?? '{}')),
+      headers: (options?.headers ?? {}) as Record<string, string>,
+    });
+
+    const status = init.status ?? 200;
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => ({ id: init.id ?? 'msg-1', content: [{ type: 'text', text }] }),
+    } as unknown as Response;
+  });
+
+  return { impl: impl as unknown as typeof fetch, calls };
+}
+
+describe('Anthropic wire format', () => {
+  it('speaks the messages shape, not chat-completions', async () => {
+    const { impl, calls } = stubAnthropicFetch('Name: Sunita Devi');
+    const provider = new AiVisionOcrProvider({
+      apiKey: 'test-key',
+      baseUrl: ANTHROPIC_BASE_URL,
+      wireFormat: 'anthropic_messages',
+      fetchImpl: impl,
+    });
+
+    const result = await provider.extract(inputOf());
+
+    expect(calls[0]?.url).toBe('https://api.anthropic.com/v1/messages');
+    expect(calls[0]?.headers['x-api-key']).toBe('test-key');
+    expect(calls[0]?.headers.authorization).toBeUndefined();
+    expect(calls[0]?.headers['anthropic-version']).toBeTruthy();
+    expect(calls[0]?.body.system).toBeTypeOf('string');
+    expect(result.rawText).toBe('Name: Sunita Devi');
+    expect(result.providerRequestId).toBe('msg-1');
+  });
+
+  it('sends the image as base64 source data, not a data URL', async () => {
+    const { impl, calls } = stubAnthropicFetch('Name: Sunita Devi');
+    await new AiVisionOcrProvider({
+      apiKey: 'k',
+      wireFormat: 'anthropic_messages',
+      fetchImpl: impl,
+    }).extract(inputOf());
+
+    const userMessage = (calls[0]?.body.messages as { content: unknown }[])[0];
+    const parts = userMessage?.content as { type: string; source?: { media_type: string } }[];
+    const image = parts.find((part) => part.type === 'image');
+    expect(image?.source?.media_type).toBe('image/jpeg');
+  });
+
+  it('reports a rejected key the same way as the OpenAI-compatible path', async () => {
+    const { impl } = stubAnthropicFetch('', { status: 401 });
+    const provider = new AiVisionOcrProvider({
+      apiKey: 'bad-key',
+      wireFormat: 'anthropic_messages',
+      fetchImpl: impl,
+    });
+
+    await expect(provider.extract(inputOf())).rejects.toThrowError(/provider_not_configured/);
+  });
+});
+
+describe('structured mode (an organization custom prompt)', () => {
+  const CUSTOM_PROMPT = 'Extract the full name and date of birth from this Indian ID document.';
+
+  it('never mentions field keys in the system prompt when no custom prompt is set', async () => {
+    // Regression guard for the load-bearing rule this file documents: by default the model
+    // transcribes, it does not decide what a field means.
+    const { impl, calls } = stubFetch('Name: Sunita Devi');
+    await providerWith(impl).extract(inputOf());
+
+    const system = (calls[0]?.body.messages as { content: string }[])[0]?.content ?? '';
+    expect(system).not.toContain('customer.');
+  });
+
+  it('parses a structured JSON response into structuredFields, not rawText', async () => {
+    const { impl, calls } = stubFetch(
+      JSON.stringify({
+        fields: [
+          { key: 'customer.full_name', label: 'Name', value: 'Sunita Devi', confidence: 0.95 },
+          { key: 'customer.date_of_birth', label: 'DOB', value: '01/01/1990', confidence: 0.8 },
+        ],
+      }),
+    );
+
+    const provider = new AiVisionOcrProvider({
+      apiKey: 'k',
+      customPrompt: CUSTOM_PROMPT,
+      fetchImpl: impl,
+    });
+    const result = await provider.extract(inputOf());
+
+    // The organization's own prompt is what the model is asked, plus the JSON envelope
+    // instructions — never the default transcription rules.
+    const system = (calls[0]?.body.messages as { content: string }[])[0]?.content ?? '';
+    expect(system).toContain(CUSTOM_PROMPT);
+    expect(system).toContain('JSON');
+
+    expect(result.structuredFields).toHaveLength(2);
+    expect(result.structuredFields?.[0]).toMatchObject({
+      key: 'customer.full_name',
+      value: 'Sunita Devi',
+      confidence: 0.95,
+    });
+  });
+
+  it('strips a code fence the model wrapped the JSON in anyway', async () => {
+    const { impl } = stubFetch(
+      '```json\n{"fields": [{"key": "customer.full_name", "label": "Name", "value": "Amit", "confidence": 0.9}]}\n```',
+    );
+    const provider = new AiVisionOcrProvider({ apiKey: 'k', customPrompt: CUSTOM_PROMPT, fetchImpl: impl });
+
+    const result = await provider.extract(inputOf());
+    expect(result.structuredFields).toHaveLength(1);
+  });
+
+  it('drops individually malformed field entries instead of discarding every field', async () => {
+    const { impl } = stubFetch(
+      JSON.stringify({
+        fields: [
+          { key: 'customer.full_name', value: 'Amit Kumar', confidence: 0.9 },
+          { value: 'missing its key entirely' },
+          { key: 'customer.mobile', value: '9900012345', confidence: 0.7 },
+        ],
+      }),
+    );
+    const provider = new AiVisionOcrProvider({ apiKey: 'k', customPrompt: CUSTOM_PROMPT, fetchImpl: impl });
+
+    const result = await provider.extract(inputOf());
+    const keys = result.structuredFields?.map((field) => field.key);
+    expect(keys).toEqual(['customer.full_name', 'customer.mobile']);
+  });
+
+  it('reports unparsable JSON as a distinct, actionable reason rather than a crash', async () => {
+    const { impl } = stubFetch('That is not JSON at all, sorry!');
+    const provider = new AiVisionOcrProvider({ apiKey: 'k', customPrompt: CUSTOM_PROMPT, fetchImpl: impl });
+
+    const result = await provider.extract(inputOf());
+    expect(visionUnreadableReason(result)).toBe('invalid_structured_response');
+    expect(result.structuredFields).toBeUndefined();
+  });
+});
+
+describe('testConnection', () => {
+  it('reports success without touching the aiProcessingEnabled gate', async () => {
+    const { impl, calls } = stubFetch('OK');
+    const provider = new AiVisionOcrProvider({ apiKey: 'k', fetchImpl: impl });
+
+    const result = await provider.testConnection();
+
+    expect(result).toEqual({ ok: true });
+    // No `input.aiProcessingEnabled` exists for a connectivity check — it must not be required.
+    expect(calls).toHaveLength(1);
+  });
+
+  it('reports a failure reason instead of throwing', async () => {
+    const { impl } = stubFetch('', { status: 401 });
+    const provider = new AiVisionOcrProvider({ apiKey: 'bad', fetchImpl: impl });
+
+    const result = await provider.testConnection();
+    expect(result.ok).toBe(false);
   });
 });

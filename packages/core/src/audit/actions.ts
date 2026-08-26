@@ -87,6 +87,12 @@ export const AUDIT_ACTIONS = define([
     description: 'Security settings changed',
   },
   {
+    action: 'organization.ai_settings_updated',
+    entityType: 'organization',
+    sensitivity: 'critical',
+    description: 'AI vendor settings changed',
+  },
+  {
     action: 'organization.deleted',
     entityType: 'organization',
     sensitivity: 'critical',

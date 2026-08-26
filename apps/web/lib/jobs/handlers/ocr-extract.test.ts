@@ -17,16 +17,32 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= 'http://127.0.0.1:54321';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= 'test-anon-key';
 process.env.OCR_PROVIDER = 'mock';
 
-const { handleOcrExtract } = await import('./ocr-extract');
+process.env.FIELD_ENCRYPTION_KEY ??= Buffer.from('0'.repeat(32)).toString('base64');
+
+const { handleOcrExtract, resolveAiProviderConfig } = await import('./ocr-extract');
+const { encryptField } = await import('@assistigo/core/privacy/crypto');
 
 type Captured = { table: string; op: 'upsert' | 'update'; payload: Record<string, unknown> };
 
 /**
  * A stub Supabase client covering exactly the calls this handler makes. Deliberately small:
  * a general-purpose fake would be a second implementation to keep in sync.
+ *
+ * `organization_ai_settings` defaults to no row (`null`) — no organization in this suite has
+ * configured its own vendor unless a test explicitly says so — and `organizations` defaults to
+ * an empty settings blob, matching a fresh organization that has never opted into AI processing.
  */
-function stubClient(document: Record<string, unknown> | null, fileText: string) {
+function stubClient(
+  document: Record<string, unknown> | null,
+  fileText: string,
+  options: {
+    orgSettings?: Record<string, unknown>;
+    aiVendorRow?: Record<string, unknown> | null;
+  } = {},
+) {
   const captured: Captured[] = [];
+  const orgSettings = options.orgSettings ?? {};
+  const aiVendorRow = options.aiVendorRow ?? null;
 
   const client = {
     from(table: string) {
@@ -34,11 +50,16 @@ function stubClient(document: Record<string, unknown> | null, fileText: string) 
         select: () => builder,
         eq: () => builder,
         is: () => builder,
-        maybeSingle: () =>
-          Promise.resolve({
-            data: table === 'documents' ? document : { settings: {} },
-            error: null,
-          }),
+        maybeSingle: () => {
+          if (table === 'documents') return Promise.resolve({ data: document, error: null });
+          if (table === 'organizations') {
+            return Promise.resolve({ data: { settings: orgSettings }, error: null });
+          }
+          if (table === 'organization_ai_settings') {
+            return Promise.resolve({ data: aiVendorRow, error: null });
+          }
+          return Promise.resolve({ data: null, error: null });
+        },
         update(payload: Record<string, unknown>) {
           captured.push({ table, op: 'update', payload });
           return { eq: () => Promise.resolve({ error: null }) };
@@ -216,5 +237,58 @@ describe('handleOcrExtract reading method', () => {
     expect(result).toEqual({ ok: true });
     const warnings = JSON.stringify(extractionRow(captured)?.warnings ?? []);
     expect(warnings).toContain('AI_PROVIDER_NOT_CONFIGURED');
+  });
+});
+
+describe('resolveAiProviderConfig', () => {
+  it('falls back to the deployment-wide environment config when the organization has none', async () => {
+    const { client } = stubClient(documentRow(), aadhaarText);
+
+    const { aiProviderName, providerConfig } = await resolveAiProviderConfig(client, 'org-1');
+
+    expect(aiProviderName).toBe('none'); // OCR_AI_PROVIDER is unset in this suite
+    expect(providerConfig.apiKey).toBeUndefined();
+  });
+
+  it("prefers the organization's own configured vendor over the environment", async () => {
+    const encryptedKey = encryptField('sk-org-secret', 'org-1:ai_vendor_api_key');
+    const { client } = stubClient(documentRow(), aadhaarText, {
+      aiVendorRow: {
+        provider: 'openai',
+        wire_format: 'openai_compatible',
+        base_url: 'https://api.openai.com',
+        model: 'gpt-4o',
+        api_key_encrypted: encryptedKey,
+        custom_prompt: 'Extract full name and DOB.',
+      },
+    });
+
+    const { aiProviderName, providerConfig } = await resolveAiProviderConfig(client, 'org-1');
+
+    expect(aiProviderName).toBe('org_ai_vendor');
+    expect(providerConfig.apiKey).toBe('sk-org-secret');
+    expect(providerConfig.baseUrl).toBe('https://api.openai.com');
+    expect(providerConfig.model).toBe('gpt-4o');
+    expect(providerConfig.wireFormat).toBe('openai_compatible');
+    expect(providerConfig.customPrompt).toBe('Extract full name and DOB.');
+    expect(providerConfig.name).toBe('openai');
+  });
+
+  it('reports "not configured" rather than crashing when the stored key cannot be decrypted', async () => {
+    const { client } = stubClient(documentRow(), aadhaarText, {
+      aiVendorRow: {
+        provider: 'deepseek',
+        wire_format: 'openai_compatible',
+        base_url: null,
+        model: null,
+        api_key_encrypted: 'v1.not.a.real-ciphertext',
+        custom_prompt: null,
+      },
+    });
+
+    const { aiProviderName, providerConfig } = await resolveAiProviderConfig(client, 'org-1');
+
+    expect(aiProviderName).toBe('org_ai_vendor');
+    expect(providerConfig.apiKey).toBeUndefined();
   });
 });

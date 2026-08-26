@@ -33,7 +33,7 @@ type ExternallyConnectable = {
 };
 
 const NOT_INSTALLED =
-  'The Assistigo extension did not answer. Check that it is installed and enabled, then try again.';
+  'The Bharatfill extension did not answer. Check that it is installed and enabled, then try again.';
 
 export function ConnectExtension({
   extensionId,
@@ -99,7 +99,7 @@ export function ConnectExtension({
     return (
       <Card>
         <Alert tone="success" title="Extension connected">
-          Assistigo is now linked to <strong>{organizationName}</strong>. Close this tab, open the
+          Bharatfill is now linked to <strong>{organizationName}</strong>. Close this tab, open the
           form you want to fill, then use the extension&rsquo;s side panel.
         </Alert>
       </Card>

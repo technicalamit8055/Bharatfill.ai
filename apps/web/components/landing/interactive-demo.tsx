@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AssistigoLogo } from './assistigo-logo';
+import { BharatfillLogo } from './bharatfill-logo';
 
 interface Profile {
   id: string;
@@ -83,7 +83,7 @@ export function InteractiveDemo() {
             Interactive Experience
           </h2>
           <p className="mt-2 text-3xl font-extrabold text-slate-900 sm:text-5xl">
-            See Assistigo AI in Action
+            See Bharatfill AI in Action
           </p>
           <p className="mt-4 text-base text-slate-600 sm:text-lg">
             Experience how the extension detects form fields and fills them automatically with complete customer profile mapping.
@@ -323,9 +323,9 @@ export function InteractiveDemo() {
               {/* Right Column: Extension Panel */}
               <div className="lg:col-span-4 p-6 bg-slate-50 flex flex-col justify-between">
                 <div>
-                  {/* Extension Header with Official Assistigo Logo */}
+                  {/* Extension Header with Official Bharatfill Logo */}
                   <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                    <AssistigoLogo height={80} />
+                    <BharatfillLogo height={80} />
                     <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
                       ON
                     </span>
@@ -416,7 +416,7 @@ export function InteractiveDemo() {
             {/* The New Way */}
             <div className="rounded-2xl border-2 border-blue-400 bg-gradient-to-b from-blue-50/70 to-white p-6 sm:p-8 relative shadow-lg shadow-blue-500/10">
               <div className="inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800 mb-4 border border-blue-200">
-                ⚡ THE NEW WAY (Assistigo AI)
+                ⚡ THE NEW WAY (Bharatfill AI)
               </div>
               <h3 className="text-xl font-bold text-slate-900">3 Seconds 1-Click Autofill</h3>
               <ul className="mt-6 space-y-4 text-sm text-slate-800 font-medium">

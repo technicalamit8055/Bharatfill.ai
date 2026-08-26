@@ -12,6 +12,7 @@ import { isDocumentType, type AllowedUploadMimeType } from '@assistigo/core';
 import { downloadObject } from '../../documents/storage';
 import { serverEnv } from '../../env';
 import { logger } from '../../api/logger';
+import { loadOrgAiSettings } from '../../ai/vendor-settings';
 import type { AssistigoSupabaseClient } from '../../supabase/server';
 import type { DocumentRow, Json, OrganizationRow } from '../../supabase/database.types';
 
@@ -38,17 +39,45 @@ const payloadSchema = z.object({
 export type JobHandlerResult = { ok: true } | { ok: false; error: string };
 
 /**
- * The AI reader's endpoint and credentials, assembled from the environment here rather than in
- * `@assistigo/ai` — that package is pure domain logic and deliberately has no access to
- * secrets. `undefined` when nothing is configured, which the pipeline reports to the operator
- * as "AI reading is not set up" instead of failing the document.
+ * The AI reader's endpoint and credentials.
+ *
+ * An organization's own configured vendor (`organization_ai_settings`) takes priority over the
+ * deployment-wide, environment-configured one — that is the whole point of letting an owner
+ * bring their own key and model (docs/AI_PIPELINE.md §2). Falling back to the environment
+ * config when an organization has never configured one keeps every existing single-tenant
+ * deployment working exactly as it did before this feature existed.
+ *
+ * Assembled here rather than in `@assistigo/ai` — that package is pure domain logic and
+ * deliberately has no access to secrets, and no database access at all.
  */
-function aiProviderConfig(): OcrProviderConfig {
+export async function resolveAiProviderConfig(
+  supabase: AssistigoSupabaseClient,
+  organizationId: string,
+): Promise<{ aiProviderName: string; providerConfig: OcrProviderConfig }> {
+  const orgSettings = await loadOrgAiSettings(supabase, organizationId);
+
+  if (orgSettings) {
+    return {
+      aiProviderName: 'org_ai_vendor',
+      providerConfig: {
+        apiKey: orgSettings.apiKey ?? undefined,
+        baseUrl: orgSettings.baseUrl ?? undefined,
+        model: orgSettings.model ?? undefined,
+        wireFormat: orgSettings.wireFormat,
+        customPrompt: orgSettings.customPrompt ?? undefined,
+        name: orgSettings.provider,
+      },
+    };
+  }
+
   const env = serverEnv();
   return {
-    apiKey: env.OCR_AI_PROVIDER === 'deepseek' ? env.DEEPSEEK_API_KEY : env.ANTHROPIC_API_KEY,
-    ...(env.OCR_AI_BASE_URL === undefined ? {} : { baseUrl: env.OCR_AI_BASE_URL }),
-    ...(env.OCR_AI_MODEL === undefined ? {} : { model: env.OCR_AI_MODEL }),
+    aiProviderName: env.OCR_AI_PROVIDER,
+    providerConfig: {
+      apiKey: env.OCR_AI_PROVIDER === 'deepseek' ? env.DEEPSEEK_API_KEY : env.ANTHROPIC_API_KEY,
+      ...(env.OCR_AI_BASE_URL === undefined ? {} : { baseUrl: env.OCR_AI_BASE_URL }),
+      ...(env.OCR_AI_MODEL === undefined ? {} : { model: env.OCR_AI_MODEL }),
+    },
   };
 }
 
@@ -85,6 +114,10 @@ export async function handleOcrExtract(
 
   try {
     const bytes = await downloadObject(supabase, document.storage_path, document.storage_bucket);
+    const { aiProviderName, providerConfig } = await resolveAiProviderConfig(
+      supabase,
+      document.organization_id,
+    );
 
     const { extraction, rawText, mode } = await runExtraction({
       bytes,
@@ -96,10 +129,11 @@ export async function handleOcrExtract(
           : null,
       extractionMode,
       providerName: serverEnv().OCR_PROVIDER,
-      // `none` reaches the pipeline as a name it will not run, which is how "AI reading is off
-      // for this deployment" becomes a warning rather than a crash.
-      aiProviderName: serverEnv().OCR_AI_PROVIDER,
-      providerConfig: aiProviderConfig(),
+      // A name the pipeline will not be able to run (`none`, or `org_ai_vendor` with no key)
+      // reaches it as a name it refuses, which is how "AI reading is not set up" becomes a
+      // warning rather than a crash.
+      aiProviderName,
+      providerConfig,
       aiProcessingEnabled,
     });
 

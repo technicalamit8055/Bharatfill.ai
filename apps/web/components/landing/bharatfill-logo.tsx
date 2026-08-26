@@ -6,7 +6,7 @@ interface LogoProps {
   height?: number;
 }
 
-export function AssistigoLogo({
+export function BharatfillLogo({
   className = '',
   height = 80,
 }: LogoProps) {

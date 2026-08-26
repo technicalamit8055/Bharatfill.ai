@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { AssistigoLogo } from './assistigo-logo';
+import { BharatfillLogo } from './bharatfill-logo';
 
 const NAV_LINKS = [
   { href: '#features', label: 'Features' },
@@ -20,8 +20,8 @@ export function Header() {
       <div className="mx-auto flex h-20 sm:h-24 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand Logo */}
         <Link href="/" className="group flex items-center shrink-0 py-1">
-          <AssistigoLogo height={72} className="sm:hidden" />
-          <AssistigoLogo height={96} className="hidden sm:flex" />
+          <BharatfillLogo height={72} className="sm:hidden" />
+          <BharatfillLogo height={96} className="hidden sm:flex" />
         </Link>
 
         {/* Navigation Links */}

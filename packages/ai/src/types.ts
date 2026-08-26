@@ -42,6 +42,15 @@ export type OcrResult = {
   blocks: OcrBlock[];
   /** Document-level confidence, 0–1, or null when the provider does not report one. */
   confidence: number | null;
+  /**
+   * Present only when the provider ran in structured mode — an organization's custom prompt
+   * asked the model to map document content to `customer.*` fields directly, instead of just
+   * transcribing the page. When set, the pipeline builds fields from this instead of running the
+   * label-matching rules engine over `blocks`. Either way, every value still passes through the
+   * same safety gate (./safety.ts) and the same confidence/review rules before a human ever sees
+   * it — a custom prompt changes how a field is *proposed*, never whether it is checked.
+   */
+  structuredFields?: readonly StructuredExtractedField[] | null;
 };
 
 export type OcrInput = {
@@ -75,15 +84,69 @@ export interface OcrProvider {
  * no environment access — the web app owns the secrets and hands over only what a provider
  * needs (see apps/web/lib/jobs/handlers/ocr-extract.ts).
  */
+export const AI_WIRE_FORMATS = ['openai_compatible', 'anthropic_messages'] as const;
+export type AiWireFormat = (typeof AI_WIRE_FORMATS)[number];
+
 export type OcrProviderConfig = {
   apiKey?: string;
-  /** OpenAI-compatible base URL, without a trailing slash. */
+  /** The vendor's base URL, without a trailing slash. */
   baseUrl?: string;
   model?: string;
   /** Injection point for tests; defaults to global `fetch`. */
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  /** Which vendor wire shape to speak. Defaults to the OpenAI-compatible chat-completions shape. */
+  wireFormat?: AiWireFormat;
+  /**
+   * An organization-supplied prompt that replaces the default transcription instructions and
+   * asks the model to map the document to `customer.*` fields directly (structured mode), rather
+   * than transcribing it for the rules engine to parse. Omitted: the provider only transcribes.
+   */
+  customPrompt?: string;
+  /** Overrides the recorded provider name — e.g. an organization's chosen vendor label. */
+  name?: string;
 };
+
+/**
+ * One field as a vendor's structured-mode response proposes it — before normalisation, before
+ * review-reason assignment, and before the safety gate. Never trusted as final on its own.
+ */
+export type StructuredExtractedField = {
+  key: string;
+  label: string;
+  value: string;
+  confidence: number;
+};
+
+export const structuredExtractedFieldSchema = z.object({
+  key: z.string().min(1).max(120),
+  label: z.string().max(200).catch(''),
+  value: z.string().max(2000),
+  confidence: z.number().min(0).max(1).catch(0.75),
+});
+
+/**
+ * The JSON shape a structured-mode prompt asks the model to return.
+ *
+ * Each field is validated independently rather than the array as a whole: a model that gets one
+ * field wrong (a missing `value`, an extra field it invented badly) should not cost every other
+ * field it read correctly. `fields` is capped at 200 raw entries before validation so a
+ * pathological response cannot make this loop unbounded.
+ */
+export const structuredExtractionResponseSchema = z.object({
+  fields: z
+    .array(z.unknown())
+    .max(200)
+    .catch([])
+    .transform((items) =>
+      items
+        .map((item) => structuredExtractedFieldSchema.safeParse(item))
+        .filter(
+          (result): result is z.SafeParseSuccess<StructuredExtractedField> => result.success,
+        )
+        .map((result) => result.data),
+    ),
+});
 
 // ---------------------------------------------------------------------------
 // Extraction modes (docs/AI_PIPELINE.md §2)

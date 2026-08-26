@@ -284,3 +284,70 @@ describe('an escalation that finds nothing still says so', () => {
     expect(codes(extraction.warnings)).toContain('AI_RETURNED_NO_TEXT');
   });
 });
+
+describe('structured mode: an organization vendor with a custom prompt', () => {
+  function stubStructuredVision(jsonText: string) {
+    const impl = vi.fn(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'req-1', choices: [{ message: { content: jsonText } }] }),
+        }) as unknown as Response,
+    );
+    return impl as unknown as typeof fetch;
+  }
+
+  function withOrgVendor(
+    impl: typeof fetch,
+    customPrompt: string,
+    overrides: Partial<RunExtractionInput> = {},
+  ): RunExtractionInput {
+    return withAi(impl, {
+      extractionMode: 'ai',
+      aiProviderName: 'org_ai_vendor',
+      providerConfig: { apiKey: 'org-key', customPrompt, fetchImpl: impl },
+      ...overrides,
+    });
+  }
+
+  it('builds fields from the vendor JSON instead of the label-matching rules engine', async () => {
+    const impl = stubStructuredVision(
+      JSON.stringify({
+        fields: [{ key: 'customer.full_name', label: 'Name', value: 'Amit Kumar', confidence: 0.9 }],
+      }),
+    );
+
+    const { extraction, mode } = await runExtraction(withOrgVendor(impl, 'Extract the full name.'));
+
+    expect(mode).toBe('ai');
+    expect(extraction.fields).toHaveLength(1);
+    expect(extraction.fields[0]).toMatchObject({ key: 'customer.full_name', value: 'Amit Kumar' });
+  });
+
+  it('still masks an Aadhaar-like number the vendor put in a field value', async () => {
+    const impl = stubStructuredVision(
+      JSON.stringify({
+        fields: [
+          { key: 'customer.address.printed', value: 'ID 123456789012, Ghazipur', confidence: 0.9 },
+        ],
+      }),
+    );
+
+    const { extraction, rawText } = await runExtraction(withOrgVendor(impl, 'Extract the address.'));
+
+    expect(containsAadhaarLikeNumber(JSON.stringify(extraction.fields))).toBe(false);
+    expect(containsAadhaarLikeNumber(rawText)).toBe(false);
+  });
+
+  it('still yields to the organization opt-in gate, exactly like the transcribing path', async () => {
+    const impl = stubStructuredVision(JSON.stringify({ fields: [] }));
+
+    const { extraction, mode } = await runExtraction(
+      withOrgVendor(impl, 'Extract the full name.', { aiProcessingEnabled: false }),
+    );
+
+    expect(mode).toBe('non_ai');
+    expect(codes(extraction.warnings)).toContain('AI_PROCESSING_NOT_ENABLED');
+  });
+});
