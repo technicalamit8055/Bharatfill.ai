@@ -226,6 +226,12 @@ export const AUDIT_ACTIONS = define([
     sensitivity: 'sensitive',
     description: 'Application deleted',
   },
+  {
+    action: 'application.document_updated',
+    entityType: 'application_document',
+    sensitivity: 'normal',
+    description: 'Application document checklist updated',
+  },
 
   // --- billing -------------------------------------------------------------
   {

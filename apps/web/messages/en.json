@@ -221,13 +221,243 @@
       }
     }
   },
+  "applications": {
+    "title": "Applications",
+    "new": "New application",
+    "searchPlaceholder": "Search by title, portal, customer name or reference number",
+    "filters": {
+      "all": "All",
+      "open": "Open",
+      "pendingDocuments": "Pending documents",
+      "submitted": "Submitted",
+      "completed": "Completed"
+    },
+    "category": "Category",
+    "categories": {
+      "government": "Government",
+      "recruitment": "Recruitment",
+      "scholarship": "Scholarship",
+      "education": "Education",
+      "banking": "Banking",
+      "certificate": "Certificate",
+      "utility": "Utility",
+      "other": "Other"
+    },
+    "empty": "No applications match this search.",
+    "emptyFirst": "No applications yet.",
+    "table": {
+      "title": "Application",
+      "customer": "Customer",
+      "portal": "Portal",
+      "deadline": "Deadline",
+      "assignedTo": "Assigned to",
+      "payment": "Payment"
+    },
+    "deadlineOverdue": "Overdue",
+    "deadlineToday": "Due today",
+    "deadlineNone": "No deadline",
+    "payment": {
+      "unpaid": "Unpaid",
+      "paid": "Paid",
+      "refunded": "Refunded",
+      "none": "—"
+    },
+    "form": {
+      "customer": "Customer",
+      "customerHint": "Search and select the customer this application is for.",
+      "portalAdapter": "Portal / form template",
+      "portalAdapterNone": "None — enter details manually",
+      "titleLabel": "Title",
+      "titlePlaceholder": "e.g. Caste certificate application",
+      "category": "Category",
+      "deadline": "Deadline",
+      "fee": "Fee charged (INR)",
+      "paymentStatus": "Payment status",
+      "assignedTo": "Assigned operator",
+      "assignedToNone": "Unassigned",
+      "notes": "Notes",
+      "portalName": "Portal name",
+      "formName": "Form name",
+      "portalUrl": "Portal URL",
+      "create": "Create application",
+      "creating": "Creating…"
+    },
+    "detail": {
+      "customerCard": "Customer",
+      "viewProfile": "View profile",
+      "portalCard": "Portal & tracking",
+      "referenceNumber": "Portal reference number",
+      "referenceNumberNone": "Not set yet",
+      "openPortal": "Open portal",
+      "fee": "Fee charged",
+      "feeNone": "Not set",
+      "checklist": "Document checklist",
+      "checklistEmpty": "No documents required yet.",
+      "addRequirement": "Add requirement",
+      "requirementKey": "Requirement key",
+      "requirementLabel": "Label",
+      "openInDocumentTools": "Open in document tools",
+      "statusHistory": "Status history",
+      "statusHistoryEmpty": "No status changes recorded yet.",
+      "linkedFillSessions": "Linked fill sessions",
+      "linkedFillSessionsEmpty": "No fill sessions linked to this application yet.",
+      "notes": "Notes",
+      "edit": "Edit details",
+      "editSaved": "Application updated.",
+      "delete": "Delete application",
+      "confirmDelete": "Delete this application? This can be reversed by a manager.",
+      "markAs": "Mark as {status}",
+      "statusNote": "Note (optional)",
+      "statusNotePlaceholder": "Add context for this status change"
+    },
+    "documentStatus": {
+      "required": "Required",
+      "attached": "Attached",
+      "missing": "Missing",
+      "rejected": "Rejected"
+    }
+  },
+  "formLibrary": {
+    "title": "Form library",
+    "subtitle": "Supported government and recruitment portals, their mapped fields and document requirements.",
+    "searchPlaceholder": "Search by portal, form title or region",
+    "region": "Region",
+    "regionAll": "All regions",
+    "status": {
+      "draft": "Draft",
+      "testing": "Testing",
+      "active": "Active",
+      "deprecated": "Deprecated"
+    },
+    "healthLabel": "Fill success rate",
+    "healthUnknown": "Not enough data yet",
+    "viewSpecs": "View specs",
+    "launchPortal": "Launch portal",
+    "createApplication": "Create application",
+    "empty": "No forms match this search.",
+    "reportUnsupported": "Report an unsupported form",
+    "reportModal": {
+      "title": "Report an unsupported form",
+      "help": "Tell us about a portal or form Bharatfill doesn't support yet, so we can add it.",
+      "portalUrl": "Portal URL",
+      "formName": "Form name",
+      "notes": "What happened?",
+      "notesPlaceholder": "e.g. fields were not detected, or the portal isn't recognised at all",
+      "submit": "Send report",
+      "submitted": "Thanks — your report has been sent.",
+      "cancel": "Cancel"
+    },
+    "detail": {
+      "back": "Form library",
+      "urlPatterns": "Supported URL patterns",
+      "fieldMappings": "Field mapping",
+      "fieldLabel": "Field",
+      "customerField": "Customer profile field",
+      "documentRequirements": "Required documents",
+      "documentRequirementLabel": "Document",
+      "notes": "Portal notes",
+      "knownIssues": "Known issues",
+      "lastVerified": "Last verified",
+      "neverVerified": "Not verified yet",
+      "version": "Version",
+      "openDocumentTools": "Open in document tools"
+    }
+  },
+  "fillSessions": {
+    "title": "Fill sessions",
+    "subtitle": "Audit log of browser extension form detections and autofill activity.",
+    "summary": {
+      "totalSessions": "Total sessions",
+      "fieldsFilled": "Fields autofilled",
+      "reviewAccuracy": "Review accuracy",
+      "timeSaved": "Est. time saved"
+    },
+    "searchPlaceholder": "Search by portal, page title or customer",
+    "status": {
+      "detected": "Detected",
+      "reviewed": "Reviewed",
+      "filled": "Filled",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "table": {
+      "when": "When",
+      "operator": "Operator",
+      "customer": "Customer",
+      "portal": "Portal / page",
+      "fields": "Fields",
+      "safety": "Safety",
+      "application": "Application"
+    },
+    "fieldsRatio": "{filled} / {total} fields filled",
+    "fieldsSkipped": "{count} skipped",
+    "safety": {
+      "captcha": "CAPTCHA skipped",
+      "otp": "OTP skipped",
+      "payment": "Payment skipped"
+    },
+    "empty": "No fill sessions match this search.",
+    "emptyFirst": "No fill sessions recorded yet.",
+    "createApplication": "Create application",
+    "viewApplication": "View application",
+    "detail": {
+      "back": "Fill sessions",
+      "pageTitle": "Page",
+      "origin": "Site",
+      "extensionVersion": "Extension version",
+      "errorSummary": "Error",
+      "fieldsTitle": "Fields",
+      "fieldLabel": "Field",
+      "mappedField": "Mapped to",
+      "mappingSource": "Source",
+      "confidence": "Confidence",
+      "preview": "Proposed value",
+      "action": "Result",
+      "safetyClass": "Safety",
+      "notMapped": "Not mapped",
+      "convertToApplication": "Convert to tracked application",
+      "converted": "Application created from this session."
+    },
+    "mappingSource": {
+      "adapter": "Portal adapter",
+      "org_custom": "Organization mapping",
+      "history": "Previous fill",
+      "dictionary": "Field dictionary",
+      "ai": "AI-assisted",
+      "manual": "Manual"
+    },
+    "fieldAction": {
+      "filled": "Filled",
+      "skipped": "Skipped",
+      "edited": "Edited",
+      "failed": "Failed"
+    },
+    "safetyClass": {
+      "normal": "Normal",
+      "captcha": "CAPTCHA",
+      "otp": "OTP",
+      "payment": "Payment",
+      "submit": "Submit control"
+    }
+  },
   "audit": {
     "actions": {
       "customer.created": "Customer created",
       "customer.updated": "Customer updated",
       "customer.deleted": "Customer deleted",
       "customer.sensitive_revealed": "Sensitive field revealed",
-      "customer.exported": "Customer data exported"
+      "customer.exported": "Customer data exported",
+      "fill_session.started": "Form detection started",
+      "fill_session.completed": "Fields filled on a form",
+      "form_report.created": "Unsupported form reported",
+      "adapter.updated": "Portal adapter changed",
+      "application.created": "Application created",
+      "application.updated": "Application updated",
+      "application.status_changed": "Application status changed",
+      "application.deleted": "Application deleted",
+      "application.document_updated": "Application document checklist updated",
+      "billing.plan_changed": "Plan changed",
+      "billing.webhook_processed": "Billing webhook processed"
     }
   },
   "settings": {
@@ -315,7 +545,61 @@
       "storage": "Your plan's storage limit has been reached.",
       "payment_required": "Your subscription needs attention before you can continue.",
       "feature_not_in_plan": "This feature is not part of your current plan."
-    }
+    },
+    "status": {
+      "active": "Active",
+      "trialing": "Trial",
+      "past_due": "Past due",
+      "cancelled": "Cancelled",
+      "incomplete": "Incomplete"
+    },
+    "renewsOn": "Renews on {date}",
+    "cancelledAtPeriodEnd": "Cancels at the end of this period",
+    "plans": {
+      "title": "Compare plans",
+      "monthly": "/month",
+      "free": "Free",
+      "currentPlan": "Current plan",
+      "upgradePlan": "Upgrade",
+      "changePlan": "Change plan",
+      "downgradePlan": "Downgrade",
+      "featureAdapterLibrary": "Form adapter library",
+      "featureAdvancedDocumentTools": "Advanced PDF & photo tools",
+      "featureBulkImport": "Bulk import",
+      "featureSupport": "Support",
+      "support": {
+        "community": "Community",
+        "email": "Email",
+        "priority": "Priority"
+      },
+      "seatsIncluded": "{count} seat(s) included",
+      "fillsIncluded": "{count} fills / month",
+      "aiExtractionsIncluded": "{count} AI extractions / month",
+      "customersIncluded": "Up to {count} customers",
+      "storageIncluded": "{amount} storage"
+    },
+    "upgradeModal": {
+      "title": "Change plan",
+      "confirm": "Confirm change to {plan}",
+      "confirming": "Updating…",
+      "mockNote": "This workspace is running on Bharatfill's mock billing provider — the plan change applies instantly, no payment is collected.",
+      "success": "Plan updated to {plan}.",
+      "cancel": "Cancel"
+    },
+    "invoices": {
+      "title": "Invoices & usage history",
+      "empty": "No billing history yet.",
+      "period": "Billing period",
+      "plan": "Plan",
+      "status": "Status",
+      "amount": "Amount",
+      "download": "Download (coming soon)"
+    },
+    "indiaNote": {
+      "title": "Billing in India",
+      "body": "GST invoices are issued for every paid plan. UPI, card and net banking are supported through our payment partner at checkout."
+    },
+    "usageWarning": "You are close to your plan's limit for {item}."
   },
   "validation": {
     "name_required": "Please enter the full name.",
@@ -359,7 +643,14 @@
     "ocr_provider_timeout": "The document reader took too long to respond. Please try again.",
     "ocr_provider_failed": "The document reader could not be reached. Please try again.",
     "ai_processing_not_enabled": "AI processing is off for this workspace. A workspace owner can turn it on in settings.",
-    "file_size_mismatch": "The uploaded file did not match what was expected, so it was not accepted."
+    "file_size_mismatch": "The uploaded file did not match what was expected, so it was not accepted.",
+    "invalid_status_transition": "That status change isn't allowed from the application's current status.",
+    "application_not_found": "We could not find that application.",
+    "application_document_not_found": "We could not find that checklist item.",
+    "fill_session_not_found": "We could not find that fill session.",
+    "portal_adapter_not_found": "We could not find that form.",
+    "plan_not_found": "That plan is not available.",
+    "subscription_not_found": "This workspace does not have a billing subscription yet."
   },
   "privacy": {
     "sensitiveNotice": "Sensitive value. Revealing it is recorded in the audit log.",
@@ -388,6 +679,11 @@
     "view": "View",
     "reprocess": "Read again",
     "deleteConfirm": "Delete this document? The stored file is removed permanently.",
+    "selectAll": "Select all documents",
+    "selectedCount": "{count} selected",
+    "bulkDelete": "Delete ({count})",
+    "bulkDeleteConfirm": "Delete {count} documents? The stored files are removed permanently.",
+    "bulkDeleteFailed": "Some documents could not be deleted. Please try again.",
     "processingTitle": "Reading the document",
     "processingHelp": "This usually takes a few seconds. This page updates on its own.",
     "failedTitle": "Could not read this document",

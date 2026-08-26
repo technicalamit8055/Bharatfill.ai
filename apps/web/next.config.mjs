@@ -3,7 +3,13 @@ const nextConfig = {
   reactStrictMode: true,
 
   // Workspace packages ship TypeScript source, so Next compiles them in-place.
-  transpilePackages: ['@assistigo/core', '@assistigo/ui', '@assistigo/ai', '@assistigo/document-tools'],
+  transpilePackages: [
+    '@assistigo/core',
+    '@assistigo/ui',
+    '@assistigo/ai',
+    '@assistigo/document-tools',
+    '@assistigo/form-engine',
+  ],
 
   typescript: {
     // Type errors fail the build. `npm run typecheck` is the fast local loop.

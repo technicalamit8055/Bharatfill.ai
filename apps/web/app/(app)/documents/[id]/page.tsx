@@ -20,6 +20,7 @@ import type {
   DocumentRow,
 } from '@/lib/supabase/database.types';
 import { AutoRefreshWhileProcessing } from '@/components/documents/auto-refresh-while-processing';
+import { ExtractionWarningsAlert } from '@/components/documents/extraction-warnings';
 import { ExtractionReview, type ReviewField } from './extraction-review';
 import { DocumentActions } from './document-actions';
 
@@ -152,15 +153,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         </dl>
       </Card>
 
-      {warnings.length > 0 ? (
-        <Alert tone="warning" title={t('documents.warnings.title')}>
-          <ul className="list-inside list-disc space-y-1">
-            {warnings.map((warning) => (
-              <li key={`${warning.code}-${warning.fieldKey ?? ''}`}>{t(warning.messageKey)}</li>
-            ))}
-          </ul>
-        </Alert>
-      ) : null}
+      <ExtractionWarningsAlert warnings={warnings} title={t('documents.warnings.title')} />
 
       {document.status === 'processing' ? (
         <>

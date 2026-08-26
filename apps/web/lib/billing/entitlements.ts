@@ -1,14 +1,26 @@
 import 'server-only';
 
 import type { EntitlementContext, UsageEventType } from '@assistigo/core';
+import type { AssistigoSupabaseClient } from '../supabase/server';
 import type { RequestContext } from '../api/context';
 import { logger } from '../api/logger';
+
+/**
+ * The slice of a request/page's context this needs — narrower than `RequestContext` so a
+ * Server Component (which has a `PageSession`, not a `RequestContext`) can call this too.
+ */
+export type EntitlementSource = {
+  supabase: AssistigoSupabaseClient;
+  organization: { id: string; plan_code: string };
+};
 
 /**
  * Loads the numbers the entitlement checks need.
  * Master spec §22.3 — limits are enforced server-side, never in the UI alone.
  */
-export async function loadEntitlementContext(context: RequestContext): Promise<EntitlementContext> {
+export async function loadEntitlementContext(
+  context: EntitlementSource,
+): Promise<EntitlementContext> {
   const periodStart = new Date();
   periodStart.setUTCDate(1);
   periodStart.setUTCHours(0, 0, 0, 0);

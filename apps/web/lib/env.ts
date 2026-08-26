@@ -45,6 +45,13 @@ const serverSchema = z.object({
    */
   JOB_RUNNER_SECRET: z.string().min(16).optional(),
   /**
+   * Shared secret the configured billing provider must present on `POST /api/billing/webhook`.
+   * That route runs with the service-role client, so — same as `JOB_RUNNER_SECRET` — it fails
+   * closed: unset means the endpoint refuses every request rather than processing an
+   * unauthenticated billing event.
+   */
+  BILLING_WEBHOOK_SECRET: z.string().min(16).optional(),
+  /**
    * Whether `POST /api/documents/:id/process` runs that document's extraction job in-request
    * instead of leaving it for a scheduler.
    *

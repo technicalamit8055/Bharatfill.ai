@@ -18,6 +18,8 @@
  * docs/ROADMAP.md under Phase 1.
  */
 
+import type { ApplicationDocumentStatus, ApplicationStatus } from '@assistigo/core';
+
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
 
 type Timestamps = {
@@ -196,6 +198,165 @@ export type DocumentDerivativeRow = {
   metadata: Json;
   created_by: string | null;
   created_at: string;
+};
+
+export type ApplicationCategory =
+  | 'government'
+  | 'recruitment'
+  | 'scholarship'
+  | 'education'
+  | 'banking'
+  | 'certificate'
+  | 'utility'
+  | 'other';
+
+export type ApplicationRow = Timestamps & {
+  id: string;
+  organization_id: string;
+  customer_id: string;
+  portal_adapter_id: string | null;
+  title: string;
+  category: ApplicationCategory;
+  status: ApplicationStatus;
+  portal_name: string | null;
+  form_name: string | null;
+  portal_url: string | null;
+  portal_reference_number: string | null;
+  deadline_at: string | null;
+  amount_charged: number | null;
+  payment_status: 'unpaid' | 'paid' | 'refunded' | null;
+  assigned_to: string | null;
+  notes: string | null;
+  created_by: string | null;
+  deleted_at: string | null;
+};
+
+export type ApplicationStatusEventRow = {
+  id: string;
+  organization_id: string;
+  application_id: string;
+  old_status: ApplicationStatus | null;
+  new_status: ApplicationStatus;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type ApplicationDocumentRow = Timestamps & {
+  id: string;
+  organization_id: string;
+  application_id: string;
+  document_id: string | null;
+  derivative_id: string | null;
+  requirement_key: string;
+  requirement_label: string | null;
+  preset_id: string | null;
+  status: ApplicationDocumentStatus;
+  notes: string | null;
+};
+
+export type PortalAdapterStatus = 'draft' | 'testing' | 'active' | 'deprecated';
+
+export type PortalAdapterRow = Timestamps & {
+  id: string;
+  organization_id: string | null;
+  slug: string;
+  portal_name: string;
+  form_name: string;
+  region: string | null;
+  url_patterns: string[];
+  version: string;
+  status: PortalAdapterStatus;
+  field_mappings: Json;
+  document_requirements: Json;
+  notes: string | null;
+  known_issues: string | null;
+  last_verified_at: string | null;
+  health: Json;
+  created_by: string | null;
+};
+
+export type OrgFieldMappingRow = Timestamps & {
+  id: string;
+  organization_id: string;
+  page_origin: string;
+  field_signature: string;
+  customer_field: string;
+  transform: string | null;
+  created_by: string | null;
+};
+
+export type FillSessionStatus = 'detected' | 'reviewed' | 'filled' | 'failed' | 'cancelled';
+
+export type FillSessionRow = Timestamps & {
+  id: string;
+  organization_id: string;
+  customer_id: string;
+  application_id: string | null;
+  portal_adapter_id: string | null;
+  page_origin: string;
+  page_path: string | null;
+  page_title: string | null;
+  detected_fields_count: number;
+  proposed_fields_count: number;
+  filled_fields_count: number;
+  skipped_fields_count: number;
+  review_required_count: number;
+  captcha_fields_count: number;
+  otp_fields_count: number;
+  payment_fields_count: number;
+  status: FillSessionStatus;
+  error_summary: string | null;
+  extension_version: string | null;
+  created_by: string | null;
+};
+
+export type FillSessionFieldRow = {
+  id: string;
+  organization_id: string;
+  fill_session_id: string;
+  field_signature: string;
+  field_label: string | null;
+  input_type: string;
+  mapped_customer_field: string | null;
+  mapping_source: 'adapter' | 'org_custom' | 'history' | 'dictionary' | 'ai' | 'manual' | null;
+  proposed_value_preview: string | null;
+  confidence: number | null;
+  action: 'filled' | 'skipped' | 'edited' | 'failed';
+  skip_reason: string | null;
+  safety_class: 'normal' | 'captcha' | 'otp' | 'payment' | 'submit';
+  review_required: boolean;
+  error: string | null;
+  created_at: string;
+};
+
+export type FormReportStatus = 'new' | 'triaged' | 'adapter_created' | 'declined';
+
+export type FormReportRow = Timestamps & {
+  id: string;
+  organization_id: string;
+  fill_session_id: string | null;
+  portal_adapter_id: string | null;
+  page_origin: string;
+  page_path: string | null;
+  page_title: string | null;
+  field_metadata: Json;
+  note: string | null;
+  screenshot_path: string | null;
+  screenshot_consent: boolean;
+  browser_version: string | null;
+  extension_version: string | null;
+  status: FormReportStatus;
+  created_by: string | null;
+};
+
+export type BillingWebhookEventRow = {
+  id: string;
+  provider: string;
+  event_id: string;
+  event_type: string;
+  processed_at: string;
+  result: 'processed' | 'ignored' | 'failed';
 };
 
 export type JobRow = Timestamps & {

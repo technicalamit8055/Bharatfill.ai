@@ -221,13 +221,243 @@
       }
     }
   },
+  "applications": {
+    "title": "आवेदन",
+    "new": "नया आवेदन",
+    "searchPlaceholder": "शीर्षक, पोर्टल, ग्राहक नाम या संदर्भ संख्या से खोजें",
+    "filters": {
+      "all": "सभी",
+      "open": "चल रहे",
+      "pendingDocuments": "दस्तावेज़ लंबित",
+      "submitted": "सबमिट किए गए",
+      "completed": "पूर्ण"
+    },
+    "category": "श्रेणी",
+    "categories": {
+      "government": "सरकारी",
+      "recruitment": "भर्ती",
+      "scholarship": "छात्रवृत्ति",
+      "education": "शिक्षा",
+      "banking": "बैंकिंग",
+      "certificate": "प्रमाण पत्र",
+      "utility": "उपयोगिता",
+      "other": "अन्य"
+    },
+    "empty": "इस खोज से कोई आवेदन नहीं मिला।",
+    "emptyFirst": "अभी कोई आवेदन नहीं है।",
+    "table": {
+      "title": "आवेदन",
+      "customer": "ग्राहक",
+      "portal": "पोर्टल",
+      "deadline": "अंतिम तिथि",
+      "assignedTo": "सौंपा गया",
+      "payment": "भुगतान"
+    },
+    "deadlineOverdue": "समय सीमा बीत गई",
+    "deadlineToday": "आज देय",
+    "deadlineNone": "कोई अंतिम तिथि नहीं",
+    "payment": {
+      "unpaid": "अवैतनिक",
+      "paid": "भुगतान हुआ",
+      "refunded": "वापस किया गया",
+      "none": "—"
+    },
+    "form": {
+      "customer": "ग्राहक",
+      "customerHint": "इस आवेदन के लिए ग्राहक खोजें और चुनें।",
+      "portalAdapter": "पोर्टल / फॉर्म टेम्पलेट",
+      "portalAdapterNone": "कोई नहीं — विवरण खुद भरें",
+      "titleLabel": "शीर्षक",
+      "titlePlaceholder": "जैसे जाति प्रमाण पत्र आवेदन",
+      "category": "श्रेणी",
+      "deadline": "अंतिम तिथि",
+      "fee": "शुल्क (₹)",
+      "paymentStatus": "भुगतान स्थिति",
+      "assignedTo": "सौंपा गया ऑपरेटर",
+      "assignedToNone": "किसी को नहीं सौंपा",
+      "notes": "टिप्पणियाँ",
+      "portalName": "पोर्टल का नाम",
+      "formName": "फॉर्म का नाम",
+      "portalUrl": "पोर्टल यूआरएल",
+      "create": "आवेदन बनाएं",
+      "creating": "बनाया जा रहा है…"
+    },
+    "detail": {
+      "customerCard": "ग्राहक",
+      "viewProfile": "प्रोफ़ाइल देखें",
+      "portalCard": "पोर्टल और ट्रैकिंग",
+      "referenceNumber": "पोर्टल संदर्भ संख्या",
+      "referenceNumberNone": "अभी सेट नहीं है",
+      "openPortal": "पोर्टल खोलें",
+      "fee": "लिया गया शुल्क",
+      "feeNone": "सेट नहीं है",
+      "checklist": "दस्तावेज़ चेकलिस्ट",
+      "checklistEmpty": "अभी कोई दस्तावेज़ ज़रूरी नहीं है।",
+      "addRequirement": "आवश्यकता जोड़ें",
+      "requirementKey": "आवश्यकता कुंजी",
+      "requirementLabel": "लेबल",
+      "openInDocumentTools": "दस्तावेज़ टूल में खोलें",
+      "statusHistory": "स्थिति इतिहास",
+      "statusHistoryEmpty": "अभी तक कोई स्थिति परिवर्तन दर्ज नहीं है।",
+      "linkedFillSessions": "जुड़े फिल सेशन",
+      "linkedFillSessionsEmpty": "इस आवेदन से अभी कोई फिल सेशन नहीं जुड़ा है।",
+      "notes": "टिप्पणियाँ",
+      "edit": "जानकारी बदलें",
+      "editSaved": "आवेदन अपडेट हुआ।",
+      "delete": "आवेदन हटाएं",
+      "confirmDelete": "इस आवेदन को हटाएं? इसे प्रबंधक द्वारा वापस लाया जा सकता है।",
+      "markAs": "{status} के रूप में चिह्नित करें",
+      "statusNote": "टिप्पणी (वैकल्पिक)",
+      "statusNotePlaceholder": "इस स्थिति परिवर्तन के लिए संदर्भ जोड़ें"
+    },
+    "documentStatus": {
+      "required": "आवश्यक",
+      "attached": "संलग्न",
+      "missing": "गुम",
+      "rejected": "अस्वीकृत"
+    }
+  },
+  "formLibrary": {
+    "title": "फॉर्म लाइब्रेरी",
+    "subtitle": "समर्थित सरकारी और भर्ती पोर्टल, उनके मैप किए गए फ़ील्ड और दस्तावेज़ आवश्यकताएं।",
+    "searchPlaceholder": "पोर्टल, फॉर्म शीर्षक या क्षेत्र से खोजें",
+    "region": "क्षेत्र",
+    "regionAll": "सभी क्षेत्र",
+    "status": {
+      "draft": "ड्राफ़्ट",
+      "testing": "परीक्षण में",
+      "active": "सक्रिय",
+      "deprecated": "बंद किया गया"
+    },
+    "healthLabel": "फिल सफलता दर",
+    "healthUnknown": "अभी पर्याप्त डेटा नहीं है",
+    "viewSpecs": "विवरण देखें",
+    "launchPortal": "पोर्टल खोलें",
+    "createApplication": "आवेदन बनाएं",
+    "empty": "इस खोज से कोई फॉर्म नहीं मिला।",
+    "reportUnsupported": "असमर्थित फॉर्म की रिपोर्ट करें",
+    "reportModal": {
+      "title": "असमर्थित फॉर्म की रिपोर्ट करें",
+      "help": "हमें किसी ऐसे पोर्टल या फॉर्म के बारे में बताएं जो Bharatfill अभी समर्थित नहीं करता, ताकि हम उसे जोड़ सकें।",
+      "portalUrl": "पोर्टल यूआरएल",
+      "formName": "फॉर्म का नाम",
+      "notes": "क्या हुआ?",
+      "notesPlaceholder": "जैसे फ़ील्ड नहीं पहचाने गए, या पोर्टल बिल्कुल भी नहीं पहचाना गया",
+      "submit": "रिपोर्ट भेजें",
+      "submitted": "धन्यवाद — आपकी रिपोर्ट भेज दी गई है।",
+      "cancel": "रद्द करें"
+    },
+    "detail": {
+      "back": "फॉर्म लाइब्रेरी",
+      "urlPatterns": "समर्थित यूआरएल पैटर्न",
+      "fieldMappings": "फ़ील्ड मैपिंग",
+      "fieldLabel": "फ़ील्ड",
+      "customerField": "ग्राहक प्रोफ़ाइल फ़ील्ड",
+      "documentRequirements": "आवश्यक दस्तावेज़",
+      "documentRequirementLabel": "दस्तावेज़",
+      "notes": "पोर्टल टिप्पणियाँ",
+      "knownIssues": "ज्ञात समस्याएं",
+      "lastVerified": "अंतिम जांच",
+      "neverVerified": "अभी जांचा नहीं गया",
+      "version": "संस्करण",
+      "openDocumentTools": "दस्तावेज़ टूल में खोलें"
+    }
+  },
+  "fillSessions": {
+    "title": "फिल सेशन",
+    "subtitle": "ब्राउज़र एक्सटेंशन द्वारा फॉर्म पहचान और ऑटोफिल गतिविधि का ऑडिट लॉग।",
+    "summary": {
+      "totalSessions": "कुल सेशन",
+      "fieldsFilled": "ऑटोफिल किए गए फ़ील्ड",
+      "reviewAccuracy": "जांच सटीकता",
+      "timeSaved": "अनुमानित बचा समय"
+    },
+    "searchPlaceholder": "पोर्टल, पेज शीर्षक या ग्राहक से खोजें",
+    "status": {
+      "detected": "पहचाना गया",
+      "reviewed": "जांचा गया",
+      "filled": "भरा गया",
+      "failed": "विफल",
+      "cancelled": "रद्द"
+    },
+    "table": {
+      "when": "कब",
+      "operator": "ऑपरेटर",
+      "customer": "ग्राहक",
+      "portal": "पोर्टल / पेज",
+      "fields": "फ़ील्ड",
+      "safety": "सुरक्षा",
+      "application": "आवेदन"
+    },
+    "fieldsRatio": "{total} में से {filled} फ़ील्ड भरे गए",
+    "fieldsSkipped": "{count} छोड़े गए",
+    "safety": {
+      "captcha": "CAPTCHA छोड़ा गया",
+      "otp": "OTP छोड़ा गया",
+      "payment": "भुगतान छोड़ा गया"
+    },
+    "empty": "इस खोज से कोई फिल सेशन नहीं मिला।",
+    "emptyFirst": "अभी तक कोई फिल सेशन दर्ज नहीं है।",
+    "createApplication": "आवेदन बनाएं",
+    "viewApplication": "आवेदन देखें",
+    "detail": {
+      "back": "फिल सेशन",
+      "pageTitle": "पेज",
+      "origin": "साइट",
+      "extensionVersion": "एक्सटेंशन संस्करण",
+      "errorSummary": "त्रुटि",
+      "fieldsTitle": "फ़ील्ड",
+      "fieldLabel": "फ़ील्ड",
+      "mappedField": "मैप किया गया",
+      "mappingSource": "स्रोत",
+      "confidence": "विश्वास",
+      "preview": "प्रस्तावित मान",
+      "action": "परिणाम",
+      "safetyClass": "सुरक्षा",
+      "notMapped": "मैप नहीं किया गया",
+      "convertToApplication": "ट्रैक किए गए आवेदन में बदलें",
+      "converted": "इस सेशन से आवेदन बनाया गया।"
+    },
+    "mappingSource": {
+      "adapter": "पोर्टल एडाप्टर",
+      "org_custom": "संगठन मैपिंग",
+      "history": "पिछला फिल",
+      "dictionary": "फ़ील्ड डिक्शनरी",
+      "ai": "AI-सहायित",
+      "manual": "मैनुअल"
+    },
+    "fieldAction": {
+      "filled": "भरा गया",
+      "skipped": "छोड़ा गया",
+      "edited": "बदला गया",
+      "failed": "विफल"
+    },
+    "safetyClass": {
+      "normal": "सामान्य",
+      "captcha": "CAPTCHA",
+      "otp": "OTP",
+      "payment": "भुगतान",
+      "submit": "सबमिट नियंत्रण"
+    }
+  },
   "audit": {
     "actions": {
       "customer.created": "ग्राहक जोड़ा गया",
       "customer.updated": "ग्राहक अपडेट हुआ",
       "customer.deleted": "ग्राहक हटाया गया",
       "customer.sensitive_revealed": "संवेदनशील फ़ील्ड दिखाई गई",
-      "customer.exported": "ग्राहक डेटा निर्यात हुआ"
+      "customer.exported": "ग्राहक डेटा निर्यात हुआ",
+      "fill_session.started": "फॉर्म पहचान शुरू हुई",
+      "fill_session.completed": "फॉर्म पर फ़ील्ड भरे गए",
+      "form_report.created": "असमर्थित फॉर्म रिपोर्ट किया गया",
+      "adapter.updated": "पोर्टल एडाप्टर बदला गया",
+      "application.created": "आवेदन बनाया गया",
+      "application.updated": "आवेदन अपडेट हुआ",
+      "application.status_changed": "आवेदन की स्थिति बदली गई",
+      "application.deleted": "आवेदन हटाया गया",
+      "application.document_updated": "आवेदन दस्तावेज़ चेकलिस्ट अपडेट हुई",
+      "billing.plan_changed": "प्लान बदला गया",
+      "billing.webhook_processed": "बिलिंग वेबहुक प्रोसेस हुआ"
     }
   },
   "settings": {
@@ -315,7 +545,61 @@
       "storage": "आपके प्लान की स्टोरेज सीमा पूरी हो चुकी है।",
       "payment_required": "आगे बढ़ने से पहले आपकी सदस्यता पर ध्यान देना ज़रूरी है।",
       "feature_not_in_plan": "यह सुविधा आपके मौजूदा प्लान में नहीं है।"
-    }
+    },
+    "status": {
+      "active": "सक्रिय",
+      "trialing": "ट्रायल",
+      "past_due": "भुगतान बाकी",
+      "cancelled": "रद्द",
+      "incomplete": "अधूरा"
+    },
+    "renewsOn": "{date} को नवीनीकरण होगा",
+    "cancelledAtPeriodEnd": "इस अवधि के अंत में रद्द होगा",
+    "plans": {
+      "title": "प्लान की तुलना करें",
+      "monthly": "/माह",
+      "free": "फ्री",
+      "currentPlan": "वर्तमान प्लान",
+      "upgradePlan": "अपग्रेड करें",
+      "changePlan": "प्लान बदलें",
+      "downgradePlan": "डाउनग्रेड करें",
+      "featureAdapterLibrary": "फॉर्म एडाप्टर लाइब्रेरी",
+      "featureAdvancedDocumentTools": "एडवांस्ड PDF और फ़ोटो टूल",
+      "featureBulkImport": "बल्क इम्पोर्ट",
+      "featureSupport": "सहायता",
+      "support": {
+        "community": "सामुदायिक",
+        "email": "ईमेल",
+        "priority": "प्राथमिकता"
+      },
+      "seatsIncluded": "{count} सीट शामिल",
+      "fillsIncluded": "{count} फिल / माह",
+      "aiExtractionsIncluded": "{count} एआई निष्कर्षण / माह",
+      "customersIncluded": "{count} तक ग्राहक",
+      "storageIncluded": "{amount} स्टोरेज"
+    },
+    "upgradeModal": {
+      "title": "प्लान बदलें",
+      "confirm": "{plan} में बदलाव की पुष्टि करें",
+      "confirming": "अपडेट हो रहा है…",
+      "mockNote": "यह वर्कस्पेस Bharatfill के मॉक बिलिंग प्रदाता पर चल रहा है — प्लान बदलाव तुरंत लागू होता है, कोई भुगतान नहीं लिया जाता।",
+      "success": "प्लान {plan} में बदल दिया गया।",
+      "cancel": "रद्द करें"
+    },
+    "invoices": {
+      "title": "चालान और उपयोग इतिहास",
+      "empty": "अभी तक कोई बिलिंग इतिहास नहीं है।",
+      "period": "बिलिंग अवधि",
+      "plan": "प्लान",
+      "status": "स्थिति",
+      "amount": "राशि",
+      "download": "डाउनलोड (जल्द आ रहा है)"
+    },
+    "indiaNote": {
+      "title": "भारत में बिलिंग",
+      "body": "हर भुगतान वाले प्लान के लिए GST चालान जारी किया जाता है। चेकआउट पर हमारे भुगतान साझेदार के ज़रिए UPI, कार्ड और नेट बैंकिंग समर्थित हैं।"
+    },
+    "usageWarning": "आप {item} के लिए अपने प्लान की सीमा के करीब हैं।"
   },
   "validation": {
     "name_required": "कृपया पूरा नाम भरें।",
@@ -359,7 +643,14 @@
     "ocr_provider_timeout": "दस्तावेज़ रीडर ने जवाब देने में बहुत समय लिया। कृपया फिर प्रयास करें।",
     "ocr_provider_failed": "दस्तावेज़ रीडर तक नहीं पहुँचा जा सका। कृपया फिर प्रयास करें।",
     "ai_processing_not_enabled": "इस वर्कस्पेस के लिए AI प्रोसेसिंग बंद है। वर्कस्पेस मालिक इसे सेटिंग्स में चालू कर सकते हैं।",
-    "file_size_mismatch": "अपलोड की गई फ़ाइल अनुमानित फ़ाइल से मेल नहीं खाई, इसलिए इसे स्वीकार नहीं किया गया।"
+    "file_size_mismatch": "अपलोड की गई फ़ाइल अनुमानित फ़ाइल से मेल नहीं खाई, इसलिए इसे स्वीकार नहीं किया गया।",
+    "invalid_status_transition": "आवेदन की मौजूदा स्थिति से यह बदलाव संभव नहीं है।",
+    "application_not_found": "वह आवेदन नहीं मिला।",
+    "application_document_not_found": "वह चेकलिस्ट आइटम नहीं मिला।",
+    "fill_session_not_found": "वह फिल सेशन नहीं मिला।",
+    "portal_adapter_not_found": "वह फॉर्म नहीं मिला।",
+    "plan_not_found": "वह प्लान उपलब्ध नहीं है।",
+    "subscription_not_found": "इस वर्कस्पेस की अभी कोई बिलिंग सदस्यता नहीं है।"
   },
   "privacy": {
     "sensitiveNotice": "संवेदनशील जानकारी। इसे दिखाना ऑडिट लॉग में दर्ज होता है।",
@@ -388,6 +679,11 @@
     "view": "देखें",
     "reprocess": "दोबारा पढ़ें",
     "deleteConfirm": "यह दस्तावेज़ हटाएं? सहेजी गई फ़ाइल हमेशा के लिए हट जाएगी।",
+    "selectAll": "सभी दस्तावेज़ चुनें",
+    "selectedCount": "{count} चयनित",
+    "bulkDelete": "हटाएं ({count})",
+    "bulkDeleteConfirm": "{count} दस्तावेज़ हटाएं? सहेजी गई फ़ाइलें हमेशा के लिए हट जाएंगी।",
+    "bulkDeleteFailed": "कुछ दस्तावेज़ नहीं हटाए जा सके। कृपया फिर से प्रयास करें।",
     "processingTitle": "दस्तावेज़ पढ़ा जा रहा है",
     "processingHelp": "इसमें आमतौर पर कुछ सेकंड लगते हैं। यह पेज अपने आप अपडेट हो जाएगा।",
     "failedTitle": "यह दस्तावेज़ पढ़ा नहीं जा सका",

@@ -86,6 +86,45 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   );
 });
 
+export type CheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & {
+  label?: string;
+  /** For a select-all control whose selection is partial rather than all-or-nothing. */
+  indeterminate?: boolean;
+};
+
+/** A native checkbox, optionally with an inline label — row selection, select-all, toggles. */
+export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
+  { className, label, indeterminate, id, ...props },
+  ref,
+) {
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
+  return (
+    <span className={cn('inline-flex items-center gap-2', className)}>
+      <input
+        ref={(node) => {
+          if (node) node.indeterminate = Boolean(indeterminate);
+          if (typeof ref === 'function') ref(node);
+          else if (ref) ref.current = node;
+        }}
+        id={inputId}
+        type="checkbox"
+        className={cn(
+          'h-4 w-4 rounded border-slate-300 text-brand-600',
+          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
+          'focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-50',
+        )}
+        {...props}
+      />
+      {label ? (
+        <label htmlFor={inputId} className="cursor-pointer text-sm text-slate-800">
+          {label}
+        </label>
+      ) : null}
+    </span>
+  );
+});
+
 export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & { invalid?: boolean };
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(

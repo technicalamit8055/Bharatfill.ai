@@ -142,7 +142,7 @@ export default async function DashboardPage({
           value={summary.applicationsOpen}
           icon={<ClipboardIcon />}
           tone="amber"
-          href={session.permissions.has('application.view') ? '/applications' : undefined}
+          href={session.permissions.has('application.view') ? '/applications?filter=open' : undefined}
           style={{ animationDelay: '120ms' }}
         />
         <StatCard

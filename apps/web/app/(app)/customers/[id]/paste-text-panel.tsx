@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { Alert, Badge, Button, Input, Textarea } from '@assistigo/ui';
 import { useI18n, useTranslations } from '@/lib/i18n/client';
 import { formatConfidence } from '@/lib/documents/format';
+import { ExtractionWarningsAlert } from '@/components/documents/extraction-warnings';
 
 /**
  * Add profile details by pasting them as text (§9.3).
@@ -200,15 +201,10 @@ export function PasteTextPanel({ customerId }: { customerId: string }) {
             })}
           </p>
 
-          {parsed.warnings.length > 0 ? (
-            <Alert tone="warning" title={t('customers.paste.warningsTitle')}>
-              <ul className="list-disc space-y-1 pl-4">
-                {parsed.warnings.map((warning) => (
-                  <li key={`${warning.code}:${warning.fieldKey ?? ''}`}>{t(warning.messageKey)}</li>
-                ))}
-              </ul>
-            </Alert>
-          ) : null}
+          <ExtractionWarningsAlert
+            warnings={parsed.warnings}
+            title={t('customers.paste.warningsTitle')}
+          />
 
           {parsed.fields.length === 0 ? (
             <p className="text-sm text-slate-500">{t('customers.paste.noFields')}</p>

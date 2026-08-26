@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Translator } from '@/lib/i18n';
-import { PlusIcon, UploadIcon, PlayIcon } from './icons';
+import { PlusIcon, UploadIcon, PlayIcon, ClipboardIcon, FormIcon } from './icons';
 
 type Action = {
   href: string;
@@ -33,6 +33,18 @@ export function QuickActions({
       href: '/demo-forms',
       label: t('onboarding.checklist.tryDemoForm'),
       icon: <PlayIcon />,
+    },
+    {
+      href: '/form-library',
+      label: t('formLibrary.title'),
+      icon: <FormIcon />,
+      permission: 'fill.run',
+    },
+    {
+      href: '/applications',
+      label: t('nav.applications'),
+      icon: <ClipboardIcon />,
+      permission: 'application.view',
     },
   ];
 

@@ -12,6 +12,7 @@
     "@assistigo/ai": "*",
     "@assistigo/core": "*",
     "@assistigo/document-tools": "*",
+    "@assistigo/form-engine": "*",
     "@assistigo/ui": "*",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",

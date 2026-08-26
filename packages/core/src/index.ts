@@ -25,5 +25,6 @@ export * from './applications/status';
 
 export * from './billing/plans';
 export * from './billing/entitlements';
+export * from './billing/provider';
 
 export * from './audit/actions';

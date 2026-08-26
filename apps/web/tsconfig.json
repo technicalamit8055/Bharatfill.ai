@@ -17,6 +17,8 @@
       "@assistigo/ai/*": ["../../packages/ai/src/*"],
       "@assistigo/document-tools": ["../../packages/document-tools/src/index.ts"],
       "@assistigo/document-tools/*": ["../../packages/document-tools/src/*"],
+      "@assistigo/form-engine": ["../../packages/form-engine/src/index.ts"],
+      "@assistigo/form-engine/*": ["../../packages/form-engine/src/*"],
       "@assistigo/ui": ["../../packages/ui/src/index.ts"]
     }
   },

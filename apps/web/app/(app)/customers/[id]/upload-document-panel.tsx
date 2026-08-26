@@ -16,6 +16,7 @@ import type { ExtractionMode } from '@assistigo/ai/types';
 import { useI18n, useTranslations } from '@/lib/i18n/client';
 import { ExtractionModeSelect } from '@/components/documents/extraction-mode-select';
 import { ActiveAiVendorNote } from '@/components/documents/active-ai-vendor-note';
+import { ExtractionWarningsAlert } from '@/components/documents/extraction-warnings';
 import { formatBytes } from '@/lib/documents/format';
 import { ExtractionReview, type ReviewField } from '../../documents/[id]/extraction-review';
 
@@ -302,14 +303,8 @@ export function UploadDocumentPanel({
             </Alert>
           ) : null}
 
-          {result && result.warnings.length > 0 ? (
-            <Alert tone="warning" title={t('documents.warnings.title')}>
-              <ul className="list-inside list-disc space-y-1">
-                {result.warnings.map((warning) => (
-                  <li key={`${warning.code}-${warning.fieldKey ?? ''}`}>{t(warning.messageKey)}</li>
-                ))}
-              </ul>
-            </Alert>
+          {result ? (
+            <ExtractionWarningsAlert warnings={result.warnings} title={t('documents.warnings.title')} />
           ) : null}
 
           {alreadyReviewed ? (

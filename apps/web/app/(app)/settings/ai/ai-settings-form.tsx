@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Button, Card, Input, Select, Switch, Textarea } from '@assistigo/ui';
 import type { ProviderPreset } from '@/lib/ai/vendor-settings';
 import type { OrganizationAiProvider } from '@/lib/supabase/database.types';
@@ -57,15 +57,6 @@ export function AiSettingsForm({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; reason?: string } | null>(null);
-
-  const insertSnippet = useMemo(
-    () =>
-      fieldKeys
-        .slice(0, 6)
-        .map((field) => `${field.key} (${field.label})`)
-        .join(', '),
-    [fieldKeys],
-  );
 
   function handleProviderChange(next: OrganizationAiProvider) {
     setProvider(next);
@@ -245,10 +236,13 @@ export function AiSettingsForm({
           />
           <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-600">
             <p className="font-medium text-slate-700">{t('settings.ai.promptVariablesTitle')}</p>
-            <p className="mt-1">
-              {insertSnippet}
-              {fieldKeys.length > 6 ? '…' : ''}
-            </p>
+            <ul className="mt-2 max-h-56 space-y-0.5 overflow-y-auto font-mono">
+              {fieldKeys.map((field) => (
+                <li key={field.key}>
+                  {field.key} <span className="font-sans text-slate-400">({field.label})</span>
+                </li>
+              ))}
+            </ul>
           </div>
           <Alert tone="warning">{t('settings.ai.promptSafetyNote')}</Alert>
         </div>

@@ -57,6 +57,12 @@ export const reviewSchema = z.object({
   decisions: z.array(reviewDecisionSchema).min(1).max(200),
 });
 
+/** Bulk delete accepts up to 100 ids per request — the same ceiling as a review batch. */
+export const bulkDeleteSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(100),
+});
+
 export type UploadIntentInput = z.output<typeof uploadIntentSchema>;
 export type ReviewInput = z.output<typeof reviewSchema>;
 export type ReviewDecision = z.output<typeof reviewDecisionSchema>;
+export type BulkDeleteInput = z.output<typeof bulkDeleteSchema>;

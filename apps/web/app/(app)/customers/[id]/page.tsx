@@ -10,6 +10,8 @@ import { customerValuesFromRow } from '@/lib/customers/values';
 import type { AuditLogRow, CustomerRow } from '@/lib/supabase/database.types';
 import { CustomerProfileSections, type ProfileSection } from './profile-sections';
 import { CustomerDocuments } from './customer-documents';
+import { CustomerApplications } from './customer-applications';
+import { CustomerFillHistory } from './customer-fill-history';
 import { AddProfileInfo } from './add-profile-info';
 import { DeleteCustomerButton } from './delete-customer-button';
 
@@ -127,6 +129,18 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
 
       {session.permissions.has('document.view') ? (
         <CustomerDocuments customerId={row.id} organizationId={session.organization.id} />
+      ) : null}
+
+      {session.permissions.has('application.view') ? (
+        <CustomerApplications
+          customerId={row.id}
+          organizationId={session.organization.id}
+          canCreate={session.permissions.has('application.create')}
+        />
+      ) : null}
+
+      {session.permissions.has('fill.run') ? (
+        <CustomerFillHistory customerId={row.id} organizationId={session.organization.id} />
       ) : null}
 
       {session.permissions.has('audit.view') ? (

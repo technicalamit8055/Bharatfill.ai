@@ -1,11 +1,13 @@
 export { cn } from './cn';
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './button';
 export {
+  Checkbox,
   Field,
   Input,
   Select,
   Textarea,
   TextField,
+  type CheckboxProps,
   type FieldProps,
   type InputProps,
   type SelectProps,

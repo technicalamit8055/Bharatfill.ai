@@ -1,6 +1,5 @@
-import { timingSafeEqual } from 'node:crypto';
-import { unauthenticated } from '@assistigo/core';
 import { handler, ok } from '@/lib/api/response';
+import { requireBearerSecret } from '@/lib/api/secret';
 import { runPendingJobs } from '@/lib/jobs/runner';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { serverEnv } from '@/lib/env';
@@ -15,23 +14,8 @@ import { serverEnv } from '@/lib/env';
  * than running unauthenticated work.
  */
 
-function secretMatches(provided: string, expected: string): boolean {
-  const a = Buffer.from(provided, 'utf8');
-  const b = Buffer.from(expected, 'utf8');
-  // timingSafeEqual throws on a length mismatch, which would itself leak the length.
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
 export const POST = handler('api.jobs.run', async (request) => {
-  const expected = serverEnv().JOB_RUNNER_SECRET;
-  if (!expected) throw unauthenticated('errors.unauthenticated');
-
-  const header = request.headers.get('authorization') ?? '';
-  const provided = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : '';
-  if (provided === '' || !secretMatches(provided, expected)) {
-    throw unauthenticated('errors.unauthenticated');
-  }
+  requireBearerSecret(request, serverEnv().JOB_RUNNER_SECRET);
 
   const result = await runPendingJobs(createSupabaseAdminClient(), {
     workerId: `web-${process.env.VERCEL_REGION ?? 'local'}`,

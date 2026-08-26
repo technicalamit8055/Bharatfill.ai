@@ -422,9 +422,15 @@ export const CUSTOMER_FIELDS: readonly CustomerFieldDef[] = [
       [
         ['board', { en: 'Board', hi: 'बोर्ड' }, 'text'],
         ['school', { en: 'School', hi: 'विद्यालय' }, 'text'],
+        ['stream_faculty', { en: 'Stream / faculty', hi: 'स्ट्रीम / संकाय' }, 'text'],
         ['passing_year', { en: 'Passing year', hi: 'उत्तीर्ण वर्ष' }, 'year'],
         ['roll_number', { en: 'Roll number', hi: 'रोल नंबर' }, 'text'],
+        ['unique_id', { en: 'Unique ID', hi: 'यूनिक आईडी' }, 'text'],
+        ['marksheet_number', { en: 'Marksheet number', hi: 'मार्कशीट संख्या' }, 'text'],
         ['marks_percentage', { en: 'Marks / percentage', hi: 'अंक / प्रतिशत' }, 'text'],
+        ['aggregate_marks', { en: 'Aggregate marks', hi: 'कुल अंक' }, 'text'],
+        ['aggregate_marks_words', { en: 'Aggregate marks (in words)', hi: 'कुल अंक (शब्दों में)' }, 'text'],
+        ['result', { en: 'Result', hi: 'परिणाम' }, 'text'],
       ] as const
     ).map<CustomerFieldDef>(([suffix, label, dataType]) => ({
       key: `customer.education.${level}.${suffix}`,
@@ -445,8 +451,13 @@ export const CUSTOMER_FIELDS: readonly CustomerFieldDef[] = [
       ['course', { en: 'Course', hi: 'पाठ्यक्रम' }, 'text'],
       ['registration_number', { en: 'Registration number', hi: 'पंजीकरण संख्या' }, 'text'],
       ['roll_number', { en: 'Roll number', hi: 'रोल नंबर' }, 'text'],
+      ['unique_id', { en: 'Unique ID', hi: 'यूनिक आईडी' }, 'text'],
+      ['marksheet_number', { en: 'Marksheet number', hi: 'मार्कशीट संख्या' }, 'text'],
       ['passing_year', { en: 'Passing year', hi: 'उत्तीर्ण वर्ष' }, 'year'],
       ['marks_percentage', { en: 'Marks / percentage', hi: 'अंक / प्रतिशत' }, 'text'],
+      ['aggregate_marks', { en: 'Aggregate marks', hi: 'कुल अंक' }, 'text'],
+      ['aggregate_marks_words', { en: 'Aggregate marks (in words)', hi: 'कुल अंक (शब्दों में)' }, 'text'],
+      ['result', { en: 'Result', hi: 'परिणाम' }, 'text'],
     ] as const
   ).map<CustomerFieldDef>(([suffix, label, dataType]) => ({
     key: `customer.education.graduation.${suffix}`,

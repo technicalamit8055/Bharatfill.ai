@@ -61,6 +61,34 @@ describe('customer field registry', () => {
   });
 });
 
+describe('marksheet fields (result, aggregate marks, stream, unique ID, marksheet number)', () => {
+  it('adds result and aggregate marks to every education level', () => {
+    for (const level of ['class10', 'class12', 'graduation']) {
+      expect(getCustomerField(`customer.education.${level}.result`)?.dataType).toBe('text');
+      expect(getCustomerField(`customer.education.${level}.aggregate_marks`)?.dataType).toBe('text');
+      expect(getCustomerField(`customer.education.${level}.aggregate_marks_words`)?.dataType).toBe(
+        'text',
+      );
+      expect(getCustomerField(`customer.education.${level}.unique_id`)?.dataType).toBe('text');
+      expect(getCustomerField(`customer.education.${level}.marksheet_number`)?.dataType).toBe('text');
+      expect(
+        getCustomerField(`customer.education.${level}.result`)?.storage,
+      ).toEqual({ kind: 'json', column: 'education_json', path: `${level}.result` });
+    }
+  });
+
+  it('only asks for stream/faculty at class 10 and class 12, not graduation', () => {
+    expect(getCustomerField('customer.education.class10.stream_faculty')).toBeDefined();
+    expect(getCustomerField('customer.education.class12.stream_faculty')).toBeDefined();
+    expect(getCustomerField('customer.education.graduation.stream_faculty')).toBeUndefined();
+  });
+
+  it('keeps the new marksheet fields normal-sensitivity, like the rest of education', () => {
+    expect(isSensitiveField('customer.education.class10.result')).toBe(false);
+    expect(requiresReview('customer.education.class10.result')).toBe(false);
+  });
+});
+
 describe('newly added fields (sub-division, sub-caste, BPL card)', () => {
   it('adds the sub-division tier between district and block for both address blocks', () => {
     expect(getCustomerField('customer.address.sub_division')?.sensitivity).toBe('normal');
