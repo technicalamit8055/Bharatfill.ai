@@ -12,7 +12,9 @@ import {
   isAllowedUploadMimeType,
   type DocumentType,
 } from '@assistigo/core';
+import type { ExtractionMode } from '@assistigo/ai/types';
 import { useI18n, useTranslations } from '@/lib/i18n/client';
+import { ExtractionModeSelect } from '@/components/documents/extraction-mode-select';
 import { formatBytes } from '@/lib/documents/format';
 
 /**
@@ -34,6 +36,7 @@ export function UploadDocumentPanel({ customerId }: { customerId: string }) {
 
   const [file, setFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState('');
+  const [extractionMode, setExtractionMode] = useState<ExtractionMode>('auto');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadedDocumentId, setUploadedDocumentId] = useState<string | null>(null);
@@ -113,6 +116,8 @@ export function UploadDocumentPanel({ customerId }: { customerId: string }) {
       // magic bytes against what we claimed, and only then queues extraction.
       const processResponse = await fetch(`/api/documents/${intent.documentId}/process`, {
         method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ extractionMode }),
       });
 
       const processJson = (await processResponse.json()) as
@@ -193,6 +198,13 @@ export function UploadDocumentPanel({ customerId }: { customerId: string }) {
           </Select>
           <p className="text-xs text-slate-500">{t('documents.typeHint')}</p>
         </div>
+
+        <ExtractionModeSelect
+          id="profile-upload-mode"
+          value={extractionMode}
+          onChange={setExtractionMode}
+          disabled={pending}
+        />
 
         {error ? <Alert tone="danger">{t(error)}</Alert> : null}
 

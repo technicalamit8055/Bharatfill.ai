@@ -1,8 +1,8 @@
 import { notFound as nextNotFound } from 'next/navigation';
 import Link from 'next/link';
 import { z } from 'zod';
-import { Alert, Badge, Card } from '@assistigo/ui';
-import { extractedFieldSchema, extractionWarningSchema } from '@assistigo/ai';
+import { Alert, Badge, Card, ProgressBar } from '@assistigo/ui';
+import { extractedFieldSchema, extractionWarningSchema } from '@assistigo/ai/types';
 import {
   DOCUMENT_TYPE_LABELS,
   formatIndianDate,
@@ -19,6 +19,7 @@ import type {
   DocumentExtractionRow,
   DocumentRow,
 } from '@/lib/supabase/database.types';
+import { AutoRefreshWhileProcessing } from '@/components/documents/auto-refresh-while-processing';
 import { ExtractionReview, type ReviewField } from './extraction-review';
 import { DocumentActions } from './document-actions';
 
@@ -114,7 +115,6 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
             canDownload={session.permissions.has('document.download')}
             canDelete={session.permissions.has('document.delete')}
             canProcess={session.permissions.has('document.upload')}
-            status={document.status}
           />
         </div>
       </div>
@@ -163,9 +163,13 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       ) : null}
 
       {document.status === 'processing' ? (
-        <Alert tone="info" title={t('documents.processingTitle')}>
-          {t('documents.processingHelp')}
-        </Alert>
+        <>
+          <AutoRefreshWhileProcessing isProcessing />
+          <Alert tone="info" title={t('documents.processingTitle')}>
+            <p>{t('documents.processingHelp')}</p>
+            <ProgressBar className="mt-2 max-w-xs" />
+          </Alert>
+        </>
       ) : null}
 
       {document.status === 'failed' ? (

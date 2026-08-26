@@ -11,5 +11,20 @@ export {
   type SelectProps,
   type TextareaProps,
 } from './form';
-export { Alert, Badge, Card, EmptyState, Spinner, Stat, type Tone } from './feedback';
+export {
+  NumberField,
+  SegmentedControl,
+  SizeMeter,
+  Slider,
+  Switch,
+  Tabs,
+  type NumberFieldProps,
+  type SegmentOption,
+  type SegmentedControlProps,
+  type SizeMeterProps,
+  type SliderProps,
+  type SwitchProps,
+  type TabItem,
+} from './controls';
+export { Alert, Badge, Card, EmptyState, ProgressBar, Spinner, Stat, type Tone } from './feedback';
 export { TBody, TD, TH, THead, TR, Table } from './table';

@@ -23,27 +23,77 @@ upload
 
 Steps after storage run as an `ocr.extract` background job so uploads stay fast and retryable.
 
-## 2. Provider abstraction (§12.3)
+## 2. Provider abstraction and reading methods (§12.3)
 
 ```ts
 export interface OcrProvider {
   readonly name: string;
+  /** True when running this provider sends document bytes to a third party. */
+  readonly sendsDataOffBox: boolean;
   extract(input: OcrInput): Promise<OcrResult>;
 }
 ```
 
-| Provider    | Use                                                       | Status             |
-| ----------- | --------------------------------------------------------- | ------------------ |
-| `mock`      | local dev, tests, CI. Deterministic output from fixtures. | default            |
-| `tesseract` | cheap local OCR for simple scans                          | optional           |
-| `anthropic` | vision model for difficult layouts                        | **off by default** |
+There are **two provider slots**, because a document has two very different readers behind it.
 
-Selected by `OCR_PROVIDER`. The product is never hard-coded to one provider.
+| Slot      | Env              | Provider    | Use                                                        | Status             |
+| --------- | ---------------- | ----------- | ---------------------------------------------------------- | ------------------ |
+| local     | `OCR_PROVIDER`   | `local`     | embedded PDF text + text uploads, in-process               | **default**        |
+| local     | `OCR_PROVIDER`   | `mock`      | tests, CI, demo seed. Deterministic output from fixtures.  | tests only         |
+| local     | `OCR_PROVIDER`   | `tesseract` | cheap local OCR for simple scans                           | not implemented    |
+| AI vision | `OCR_AI_PROVIDER`| `deepseek`  | hosted vision model for photos and difficult layouts       | **off by default** |
+| AI vision | `OCR_AI_PROVIDER`| `anthropic` | ditto                                                      | not implemented    |
 
-**The `anthropic` provider additionally requires** `organizations.settings.ai_processing_enabled
-= true`, which an owner must switch on after reading the AI-processing notice. Without it the
-pipeline falls back to the local provider and records a warning. Customer data is never used for
-model training; only the provider request id is stored for audit, not the payload.
+The product is never hard-coded to one provider. `deepseek` speaks the OpenAI chat-completions
+shape, so `OCR_AI_BASE_URL` and `OCR_AI_MODEL` repoint it at any compatible endpoint — another
+hosted vendor, a gateway, or a self-hosted vision model — without a code change.
+
+### The three reading methods
+
+The operator picks one per upload (`extractionMode` on `POST /api/documents/:id/process`, stored
+in the job payload). It is a trade-off between speed, cost and privacy, so each option is
+labelled with what it costs rather than what it is called.
+
+| Mode     | Behaviour                                                                             |
+| -------- | ------------------------------------------------------------------------------------- |
+| `non_ai` | Local reader only. **No byte leaves this server** — a guarantee, not a preference.     |
+| `ai`     | AI vision reader, subject to the opt-in gate below.                                   |
+| `auto`   | Local first; escalates to AI **only** when the local read produced no fields at all.   |
+
+Three rules hold whichever method was picked, and are enforced in `packages/ai/src/pipeline.ts`:
+
+1. `non_ai` never touches the network.
+2. `ai` **yields to `organizations.settings.ai_processing_enabled`**, which an owner must switch
+   on after reading the AI-processing notice. A dropdown is not consent: an operator cannot opt
+   an organization into third-party processing (§12.3, §19.3, DEVELOPMENT_RULES §1 rule 10). The
+   provider refuses too, as defence in depth.
+3. No reading method can fail a document merely by being unavailable. A missing key, a revoked
+   key, an outage or a timeout degrades to the other reader and records a warning saying so — an
+   operator who can see "read by the basic reader" can act; a document stuck at `failed` tells
+   them nothing.
+
+Customer data is never used for model training. Only the provider request id is stored for audit,
+never the payload. The filename is deliberately **not** transmitted: it routinely carries the
+customer's name and adds nothing to a transcription (§19.6).
+
+### The AI reader transcribes; it does not extract
+
+The vision model is asked for the text on the page. Turning that text into `customer.*` fields is
+still the rules engine's job (§4). Letting the model emit field keys directly would route
+customer data around every guarantee downstream of OCR — the Aadhaar masking gate (§9), the
+normalisers (§5), the high-risk review rules (§6) and the golden tests (§8).
+
+### What each reader cannot do
+
+| Reader | Limitation                                                                            |
+| ------ | ------------------------------------------------------------------------------------- |
+| local  | Cannot read a photograph or a scanned PDF: there is no OCR engine on the box.          |
+| local  | Cannot resolve PDF font encodings. A subset/CID font is reported as "no text", never as nonsense — `looksLikeProse` in `pdf-text.ts` is that guard. |
+| AI     | A chat-completions endpoint takes images, not PDFs. A text-bearing PDF is read locally and its text sent instead; a **scanned** PDF is refused with `AI_NEEDS_IMAGE`, because rasterising would need a new dependency. |
+| AI     | Images over 6 MB are refused rather than turned into a request that fails slowly.      |
+
+Every one of these becomes an operator-facing warning under `documents.warnings.*`, in `en` and
+`hi`.
 
 ## 3. Document classes (§12.2)
 
@@ -147,20 +197,45 @@ the retained raw text pass through it before anything is persisted:
 
 ## 10. Running the pipeline
 
-Extraction runs as a background job, not inside the upload request:
+Extraction is a background job, and the job is what owns the retry policy:
 
 ```text
 POST /api/documents/upload-intent   → row reserved, one-time signed upload URL returned
 PUT  <signed upload url>            → bytes go browser → storage, never through a route handler
 POST /api/documents/:id/process     → magic bytes sniffed server-side, then `ocr.extract` queued
-POST /api/jobs/run                  → worker claims the job and runs this pipeline
+                                      …then run inline (see below)
+POST /api/jobs/run                  → scheduler claims due jobs and runs this pipeline
 GET  /api/documents/:id/extraction  → the review payload
 POST /api/documents/:id/review      → the human gate; the only path into a customer profile
 ```
 
+### Who actually runs the job
+
+A queue with no worker is a document that says "Reading" forever, so there are two entry points
+into the same execution path (`apps/web/lib/jobs/runner.ts`):
+
+| Entry point       | Claims via            | Scope                                        |
+| ----------------- | --------------------- | -------------------------------------------- |
+| `runDocumentJob`  | `claim_document_job`  | only the job for the document being processed |
+| `runPendingJobs`  | `claim_jobs`          | whatever is due, across organizations         |
+
+`POST /api/documents/:id/process` calls the first one **in-request**, controlled by
+`JOB_INLINE_RUNNER` (`on` by default). It claims by document rather than draining the queue, so
+one tenant's upload never waits on another tenant's work. Nothing about the inline run is allowed
+to fail the request: the job row is the source of truth, so a missing migration, a provider
+outage or a lease race leaves the work queued and the response saying `processing`.
+
+This also unsticks a document that was queued when no worker existed. Pressing **Read again** is
+deduplicated by `enqueue_job` — correctly, the work is already queued — and `claim_document_job`
+finds that pending job and runs it, rewriting its `extractionMode` if the operator chose a new
+one. That rewrite happens inside the claim, so the scheduler cannot pick the job up in between.
+
+Set `JOB_INLINE_RUNNER=off` when a scheduler owns the queue and upload requests should stay fast.
+
 `/api/jobs/run` uses the service-role client, so it is gated on `JOB_RUNNER_SECRET` and **fails
 closed**: with the secret unset it refuses every request rather than running unauthenticated
-work. Point a scheduler at it.
+work. Point a scheduler at it — it is still what runs the **retry/backoff** path in
+`complete_job`, which the inline runner does not cover on its own.
 
 ---
 

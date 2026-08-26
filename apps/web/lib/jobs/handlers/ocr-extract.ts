@@ -1,7 +1,13 @@
 import 'server-only';
 
 import { z } from 'zod';
-import { documentStatusAfterExtraction, extractionStatus, runExtraction } from '@assistigo/ai';
+import {
+  documentStatusAfterExtraction,
+  extractionModeSchema,
+  extractionStatus,
+  runExtraction,
+  type OcrProviderConfig,
+} from '@assistigo/ai';
 import { isDocumentType, type AllowedUploadMimeType } from '@assistigo/core';
 import { downloadObject } from '../../documents/storage';
 import { serverEnv } from '../../env';
@@ -20,15 +26,37 @@ import type { DocumentRow, Json, OrganizationRow } from '../../supabase/database
  * a human (§12.6).
  */
 
-const payloadSchema = z.object({ documentId: z.string().uuid() });
+/**
+ * `extractionMode` is absent on jobs queued before modes existed, and on any job queued by a
+ * caller that did not care — `auto` is the right answer for both.
+ */
+const payloadSchema = z.object({
+  documentId: z.string().uuid(),
+  extractionMode: extractionModeSchema.default('auto'),
+});
 
 export type JobHandlerResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * The AI reader's endpoint and credentials, assembled from the environment here rather than in
+ * `@assistigo/ai` — that package is pure domain logic and deliberately has no access to
+ * secrets. `undefined` when nothing is configured, which the pipeline reports to the operator
+ * as "AI reading is not set up" instead of failing the document.
+ */
+function aiProviderConfig(): OcrProviderConfig {
+  const env = serverEnv();
+  return {
+    apiKey: env.OCR_AI_PROVIDER === 'deepseek' ? env.DEEPSEEK_API_KEY : env.ANTHROPIC_API_KEY,
+    ...(env.OCR_AI_BASE_URL === undefined ? {} : { baseUrl: env.OCR_AI_BASE_URL }),
+    ...(env.OCR_AI_MODEL === undefined ? {} : { model: env.OCR_AI_MODEL }),
+  };
+}
 
 export async function handleOcrExtract(
   supabase: AssistigoSupabaseClient,
   payload: unknown,
 ): Promise<JobHandlerResult> {
-  const { documentId } = payloadSchema.parse(payload);
+  const { documentId, extractionMode } = payloadSchema.parse(payload);
 
   const { data, error } = await supabase
     .from('documents')
@@ -58,7 +86,7 @@ export async function handleOcrExtract(
   try {
     const bytes = await downloadObject(supabase, document.storage_path, document.storage_bucket);
 
-    const { extraction, rawText } = await runExtraction({
+    const { extraction, rawText, mode } = await runExtraction({
       bytes,
       mimeType: document.mime_type as AllowedUploadMimeType,
       filename: document.original_filename,
@@ -66,7 +94,12 @@ export async function handleOcrExtract(
         isDocumentType(document.document_type) && document.document_type !== 'unknown'
           ? document.document_type
           : null,
+      extractionMode,
       providerName: serverEnv().OCR_PROVIDER,
+      // `none` reaches the pipeline as a name it will not run, which is how "AI reading is off
+      // for this deployment" becomes a warning rather than a crash.
+      aiProviderName: serverEnv().OCR_AI_PROVIDER,
+      providerConfig: aiProviderConfig(),
       aiProcessingEnabled,
     });
 
@@ -107,12 +140,15 @@ export async function handleOcrExtract(
 
     if (documentError) throw documentError;
 
-    // Field count and confidence only — never a key, a label or a value (§24.2).
+    // Counts, modes and provider names only — never a key, a label or a value (§24.2).
     logger.info('jobs.ocr_extract.completed', {
       documentId: document.id,
       provider: extraction.provider,
+      requestedMode: extractionMode,
+      usedMode: mode,
       fieldCount: extraction.fields.length,
       confidence: extraction.confidence,
+      warningCodes: extraction.warnings.map((warning) => warning.code).join(','),
     });
 
     return { ok: true };

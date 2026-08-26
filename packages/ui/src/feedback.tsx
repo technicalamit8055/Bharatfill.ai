@@ -78,6 +78,18 @@ export function Spinner({ className, label }: { className?: string; label?: stri
   );
 }
 
+/** Indeterminate progress bar for a background step with no known percentage (e.g. a queued job). */
+export function ProgressBar({ label, className }: { label?: string; className?: string }) {
+  return (
+    <div role="status" aria-label={label ?? 'In progress'} className={cn('w-full', className)}>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full w-1/3 animate-progress-indeterminate rounded-full bg-sky-500" />
+      </div>
+      {label ? <p className="mt-1 text-xs text-slate-500">{label}</p> : null}
+    </div>
+  );
+}
+
 export function EmptyState({
   title,
   description,

@@ -18,7 +18,23 @@ const publicSchema = z.object({
 const serverSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   FIELD_ENCRYPTION_KEY: z.string().min(1).optional(),
-  OCR_PROVIDER: z.enum(['mock', 'tesseract', 'anthropic']).default('mock'),
+  /**
+   * The local, on-box reader — the one that never lets a byte leave this server. `local` reads
+   * embedded PDF text and text uploads; `mock` reads the demo fixtures and is what the test
+   * suite pins itself to (docs/AI_PIPELINE.md §2).
+   */
+  OCR_PROVIDER: z.enum(['mock', 'local', 'tesseract', 'anthropic']).default('local'),
+  /**
+   * The AI vision reader. `none` by default, so the AI path fails closed: an organization that
+   * has opted in still gets nothing until an operator of this deployment configures a provider.
+   */
+  OCR_AI_PROVIDER: z.enum(['none', 'deepseek', 'anthropic']).default('none'),
+  /** Required when OCR_AI_PROVIDER=deepseek. */
+  DEEPSEEK_API_KEY: z.string().optional(),
+  /** Overrides the provider's default endpoint — any OpenAI-compatible base URL. */
+  OCR_AI_BASE_URL: z.string().url().optional(),
+  /** Overrides the provider's default model id. */
+  OCR_AI_MODEL: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   BILLING_PROVIDER: z.enum(['mock', 'razorpay', 'stripe']).default('mock'),
   EXTENSION_ALLOWED_IDS: z.string().optional(),
@@ -28,6 +44,18 @@ const serverSchema = z.object({
    * unauthenticated work.
    */
   JOB_RUNNER_SECRET: z.string().min(16).optional(),
+  /**
+   * Whether `POST /api/documents/:id/process` runs that document's extraction job in-request
+   * instead of leaving it for a scheduler.
+   *
+   * On by default, because the alternative is worse: with no scheduler pointed at
+   * `/api/jobs/run`, an uploaded document sits at `processing` — "Reading" in the UI — forever.
+   * The inline run claims only the job belonging to the document being processed, so one
+   * tenant's upload never ends up running another's work.
+   *
+   * Set to `off` when a scheduler owns the queue and upload requests should stay fast.
+   */
+  JOB_INLINE_RUNNER: z.enum(['on', 'off']).default('on'),
 });
 
 export type PublicEnv = z.infer<typeof publicSchema>;

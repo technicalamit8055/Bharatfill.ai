@@ -154,6 +154,30 @@ export type DocumentExtractionRow = Timestamps & {
   reviewed_at: string | null;
 };
 
+/**
+ * A prepared file (spec §13.3). Insert-only in practice: the tools never edit a derivative, they
+ * produce a new one, so there is no `updated_at` on this table.
+ */
+export type DocumentDerivativeRow = {
+  id: string;
+  organization_id: string;
+  source_document_id: string | null;
+  customer_id: string | null;
+  application_id: string | null;
+  tool_type: 'photo' | 'signature' | 'pdf';
+  preset_id: string | null;
+  storage_bucket: string;
+  storage_path: string;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  width: number | null;
+  height: number | null;
+  metadata: Json;
+  created_by: string | null;
+  created_at: string;
+};
+
 export type JobRow = Timestamps & {
   id: string;
   organization_id: string | null;

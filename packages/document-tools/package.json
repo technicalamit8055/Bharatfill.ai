@@ -1,0 +1,24 @@
+{
+  "name": "@assistigo/document-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./browser/image": "./src/browser/image.ts",
+    "./browser/pdf": "./src/browser/pdf.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --project unit packages/document-tools"
+  },
+  "dependencies": {
+    "@assistigo/core": "*",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^4.8.69",
+    "zod": "^3.23.8"
+  }
+}

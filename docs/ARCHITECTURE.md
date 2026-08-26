@@ -156,7 +156,20 @@ jobs(id, organization_id, type, payload, status, attempts, run_after, locked_unt
 - Job types: `ocr.extract`, `document.derivative`, `retention.sweep`, `billing.aggregate`,
   `adapter.healthcheck`, `notification.send`.
 
-In local dev the worker is triggered by `POST /api/jobs/run`; in production by a scheduled cron.
+There are two ways into the same execution path, because a queue with no worker is a document
+that says "Reading" forever:
+
+- **Inline, by entity.** `POST /api/documents/:id/process` claims and runs *only that document's*
+  extraction job (`claim_document_job`), in the request. On by default (`JOB_INLINE_RUNNER`).
+  Claiming by document rather than draining the queue is what keeps one tenant's upload from
+  waiting on another tenant's work. Nothing about the inline run can fail the request — the job
+  row remains the source of truth.
+- **Batched, by schedule.** `POST /api/jobs/run` claims whatever is due across organizations
+  (`claim_jobs`), gated on `JOB_RUNNER_SECRET`. This is what runs the retry/backoff path in
+  `complete_job`, which the inline runner does not cover on its own, so a scheduler is still
+  worth pointing at it.
+
+See docs/AI_PIPELINE.md §10.
 
 ## 8. Frontend structure
 

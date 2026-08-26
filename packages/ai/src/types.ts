@@ -68,6 +68,46 @@ export interface OcrProvider {
   extract(input: OcrInput): Promise<OcrResult>;
 }
 
+/**
+ * Runtime configuration for a provider that talks to a hosted model.
+ *
+ * Passed in rather than read from `process.env`, because this package is pure domain logic with
+ * no environment access — the web app owns the secrets and hands over only what a provider
+ * needs (see apps/web/lib/jobs/handlers/ocr-extract.ts).
+ */
+export type OcrProviderConfig = {
+  apiKey?: string;
+  /** OpenAI-compatible base URL, without a trailing slash. */
+  baseUrl?: string;
+  model?: string;
+  /** Injection point for tests; defaults to global `fetch`. */
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+};
+
+// ---------------------------------------------------------------------------
+// Extraction modes (docs/AI_PIPELINE.md §2)
+// ---------------------------------------------------------------------------
+
+/**
+ * How hard the operator wants us to work on a document, and at what privacy cost.
+ *
+ * `non_ai` is a promise, not a preference: it guarantees no byte of the document leaves this
+ * server. `ai` is a request, not a guarantee — it still yields to the organization's
+ * `ai_processing_enabled` setting, so an operator can never opt an organization in by choosing
+ * it from a dropdown (§12.3, docs/DEVELOPMENT_RULES.md §1 rule 10).
+ */
+export const EXTRACTION_MODES = ['auto', 'non_ai', 'ai'] as const;
+export type ExtractionMode = (typeof EXTRACTION_MODES)[number];
+
+export const extractionModeSchema = z.enum(EXTRACTION_MODES);
+
+export const DEFAULT_EXTRACTION_MODE: ExtractionMode = 'auto';
+
+export function isExtractionMode(value: unknown): value is ExtractionMode {
+  return typeof value === 'string' && (EXTRACTION_MODES as readonly string[]).includes(value);
+}
+
 // ---------------------------------------------------------------------------
 // Classification
 // ---------------------------------------------------------------------------

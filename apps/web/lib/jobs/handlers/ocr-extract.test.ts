@@ -167,3 +167,54 @@ describe('handleOcrExtract', () => {
     await expect(handleOcrExtract(client, { documentId: 'not-a-uuid' })).rejects.toThrow();
   });
 });
+
+describe('handleOcrExtract reading method', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  it('accepts a reading method from the payload', async () => {
+    const { client, captured } = stubClient(documentRow(), aadhaarText);
+
+    const result = await handleOcrExtract(client, {
+      documentId: documentRow().id,
+      extractionMode: 'non_ai',
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(extractionRow(captured)?.status).toBe('review_required');
+  });
+
+  it('defaults to auto for a job queued before reading methods existed', async () => {
+    // Jobs already sitting in the queue carry no `extractionMode`; they must still run.
+    const { client, captured } = stubClient(documentRow(), aadhaarText);
+
+    const result = await handleOcrExtract(client, { documentId: documentRow().id });
+
+    expect(result).toEqual({ ok: true });
+    expect(extractionRow(captured)?.document_type).toBe('aadhaar_like');
+  });
+
+  it('rejects a reading method that is not one of the three', async () => {
+    const { client } = stubClient(documentRow(), aadhaarText);
+
+    await expect(
+      handleOcrExtract(client, { documentId: documentRow().id, extractionMode: 'magic' }),
+    ).rejects.toThrow();
+  });
+
+  it('cannot reach an AI provider from this deployment when none is configured', async () => {
+    // OCR_AI_PROVIDER is unset in this suite, so `ai` must degrade rather than throw.
+    const { client, captured } = stubClient(documentRow(), aadhaarText);
+
+    const result = await handleOcrExtract(client, {
+      documentId: documentRow().id,
+      extractionMode: 'ai',
+    });
+
+    expect(result).toEqual({ ok: true });
+    const warnings = JSON.stringify(extractionRow(captured)?.warnings ?? []);
+    expect(warnings).toContain('AI_PROVIDER_NOT_CONFIGURED');
+  });
+});

@@ -203,10 +203,53 @@ Remaining:
 - [ ] `POST /api/form-reports`
 - [ ] AI-assisted mapping (priority 5), gated on org opt-in
 
-## Phase 6 — Document tools ☐
+## Phase 6 — Document tools ◐
 
-Requirement presets, photo and signature crop/resize/compress, PDF compress/merge/split,
-derivative storage, extension suggestions.
+Done:
+
+- [x] `packages/document-tools` — pure engine: portal requirement presets for SSC, NTA, UPSC,
+      IBPS, Railway RRB, Agniveer, state PSCs, scholarships and general certificate limits
+      (each tagged `published` or `commonly_reported` so an operator knows how much to trust the
+      number); mm/px/DPI conversion and crop geometry; a target-KB JPEG search (quality first,
+      drops a resolution rung only when the overshoot is large, climbs back up if an opening
+      guess gave away resolution it did not need) plus JPEG comment-segment padding to reach a
+      portal's *minimum* KB; Otsu-threshold signature cleanup with a feathered ink/paper edge;
+      passport/stamp photo sheet layout (centred block, centred short final row, corner-only cut
+      marks) and CR-80 wallet-card sheet layout; Aadhaar mask-box geometry and a
+      `isMeaningfulRedaction` gate; derivative recipe/filename builder that records operations
+      and settings only, never a customer value. 167 unit tests.
+- [x] `packages/document-tools/src/browser` — canvas crop/rotate/adjust/stamp/redact/compose and
+      a `pdf-lib` + `pdf.js` layer for merge/split/reorder/rotate/rasterise/e-Aadhaar decrypt,
+      all client-side; a source document's bytes are never modified or re-uploaded.
+- [x] `packages/ui` — `Slider`, `Switch`, `SegmentedControl`, `Tabs`, `NumberField`, `SizeMeter`
+      for the tool editors.
+- [x] `/document-tools` hub and four editors — Photo & Signature Studio, Passport Photo Grid,
+      PVC Card & Aadhaar Mask, PDF Studio — under `apps/web/app/(app)/document-tools/`.
+- [x] `POST /api/derivatives/upload-intent`, `POST /api/derivatives` (magic-byte + size
+      re-verification before the row is written, orphaned object cleanup on insert failure),
+      `GET /api/derivatives`, `DELETE /api/derivatives/:id`, `POST /api/derivatives/:id/signed-url`.
+- [x] Migration 0016 — `document_derivatives` bytes now count towards `storage_used_bytes`, so
+      the storage entitlement Phase 1 wired up does not silently stop applying once prepared
+      files start holding real objects.
+- [x] Privacy gate: an Aadhaar-class card cannot be saved to a customer profile, downloaded to
+      print, or printed until a meaningful redaction box covers the number band — enforced by
+      `isMeaningfulRedaction`, not a checkbox the operator could skip.
+- [x] `en` + `hi` strings for the whole surface, including per-preset Hindi portal/label/notes.
+- [x] Full `en`/`hi` verified with `npm run typecheck`, `npm run lint`, `npm test` (708 tests) and
+      `npm run build:web`.
+
+Remaining:
+
+- [ ] Manual QA in a real browser with a signed-in session — blocked on the same thing as Phase 1
+      (no local Supabase; Docker not installed on this machine, and `db:seed` refuses to target
+      anything but `localhost`/`127.0.0.1` by design). Verified instead via typecheck, lint, the
+      167 new unit tests, a production build of all four routes, and an auth-redirect smoke test
+      against the dev server.
+- [ ] Extension suggestions — detect a portal's file-input constraints and offer a matching
+      prepared file from the customer's profile (spec §13, "Extension Integration" note).
+- [ ] Org-level custom presets via `document_requirement_presets` (the table exists and is
+      RLS-policied from Migration 0004; the built-in catalogue in `packages/document-tools`
+      covers the top portals for now, the same pattern as `BUILT_IN_ADAPTERS` in the form engine).
 
 ## Phase 7 — Application tracking ☐
 

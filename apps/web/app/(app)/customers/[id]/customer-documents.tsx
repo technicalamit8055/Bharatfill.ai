@@ -1,10 +1,11 @@
 import Link from 'next/link';
-import { Badge, Card, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
+import { Badge, Card, ProgressBar, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
 import { DOCUMENT_TYPE_LABELS, formatIndianDate, isDocumentType } from '@assistigo/core';
 import { getTranslations } from '@/lib/i18n/server';
 import { localised } from '@/lib/i18n';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { formatBytes } from '@/lib/documents/format';
+import { AutoRefreshWhileProcessing } from '@/components/documents/auto-refresh-while-processing';
 import type { DocumentRow } from '@/lib/supabase/database.types';
 
 const STATUS_TONE: Record<string, 'neutral' | 'info' | 'success' | 'warning' | 'danger'> = {
@@ -42,9 +43,11 @@ export async function CustomerDocuments({
     .limit(20);
 
   const documents = (data ?? []) as Partial<DocumentRow>[];
+  const isProcessing = documents.some((document) => document.status === 'processing');
 
   return (
     <Card title={t('documents.title')}>
+      <AutoRefreshWhileProcessing isProcessing={isProcessing} />
       {documents.length === 0 ? (
         <p className="text-sm text-slate-500">{t('documents.emptyDescription')}</p>
       ) : (
@@ -81,6 +84,9 @@ export async function CustomerDocuments({
                   <Badge tone={STATUS_TONE[document.status ?? ''] ?? 'neutral'}>
                     {t(`documents.statuses.${document.status}`)}
                   </Badge>
+                  {document.status === 'processing' ? (
+                    <ProgressBar className="mt-1.5 max-w-[10rem]" />
+                  ) : null}
                 </TD>
                 <TD className="text-slate-500">
                   {formatIndianDate(document.created_at?.slice(0, 10)) ?? '—'}

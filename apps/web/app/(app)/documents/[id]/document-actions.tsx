@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Button } from '@assistigo/ui';
+import { Button, Select } from '@assistigo/ui';
+import { EXTRACTION_MODES, type ExtractionMode } from '@assistigo/ai/types';
 import { useTranslations } from '@/lib/i18n/client';
 
 /**
@@ -11,23 +12,30 @@ import { useTranslations } from '@/lib/i18n/client';
  * "View" fetches a fresh signed URL every time rather than embedding one in the page: the URL
  * expires in five minutes and each issue is audited, so a link sitting in rendered HTML would
  * be both stale and unlogged (docs/SECURITY.md §4).
+ *
+ * "Read again" carries a reading-method picker because the commonest reason to press it is that
+ * the last read came back empty — a photograph the basic reader cannot see, or a scan whose
+ * labels did not match. Re-uploading the file to change the method would be busywork, so the
+ * method is chosen here and applied to the queued job (docs/AI_PIPELINE.md §2).
+ *
+ * It stays available while the document says "Reading", which is deliberate. That state means a
+ * job is queued; if nothing ever ran it, this button is the only thing that will.
  */
 export function DocumentActions({
   documentId,
   canDownload,
   canDelete,
   canProcess,
-  status,
 }: {
   documentId: string;
   canDownload: boolean;
   canDelete: boolean;
   canProcess: boolean;
-  status: string;
 }) {
   const t = useTranslations();
   const router = useRouter();
   const [busy, setBusy] = useState<'view' | 'process' | 'delete' | null>(null);
+  const [extractionMode, setExtractionMode] = useState<ExtractionMode>('auto');
 
   async function view() {
     setBusy('view');
@@ -43,7 +51,11 @@ export function DocumentActions({
   async function reprocess() {
     setBusy('process');
     try {
-      await fetch(`/api/documents/${documentId}/process`, { method: 'POST' });
+      await fetch(`/api/documents/${documentId}/process`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ extractionMode }),
+      });
       router.refresh();
     } finally {
       setBusy(null);
@@ -68,10 +80,25 @@ export function DocumentActions({
           {t('documents.view')}
         </Button>
       ) : null}
-      {canProcess && status !== 'processing' ? (
-        <Button size="sm" variant="ghost" loading={busy === 'process'} onClick={reprocess}>
-          {t('documents.reprocess')}
-        </Button>
+      {canProcess ? (
+        <>
+          <Select
+            aria-label={t('documents.extractionMode.label')}
+            className="h-9 w-auto py-0 text-xs"
+            value={extractionMode}
+            disabled={busy !== null}
+            onChange={(event) => setExtractionMode(event.target.value as ExtractionMode)}
+          >
+            {EXTRACTION_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`documents.extractionMode.options.${mode}`)}
+              </option>
+            ))}
+          </Select>
+          <Button size="sm" variant="ghost" loading={busy === 'process'} onClick={reprocess}>
+            {t('documents.reprocess')}
+          </Button>
+        </>
       ) : null}
       {canDelete ? (
         <Button size="sm" variant="ghost" loading={busy === 'delete'} onClick={remove}>

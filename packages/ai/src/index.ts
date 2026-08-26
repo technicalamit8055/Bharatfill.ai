@@ -15,5 +15,20 @@ export * from './extract';
 export * from './pipeline';
 export * from './text';
 export * from './fixtures';
-export { getOcrProvider, isOcrProviderName, MockOcrProvider, OCR_PROVIDER_NAMES } from './providers';
-export type { OcrProviderName } from './providers';
+export { extractPdfText, looksLikePdf, looksLikeProse } from './pdf-text';
+export type { PdfTextResult } from './pdf-text';
+export {
+  AI_OCR_PROVIDER_NAMES,
+  AiVisionOcrProvider,
+  LOCAL_OCR_PROVIDER_NAMES,
+  LocalOcrProvider,
+  MockOcrProvider,
+  OCR_PROVIDER_NAMES,
+  getOcrProvider,
+  isAiOcrProviderName,
+  isAiProviderConfigured,
+  isLocalOcrProviderName,
+  isOcrProviderName,
+  readLocalText,
+} from './providers';
+export type { AiOcrProviderName, LocalOcrProviderName, OcrProviderName } from './providers';

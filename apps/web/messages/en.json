@@ -295,7 +295,10 @@
     "unsupported_file_type": "Upload a JPG, PNG, WEBP or PDF file.",
     "file_too_large": "That file is too large.",
     "value_required": "Enter a value.",
-    "text_too_long": "This text is too long to read."
+    "text_too_long": "This text is too long to read.",
+    "unknown_preset": "That preset is not recognised. Refresh the page and try again.",
+    "tool_type_mismatch": "That does not match the tool that produced it.",
+    "preset_mismatch": "That preset does not match the file."
   },
   "errors": {
     "unauthenticated": "Please sign in to continue.",
@@ -316,7 +319,11 @@
     "unknown_field": "That field is not part of a customer profile.",
     "ocr_provider_not_configured": "The document reader is not configured. Contact support.",
     "ocr_provider_unknown": "The configured document reader is not recognised.",
-    "encryption_unavailable": "Secure storage is not configured, so that value could not be saved. Contact support."
+    "encryption_unavailable": "Secure storage is not configured, so that value could not be saved. Contact support.",
+    "ocr_provider_timeout": "The document reader took too long to respond. Please try again.",
+    "ocr_provider_failed": "The document reader could not be reached. Please try again.",
+    "ai_processing_not_enabled": "AI processing is off for this workspace. A workspace owner can turn it on in settings.",
+    "file_size_mismatch": "The uploaded file did not match what was expected, so it was not accepted."
   },
   "privacy": {
     "sensitiveNotice": "Sensitive value. Revealing it is recorded in the audit log.",
@@ -346,7 +353,7 @@
     "reprocess": "Read again",
     "deleteConfirm": "Delete this document? The stored file is removed permanently.",
     "processingTitle": "Reading the document",
-    "processingHelp": "This usually takes a few seconds. Refresh the page to see the result.",
+    "processingHelp": "This usually takes a few seconds. This page updates on its own.",
     "failedTitle": "Could not read this document",
     "failedHelp": "Try uploading a clearer scan, or read it again.",
     "statuses": {
@@ -368,7 +375,17 @@
       "noFieldsFound": "No details could be read from this document.",
       "noNameFound": "No name could be read from this document.",
       "unknownDocumentType": "The document type could not be identified. You can set it yourself.",
-      "aiProcessingNotEnabled": "AI processing is off for this workspace, so a basic reader was used instead."
+      "aiProcessingNotEnabled": "AI processing is off for this workspace, so a basic reader was used instead.",
+      "aiProviderNotConfigured": "The AI reader is not set up on this system, so the basic reader was used instead.",
+      "aiReadingUsed": "This document was read by the AI reader. Check every value against the page.",
+      "aiReadingFailed": "The AI reader could not be reached, so the basic reader was used instead. Try reading again in a moment.",
+      "aiNeedsImage": "This PDF is a scan with no text in it. The AI reader needs a photo — upload the page as a JPG or PNG.",
+      "aiFileTooLarge": "This file is too large to send to the AI reader. Upload a smaller image.",
+      "aiReturnedNoText": "The AI reader could not make out any text on this document.",
+      "localCannotReadImages": "The basic reader cannot read photos. Choose the AI reader to read this one.",
+      "pdfHasNoText": "This PDF is a scan rather than text, so the basic reader found nothing in it. Choose the AI reader, or upload the page as an image.",
+      "emptyFile": "This file is empty.",
+      "unknown": "Something about this document needs a second look."
     },
     "review": {
       "title": "Review extracted details",
@@ -392,11 +409,235 @@
         "format_invalid": "Unexpected format",
         "ambiguous_match": "Could match two fields"
       }
+    },
+    "extractionMode": {
+      "label": "Reading method",
+      "options": {
+        "auto": "Automatic",
+        "non_ai": "Basic reader",
+        "ai": "AI reader"
+      },
+      "hints": {
+        "auto": "Reads the document here first, and only asks the AI reader if that finds nothing.",
+        "non_ai": "Instant and free. Reads PDFs that already contain text. Cannot read a photo or a scan.",
+        "ai": "Best for phone photos and scanned certificates. Sends the document to an AI provider."
+      },
+      "aiNotice": "The AI reader sends this document to an outside AI provider to be read. It only runs if your workspace owner has turned on AI processing."
     }
   },
   "legal": {
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
     "security": "Security"
+  },
+  "documentTools": {
+    "title": "Document tools",
+    "subtitle": "Prepare photos, signatures, print sheets and PDFs to a portal’s exact rules.",
+    "hub": {
+      "photoSignature": {
+        "title": "Photo & Signature Studio",
+        "description": "Crop to a portal preset, clean up a signature, hit an exact KB size."
+      },
+      "passportGrid": {
+        "title": "Passport Photo Grid",
+        "description": "Lay out 4, 8, 12 or 16 photos on 4×6 or A4 paper, ready to cut."
+      },
+      "pvcCard": {
+        "title": "PVC Card & Aadhaar Mask",
+        "description": "Front and back card layout, e-Aadhaar unlock, and identifier masking."
+      },
+      "pdfStudio": {
+        "title": "PDF Studio",
+        "description": "Merge, split, reorder, rotate and compress to a portal’s size limit."
+      },
+      "privacyTitle": "Where these files go",
+      "privacyBody": "Every crop, adjustment and page edit happens on this computer. Nothing is sent anywhere until you choose to download the result or save it to a customer’s profile."
+    },
+    "drop": {
+      "choose": "Choose a file",
+      "orDragPaste": "or drag it here, or paste with Ctrl+V"
+    },
+    "preset": {
+      "title": "Portal preset",
+      "hint": "Fills in the size and dimensions below. Every number stays editable.",
+      "searchPlaceholder": "Search by exam or portal…",
+      "custom": "Custom size",
+      "customHint": "Set your own dimensions and KB limit below.",
+      "noMatch": "No preset matches that search.",
+      "verify": "Check this",
+      "needsStamp": "Needs name + date",
+      "source": "From: {source}"
+    },
+    "rule": {
+      "title": "Size & format",
+      "hint": "What the finished file will be.",
+      "width": "Width",
+      "height": "Height",
+      "dpi": "Resolution",
+      "noSize": "No fixed pixel size",
+      "minKb": "Minimum size",
+      "maxKb": "Maximum size",
+      "lockAspect": "Lock crop to this shape",
+      "lockAspectHint": "Turn off to crop freely, then set a size separately.",
+      "format": "File format",
+      "pngHint": "PNG has no size limit control — use it only when the portal asks for PNG.",
+      "pngNoCompression": "PNG files cannot be compressed to a target size. Switch to JPG to hit a KB limit."
+    },
+    "photo": {
+      "choose": "Choose a photo",
+      "chooseHint": "A clear, well-lit photo works best. JPG, PNG or WEBP.",
+      "mode": "What is this?",
+      "modePhoto": "Photo",
+      "modeSignature": "Signature"
+    },
+    "transform": {
+      "rotateLeft": "Rotate left",
+      "rotateRight": "Rotate right",
+      "flip": "Flip",
+      "autoTrim": "Auto-trim edges",
+      "changeFile": "Change file"
+    },
+    "signature": {
+      "title": "Signature cleanup",
+      "hint": "For a signature photographed on paper.",
+      "clean": "Clean background",
+      "cleanHint": "Removes shadows and paper tone, keeps the ink.",
+      "strength": "Strength",
+      "strengthHint": "Higher removes more shadow but can thin a light stroke.",
+      "transparent": "Transparent background",
+      "transparentHint": "For overlaying the signature on a form or a card, instead of a white box.",
+      "keepInk": "Keep ink colour",
+      "keepInkHint": "Keeps blue ink blue instead of turning it black."
+    },
+    "adjust": {
+      "title": "Adjust",
+      "straighten": "Straighten",
+      "brightness": "Brightness",
+      "contrast": "Contrast",
+      "clarity": "Clarity",
+      "clarityHint": "Stretches a flat, dull scan towards true black and white.",
+      "grayscale": "Black & white",
+      "reset": "Reset adjustments"
+    },
+    "stamp": {
+      "title": "Name & date stamp",
+      "hint": "Some portals reject a photo without this printed on it.",
+      "enable": "Print name and date on the photo",
+      "name": "Name",
+      "date": "Date photo was taken",
+      "privacy": "The name is printed on the image only — it is not saved or sent anywhere by Assistigo."
+    },
+    "output": {
+      "title": "Result",
+      "working": "Preparing…",
+      "empty": "Choose a file to get started.",
+      "fits": "Fits the portal’s size window",
+      "tooLarge": "Larger than the portal allows — lower the maximum or simplify the photo",
+      "tooSmall": "Smaller than the portal’s minimum",
+      "pages": "{count} pages",
+      "download": "Download",
+      "print": "Print",
+      "saveTo": "Save a copy to a customer",
+      "noCustomer": "Don’t save a copy",
+      "save": "Save to customer",
+      "saved": "Saved to the customer’s documents.",
+      "recipe": "What was done to this file"
+    },
+    "warnings": {
+      "overLimit": "Could not get under the maximum size without a bigger quality loss. Check the result before using it.",
+      "padded": "Extra data was added to reach the minimum size. This does not change how the image looks.",
+      "downscaled": "The image was shrunk to reach the target size.",
+      "tooLargeToSave": "This file is larger than Assistigo’s prepared-file limit and cannot be saved to a customer profile. You can still download it.",
+      "sheetFull": "The sheet could not fit every photo requested. Some were left out."
+    },
+    "grid": {
+      "choose": "Choose a photo",
+      "chooseHint": "One photo, laid out as many times as fit on the sheet.",
+      "paper": "Paper size",
+      "photoSize": "Photo size",
+      "sizePassport": "Passport (3.5×4.5 cm)",
+      "sizeStamp": "Stamp (2×2.5 cm)",
+      "sizeSquare": "Square",
+      "sizeCustom": "Custom",
+      "howMany": "How many photos",
+      "howManyHint": "Up to {capacity} fit on this sheet at this size.",
+      "tooBig": "This photo size does not fit on this sheet. Choose a smaller size or a bigger sheet.",
+      "fill": "Fill sheet",
+      "printing": "Printing",
+      "gap": "Gap between photos",
+      "gapHint": "Leaves room to cut between photos.",
+      "margin": "Paper margin",
+      "marginHint": "Matches your printer’s unprintable edge.",
+      "cutMarks": "Cut marks",
+      "cutMarksHint": "Small corner ticks to guide the cut.",
+      "preview": "Layout",
+      "placed": "{placed} of {capacity} slots used"
+    },
+    "card": {
+      "front": "Front",
+      "back": "Back",
+      "chooseImage": "Choose the {face} photo",
+      "chooseEAadhaar": "Or unlock an e-Aadhaar PDF",
+      "chooseEAadhaarHint": "The password-protected PDF downloaded from the UIDAI website.",
+      "unlockTitle": "This PDF is password-protected",
+      "unlockHint": "The password is usually the first four letters of the name in capitals, followed by the year of birth (e.g. SURE1990).",
+      "password": "Password",
+      "unlock": "Unlock",
+      "passwordIncorrect": "That password did not work. Check it and try again.",
+      "documentKind": "What kind of document is this?",
+      "documentKindHint": "Aadhaar-class documents must have the number masked before printing or saving.",
+      "kindOther": "Other ID / document",
+      "kindAadhaar": "Aadhaar",
+      "maskedConfirmed": "The number is masked.",
+      "maskRequired": "Drag the black box over the number before printing or saving this card. Only the last four digits should stay visible.",
+      "redactionHandle": "Drag to move, corner to resize",
+      "sheet": "Print sheet",
+      "copies": "Copies",
+      "copiesHint": "How many card faces to place on one 4×6 sheet.",
+      "notice": "A masked Aadhaar card shows only the last four digits, matching UIDAI’s own masked-Aadhaar format. The full number is never stored by Assistigo."
+    },
+    "pdf": {
+      "choose": "Add PDFs or photos",
+      "chooseHint": "Combine certificates, marksheets or photographed pages into one PDF.",
+      "loading": "Reading pages…",
+      "protectedFile": "\"{name}\" needs a password to open.",
+      "pages": "{count} pages",
+      "dragHint": "Drag a page to reorder it. Hover a page to rotate or remove it.",
+      "compress": "Compress",
+      "allowRasterise": "If needed, redraw pages as images to reach the size limit",
+      "rasteriseOffHint": "Without this, a scanned PDF may not be able to reach a very small size limit.",
+      "rasterisedWarning": "Pages were redrawn as images to reach the size limit. Text in the PDF is no longer selectable.",
+      "rotatePage": "Rotate page",
+      "deletePage": "Remove page"
+    },
+    "errors": {
+      "decodeFailed": "That file could not be opened. Try a different file.",
+      "assembleFailed": "The PDF could not be put together. Try removing the most recently added page."
+    },
+    "operations": {
+      "crop": "Cropped",
+      "resize": "Resized",
+      "rotate": "Rotated",
+      "straighten": "Straightened",
+      "compress": "Compressed",
+      "pad_to_minimum": "Padded to minimum size",
+      "convert": "Converted",
+      "grayscale": "Converted to black & white",
+      "binarise": "Converted to pure black & white",
+      "trim_whitespace": "Trimmed edges",
+      "enhance": "Adjusted brightness/contrast",
+      "flatten_background": "Cleaned background",
+      "name_date_stamp": "Name & date stamp added",
+      "redact": "Masked",
+      "sheet_layout": "Laid out on a sheet",
+      "card_layout": "Laid out as a card",
+      "merge": "Merged",
+      "split": "Split",
+      "reorder": "Pages reordered",
+      "delete_pages": "Pages removed",
+      "image_to_pdf": "Converted to PDF",
+      "rasterise": "Redrawn as images",
+      "decrypt": "Unlocked"
+    }
   }
 }
