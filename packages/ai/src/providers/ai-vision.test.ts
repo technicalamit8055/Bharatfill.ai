@@ -11,9 +11,11 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ANTHROPIC_BASE_URL,
   AiVisionOcrProvider,
+  buildDynamicSchemaPrompt,
   cleanTranscription,
   visionUnreadableReason,
 } from './ai-vision';
+import { ALL_EXTRACTABLE_FIELD_KEYS } from '../rules';
 import type { OcrInput } from '../types';
 
 const encoder = new TextEncoder();
@@ -434,5 +436,83 @@ describe('testConnection', () => {
 
     const result = await provider.testConnection();
     expect(result.ok).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dynamic-schema mode
+// ---------------------------------------------------------------------------
+
+/**
+ * Structured mode without an organization prompt: the model is asked to map the page onto the
+ * customer field registry, using a prompt generated from that registry. The pipeline reaches for
+ * it only when a document was read and matched no printed label at all.
+ */
+describe('dynamic-schema mode', () => {
+  const ANSWER = JSON.stringify({
+    fields: [{ key: 'customer.full_name', label: "Candidate's Name", value: 'Sunita Devi', confidence: 0.9 }],
+  });
+
+  function systemPromptOf(calls: { body: Record<string, unknown> }[]): string {
+    return (calls[0]?.body.messages as { content: string }[])[0]?.content ?? '';
+  }
+
+  it('offers the model the keys the dictionary can produce, with their meanings', () => {
+    const prompt = buildDynamicSchemaPrompt();
+
+    for (const key of ALL_EXTRACTABLE_FIELD_KEYS) {
+      expect(prompt, key).toContain(key);
+    }
+    // A bare key list is not a schema — the model needs to know what each one means.
+    expect(prompt).toContain('Full name');
+    expect(prompt).toContain('Graduation — Roll number');
+  });
+
+  it('tells the model not to return a full Aadhaar, as well as refusing one downstream', () => {
+    // The gate in ../safety.ts is what actually enforces this. Asking is still worth doing: a
+    // number that is never sent cannot be masked wrongly (§19.3).
+    expect(buildDynamicSchemaPrompt()).toContain('customer.aadhaar_last4');
+    expect(buildDynamicSchemaPrompt()).toMatch(/never output a full aadhaar/i);
+  });
+
+  it('asks for the schema mapping instead of a transcription, and returns candidate fields', async () => {
+    const { impl, calls } = stubFetch(ANSWER);
+    const provider = new AiVisionOcrProvider({
+      apiKey: 'k',
+      dynamicSchema: true,
+      fetchImpl: impl,
+    });
+
+    const result = await provider.extract(inputOf());
+
+    expect(systemPromptOf(calls)).toContain('customer.full_name');
+    expect(systemPromptOf(calls)).toContain('JSON');
+    expect(result.structuredFields).toHaveLength(1);
+    expect(result.structuredFields?.[0]).toMatchObject({ value: 'Sunita Devi' });
+  });
+
+  it("yields to an organization's own prompt when both are configured", async () => {
+    const { impl, calls } = stubFetch(ANSWER);
+    const provider = new AiVisionOcrProvider({
+      apiKey: 'k',
+      customPrompt: 'Extract only the full name.',
+      dynamicSchema: true,
+      fetchImpl: impl,
+    });
+
+    await provider.extract(inputOf());
+
+    expect(systemPromptOf(calls)).toContain('Extract only the full name.');
+    expect(systemPromptOf(calls)).not.toContain('customer.education.graduation.roll_number');
+  });
+
+  it('still refuses to run without the organization opt-in', async () => {
+    const { impl, calls } = stubFetch(ANSWER);
+    const provider = new AiVisionOcrProvider({ apiKey: 'k', dynamicSchema: true, fetchImpl: impl });
+
+    await expect(provider.extract(inputOf({ aiProcessingEnabled: false }))).rejects.toThrowError(
+      /ai_processing_not_enabled/,
+    );
+    expect(calls).toHaveLength(0);
   });
 });

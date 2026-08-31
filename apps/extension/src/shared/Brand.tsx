@@ -131,6 +131,13 @@ export const ExternalIcon = ({ size = 14, className }: IconProps) =>
     <path key="c" d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />,
   ]);
 
+export const DownloadIcon = ({ size = 14, className }: IconProps) =>
+  svg(size, className, [
+    <path key="a" d="M12 4v10" />,
+    <path key="b" d="m8 11 4 4 4-4" />,
+    <path key="c" d="M5 19h14" />,
+  ]);
+
 export const LinkIcon = ({ size = 14, className }: IconProps) =>
   svg(size, className, [
     <path key="a" d="M9 15 15 9" />,

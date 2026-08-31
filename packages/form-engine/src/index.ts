@@ -13,3 +13,4 @@ export * from './transforms';
 export * from './adapters';
 export * from './adapter-registry';
 export * from './mapper';
+export * from './documents';

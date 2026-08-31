@@ -70,15 +70,19 @@ function toLines(blocks: readonly OcrBlock[]): SourceLine[] {
       const trimmed = raw.trim();
       if (trimmed === '') continue;
 
-      const match = LABEL_VALUE.exec(trimmed);
-      lines.push({
-        raw: trimmed,
-        label: (match?.[1] ?? '').trim(),
-        value: (match?.[2] ?? '').trim(),
-        page: block.page,
-        bbox: block.bbox,
-        ocrConfidence: block.confidence,
-      });
+      // A row of a printed grid carries several label/value pairs side by side. Each one is its
+      // own candidate; the whole row stays as `raw`, so the operator reviews a field against
+      // what was actually printed.
+      for (const pair of splitMultiLabelLine(trimmed)) {
+        lines.push({
+          raw: trimmed,
+          label: pair.label,
+          value: pair.value,
+          page: block.page,
+          bbox: block.bbox,
+          ocrConfidence: block.confidence,
+        });
+      }
     }
   }
 
@@ -86,12 +90,303 @@ function toLines(blocks: readonly OcrBlock[]): SourceLine[] {
 }
 
 // ---------------------------------------------------------------------------
+// Multi-label rows (§12.4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Every printed label the dictionary knows, longest first, as a matcher.
+ *
+ * Phrases under three characters are left out: `%` and `s/o` are real labels at the start of a
+ * line, but as a *mid-line* split point they would fire inside ordinary values ("72.4%"), and a
+ * split point is the only thing this table is used for.
+ */
+const SPLIT_LABEL_PATTERNS: readonly { phrase: string; pattern: RegExp; words: number }[] = [
+  ...new Set(LABEL_RULES.flatMap((rule) => rule.labels)),
+]
+  .filter((phrase) => phrase.length >= 3)
+  .sort((a, b) => b.length - a.length)
+  .map((phrase) => ({
+    phrase,
+    // The same word-boundary definition `scoreLabel` uses, so a phrase cannot match inside a
+    // word: "post" must not fire inside "postal".
+    pattern: new RegExp(
+      '(?<![a-z0-9\\u0900-\\u097F])' + escapeRegExp(phrase) + '(?![a-z0-9\\u0900-\\u097F])',
+      'gi',
+    ),
+    words: phrase.split(/\s+/).length,
+  }));
+
+/**
+ * Curly quotes and non-breaking spaces, replaced one character for one so that an index into
+ * this string is still an index into the original line.
+ */
+function alignedForMatching(line: string): string {
+  return line.replace(APOSTROPHES, "'").replace(/\u00A0/g, ' ');
+}
+
+const SEPARATOR_AFTER_LABEL = /^\s{0,4}[:=]/;
+
+/**
+ * Punctuation that says a matched label is part of a value rather than the start of a column:
+ * a printed label is followed by its value, never by a comma. This is what tells "College" in
+ * `College Name D.K. College, Dumraon` apart from "Result" in `SGPA 7.85 Result PASSED`.
+ *
+ * `:`, `=` and `-` are deliberately absent — those are separators, which is the opposite signal.
+ */
+const NOT_A_COLUMN_START = /^\s*(?:[,;)\]}/]|$)/;
+
+/** Beyond this a "row" is a paragraph the splitter has misread. */
+const MAX_PAIRS_PER_LINE = 6;
+
+/** A grid cell is a value, not a sentence. Past this, an unpunctuated line is prose. */
+const MAX_CELL_WORDS = 6;
+const MAX_CELL_LENGTH = 80;
+
+/**
+ * Labels that may open a line but never start a column part-way through one.
+ *
+ * Every one of them is also an ordinary word inside the name of an institution — "Rampur Degree
+ * College", "Demo State University", "Bihar School Examination Board" — so mid-line they are far
+ * more likely to be inside a value than to be labelling the next one. At the start of a line they
+ * are as good a label as any: `College Name Rampur Degree College` reads its own first label and
+ * then keeps the rest of the row whole.
+ *
+ * "State" is here for the same reason, and it is the one that costs something: an unpunctuated
+ * `District Sitapur State Bihar` now gives up its second cell. A line splitter cannot tell that
+ * row from `University Name Demo State University` — they have the same shape — and truncating
+ * an institution's name mid-value is the worse of the two outcomes. A printed address is also
+ * rarely the only place a state appears; a university's name is.
+ */
+const NOT_A_MID_LINE_LABEL: ReadonlySet<string> = new Set([
+  'degree',
+  'college',
+  'school',
+  'university',
+  'institution',
+  'board',
+  'state',
+  'city',
+  'विद्यालय',
+  'महाविद्यालय',
+  'विश्वविद्यालय',
+  'कॉलेज',
+  'संस्थान',
+  'बोर्ड',
+  'राज्य',
+]);
+
+/**
+ * Words that make a cell a phrase rather than a value.
+ *
+ * A printed grid cell is a value — "SUNITA DEVI", "D.K. College", "7.85", "PASSED" — and values
+ * do not carry English function words. A *heading* does: the line a class 10 marksheet opens
+ * with, `BOARD OF HIGH SCHOOL AND INTERMEDIATE EDUCATION`, begins with a label word and reads as
+ * short cells, and without this guard "Board" would be extracted as "OF HIGH". Only the
+ * unpunctuated paths consult it; a colon is evidence enough on its own.
+ */
+const PROSE_WORD =
+  /(?:^|\s)(?:of|and|the|for|to|in|on|at|by|with|from|or|is|are|was|will|be|&)(?:\s|$)/i;
+
+/**
+ * A row whose every cell is this short is a grid however its labels are worded.
+ *
+ * It is the second way an unpunctuated row can prove itself, and the only one that will trust a
+ * one-word label such as "Gender" or "Result" mid-line. `Gender MALE Category GENERAL` reads as
+ * two cells of one word; `Address House 12 near Government School Rampur` does not, which is
+ * what stops "School" there from cutting an address in two.
+ */
+const MAX_TIGHT_CELL_WORDS = 3;
+
+type LabelHit = {
+  start: number;
+  end: number;
+  /** Words in the matched label phrase — a one-word noun is weak evidence of a new column. */
+  words: number;
+  /** Followed by its own `:` or `=`. */
+  separated: boolean;
+  /** Preceded by a column's worth of whitespace. */
+  columned: boolean;
+  /** Could begin a column at all — i.e. something follows it that is not value punctuation. */
+  boundary: boolean;
+};
+
+/**
+ * Splits one line into its label/value pairs, or returns it as a single unsplit candidate.
+ *
+ * Indian certificates are laid out as grids, and a grid row transcribes as several pairs on one
+ * line: `Candidate's Name PRITAM KUMAR Father's Name KRISHNA SINGH`. Read as one pair, the
+ * father's name ends up inside the candidate's — the single most damaging extraction error
+ * there is (§14.4); read by `LABEL_VALUE` alone, a row punctuated by nothing but single spaces
+ * yields no pair at all, which is how a university marksheet came back empty.
+ *
+ * Splitting a line wrongly is worse than not splitting it, because a value would then be filed
+ * under a field it does not belong to. So a split makes the line prove it is a grid row twice:
+ *
+ *   1. it must *begin* with a known label — a value that merely contains a label word does not,
+ *      which is what keeps "Address: Near the Government School" in one piece, and
+ *   2. it must carry a second label that is more than a stray noun: followed by its own `:` when
+ *      the line punctuates its pairs at all, or — when there is no punctuation to go on — a label
+ *      of two or more words, one starting a new whitespace column, or a row whose every cell is
+ *      short enough that it can only be a grid (`provesGridRow`).
+ *
+ * On an unpunctuated line every cell must also read as a *value* rather than a phrase, which is
+ * what stops a heading from proposing a field (see `PROSE_WORD`).
+ *
+ * Only once both hold does every remaining known label in the row become a split point, so
+ * `Village Rampur Post Office Rampur Kalan District Sitapur` yields all three pairs rather than
+ * only the two that proved the row.
+ *
+ * A row that proves (1) but not (2) — `Course B.Sc. (Hons) Physics` — still gives up its first
+ * cell, but *only* where `LABEL_VALUE` found nothing, and the cell is cut at the next label so
+ * that a column this function could not justify splitting on is dropped rather than swallowed
+ * into the value.
+ *
+ * A bilingual label is deliberately *not* a split point: in `पिता का नाम / Father's Name : Ram`
+ * only the second label carries the colon, so rule 2 fails and the line stays whole — which is
+ * what `scoreLabel` already reads correctly as one label.
+ */
+export function splitMultiLabelLine(line: string): { label: string; value: string }[] {
+  const fallback = unsplit(line);
+  const target = alignedForMatching(line);
+  const hits = findLabelHits(target);
+  if (hits[0]?.start !== 0) return [fallback];
+
+  const punctuated = /[:=]/.test(target);
+  const boundaries = punctuated
+    ? // On a punctuated line only a label with a separator of its own opens a column: a label
+      // without one is part of a value, and the bilingual "पिता का नाम / Father's Name :" is one
+      // label, not two.
+      hits.filter((hit) => hit.separated && hit.boundary)
+    : hits.filter((hit) => hit.boundary);
+
+  if (
+    boundaries.length >= 2 &&
+    boundaries[0]?.start === 0 &&
+    boundaries.length <= MAX_PAIRS_PER_LINE &&
+    (punctuated || provesGridRow(line, boundaries))
+  ) {
+    const pairs = toPairs(line, boundaries);
+    if (pairs !== null) return pairs;
+  }
+
+  // One label, no separator: nothing else can read this line, so read the first cell only.
+  if (fallback.label === '') {
+    const cut = hits.find((hit) => hit.start > 0 && hit.boundary)?.start ?? line.length;
+    const value = trimCell(line.slice(hits[0].end, cut));
+    if (isGridCell(value)) return [{ label: line.slice(0, hits[0].end).trim(), value }];
+  }
+
+  return [fallback];
+}
+
+/** The pairs a set of boundaries implies, or null when any of them lands on an empty cell. */
+function toPairs(
+  line: string,
+  boundaries: readonly LabelHit[],
+): { label: string; value: string }[] | null {
+  const pairs: { label: string; value: string }[] = [];
+
+  for (const [index, hit] of boundaries.entries()) {
+    const label = line.slice(hit.start, hit.end).trim();
+    const value = trimCell(line.slice(hit.end, boundaries[index + 1]?.start ?? line.length));
+
+    // An empty cell means the boundaries were wrong, not that the row is empty. Back out.
+    if (label === '' || value === '') return null;
+    pairs.push({ label, value });
+  }
+
+  return pairs;
+}
+
+function unsplit(line: string): { label: string; value: string } {
+  const match = LABEL_VALUE.exec(line);
+  return { label: (match?.[1] ?? '').trim(), value: (match?.[2] ?? '').trim() };
+}
+
+/** Strips the separator a cell opens with and the column punctuation it may end with. */
+function trimCell(cell: string): string {
+  return cell
+    .replace(/^\s*[:=]\s*/, '')
+    .replace(/^\s*[-–—]\s+/, '')
+    .replace(/[,;|]\s*$/, '')
+    .trim();
+}
+
+/**
+ * Whether an unpunctuated line has earned a split at these boundaries.
+ *
+ * Every cell has to read as a value first — that is what rules out a heading. Then the row needs
+ * either a label that looks like a field name (two or more words, or a new whitespace column) or
+ * cells short enough that the row can only be a grid.
+ */
+function provesGridRow(line: string, boundaries: readonly LabelHit[]): boolean {
+  const cells = boundaries.map((hit, index) =>
+    trimCell(line.slice(hit.end, boundaries[index + 1]?.start ?? line.length)),
+  );
+
+  if (!cells.every(isGridCell)) return false;
+
+  const columnar = boundaries.filter(
+    (hit, index) => index === 0 || hit.words >= 2 || hit.columned,
+  );
+  return (
+    columnar.length >= 2 || cells.every((cell) => wordCount(cell) <= MAX_TIGHT_CELL_WORDS)
+  );
+}
+
+function wordCount(value: string): number {
+  return value.split(/\s+/).length;
+}
+
+/** A cell that could be a printed value: present, short, and not a fragment of a sentence. */
+function isGridCell(value: string): boolean {
+  if (value === '' || value.length > MAX_CELL_LENGTH) return false;
+  return wordCount(value) <= MAX_CELL_WORDS && !PROSE_WORD.test(value);
+}
+
+/** Non-overlapping label matches, the longest phrase winning at any position. */
+function findLabelHits(target: string): LabelHit[] {
+  const hits: (LabelHit & { phrase: string })[] = [];
+
+  for (const { phrase, pattern, words } of SPLIT_LABEL_PATTERNS) {
+    pattern.lastIndex = 0;
+    for (let match = pattern.exec(target); match !== null; match = pattern.exec(target)) {
+      const start = match.index;
+      const end = start + match[0].length;
+      if (hits.some((hit) => start < hit.end && end > hit.start)) continue;
+
+      const after = target.slice(end);
+      hits.push({
+        phrase,
+        start,
+        end,
+        words,
+        separated: SEPARATOR_AFTER_LABEL.test(after),
+        columned: /(?:\s\s|\t)$/.test(target.slice(0, start)),
+        boundary: !NOT_A_COLUMN_START.test(after),
+      });
+    }
+  }
+
+  return hits
+    .sort((a, b) => a.start - b.start)
+    .map((hit, index) => ({
+      ...hit,
+      boundary: hit.boundary && (index === 0 || !NOT_A_MID_LINE_LABEL.has(hit.phrase)),
+    }));
+}
+
+// ---------------------------------------------------------------------------
 // Label matching
 // ---------------------------------------------------------------------------
+
+/** Typographic apostrophes. The dictionary is written with typewriter quotes only. */
+const APOSTROPHES = /[‘’´]/g;
 
 function normaliseLabel(label: string): string {
   return label
     .toLowerCase()
+    .replace(APOSTROPHES, "'")
     .replace(/[*_|]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();

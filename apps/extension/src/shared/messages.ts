@@ -13,6 +13,8 @@ import { z } from 'zod';
 // uses them.
 import {
   detectionPayloadSchema,
+  fileAttachmentRequestSchema,
+  fileFillInstructionSchema,
   fillInstructionSchema,
   fillResultSchema,
 } from '@assistigo/form-engine/types';
@@ -60,10 +62,19 @@ export const messageSchema = z.discriminatedUnion('type', [
   /**
    * side panel → background → content. The only message that ever carries customer values,
    * and it travels once, after the operator has pressed Fill.
+   *
+   * The two file fields are the two halves of one hop each, never both set by the same sender:
+   * the side panel names prepared files by id in `attachments` (it has no bytes and is given
+   * none), and the background worker replaces that with `fileInstructions` — the same files with
+   * their bytes, fetched through a signed URL — before forwarding to the content script.
    */
   z.object({
     type: z.literal('APPLY_FILL'),
     instructions: z.array(fillInstructionSchema).max(500),
+    /** side panel → background */
+    attachments: z.array(fileAttachmentRequestSchema).max(20).optional(),
+    /** background → content */
+    fileInstructions: z.array(fileFillInstructionSchema).max(20).optional(),
   }),
 
   /** content → background → side panel */
@@ -76,6 +87,9 @@ export const messageSchema = z.discriminatedUnion('type', [
   }),
 
   z.object({ type: z.literal('CREATE_APPLICATION'), title: z.string().max(160) }),
+
+  /** Saves a prepared file to disk, for a portal whose upload box cannot be attached to. */
+  z.object({ type: z.literal('DOWNLOAD_DERIVATIVE'), derivativeId: z.string().uuid() }),
 ]);
 
 export type Message = z.infer<typeof messageSchema>;

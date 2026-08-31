@@ -86,6 +86,48 @@ const SIGNALS: readonly ClassSignals[] = [
     filename: ['12th', 'class12', 'inter', 'seniorsecondary'],
   },
   {
+    /**
+     * A degree marksheet names its degree, not a class. The diagnostic phrases are the ones a
+     * school board never prints — a spelled-out degree, a semester, a grade-point average — so
+     * "university" and the degree abbreviations stay weak: an address or an issuing office on a
+     * certificate mentions a university often enough that the word alone should not decide.
+     */
+    documentType: 'marksheet_graduation',
+    strong: [
+      'provisional marksheet',
+      'provisional certificate',
+      'degree examination',
+      'bachelor of science',
+      'bachelor of arts',
+      'bachelor of commerce',
+      'bachelor of technology',
+      'master of science',
+      'master of arts',
+      'master of commerce',
+      'स्नातक',
+      'स्नातकोत्तर',
+    ],
+    weak: [
+      'university',
+      'विश्वविद्यालय',
+      'महाविद्यालय',
+      'semester',
+      'sgpa',
+      'cgpa',
+      'credit point',
+      'grade point',
+      'bachelor',
+      'b.sc',
+      'b.com',
+      'b.tech',
+      'part iii',
+      'honours',
+      'reg. number',
+      'registration number',
+    ],
+    filename: ['graduation', 'degree', 'university', 'bsc', 'bcom', 'btech', 'snatak'],
+  },
+  {
     documentType: 'caste_certificate',
     strong: ['caste certificate', 'जाति प्रमाण पत्र', 'जाति प्रमाणपत्र'],
     weak: ['scheduled caste', 'scheduled tribe', 'other backward class', 'अनुसूचित जाति'],

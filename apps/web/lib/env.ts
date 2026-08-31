@@ -8,6 +8,16 @@
 
 import { z } from 'zod';
 
+/**
+ * `.env.local` conventionally leaves an unconfigured optional secret as a bare `KEY=` line
+ * rather than omitting it, which sets `process.env.KEY` to `""` — not `undefined`. Zod's
+ * `.optional()` only tolerates `undefined`, so a blank value would otherwise still have to
+ * satisfy the base schema (e.g. `.min(16)`) and fail. Preprocessing blank strings to
+ * `undefined` makes "blank" and "absent" mean the same thing everywhere below.
+ */
+const blankToUndefined = (value: unknown) => (value === '' ? undefined : value);
+const optionalString = (schema: z.ZodString) => z.preprocess(blankToUndefined, schema.optional());
+
 const publicSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
@@ -17,7 +27,7 @@ const publicSchema = z.object({
 
 const serverSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-  FIELD_ENCRYPTION_KEY: z.string().min(1).optional(),
+  FIELD_ENCRYPTION_KEY: optionalString(z.string().min(1)),
   /**
    * The local, on-box reader — the one that never lets a byte leave this server. `local` reads
    * embedded PDF text and text uploads; `mock` reads the demo fixtures and is what the test
@@ -30,27 +40,27 @@ const serverSchema = z.object({
    */
   OCR_AI_PROVIDER: z.enum(['none', 'deepseek', 'anthropic']).default('none'),
   /** Required when OCR_AI_PROVIDER=deepseek. */
-  DEEPSEEK_API_KEY: z.string().optional(),
+  DEEPSEEK_API_KEY: optionalString(z.string()),
   /** Overrides the provider's default endpoint — any OpenAI-compatible base URL. */
-  OCR_AI_BASE_URL: z.string().url().optional(),
+  OCR_AI_BASE_URL: optionalString(z.string().url()),
   /** Overrides the provider's default model id. */
-  OCR_AI_MODEL: z.string().optional(),
-  ANTHROPIC_API_KEY: z.string().optional(),
+  OCR_AI_MODEL: optionalString(z.string()),
+  ANTHROPIC_API_KEY: optionalString(z.string()),
   BILLING_PROVIDER: z.enum(['mock', 'razorpay', 'stripe']).default('mock'),
-  EXTENSION_ALLOWED_IDS: z.string().optional(),
+  EXTENSION_ALLOWED_IDS: optionalString(z.string()),
   /**
    * Shared secret for `POST /api/jobs/run`. That route runs with the service-role client, so
    * it fails closed: unset means the endpoint refuses every request rather than running
    * unauthenticated work.
    */
-  JOB_RUNNER_SECRET: z.string().min(16).optional(),
+  JOB_RUNNER_SECRET: optionalString(z.string().min(16)),
   /**
    * Shared secret the configured billing provider must present on `POST /api/billing/webhook`.
    * That route runs with the service-role client, so — same as `JOB_RUNNER_SECRET` — it fails
    * closed: unset means the endpoint refuses every request rather than processing an
    * unauthenticated billing event.
    */
-  BILLING_WEBHOOK_SECRET: z.string().min(16).optional(),
+  BILLING_WEBHOOK_SECRET: optionalString(z.string().min(16)),
   /**
    * Whether `POST /api/documents/:id/process` runs that document's extraction job in-request
    * instead of leaving it for a scheduler.

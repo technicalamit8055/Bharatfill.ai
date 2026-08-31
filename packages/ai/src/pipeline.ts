@@ -27,6 +27,7 @@ import {
   localUnreadableReason,
   visionUnreadableReason,
 } from './providers';
+import { FIELDS_BY_DOCUMENT_TYPE } from './rules';
 import { sanitizeRawText } from './safety';
 import {
   DEFAULT_EXTRACTION_MODE,
@@ -83,6 +84,7 @@ const WARNING_MESSAGE_KEYS: Record<string, string> = {
   AI_FILE_TOO_LARGE: 'documents.warnings.aiFileTooLarge',
   AI_RETURNED_NO_TEXT: 'documents.warnings.aiReturnedNoText',
   AI_STRUCTURED_INVALID: 'documents.warnings.aiStructuredInvalid',
+  AI_DYNAMIC_EXTRACTION_USED: 'documents.warnings.aiDynamicExtractionUsed',
   LOCAL_CANNOT_READ_IMAGES: 'documents.warnings.localCannotReadImages',
   PDF_HAS_NO_TEXT: 'documents.warnings.pdfHasNoText',
   EMPTY_FILE: 'documents.warnings.emptyFile',
@@ -154,10 +156,17 @@ function ocrInputOf(input: RunExtractionInput) {
   };
 }
 
-/** Classification plus field extraction over one OCR result. Pure; safe to run twice. */
+/**
+ * Classification plus field extraction over one OCR result. Pure; safe to run twice.
+ *
+ * `classificationText` exists for the dynamic-schema escalation below, whose `rawText` is the
+ * model's JSON answer rather than the page: the class was already decided from the transcription,
+ * and re-deciding it from a JSON payload would throw away the better evidence.
+ */
 function interpret(
   input: RunExtractionInput,
   ocr: OcrResult,
+  classificationText?: string,
 ): {
   documentType: DocumentType;
   classificationConfidence: number;
@@ -165,7 +174,7 @@ function interpret(
   warnings: ExtractionWarning[];
 } {
   const classification = classifyDocument({
-    text: ocr.rawText,
+    text: classificationText ?? ocr.rawText,
     filename: input.filename,
     mimeType: input.mimeType,
     hintedType: input.hintedType ?? null,
@@ -201,6 +210,13 @@ export async function runExtraction(input: RunExtractionInput): Promise<RunExtra
 
   let usedAi = false;
   let ocr: OcrResult;
+  /**
+   * Every vendor request that contributed to the stored extraction. Normally one; the
+   * dynamic-schema escalation below adds a second, and the row has to name both — the one that
+   * produced the retained text and the one that produced the fields (§24.2 keeps the payloads
+   * out, not the ids).
+   */
+  const providerRequestIds: string[] = [];
 
   if (input.provider !== undefined) {
     // An injected provider is used as given. The opt-in gate still applies: a provider that
@@ -263,6 +279,54 @@ export async function runExtraction(input: RunExtractionInput): Promise<RunExtra
     }
   }
 
+  // Read, but nothing on the page matched a printed label the dictionary knows. This is the
+  // unclassified university marksheet, the college certificate, the state form nobody has
+  // written rules for — and there is nothing further the rules engine can do with text it has
+  // already failed to place. Hand the model the profile schema and ask it to do the mapping
+  // (docs/AI_PIPELINE.md §2).
+  //
+  // It costs one more request to a vendor the organization has already opted into and this
+  // document has already been sent to, and it is asked for only when the alternative is handing
+  // the operator nothing at all.
+  if (
+    mode !== 'non_ai' &&
+    input.provider === undefined &&
+    interpretation.fields.length === 0 &&
+    ocr.rawText.trim() !== '' &&
+    // A photograph or a signature has no fields *by design* — it is the value (§12.4). That is
+    // not a failure to place the page, and re-reading it would find nothing either way.
+    hasExtractableFields(interpretation.documentType) &&
+    // Structured mode already asked the model to map the document; asking twice would just be
+    // the same answer, and an organization's own prompt is not ours to second-guess.
+    ocr.structuredFields == null
+  ) {
+    const ai = aiAvailability(input);
+    if (ai.allowed) {
+      const attempt = await readWithAi(input, warnings, { dynamicSchema: true });
+      const proposed = attempt.usedAi ? (attempt.ocr.structuredFields ?? []) : [];
+
+      if (proposed.length > 0) {
+        // The transcription stays the retained text and the class stays as the page decided it;
+        // only the fields come from this second pass.
+        const dynamic = interpret(input, attempt.ocr, ocr.rawText);
+        if (dynamic.fields.length > 0) {
+          interpretation = dynamic;
+          usedAi = true;
+          if (attempt.ocr.providerRequestId !== null) {
+            providerRequestIds.push(attempt.ocr.providerRequestId);
+          }
+          warnings.push(warn('AI_DYNAMIC_EXTRACTION_USED'));
+        }
+      } else if (attempt.usedAi) {
+        // Asked and got nothing usable — an answer that would not parse, most likely. Say so,
+        // for the same reason the escalation above does: an operator who is told only "no
+        // details could be read" would try the AI reader next, not knowing it has been asked.
+        const attemptWarning = unreadableWarning(attempt.ocr);
+        if (attemptWarning !== null) warnings.push(attemptWarning);
+      }
+    }
+  }
+
   if (usedAi) warnings.push(warn('AI_READING_USED'));
 
   const unreadable = unreadableWarning(ocr);
@@ -273,7 +337,7 @@ export async function runExtraction(input: RunExtractionInput): Promise<RunExtra
       documentType: interpretation.documentType,
       classificationConfidence: interpretation.classificationConfidence,
       provider: ocr.provider,
-      providerRequestId: ocr.providerRequestId,
+      providerRequestId: joinRequestIds([ocr.providerRequestId, ...providerRequestIds]),
       fields: interpretation.fields,
       warnings: dedupeWarnings([...warnings, ...interpretation.warnings]),
       confidence: meanConfidence(interpretation.fields),
@@ -292,11 +356,15 @@ export async function runExtraction(input: RunExtractionInput): Promise<RunExtra
 async function readWithAi(
   input: RunExtractionInput,
   warnings: ExtractionWarning[],
+  configOverrides?: Partial<OcrProviderConfig>,
 ): Promise<{ ocr: OcrResult; usedAi: boolean }> {
   const localProviderName = input.providerName ?? 'mock';
 
   try {
-    const provider = getOcrProvider(input.aiProviderName, input.providerConfig);
+    const provider = getOcrProvider(input.aiProviderName, {
+      ...input.providerConfig,
+      ...configOverrides,
+    });
     return { ocr: await provider.extract(ocrInputOf(input)), usedAi: true };
   } catch {
     // The reason is deliberately dropped: a provider error can quote the request, and the
@@ -307,6 +375,17 @@ async function readWithAi(
     );
     return { ocr, usedAi: false };
   }
+}
+
+/** False for the classes that carry no fields at all — a photo, a signature, a receipt. */
+function hasExtractableFields(documentType: DocumentType): boolean {
+  return (FIELDS_BY_DOCUMENT_TYPE[documentType] ?? []).length > 0;
+}
+
+/** The audit column holds one string, so several request ids travel comma-separated. */
+function joinRequestIds(ids: readonly (string | null)[]): string | null {
+  const present = [...new Set(ids.filter((id): id is string => id !== null && id !== ''))];
+  return present.length === 0 ? null : present.join(',').slice(0, 200);
 }
 
 /** The same warning can arrive from two paths; showing it twice looks like two problems. */

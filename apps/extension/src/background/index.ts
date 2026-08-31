@@ -29,7 +29,15 @@ import {
   sessionStore,
   settingsStore,
 } from '../shared/storage';
-import type { DetectionPayload, FieldMapping, FillResult } from '@assistigo/form-engine';
+import { MAX_ATTACHMENT_BYTES } from '@assistigo/form-engine';
+import type {
+  DetectionPayload,
+  DocumentSuggestion,
+  FieldMapping,
+  FileAttachmentRequest,
+  FileFillInstruction,
+  FillResult,
+} from '@assistigo/form-engine';
 
 /**
  * Per-tab working state. Held in memory only: it dies with the service worker, which is the
@@ -210,6 +218,110 @@ chrome.runtime.onMessageExternal.addListener((raw, sender, sendResponse) => {
 });
 
 // ---------------------------------------------------------------------------
+// Prepared file attachments (spec §7.4.5; docs/EXTENSION.md §6a)
+// ---------------------------------------------------------------------------
+
+type SignedDerivative = { url: string; mimeType: string; filename: string };
+
+/**
+ * Strips anything a file name could smuggle into the download folder: a path separator, a
+ * parent-directory hop, or a leading dot that would hide the file. The name is written by an
+ * operator in the document tools, so this guards against a mistake more than an attack — but
+ * `chrome.downloads` rejects the whole call on a bad name, and the button would simply fail.
+ */
+function safeDownloadName(filename: string): string {
+  const base = filename.split(/[\\/]/).pop() ?? '';
+  const cleaned = base
+    // eslint-disable-next-line no-control-regex
+    .replace(/[<>:"|?*\u0000-\u001f]/g, '')
+    .replace(/^\.+/, '')
+    .trim();
+  return cleaned.length > 0 ? cleaned.slice(0, 150) : 'assistigo-document';
+}
+
+/** Base64 for a `Uint8Array`, chunked so a large file cannot blow the argument limit. */
+function bytesToBase64(bytes: Uint8Array): string {
+  const CHUNK = 0x8000;
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + CHUNK));
+  }
+  return btoa(binary);
+}
+
+/**
+ * Turns the panel's "attach this prepared file here" requests into instructions carrying bytes.
+ *
+ * Every signed URL comes from `/api/derivatives/:id/signed-url`, which re-checks
+ * `document.download` and writes an audit row — so an operator allowed to see that a suggestion
+ * exists, but not to download the customer's documents, cannot attach one either. The bytes
+ * live in this worker for the length of the fill and are never stored.
+ *
+ * A file that cannot be fetched, or that is over the size ceiling, does not fail the whole fill
+ * — the typed fields are still worth writing. It does produce a `failed` result for its own
+ * upload box, because a box the operator ticked and heard nothing about would be read as
+ * attached, and an incomplete application submitted on the strength of it.
+ */
+type AttachmentBatch = {
+  instructions: FileFillInstruction[];
+  /** One per request that never reached the page, in the shape the panel already renders. */
+  failures: FillResult[];
+};
+
+async function fetchAttachments(
+  requests: readonly FileAttachmentRequest[],
+): Promise<AttachmentBatch> {
+  const batch: AttachmentBatch = { instructions: [], failures: [] };
+
+  for (const request of requests) {
+    const unavailable = (error: string): void => {
+      batch.failures.push({ signature: request.signature, action: 'failed', error });
+    };
+
+    try {
+      const signed = await apiFetch<SignedDerivative>(
+        `/api/derivatives/${request.derivativeId}/signed-url`,
+        { method: 'POST' },
+      );
+
+      // Storage, not the dashboard API: a signed URL carries its own authorisation, so this
+      // request deliberately does not go through `apiFetch` and sends no bearer token.
+      const download = await fetch(signed.url);
+      if (!download.ok) {
+        unavailable('attachment_unavailable');
+        continue;
+      }
+
+      const buffer = await download.arrayBuffer();
+      if (buffer.byteLength === 0) {
+        unavailable('attach_empty_file');
+        continue;
+      }
+      if (buffer.byteLength > MAX_ATTACHMENT_BYTES) {
+        unavailable('attachment_too_large');
+        continue;
+      }
+
+      batch.instructions.push({
+        signature: request.signature,
+        filename: signed.filename,
+        mimeType: signed.mimeType,
+        dataBase64: bytesToBase64(new Uint8Array(buffer)),
+      });
+    } catch {
+      /*
+       * Includes the permission case: `document.download` refused for this role. Deliberately
+       * not inspected further and never logged — the reason belongs to a document, and this
+       * worker keeps no record of one (§19.6).
+       */
+      unavailable('attachment_unavailable');
+    }
+  }
+
+  return batch;
+}
+
+// ---------------------------------------------------------------------------
 // Message routing
 // ---------------------------------------------------------------------------
 
@@ -321,6 +433,7 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
         /** Signatures in dependency order; the side panel fills in this order. */
         fillOrder: string[];
         summary: Record<string, number>;
+        documentSuggestions: DocumentSuggestion[];
         values: Record<string, string>;
       }>('/api/forms/map', {
         method: 'POST',
@@ -337,7 +450,23 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       if (tabId === null) return fail('no_active_tab');
 
       const state = stateFor(tabId);
-      const response = await sendToTab<{ results: FillResult[] }>(tabId, message);
+
+      /*
+       * The side panel names the prepared files it wants attached; their bytes are fetched here
+       * and only here. `attachments` is dropped from what goes on to the page: the content
+       * script has no business knowing a derivative's id, and a hostile page that got hold of
+       * one could not use it anyway without the operator's session.
+       */
+      const { attachments, ...forPage } = message;
+      const batch = attachments?.length
+        ? await fetchAttachments(attachments)
+        : { instructions: [], failures: [] };
+      const outbound: Message = {
+        ...forPage,
+        ...(batch.instructions.length > 0 ? { fileInstructions: batch.instructions } : {}),
+      };
+
+      const response = await sendToTab<{ results: FillResult[] }>(tabId, outbound);
 
       // If elements were in subframes and top-frame missed them, attempt fill across subframes
       if (response && response.results) {
@@ -352,7 +481,7 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
               for (const frame of frames) {
                 if (frame.frameId === 0) continue;
                 const subResponse = (await chrome.tabs
-                  .sendMessage(tabId, message, { frameId: frame.frameId })
+                  .sendMessage(tabId, outbound, { frameId: frame.frameId })
                   .catch(() => null)) as { ok: true; data: { results: FillResult[] } } | null;
                 if (subResponse?.ok && subResponse.data.results) {
                   for (const subRes of subResponse.data.results) {
@@ -371,6 +500,10 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       }
 
       if (!response) return fail('fill_failed');
+
+      // Files that never reached the page still get a row, so a ticked box the operator heard
+      // nothing about cannot be mistaken for an attached one.
+      response.results.push(...batch.failures);
 
       // Record the session. A logging failure must not lose the operator's work, so it is
       // reported but does not fail the fill.
@@ -436,6 +569,24 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       });
 
       return ok(application);
+    }
+
+    case 'DOWNLOAD_DERIVATIVE': {
+      const signed = await apiFetch<SignedDerivative>(
+        `/api/derivatives/${message.derivativeId}/signed-url`,
+        { method: 'POST' },
+      );
+      /*
+       * `saveAs: false` sends it to the download folder without a dialog — the point of the
+       * button is that it is one click. The signed URL expires in minutes and the file name
+       * comes from the derivative record, not from the page.
+       */
+      const downloadId = await chrome.downloads.download({
+        url: signed.url,
+        filename: safeDownloadName(signed.filename),
+        saveAs: false,
+      });
+      return ok({ downloadId });
     }
 
     default:

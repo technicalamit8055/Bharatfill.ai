@@ -18,6 +18,7 @@ const alias = {
   '@assistigo/ai': path.resolve(root, 'packages/ai/src/index.ts'),
   '@assistigo/form-engine/types': path.resolve(root, 'packages/form-engine/src/types.ts'),
   '@assistigo/form-engine/safety': path.resolve(root, 'packages/form-engine/src/safety.ts'),
+  '@assistigo/form-engine/documents': path.resolve(root, 'packages/form-engine/src/documents.ts'),
   '@assistigo/form-engine': path.resolve(root, 'packages/form-engine/src/index.ts'),
   '@assistigo/document-tools': path.resolve(root, 'packages/document-tools/src/index.ts'),
   '@assistigo/database': path.resolve(root, 'packages/database/src/index.ts'),

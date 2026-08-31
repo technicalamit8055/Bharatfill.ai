@@ -305,8 +305,14 @@ export function isSupportedInputType(inputType: string): boolean {
 }
 
 /**
- * File inputs cannot be set programmatically — browsers forbid it, and rightly so. The
- * extension surfaces a matching prepared file and the operator picks it (§7.4.5).
+ * A file input is never a *mapped* field: no customer value is ever written into one, so
+ * `isSupportedInputType('file')` is false and `proposeMappings` skips it.
+ *
+ * Not because the browser forbids it — Chromium does let a content script hand an input a
+ * `DataTransfer` file list — but because choosing which of a customer's documents goes into
+ * which upload box is the operator's decision, not the mapper's. That decision has its own
+ * path: the operator ticks a specific prepared file in the side panel and `attachFiles` in the
+ * extension's filler carries it, one explicit tick per box (§7.4.5, docs/EXTENSION.md §6a).
  */
 export function isFileInput(inputType: string): boolean {
   return inputType.toLowerCase() === 'file';

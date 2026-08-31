@@ -14,7 +14,7 @@
 
 import { parseMessage, type Message } from '../shared/messages';
 import { collectPageContext, detectFieldsInFrames, isBlockedPage } from './detector';
-import { applyFill } from './filler';
+import { applyFill, attachFiles } from './filler';
 
 const MARKER_ATTRIBUTE = 'data-assistigo-extension';
 
@@ -58,6 +58,9 @@ function handleMessage(
     case 'APPLY_FILL': {
       // Async: the reply is sent from the promise, so the channel must stay open.
       applyFill(document, message.instructions)
+        // Files go last: attaching one can make a portal re-render the section around it, and a
+        // typed value written into a field that is about to be replaced would be lost.
+        .then((results) => [...results, ...attachFiles(document, message.fileInstructions ?? [])])
         .then((results) => sendResponse({ ok: true, data: { results } }))
         .catch(() => sendResponse({ ok: false, error: 'fill_failed' }));
       return true;

@@ -107,3 +107,29 @@ describe('buildCustomerPatch', () => {
     expect(patch.father_name).toBeNull();
   });
 });
+
+describe('higher-education fields', () => {
+  it('writes a graduation field into education_json under its own level', () => {
+    const { patch } = buildCustomerPatch(row(), {
+      'customer.education.graduation.university': 'Demo State University',
+      'customer.education.graduation.roll_number': '2100567',
+    });
+
+    expect(patch.education_json).toEqual({
+      graduation: { university: 'Demo State University', roll_number: '2100567' },
+    });
+  });
+
+  it('does not disturb the school levels already on the record', () => {
+    // A degree marksheet accepted after a class 10 marksheet must not wipe the earlier one.
+    const { patch } = buildCustomerPatch(
+      row({ education_json: { class10: { board: 'UP Board', passing_year: '2008' } } }),
+      { 'customer.education.graduation.result': 'PASSED' },
+    );
+
+    expect(patch.education_json).toEqual({
+      class10: { board: 'UP Board', passing_year: '2008' },
+      graduation: { result: 'PASSED' },
+    });
+  });
+});

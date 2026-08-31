@@ -19,6 +19,7 @@ function field(overrides: Partial<DetectedField>): DetectedField {
     required: false,
     maxLength: null,
     pattern: null,
+    accept: null,
     hasValue: false,
     visible: true,
     disabled: false,

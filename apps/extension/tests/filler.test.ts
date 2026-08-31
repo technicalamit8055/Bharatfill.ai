@@ -5,8 +5,14 @@
  * (spec §14.8, §19.7) and CI runs it as its own job.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEPENDENT_WAIT_MS, applyFill, findElementBySignature } from '../src/content/filler';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  DEPENDENT_WAIT_MS,
+  applyFill,
+  attachFiles,
+  findElementBySignature,
+} from '../src/content/filler';
+import { installFileApis } from './file-input-shim';
 import { detectFields } from '../src/content/detector';
 
 function render(html: string): Document {
@@ -486,5 +492,158 @@ describe('filler — signature resolution', () => {
     const signature = signatureOf(doc, 'full_name');
     render(`<form><input name="something_else" /></form>`);
     expect(findElementBySignature(document, signature)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// File attachment (spec §7.4.5; docs/EXTENSION.md §6a)
+// ---------------------------------------------------------------------------
+
+/** Three bytes prove the decode path; a real JPEG would prove nothing more. */
+const PHOTO_BASE64 = btoa('abc');
+
+function photoInstruction(signature: string) {
+  return {
+    signature,
+    filename: 'photo_ssc_35x45.jpg',
+    mimeType: 'image/jpeg',
+    dataBase64: PHOTO_BASE64,
+  };
+}
+
+describe('filler — attaches prepared files', () => {
+  let files: ReturnType<typeof installFileApis>;
+
+  beforeEach(() => {
+    files = installFileApis();
+  });
+
+  afterEach(() => {
+    files.restore();
+  });
+
+  it('attaches a prepared file and fires input and change events', () => {
+    const doc = render(`<form><input type="file" name="photo" accept="image/jpeg" /></form>`);
+    const input = doc.querySelector('input')!;
+
+    const events: string[] = [];
+    input.addEventListener('input', () => events.push('input'));
+    input.addEventListener('change', () => events.push('change'));
+
+    const results = attachFiles(doc, [photoInstruction(signatureOf(doc, 'photo'))]);
+
+    expect(results[0]?.action).toBe('filled');
+
+    const attached = input.files![0]!;
+    expect(attached.name).toBe('photo_ssc_35x45.jpg');
+    expect(attached.type).toBe('image/jpeg');
+    expect(attached.size).toBe(3);
+    // A portal's upload widget only re-renders, and only validates, when these fire.
+    expect(events).toEqual(['input', 'change']);
+  });
+
+  it('attaches nothing when the operator ticked nothing', () => {
+    const doc = render(`<form><input type="file" name="photo" /></form>`);
+    expect(attachFiles(doc, [])).toEqual([]);
+    expect(doc.querySelector('input')!.files).toBeNull();
+  });
+
+  it('refuses a file the upload box would reject', () => {
+    const doc = render(`<form><input type="file" name="photo" accept=".pdf" /></form>`);
+    const results = attachFiles(doc, [photoInstruction(signatureOf(doc, 'photo'))]);
+
+    expect(results[0]).toMatchObject({ action: 'skipped', skipReason: 'file_type_rejected' });
+    expect(doc.querySelector('input')!.files).toBeNull();
+  });
+
+  it('honours an accept attribute the page narrowed after detection', () => {
+    const doc = render(`<form><input type="file" name="photo" accept="image/*" /></form>`);
+    const signature = signatureOf(doc, 'photo');
+    doc.querySelector('input')!.setAttribute('accept', 'application/pdf');
+
+    const results = attachFiles(doc, [photoInstruction(signature)]);
+    expect(results[0]?.skipReason).toBe('file_type_rejected');
+  });
+
+  it('skips a disabled upload box', () => {
+    const doc = render(`<form><input type="file" name="photo" disabled /></form>`);
+    const results = attachFiles(doc, [photoInstruction(signatureOf(doc, 'photo'))]);
+    expect(results[0]).toMatchObject({ action: 'skipped', skipReason: 'disabled' });
+  });
+
+  it('reports a box that is no longer on the page', () => {
+    const doc = render(`<form><input type="file" name="photo" /></form>`);
+    const signature = signatureOf(doc, 'photo');
+    doc.querySelector('input')!.remove();
+
+    const results = attachFiles(doc, [photoInstruction(signature)]);
+    expect(results[0]).toMatchObject({ action: 'failed', error: 'element_not_found' });
+  });
+
+  it('refuses to attach into a field that is not a file input', () => {
+    const doc = render(`<form><input type="text" name="full_name" /></form>`);
+    const results = attachFiles(doc, [photoInstruction(signatureOf(doc, 'full_name'))]);
+    expect(results[0]).toMatchObject({ action: 'skipped', skipReason: 'unsupported_type' });
+  });
+
+  it('fails honestly when the browser will not take the file list', () => {
+    const doc = render(`<form><input type="file" name="photo" /></form>`);
+    delete (globalThis as { DataTransfer?: unknown }).DataTransfer;
+
+    const results = attachFiles(doc, [photoInstruction(signatureOf(doc, 'photo'))]);
+
+    // Never reported as filled: an operator told the document is attached when it is not would
+    // submit an incomplete application.
+    expect(results[0]).toMatchObject({ action: 'failed', error: 'attach_unsupported' });
+  });
+
+  it('fails on an empty file rather than attaching nothing', () => {
+    const doc = render(`<form><input type="file" name="photo" /></form>`);
+    const results = attachFiles(doc, [
+      { ...photoInstruction(signatureOf(doc, 'photo')), dataBase64: '' },
+    ]);
+    expect(results[0]).toMatchObject({ action: 'failed', error: 'attach_empty_file' });
+  });
+});
+
+describe('filler — safety: attachment obeys the same hard rules', () => {
+  let files: ReturnType<typeof installFileApis>;
+
+  beforeEach(() => {
+    files = installFileApis();
+  });
+
+  afterEach(() => {
+    files.restore();
+  });
+
+  it('does not submit the form it attaches to', () => {
+    const doc = render(
+      `<form id="f"><input type="file" name="photo" /><input type="submit" value="Submit" /></form>`,
+    );
+    const submitted = vi.fn();
+    doc.querySelector('form')!.addEventListener('submit', submitted);
+
+    attachFiles(doc, [photoInstruction(signatureOf(doc, 'photo'))]);
+
+    expect(submitted).not.toHaveBeenCalled();
+  });
+
+  /*
+   * `payment_proof` is deliberately not in this list: a receipt upload is a document, and the
+   * payment rule is about never entering payment *credentials* (§14.8). `card_number` stands in
+   * for a box that does classify that way, however odd a file input with that name would be —
+   * the point is that the classifier's verdict is honoured on this path too.
+   */
+  it.each([
+    ['captcha_image', 'captcha_field'],
+    ['otp_document', 'otp_field'],
+    ['card_number', 'payment_field'],
+  ])('never attaches to the %s upload box', (name, skipReason) => {
+    const doc = render(`<form><input type="file" name="${name}" /></form>`);
+    const results = attachFiles(doc, [photoInstruction(signatureOf(doc, name))]);
+
+    expect(results[0]).toMatchObject({ action: 'skipped', skipReason });
+    expect(doc.querySelector('input')!.files).toBeNull();
   });
 });

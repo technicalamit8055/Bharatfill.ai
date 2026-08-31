@@ -351,3 +351,214 @@ describe('structured mode: an organization vendor with a custom prompt', () => {
     expect(codes(extraction.warnings)).toContain('AI_PROCESSING_NOT_ENABLED');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Dynamic-schema escalation (docs/AI_PIPELINE.md §2)
+// ---------------------------------------------------------------------------
+
+/**
+ * A page that was read but matched no printed label the dictionary knows — an unclassified
+ * university marksheet, a state form nobody has written rules for — is handed back to the model
+ * with the profile schema, because there is nothing further the rules engine can do with text it
+ * has already failed to place.
+ *
+ * The reason this group is worth its length: this is the one path where field *keys* come from a
+ * model rather than from ../rules.ts, so what is asserted here is that it changes nothing else.
+ * The opt-in gate, the Aadhaar masking gate, the high-risk review rules and the classification
+ * all have to behave exactly as they do on the transcribing path.
+ */
+describe('a document that was read but matched no label', () => {
+  /** A page with real words and not one printed label. */
+  const UNPLACEABLE = [
+    'DEMO STATE UNIVERSITY, RAMPUR',
+    'PROVISIONAL MARKSHEET',
+    'B.Sc. (Hons) PART III DEGREE EXAMINATION',
+    'Marks are printed overleaf and verified by seal',
+  ].join('\n');
+
+  /** Replies with each body in turn, so a transcription and a JSON answer can differ. */
+  function stubTurns(...bodies: string[]) {
+    const calls: Record<string, unknown>[] = [];
+    const impl = vi.fn(async (_url: string | URL | Request, options?: RequestInit) => {
+      const body = JSON.parse(String(options?.body ?? '{}')) as Record<string, unknown>;
+      calls.push(body);
+      const content = bodies[Math.min(calls.length - 1, bodies.length - 1)] ?? '';
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ id: `req-${calls.length}`, choices: [{ message: { content } }] }),
+      } as unknown as Response;
+    });
+    return { impl: impl as unknown as typeof fetch, calls };
+  }
+
+  function structured(fields: Record<string, string>): string {
+    return JSON.stringify({
+      fields: Object.entries(fields).map(([key, value]) => ({
+        key,
+        label: key,
+        value,
+        confidence: 0.9,
+      })),
+    });
+  }
+
+  function unplaceableInput(impl: typeof fetch, overrides: Partial<RunExtractionInput> = {}) {
+    return withAi(impl, {
+      extractionMode: 'ai',
+      bytes: encoder.encode(UNPLACEABLE),
+      mimeType: 'application/pdf',
+      ...overrides,
+    });
+  }
+
+  it('asks the model to map the page onto the profile, and says that it did', async () => {
+    const { impl, calls } = stubTurns(
+      UNPLACEABLE,
+      structured({
+        'customer.full_name': 'SUNITA DEVI',
+        'customer.education.graduation.result': 'PASSED',
+      }),
+    );
+
+    const { extraction } = await runExtraction(unplaceableInput(impl));
+
+    expect(calls).toHaveLength(2);
+    expect(codes(extraction.warnings)).toContain('AI_DYNAMIC_EXTRACTION_USED');
+    expect(extraction.fields.find((field) => field.key === 'customer.full_name')?.value).toBe(
+      'SUNITA DEVI',
+    );
+    expect(
+      extraction.fields.find((field) => field.key === 'customer.education.graduation.result')
+        ?.value,
+    ).toBe('PASSED');
+  });
+
+  it('does not ask a second time for a page the rules engine could read', async () => {
+    // Re-reading a document that produced fields would spend money and privacy for nothing.
+    const { impl, calls } = stubTurns('Name: Sunita Devi\nDate of Birth: 01/01/1990');
+
+    const { extraction } = await runExtraction(unplaceableInput(impl));
+
+    expect(calls).toHaveLength(1);
+    expect(codes(extraction.warnings)).not.toContain('AI_DYNAMIC_EXTRACTION_USED');
+  });
+
+  it('never escalates in non_ai mode — the guarantee holds here too', async () => {
+    const { impl, calls } = stubTurns(structured({ 'customer.full_name': 'SUNITA DEVI' }));
+
+    const { extraction, mode } = await runExtraction(
+      unplaceableInput(impl, { extractionMode: 'non_ai' }),
+    );
+
+    expect(calls).toEqual([]);
+    expect(mode).toBe('non_ai');
+    expect(extraction.fields).toEqual([]);
+  });
+
+  it('never escalates without the organization opt-in', async () => {
+    const { impl, calls } = stubTurns(structured({ 'customer.full_name': 'SUNITA DEVI' }));
+
+    const { extraction } = await runExtraction(
+      unplaceableInput(impl, { aiProcessingEnabled: false }),
+    );
+
+    // Rule 10: no raw document reaches an AI provider without org-level opt-in.
+    expect(calls).toEqual([]);
+    expect(codes(extraction.warnings)).toContain('AI_PROCESSING_NOT_ENABLED');
+  });
+
+  it('leaves an organization with its own prompt alone', async () => {
+    // Structured mode already asked the model to map the document; asking again would produce
+    // the same answer, and an organization's own instructions are not ours to second-guess.
+    const { impl, calls } = stubTurns(JSON.stringify({ fields: [] }));
+
+    const { extraction } = await runExtraction(
+      unplaceableInput(impl, {
+        aiProviderName: 'org_ai_vendor',
+        providerConfig: { apiKey: 'org-key', customPrompt: 'Extract the name.', fetchImpl: impl },
+      }),
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(codes(extraction.warnings)).not.toContain('AI_DYNAMIC_EXTRACTION_USED');
+  });
+
+  it('keeps the class the page proved, rather than re-deciding it from a JSON payload', async () => {
+    const { impl } = stubTurns(UNPLACEABLE, structured({ 'customer.full_name': 'SUNITA DEVI' }));
+
+    const { extraction } = await runExtraction(unplaceableInput(impl));
+
+    expect(extraction.documentType).toBe('marksheet_graduation');
+  });
+
+  it('keeps the transcription as the retained text, not the model JSON', async () => {
+    const { impl } = stubTurns(UNPLACEABLE, structured({ 'customer.full_name': 'SUNITA DEVI' }));
+
+    const { rawText } = await runExtraction(unplaceableInput(impl));
+
+    expect(rawText).toContain('PROVISIONAL MARKSHEET');
+    expect(rawText).not.toContain('customer.full_name');
+  });
+
+  it('names both vendor requests, since both contributed to the stored row', async () => {
+    const { impl } = stubTurns(UNPLACEABLE, structured({ 'customer.full_name': 'SUNITA DEVI' }));
+
+    const { extraction } = await runExtraction(unplaceableInput(impl));
+
+    expect(extraction.providerRequestId).toBe('req-1,req-2');
+  });
+
+  it('puts the model answer through the same Aadhaar gate as a transcription (§19.3)', async () => {
+    const { impl } = stubTurns(
+      UNPLACEABLE,
+      structured({ 'customer.address.printed': 'ID 123456789012, Ghazipur' }),
+    );
+
+    const { extraction, rawText } = await runExtraction(unplaceableInput(impl));
+
+    expect(containsAadhaarLikeNumber(JSON.stringify(extraction.fields))).toBe(false);
+    expect(containsAadhaarLikeNumber(rawText)).toBe(false);
+  });
+
+  it('still always reviews a high-risk field the model proposed', async () => {
+    const { impl } = stubTurns(UNPLACEABLE, structured({ 'customer.category': 'obc' }));
+
+    const { extraction } = await runExtraction(unplaceableInput(impl));
+    const category = extraction.fields.find((field) => field.key === 'customer.category');
+
+    expect(category?.status).toBe('needs_review');
+    expect(category?.reviewReason).toBe('high_risk_field');
+  });
+
+  it('keeps the transcription result when the model maps nothing after all', async () => {
+    const { impl, calls } = stubTurns(UNPLACEABLE, JSON.stringify({ fields: [] }));
+
+    const { extraction } = await runExtraction(unplaceableInput(impl));
+
+    expect(calls).toHaveLength(2);
+    expect(extraction.fields).toEqual([]);
+    expect(codes(extraction.warnings)).not.toContain('AI_DYNAMIC_EXTRACTION_USED');
+    expect(codes(extraction.warnings)).toContain('NO_FIELDS_FOUND');
+  });
+
+  it('says so when the model answers with something that will not parse', async () => {
+    const { impl } = stubTurns(UNPLACEABLE, 'That is not JSON at all, sorry!');
+
+    const { extraction } = await runExtraction(unplaceableInput(impl));
+
+    expect(codes(extraction.warnings)).toContain('AI_STRUCTURED_INVALID');
+    expect(codes(extraction.warnings)).not.toContain('AI_DYNAMIC_EXTRACTION_USED');
+  });
+
+  it('does not escalate a photograph, which has no fields by design', async () => {
+    const { impl, calls } = stubTurns('Sunita', structured({ 'customer.full_name': 'SUNITA' }));
+
+    const { extraction } = await runExtraction(
+      withAi(impl, { extractionMode: 'ai', bytes: JPEG, mimeType: 'image/jpeg' }),
+    );
+
+    expect(extraction.documentType).toBe('photo');
+    expect(calls).toHaveLength(1);
+  });
+});

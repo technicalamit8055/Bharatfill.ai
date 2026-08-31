@@ -10,7 +10,8 @@
       "@assistigo/core": ["../../packages/core/src/index.ts"],
       "@assistigo/form-engine": ["../../packages/form-engine/src/index.ts"],
       "@assistigo/form-engine/types": ["../../packages/form-engine/src/types.ts"],
-      "@assistigo/form-engine/safety": ["../../packages/form-engine/src/safety.ts"]
+      "@assistigo/form-engine/safety": ["../../packages/form-engine/src/safety.ts"],
+      "@assistigo/form-engine/documents": ["../../packages/form-engine/src/documents.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "*.config.ts"]

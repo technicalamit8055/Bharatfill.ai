@@ -9,8 +9,14 @@ Derived from master spec §15, §7.4, §19.6.
 Manifest V3. Permissions requested at install:
 
 ```json
-"permissions": ["activeTab", "storage", "scripting", "sidePanel"]
+"permissions": ["activeTab", "storage", "scripting", "sidePanel", "downloads"]
 ```
+
+`downloads` is what makes the side panel's one-click **Download** on a prepared file one click
+(§6a): without it the best available is opening a signed URL in a tab and asking the operator to
+save it. It grants no page access and no read of download history beyond what this extension
+itself starts. Spec §15.2 says start minimal, so it is listed here as the fifth and last: adding
+any further permission needs the same justification and matching Chrome Web Store copy.
 
 No `host_permissions` at install time. Page access comes from `activeTab` (user gesture) plus
 `chrome.scripting.executeScript`. If broad host access is ever needed, it must be an optional
@@ -110,8 +116,11 @@ APPLY_FILL               sidepanel → background → content   (values travel o
                          instructions come from buildFillInstructions(), never from the panel
                          itself: that applies the named transforms, re-checks safety classes,
                          and orders dependent dropdowns parent-first
+                         carries ticked file attachments too: the panel sends derivative ids,
+                         the background swaps in the bytes, the page never sees an id (§6a)
 FILL_RESULT              content → background → sidepanel → server
 REPORT_FORM              sidepanel → background → server
+DOWNLOAD_DERIVATIVE      sidepanel → background → server   (signed URL → chrome.downloads)
 ```
 
 Customer values exist in the content script only for the duration of the fill, are never written
@@ -151,6 +160,76 @@ same places, so an option the operator was shown is never one the filler cannot 
 
 The types a control reports and the values it can accept are covered in
 `docs/FORM_ENGINE.md` §9a.
+
+## 6a. Document attachment helper (§7.4.5, §13.3)
+
+`detectFields` reports every `<input type="file">` like any other field, plus its `accept`
+attribute. It is never a *mapped* field — `isSupportedInputType('file')` is false and
+`proposeMappings` always skips it with `unsupported_type` — so no customer value is ever written
+into one. `matchDocumentRequirements` in `packages/form-engine/src/documents.ts` is the other
+half: it infers the field's category (`photo` / `signature` / `pdf`) from its label text first,
+the `accept` attribute only as a fallback, then — when the resolved portal adapter lists
+`documentRequirements` — picks the one requirement that matches by category and label overlap.
+
+`POST /api/forms/map` resolves the rest server-side and returns it as `documentSuggestions`
+alongside the field mappings: the preset (the adapter's `presetCode`, or a portal-name guess
+against the built-in catalogue in `@assistigo/document-tools`), and — gated on `document.view`,
+so a role that cannot see the customer's documents gets none — up to three of the customer's
+existing `document_derivatives` in that category, ranked with a same-preset match first.
+
+The side panel's "Documents to attach" section renders this: the portal's stated size and
+dimensions, each suggested file with a tick box and a one-click **Download**
+(`DOWNLOAD_DERIVATIVE`), and a "Prepare in Document Tools Studio" button that opens
+`/document-tools/photo-signature` or `/document-tools/pdf-studio` with `?customerId=&preset=` —
+both pages already resolve a preset from that query string, and the photo/signature page also
+derives its initial mode from the preset's category so a signature deep link does not land in
+photo mode.
+
+### Attaching a prepared file
+
+A ticked file is attached to the upload box by the fill itself. Chromium lets a content script
+build a `DataTransfer`, put a `File` in it and assign the list to `input.files`; the page then
+sees what it would have seen from the file picker — preview, client-side validation, and a
+native submit that carries the bytes.
+
+This runs on its own path end to end, and the separation is the point:
+
+```text
+side panel     APPLY_FILL { instructions, attachments: [{ signature, derivativeId }] }
+                 ↑ ids only — the panel never holds document bytes
+background     POST /api/derivatives/:id/signed-url   (re-checks document.download, audits)
+               fetch(signedUrl) → base64
+               APPLY_FILL { instructions, fileInstructions: [{ signature, filename,
+                                                               mimeType, dataBase64 }] }
+                 ↑ attachments is dropped; the page never sees a derivative id
+content        applyFill(instructions)  then  attachFiles(fileInstructions)
+```
+
+What keeps this inside §7.4.5 rather than becoming autofill of documents:
+
+- **Nothing is attached by default.** The panel starts with every tick box clear. A mapped text
+  value is a proposal the engine can defend; which document belongs in which upload slot is a
+  judgement about what the portal is asking for, so it takes an explicit tick per box.
+- **One file per box**, because an upload input takes one; ticking a second replaces the first.
+- **`attachFiles` re-checks the live element**, exactly as `applyFill` does: a box that
+  classifies as CAPTCHA, OTP or payment is refused whatever the instruction says, a disabled box
+  is skipped, and the box's own `accept` is re-read from the DOM at fill time in case the page
+  narrowed it after detection.
+- **Failure is reported as failure.** If `DataTransfer` is missing or the assignment does not
+  take, the result is `failed`, never `filled`. There is deliberately no fallback that redefines
+  `files` on the element: that would make the page *look* right while a native submit sent
+  nothing, and an operator would file an incomplete application believing the document was
+  attached.
+- **Still no submit.** Attaching dispatches `input` and `change` and nothing else.
+
+Bytes exist in the service worker for the length of the fill and are never stored. An operator
+whose role allows `document.view` but not `document.download` gets suggestions but no
+attachment: the signed-URL endpoint refuses, and the file is dropped from the fill rather than
+failing it.
+
+The tick boxes and the **Download** button both remain, because attaching cannot always work —
+a portal that opens its own upload dialog, or replaces the input with a drag-and-drop widget
+backed by no `<input type="file">`, still needs the file on disk.
 
 ## 7. Storage
 

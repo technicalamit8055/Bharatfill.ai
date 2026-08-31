@@ -103,6 +103,15 @@ export type OcrProviderConfig = {
    * than transcribing it for the rules engine to parse. Omitted: the provider only transcribes.
    */
   customPrompt?: string;
+  /**
+   * Asks the model to map the document onto the customer field registry itself, using a prompt
+   * built from that registry rather than from an organization's instructions (structured mode
+   * without a custom prompt). The pipeline turns this on for one narrow case — a document that
+   * was read but matched no printed label — because there is nothing left for the rules engine
+   * to do with text it has already failed to place. `customPrompt` wins when both are set: an
+   * organization's own instructions are more specific than a generated schema.
+   */
+  dynamicSchema?: boolean;
   /** Overrides the recorded provider name — e.g. an organization's chosen vendor label. */
   name?: string;
 };

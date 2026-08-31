@@ -16,13 +16,18 @@
  * review rules and the golden tests. A vision model is very good at reading a blurry certificate
  * and has no business deciding what `customer.category` means.
  *
- * **An organization may opt into structured mode with its own prompt.** When `customPrompt` is
- * set, the model is asked to map the document to `customer.*` fields itself, using the
- * organization's own instructions. This still does not bypass the guarantees above: the model's
- * answer is treated as a set of *candidate* fields, and `../extract.ts`'s
- * `buildFieldsFromStructuredOutput` still runs every one of them through the same per-kind
- * normaliser, the same high-risk review rules, and the same safety gate before a human ever sees
- * one — a custom prompt changes how a field is proposed, never whether it is checked.
+ * **Structured mode is the exception, and it has two entrances.** With `customPrompt`, the model
+ * is asked to map the document to `customer.*` fields itself using an organization's own
+ * instructions. With `dynamicSchema`, it is asked the same thing using a prompt generated from
+ * the customer field registry (`buildDynamicSchemaPrompt`) — which is what the pipeline reaches
+ * for when a document was read but matched no printed label at all, because there is nothing
+ * further the rules engine can do with text it has already failed to place.
+ *
+ * Neither entrance bypasses the guarantees above: the model's answer is treated as a set of
+ * *candidate* fields, and `../extract.ts`'s `buildFieldsFromStructuredOutput` still runs every
+ * one of them through the same per-kind normaliser, the same high-risk review rules, and the
+ * same safety gate before a human ever sees one — a prompt changes how a field is proposed,
+ * never whether it is checked.
  *
  * **It sends bytes to a third party, so it refuses to run without organization opt-in.** The
  * pipeline checks this too — that is the authoritative gate — but a provider that ships
@@ -30,7 +35,8 @@
  */
 
 import { z } from 'zod';
-import { isAppError, providerUnavailable } from '@assistigo/core';
+import { getCustomerField, isAppError, providerUnavailable } from '@assistigo/core';
+import { ALL_EXTRACTABLE_FIELD_KEYS } from '../rules';
 import { paragraphBlocks, readLocalText } from './local-ocr';
 import {
   structuredExtractionResponseSchema,
@@ -77,6 +83,11 @@ const TRANSCRIBE_SYSTEM_PROMPT = [
   'Rules:',
   '- Output only what is printed or written on the document. Never guess, complete or correct a value.',
   '- Emit one "Label: Value" pair per line, using the label exactly as printed on the document.',
+  '- Add the colon yourself when the document prints a label and its value with no colon between them.',
+  '- Marksheets and certificates are printed as grids. When one row of a table or a form carries',
+  '  several label/value pairs side by side, emit each pair on its own line. Never put two pairs',
+  '  on one line, and never merge one pair\'s value into another pair.',
+  '- Keep a subject-wise marks table as it is printed, one subject per line.',
   '- Keep the original script. Do not transliterate Devanagari into Latin or translate anything.',
   '- Keep numbers, dates and identifiers character for character, in the order printed.',
   '- For text with no printed label, emit the line on its own with no label.',
@@ -85,9 +96,58 @@ const TRANSCRIBE_SYSTEM_PROMPT = [
 ].join('\n');
 
 /**
- * Appended to an organization's own custom prompt. The prompt says *what* to extract; this says
- * *how* to answer, so the response can always be parsed the same way regardless of what the
- * organization asked for.
+ * The system prompt for dynamic-schema mode, built from the customer field registry.
+ *
+ * This is the answer to a document the rules engine could not place: an unclassified university
+ * marksheet, a college certificate, a state form nobody has written label rules for. Rather than
+ * guess at its class, the model is handed the profile schema itself and asked which printed
+ * labels correspond to which `customer.*` keys — the mapping step the static `LABEL_RULES`
+ * dictionary does for documents it recognises (../rules.ts).
+ *
+ * It changes how a field is *proposed* and nothing else. `buildFieldsFromStructuredOutput`
+ * still runs every answer through the same per-kind normaliser, the same high-risk review rules
+ * and the same Aadhaar safety gate as the rules engine, and a key outside the registry is
+ * dropped with a warning rather than shown (../extract.ts, ../safety.ts).
+ *
+ * Built lazily and cached: it is a few hundred lines of registry and most requests never need it.
+ */
+let dynamicSchemaPrompt: string | undefined;
+
+export function buildDynamicSchemaPrompt(): string {
+  if (dynamicSchemaPrompt !== undefined) return dynamicSchemaPrompt;
+
+  const keys = ALL_EXTRACTABLE_FIELD_KEYS.map((key) => {
+    const definition = getCustomerField(key);
+    return definition === undefined ? key : `${key} — ${definition.label.en}`;
+  });
+
+  dynamicSchemaPrompt = [
+    'You read a scanned Indian document and map what is printed on it onto a fixed customer',
+    'profile schema for a data-entry assistant. The document has not been classified: it may be a',
+    'university marksheet, a college certificate, an admit card, a state form or anything else.',
+    '',
+    'Rules:',
+    '- Work only from what is printed. Never guess, complete, translate or correct a value.',
+    '- Use a key only when the document actually prints that value. Omit every other key.',
+    '- Read the label as printed to decide the key. A value printed under "Father\'s Name" is the',
+    "  father's name and never the candidate's own — that mistake files the wrong person.",
+    '- A document laid out as a grid puts several label/value pairs in one row. Read each pair',
+    '  separately.',
+    '- Never output a full Aadhaar number. If the document shows one, use',
+    '  customer.aadhaar_last4 and give only the last four digits.',
+    '- Copy names in the script they are printed in.',
+    '',
+    'The keys you may use, with what each one means:',
+    ...keys,
+  ].join('\n');
+
+  return dynamicSchemaPrompt;
+}
+
+/**
+ * Appended to whichever prompt asked for structured output — an organization's own, or the
+ * generated schema above. That prompt says *what* to extract; this says *how* to answer, so the
+ * response can always be parsed the same way whichever asked.
  */
 const STRUCTURED_OUTPUT_INSTRUCTIONS = [
   '',
@@ -192,6 +252,7 @@ export class AiVisionOcrProvider implements OcrProvider {
   private readonly model: string;
   private readonly wireFormat: AiWireFormat;
   private readonly customPrompt: string | undefined;
+  private readonly dynamicSchema: boolean;
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
 
@@ -209,6 +270,7 @@ export class AiVisionOcrProvider implements OcrProvider {
       options.customPrompt !== undefined && options.customPrompt.trim() !== ''
         ? options.customPrompt.trim()
         : undefined;
+    this.dynamicSchema = options.dynamicSchema === true;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
@@ -219,12 +281,14 @@ export class AiVisionOcrProvider implements OcrProvider {
       throw providerUnavailable('errors.ai_processing_not_enabled');
     }
 
-    const structured = this.customPrompt !== undefined;
+    const structured = this.customPrompt !== undefined || this.dynamicSchema;
     const content = await this.buildContent(input, structured);
     if (typeof content === 'string') return this.unreadable(content as VisionUnreadableReason);
 
+    // An organization's own instructions outrank the generated schema when both are configured.
+    const structuredPrompt = this.customPrompt ?? buildDynamicSchemaPrompt();
     const systemPrompt = structured
-      ? `${this.customPrompt}${STRUCTURED_OUTPUT_INSTRUCTIONS}`
+      ? `${structuredPrompt}${STRUCTURED_OUTPUT_INSTRUCTIONS}`
       : TRANSCRIBE_SYSTEM_PROMPT;
 
     const response = await this.complete(systemPrompt, content);

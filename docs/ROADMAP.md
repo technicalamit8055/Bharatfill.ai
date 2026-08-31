@@ -245,8 +245,29 @@ Remaining:
       anything but `localhost`/`127.0.0.1` by design). Verified instead via typecheck, lint, the
       167 new unit tests, a production build of all four routes, and an auth-redirect smoke test
       against the dev server.
-- [ ] Extension suggestions — detect a portal's file-input constraints and offer a matching
-      prepared file from the customer's profile (spec §13, "Extension Integration" note).
+- [x] Extension suggestions — `packages/form-engine/src/documents.ts` infers a detected file
+      field's category (photo/signature/pdf) from its label and `accept` attribute, then, when the
+      resolved portal adapter lists `documentRequirements`, picks the one that matches by category
+      and label overlap. `POST /api/forms/map` resolves the preset (the adapter's `presetCode`,
+      falling back to a portal-name guess against the built-in catalogue) and, gated on
+      `document.view`, the customer's up to three best-matching `document_derivatives`. The side
+      panel's new "Documents to attach" section shows the portal's stated size/dimensions, a
+      one-click download of a suggested file via a signed URL (`DOWNLOAD_DERIVATIVE` →
+      `document.download`), and a "Prepare in Document Tools Studio" button that deep-links into
+      the photo/signature or PDF editor with that preset pre-loaded (`?customerId=&preset=`) —
+      the photo/signature page now also resolves `defaultMode` from the preset's category so a
+      signature deep link does not open in photo mode.
+- [x] Direct file attachment — a file the operator ticks in that section is attached to the
+      upload box by the fill itself, via `DataTransfer` in `attachFiles`
+      (`apps/extension/src/content/filler.ts`). It runs as its own channel: the panel sends
+      derivative ids, the service worker swaps in bytes fetched from a signed URL, and the page
+      never sees an id. `isSupportedInputType('file')` stays false and the mapper still writes no
+      value into a file input, so what §7.4.5 asks for is preserved as an explicit tick per box
+      rather than a browser limitation: nothing is ticked by default, one file per box, the live
+      element is re-checked for CAPTCHA/OTP/payment and re-read for `accept`, and a failed
+      assignment reports `failed` rather than a fallback that would look filled but submit
+      nothing. Download and the Studio deep link remain for portals with no real
+      `<input type="file">` to attach to.
 - [ ] Org-level custom presets via `document_requirement_presets` (the table exists and is
       RLS-policied from Migration 0004; the built-in catalogue in `packages/document-tools`
       covers the top portals for now, the same pattern as `BUILT_IN_ADAPTERS` in the form engine).

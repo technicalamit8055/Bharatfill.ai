@@ -181,6 +181,47 @@ export const DEMO_DOCUMENTS: readonly DemoDocument[] = [
     },
   },
   {
+    /*
+     * A degree marksheet, printed as a grid the way universities print them: two label/value
+     * pairs to a row, and not a colon anywhere. Before `splitMultiLabelLine` this fixture
+     * yielded nothing at all — every row failed the label/value regex, and the class fell through
+     * to `unknown`, whose allow-list then held four fields.
+     *
+     * Invented, like every fixture here: no such university, college, candidate or roll number.
+     */
+    code: 'marksheet_graduation',
+    filename: 'demo-graduation-marksheet.pdf',
+    mimeType: 'application/pdf',
+    documentType: 'marksheet_graduation',
+    text: [
+      'DEMO STATE UNIVERSITY, RAMPUR',
+      'PROVISIONAL MARKSHEET',
+      'B.Sc. (Hons) PART III DEGREE EXAMINATION',
+      STAMP,
+      '',
+      "Candidate's Name SUNITA DEVI Father's Name RAM PRASAD",
+      "Mother's Name KAMLA DEVI Gender FEMALE",
+      'Roll Number 2100567 Reg. Number 21BSC004512',
+      'College Name Rampur Degree College, Sitapur',
+      'Course B.Sc. (Hons) Physics',
+      'SGPA 7.85 Result PASSED',
+      'Year of Passing 2024',
+    ].join('\n'),
+    expected: {
+      'customer.full_name': 'SUNITA DEVI',
+      'customer.father_name': 'RAM PRASAD',
+      'customer.mother_name': 'KAMLA DEVI',
+      'customer.gender': 'female',
+      'customer.education.graduation.roll_number': '2100567',
+      'customer.education.graduation.registration_number': '21BSC004512',
+      'customer.education.graduation.college': 'Rampur Degree College, Sitapur',
+      'customer.education.graduation.course': 'B.Sc. (Hons) Physics',
+      'customer.education.graduation.marks_percentage': '7.85',
+      'customer.education.graduation.result': 'PASSED',
+      'customer.education.graduation.passing_year': '2024',
+    },
+  },
+  {
     code: 'residence_certificate',
     filename: 'demo-residence-certificate.pdf',
     mimeType: 'application/pdf',

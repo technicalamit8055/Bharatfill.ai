@@ -13,7 +13,13 @@
  */
 
 import { classifyField, isSubmitControl } from '@assistigo/form-engine/safety';
-import type { FillInstruction, FillResult } from '@assistigo/form-engine/types';
+import { fileMatchesAccept } from '@assistigo/form-engine/documents';
+import type {
+  FileFillInstruction,
+  FillAction,
+  FillInstruction,
+  FillResult,
+} from '@assistigo/form-engine/types';
 import { FIELD_SELECTOR, collectCustomOptionElements, fieldSignature } from './detector';
 
 export const DEPENDENT_WAIT_MS = 3000;
@@ -620,6 +626,178 @@ export async function applyFill(
     } catch {
       // Deliberately not captured for privacy (§19.6)
       results.push({ signature: instruction.signature, action: 'failed', error: 'fill_error' });
+    }
+  }
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// File attachment (spec §7.4.5; docs/EXTENSION.md §6a)
+// ---------------------------------------------------------------------------
+
+/**
+ * Attaching runs on its own path, separate from `applyFill` above, and the separation is the
+ * point. `applyFill` writes *mapped* values: the engine worked out what belongs in a field and
+ * the operator approved the proposal. Nothing is ever mapped into a file input — it stays an
+ * unsupported type for the mapper — so a file gets here only because the operator ticked that
+ * specific prepared file for that specific upload box.
+ *
+ * The two hard rules from the top of this file hold unchanged: nothing here submits, and a box
+ * that classifies as CAPTCHA, OTP or payment is refused on the live element regardless of what
+ * the instruction says.
+ */
+
+/** Decodes to an `ArrayBuffer`, which is what the `File` constructor takes as a blob part. */
+function base64ToBytes(base64: string): ArrayBuffer {
+  const binary = atob(base64);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return buffer;
+}
+
+/**
+ * Puts one prepared file into one `<input type="file">`.
+ *
+ * Chromium lets a content script build a `DataTransfer`, put a `File` in it and hand the list to
+ * the input; the page then sees exactly what it would have seen from the file picker, including
+ * a working preview and a native form submission that carries the bytes.
+ *
+ * If `DataTransfer` is missing or the assignment does not take, this reports `failed` and does
+ * not fall back to redefining `files` on the element. That fallback is tempting because it makes
+ * the page *look* right, but a native submit reads the input's internal file list, not the JS
+ * property — the portal would receive an empty upload while the operator saw a filename and
+ * believed the document was attached.
+ */
+export function fillFileInput(
+  element: HTMLInputElement,
+  file: { dataBase64: string; filename: string; mimeType: string },
+): { action: FillAction; error?: string } {
+  if (typeof DataTransfer === 'undefined') {
+    return { action: 'failed', error: 'attach_unsupported' };
+  }
+
+  let bytes: ArrayBuffer;
+  try {
+    bytes = base64ToBytes(file.dataBase64);
+  } catch {
+    // Deliberately not captured: the bytes are the customer's document (§19.6).
+    return { action: 'failed', error: 'attach_decode_failed' };
+  }
+
+  if (bytes.byteLength === 0) return { action: 'failed', error: 'attach_empty_file' };
+
+  const transfer = new DataTransfer();
+  transfer.items.add(new File([bytes], file.filename, { type: file.mimeType }));
+  element.files = transfer.files;
+
+  // Chrome accepts the assignment silently; confirm it landed rather than assume it.
+  if (element.files?.length !== 1) return { action: 'failed', error: 'attach_rejected' };
+
+  // Same event pair the typed path dispatches, so a React/Vue upload widget re-renders and any
+  // client-side size or dimension validation the portal runs fires now, not at submit time.
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+  element.dispatchEvent(new Event('change', { bubbles: true }));
+
+  return { action: 'filled' };
+}
+
+/**
+ * Attaches a batch of prepared files and reports what happened to each one, in the same
+ * `FillResult` shape the typed fields produce so the panel and the fill-session record treat
+ * both alike.
+ */
+export function attachFiles(
+  doc: Document,
+  instructions: readonly FileFillInstruction[],
+): FillResult[] {
+  const results: FillResult[] = [];
+
+  for (const instruction of instructions) {
+    const element = findElementBySignature(doc, instruction.signature);
+
+    if (!element) {
+      results.push({
+        signature: instruction.signature,
+        action: 'failed',
+        error: 'element_not_found',
+      });
+      continue;
+    }
+
+    // The signature was recomputed from the live DOM, but a page can still have swapped what
+    // sits at that position since detection — so the element type is checked here too.
+    if (!(element instanceof HTMLInputElement) || element.type.toLowerCase() !== 'file') {
+      results.push({
+        signature: instruction.signature,
+        action: 'skipped',
+        skipReason: 'unsupported_type',
+      });
+      continue;
+    }
+
+    // --- independent safety re-check, on the live element -------------------
+    const safetyClass = classifyField({
+      inputType: 'file',
+      name: element.getAttribute('name'),
+      id: element.getAttribute('id'),
+      className: element.getAttribute('class'),
+      placeholder: element.getAttribute('placeholder'),
+      ariaLabel: element.getAttribute('aria-label'),
+      autocomplete: element.getAttribute('autocomplete'),
+      labelText: element.labels?.[0]?.textContent ?? null,
+    });
+
+    if (safetyClass !== 'normal') {
+      results.push({
+        signature: instruction.signature,
+        action: 'skipped',
+        skipReason:
+          safetyClass === 'captcha'
+            ? 'captcha_field'
+            : safetyClass === 'otp'
+              ? 'otp_field'
+              : safetyClass === 'payment'
+                ? 'payment_field'
+                : 'submit_control',
+      });
+      continue;
+    }
+
+    if (element.hasAttribute('disabled')) {
+      results.push({ signature: instruction.signature, action: 'skipped', skipReason: 'disabled' });
+      continue;
+    }
+
+    // The portal's own `accept` is authoritative over anything the server matched: the page may
+    // have narrowed it since detection.
+    if (
+      !fileMatchesAccept(element.getAttribute('accept'), {
+        filename: instruction.filename,
+        mimeType: instruction.mimeType,
+      })
+    ) {
+      results.push({
+        signature: instruction.signature,
+        action: 'skipped',
+        skipReason: 'file_type_rejected',
+      });
+      continue;
+    }
+
+    try {
+      const outcome = fillFileInput(element, instruction);
+      results.push({
+        signature: instruction.signature,
+        action: outcome.action,
+        ...(outcome.error ? { error: outcome.error } : {}),
+      });
+    } catch {
+      // Deliberately not captured for privacy (§19.6)
+      results.push({ signature: instruction.signature, action: 'failed', error: 'attach_error' });
     }
   }
 

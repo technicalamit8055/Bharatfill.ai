@@ -418,6 +418,7 @@ export function detectFields(doc: Document, frame = 0): DetectedField[] {
         return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
       })(),
       pattern: element.getAttribute('pattern'),
+      accept: element.getAttribute('accept'),
       hasValue: hasValue(element),
       visible: isElementVisible(element),
       disabled: element.hasAttribute('disabled'),

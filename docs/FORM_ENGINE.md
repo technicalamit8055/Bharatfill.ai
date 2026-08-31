@@ -234,8 +234,12 @@ never populates, the field is marked `skipped` with reason `dependent_not_ready`
 - Never touch a field that is disabled, readonly, hidden, or already filled — unless the operator
   explicitly chose "overwrite".
 - Radio/checkbox: match by option value, then option label, then normalized label; otherwise skip.
-- File inputs: cannot be set programmatically for security reasons. The extension surfaces the
-  matching prepared derivative and the operator picks the file (spec §7.4.5).
+- File inputs: never carry a mapped value — `isSupportedInputType('file')` is false, so the
+  mapper skips every one of them with `unsupported_type`. Not a browser limit (Chromium does let
+  a content script assign `input.files` from a `DataTransfer`) but a product rule: which document
+  belongs in which upload slot is the operator's judgement, so it takes an explicit tick per box
+  in the side panel and travels a separate path, `attachFiles` rather than `applyFill`
+  (spec §7.4.5, docs/EXTENSION.md §6a).
 - Every field produces a result row: `filled | skipped | edited | failed` plus a reason.
 
 ### 9a. Field types the executor writes to

@@ -715,6 +715,7 @@
       "aiFileTooLarge": "This file is too large to send to the AI reader. Upload a smaller image.",
       "aiReturnedNoText": "The AI reader could not make out any text on this document.",
       "aiStructuredInvalid": "The AI reader's answer could not be understood. Try reading again, or check the workspace's custom prompt in AI settings.",
+      "aiDynamicExtractionUsed": "This document could not be placed, so the AI reader was asked to match it to profile fields directly. Check every value against the page.",
       "structuredFieldNotAllowed": "The AI reader tried to fill a field that is not allowed here, so it was skipped.",
       "structuredUnknownField": "The AI reader proposed a field that is not part of a customer profile, so it was skipped.",
       "localCannotReadImages": "The basic reader cannot read photos. Choose the AI reader to read this one.",

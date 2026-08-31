@@ -3,10 +3,15 @@ import {
   SKIP_REASON_LABELS,
   buildFillInstructions,
   confidenceBand,
+  fileMatchesAccept,
   resolveFillValue,
   type DetectedField,
   type DetectionPayload,
+  type DocumentCategory,
+  type DocumentPresetSummary,
+  type DocumentSuggestion,
   type FieldMapping,
+  type FileAttachmentRequest,
   type FillResult,
 } from '@assistigo/form-engine';
 import { send } from '../shared/send';
@@ -15,11 +20,11 @@ import {
   AlertIcon,
   ArrowIcon,
   CheckIcon,
+  DownloadIcon,
   ExternalIcon,
   Header,
   HelpIcon,
   LinkIcon,
-  Mark,
   RefreshIcon,
   ScanIcon,
   ShieldIcon,
@@ -117,7 +122,50 @@ type Proposal = {
   values: Record<string, string>;
   /** Signatures in the order they must be written — parents of dependent dropdowns first. */
   fillOrder?: string[];
+  documentSuggestions?: DocumentSuggestion[];
 };
+
+const DOCUMENT_CATEGORY_LABEL: Record<DocumentCategory, string> = {
+  photo: 'Photo',
+  signature: 'Signature',
+  pdf: 'PDF',
+};
+
+/** The tool that owns a category, and the path its page reads a preset from (§13.2). */
+function documentToolPath(
+  category: DocumentCategory,
+  customerId: string,
+  presetCode: string | null,
+): string {
+  const params = new URLSearchParams({ customerId });
+  if (presetCode) params.set('preset', presetCode);
+  const tool = category === 'pdf' ? 'pdf-studio' : 'photo-signature';
+  return `/document-tools/${tool}?${params.toString()}`;
+}
+
+function formatKb(bytes: number): string {
+  return `${Math.round(bytes / 1024)} KB`;
+}
+
+/** "20–50 KB", "up to 50 KB" or "at least 20 KB" — whatever the notice actually stated. */
+function formatSizeRange(preset: DocumentPresetSummary): string | null {
+  if (preset.minBytes && preset.maxBytes) return `${formatKb(preset.minBytes)}–${formatKb(preset.maxBytes)}`;
+  if (preset.maxBytes) return `up to ${formatKb(preset.maxBytes)}`;
+  if (preset.minBytes) return `at least ${formatKb(preset.minBytes)}`;
+  return null;
+}
+
+function formatDimensions(preset: DocumentPresetSummary): string | null {
+  if (preset.widthPx && preset.heightPx) return `${preset.widthPx}×${preset.heightPx}px`;
+  if (preset.widthMm && preset.heightMm) return `${preset.widthMm}×${preset.heightMm}mm`;
+  return null;
+}
+
+function formatPresetConstraints(preset: DocumentPresetSummary): string {
+  return [formatSizeRange(preset), formatDimensions(preset), preset.dpi ? `${preset.dpi} DPI` : null]
+    .filter(Boolean)
+    .join(' · ');
+}
 
 type Stage = 'idle' | 'detecting' | 'reviewing' | 'filling' | 'done';
 
@@ -139,6 +187,15 @@ export function ReviewPanel() {
   const [detection, setDetection] = useState<DetectionPayload | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [approved, setApproved] = useState<Set<string>>(new Set());
+  /**
+   * Which prepared file the operator ticked for each upload box, keyed by field signature.
+   *
+   * Starts empty and stays empty unless someone ticks a box: a mapped text value is a proposal
+   * the engine can defend, but putting a particular document into a particular upload slot is a
+   * judgement about what this portal is asking for, so nothing is attached by default (§7.4.5).
+   * One file per box, because a portal's upload input takes one.
+   */
+  const [attachments, setAttachments] = useState<Record<string, string>>({});
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [results, setResults] = useState<FillResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -192,6 +249,7 @@ export function ReviewPanel() {
     setReported(false);
     // A fresh reading of the page invalidates edits keyed to the previous detection's signatures.
     setEdits({});
+    setAttachments({});
 
     const detected = await send<DetectionPayload>({ type: 'DETECT_FIELDS' });
     if (!detected.ok) {
@@ -247,9 +305,22 @@ export function ReviewPanel() {
       { edits, ...(proposal.fillOrder ? { order: proposal.fillOrder } : {}) },
     );
 
+    /*
+     * Only ticked entries, and only for boxes the latest detection still reports. The bytes are
+     * not here and never reach this panel: the background worker fetches each file through a
+     * signed URL at the moment of the fill.
+     */
+    const attachmentRequests: FileAttachmentRequest[] = (proposal.documentSuggestions ?? []).flatMap(
+      (suggestion) => {
+        const derivativeId = attachments[suggestion.signature];
+        return derivativeId ? [{ signature: suggestion.signature, derivativeId }] : [];
+      },
+    );
+
     const response = await send<{ results: FillResult[] }>({
       type: 'APPLY_FILL',
       instructions,
+      ...(attachmentRequests.length > 0 ? { attachments: attachmentRequests } : {}),
     });
 
     if (!response.ok) {
@@ -268,6 +339,16 @@ export function ReviewPanel() {
   const refresh = async () => {
     await refreshSession();
     if (proposal) await detect();
+  };
+
+  /** Ticking a second file for the same box replaces the first — an upload input takes one. */
+  const toggleAttachment = (signature: string, derivativeId: string) => {
+    setAttachments((current) => {
+      const next = { ...current };
+      if (next[signature] === derivativeId) delete next[signature];
+      else next[signature] = derivativeId;
+      return next;
+    });
   };
 
   const toggle = (signature: string) => {
@@ -471,6 +552,114 @@ export function ReviewPanel() {
               </div>
             ) : null}
 
+            {proposal.documentSuggestions && proposal.documentSuggestions.length > 0 ? (
+              <>
+                <h2>Documents to attach</h2>
+                <div className="card card-flush">
+                  {proposal.documentSuggestions.map((suggestion) => {
+                    const docField = fieldBySignature.get(suggestion.signature);
+                    const constraints = suggestion.preset ? formatPresetConstraints(suggestion.preset) : null;
+
+                    return (
+                      <div key={suggestion.signature} className="field-row">
+                        <span className="spread">
+                          <span className="strong truncate">{fieldLabel(docField)}</span>
+                          <span className="badge badge-brand">
+                            {DOCUMENT_CATEGORY_LABEL[suggestion.category]}
+                          </span>
+                        </span>
+
+                        {suggestion.preset ? (
+                          <p className="tiny muted" style={{ margin: '4px 0 0' }}>
+                            {suggestion.preset.portal} · {suggestion.preset.label}
+                            {constraints ? ` · ${constraints}` : ''}
+                          </p>
+                        ) : null}
+
+                        {suggestion.suggestions.length > 0 ? (
+                          <div className="stack-sm" style={{ marginTop: 7 }}>
+                            {suggestion.suggestions.map((file) => {
+                              // The box's own `accept` decides. A file it would reject can still
+                              // be downloaded, but not ticked for attaching.
+                              const accepted = fileMatchesAccept(docField?.accept, file);
+                              const ticked = attachments[suggestion.signature] === file.id;
+
+                              return (
+                                <div key={file.id} className="spread">
+                                  <label
+                                    className="tiny truncate grow"
+                                    style={{
+                                      minWidth: 0,
+                                      display: 'flex',
+                                      gap: 6,
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={ticked}
+                                      disabled={!accepted}
+                                      onChange={() => toggleAttachment(suggestion.signature, file.id)}
+                                    />
+                                    <span className="truncate">
+                                      {file.filename} · {formatKb(file.sizeBytes)}
+                                      {file.matchesPreset ? ' · matches this portal' : ''}
+                                      {accepted ? '' : ' · this box does not accept this type'}
+                                    </span>
+                                  </label>
+                                  <button
+                                    type="button"
+                                    className="btn-ghost tiny"
+                                    onClick={() =>
+                                      void send({
+                                        type: 'DOWNLOAD_DERIVATIVE',
+                                        derivativeId: file.id,
+                                      })
+                                    }
+                                  >
+                                    <DownloadIcon size={12} />
+                                    Download
+                                  </button>
+                                </div>
+                              );
+                            })}
+                            <p className="tiny muted" style={{ margin: '2px 0 0' }}>
+                              Tick a file to attach it to this upload box when you press Fill.
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="tiny muted" style={{ margin: '4px 0 0' }}>
+                            No prepared file on this customer&rsquo;s profile yet.
+                          </p>
+                        )}
+
+                        {session.selectedCustomer ? (
+                          <button
+                            type="button"
+                            className="btn-secondary tiny btn-block"
+                            style={{ marginTop: 7 }}
+                            onClick={() =>
+                              void send({
+                                type: 'OPEN_DASHBOARD',
+                                path: documentToolPath(
+                                  suggestion.category,
+                                  session.selectedCustomer!.id,
+                                  suggestion.preset?.code ?? null,
+                                ),
+                              })
+                            }
+                          >
+                            <ExternalIcon size={12} />
+                            Prepare in Document Tools Studio
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : null}
+
             {fillable.length > 0 ? (
               <div className="spread">
                 <h2>Fields to fill</h2>
@@ -639,6 +828,24 @@ export function ReviewPanel() {
                       <p key={result.signature} className="tiny muted truncate">
                         {fieldLabel(fieldBySignature.get(result.signature))} —{' '}
                         {SKIP_REASON_LABELS[result.skipReason!].en}
+                      </p>
+                    ))}
+                </div>
+              ) : null}
+
+              {/*
+                * A failed row is mostly an upload box whose file could not be attached. Naming it
+                * matters more than the count does: a ticked document the operator hears nothing
+                * about reads as attached, and the application goes in incomplete.
+                */}
+              {results.some((result) => result.action === 'failed') ? (
+                <div className="stack-sm">
+                  <h2>Not filled</h2>
+                  {results
+                    .filter((result) => result.action === 'failed')
+                    .map((result) => (
+                      <p key={result.signature} className="tiny truncate" style={{ color: 'var(--danger)' }}>
+                        {fieldLabel(fieldBySignature.get(result.signature))} — do this one by hand
                       </p>
                     ))}
                 </div>

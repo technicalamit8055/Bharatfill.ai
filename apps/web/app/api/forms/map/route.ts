@@ -7,13 +7,16 @@ import {
 } from '@assistigo/core';
 import {
   detectionPayloadSchema,
+  matchDocumentRequirements,
   mergeAdapters,
   proposeMappings,
   selectAdapter,
+  type DocumentSuggestion,
   type OrgFieldMapping,
   type PortalAdapter,
 } from '@assistigo/form-engine';
-import { requirePermission, resolveContext } from '@/lib/api/context';
+import { findPreset, presetsForCategory, type RequirementPreset } from '@assistigo/document-tools';
+import { hasPermission, requirePermission, resolveContext } from '@/lib/api/context';
 import { handler, ok, parseBody } from '@/lib/api/response';
 import { writeAuditLog } from '@/lib/api/audit';
 import {
@@ -22,7 +25,47 @@ import {
   type CustomerValues,
 } from '@/lib/customers/values';
 import { loadEntitlementContext } from '@/lib/billing/entitlements';
-import type { CustomerRow } from '@/lib/supabase/database.types';
+import type { CustomerRow, DocumentDerivativeRow } from '@/lib/supabase/database.types';
+
+const MAX_SUGGESTIONS_PER_FIELD = 3;
+
+type DerivativeCandidateRow = Pick<
+  DocumentDerivativeRow,
+  'id' | 'tool_type' | 'filename' | 'mime_type' | 'size_bytes' | 'width' | 'height' | 'metadata' | 'created_at'
+>;
+
+/** A preset chosen from the built-in catalogue, for a category and an adapter's portal name. */
+function guessPresetForPortal(
+  category: RequirementPreset['category'],
+  portalName: string | undefined,
+): RequirementPreset | null {
+  if (!portalName) return null;
+  const needle = portalName.trim().toLowerCase();
+  if (!needle) return null;
+  return (
+    presetsForCategory(category).find((preset) => {
+      const hay = preset.portal.toLowerCase();
+      return hay === needle || hay.includes(needle) || needle.includes(hay);
+    }) ?? null
+  );
+}
+
+function toPresetSummary(preset: RequirementPreset): DocumentSuggestion['preset'] {
+  return {
+    code: preset.code,
+    label: preset.label,
+    portal: preset.portal,
+    minBytes: preset.minBytes ?? null,
+    maxBytes: preset.maxBytes ?? null,
+    widthPx: preset.widthPx ?? null,
+    heightPx: preset.heightPx ?? null,
+    widthMm: preset.widthMm ?? null,
+    heightMm: preset.heightMm ?? null,
+    dpi: preset.dpi ?? null,
+    colorMode: preset.colorMode ?? null,
+    notes: preset.notes ?? null,
+  };
+}
 
 const bodySchema = z.object({
   customerId: z.string().uuid(),
@@ -208,6 +251,69 @@ export const POST = handler('api.forms.map', async (request) => {
     }
   }
 
+  /*
+   * Document attachment helper (spec §7.4.5, §13.3). A file input is never fillable — see
+   * mapper.ts's `isFileInput` branch — so this is the extension's other way to help: work out
+   * what each one wants and, if the operator can see the customer's documents, which prepared
+   * files already on file would satisfy it.
+   */
+  const documentMatches = matchDocumentRequirements(detection.fields, adapter);
+  const canSuggestDerivatives = hasPermission(context, 'document.view');
+
+  const derivativesByCategory = new Map<string, DerivativeCandidateRow[]>();
+  if (canSuggestDerivatives && documentMatches.length > 0) {
+    const categories = Array.from(new Set(documentMatches.map((match) => match.category)));
+    const { data: derivativeRows, error: derivativesError } = await context.supabase
+      .from('document_derivatives')
+      .select('id, tool_type, filename, mime_type, size_bytes, width, height, metadata, created_at')
+      .eq('organization_id', context.organization.id)
+      .eq('customer_id', customerId)
+      .in('tool_type', categories)
+      .order('created_at', { ascending: false })
+      .limit(30);
+    if (derivativesError) throw derivativesError;
+
+    for (const row of (derivativeRows ?? []) as DerivativeCandidateRow[]) {
+      const list = derivativesByCategory.get(row.tool_type) ?? [];
+      list.push(row);
+      derivativesByCategory.set(row.tool_type, list);
+    }
+  }
+
+  const documentSuggestions: DocumentSuggestion[] = documentMatches.map((match) => {
+    const presetCode = match.requirement?.presetCode;
+    const preset =
+      (presetCode ? findPreset(presetCode) : null) ??
+      guessPresetForPortal(match.category, adapter?.portalName);
+
+    const candidates = derivativesByCategory.get(match.category) ?? [];
+    const ranked = preset
+      ? [...candidates].sort((a, b) => {
+          const aMatches = (a.metadata as { preset?: { code?: string } } | null)?.preset?.code === preset.code;
+          const bMatches = (b.metadata as { preset?: { code?: string } } | null)?.preset?.code === preset.code;
+          return Number(bMatches) - Number(aMatches);
+        })
+      : candidates;
+
+    return {
+      signature: match.signature,
+      category: match.category,
+      preset: preset ? toPresetSummary(preset) : null,
+      suggestions: ranked.slice(0, MAX_SUGGESTIONS_PER_FIELD).map((row) => ({
+        id: row.id,
+        filename: row.filename,
+        sizeBytes: row.size_bytes,
+        width: row.width ?? null,
+        height: row.height ?? null,
+        createdAt: row.created_at,
+        mimeType: row.mime_type,
+        matchesPreset: Boolean(
+          preset && (row.metadata as { preset?: { code?: string } } | null)?.preset?.code === preset.code,
+        ),
+      })),
+    };
+  });
+
   return ok({
     fillSessionId: session.id,
     adapter: adapter
@@ -216,6 +322,7 @@ export const POST = handler('api.forms.map', async (request) => {
     mappings: proposal.mappings,
     fillOrder: proposal.fillOrder,
     summary: proposal.summary,
+    documentSuggestions,
     values: usedValues,
     /** Masked previews, safe to render in a log or a dashboard list. */
     previews: Object.fromEntries(

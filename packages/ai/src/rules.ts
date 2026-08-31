@@ -75,16 +75,31 @@ const INSTITUTION_NEGATIVES = [
 ] as const;
 
 /**
- * Class 10 and class 12 fields carry the same printed labels — "Board", "Roll No", "Year of
- * Passing" — and are told apart only by which certificate they appear on. That is enough when
- * the input is one classified marksheet, because `FIELDS_BY_DOCUMENT_TYPE` puts only one class
- * in scope. It is not enough for pasted text (./text.ts), where both classes are in scope at
- * once and a bare "Board" would otherwise resolve by sort order.
+ * Class 10, class 12 and graduation fields carry the same printed labels — "Board", "Roll No",
+ * "Year of Passing", "Percentage" — and are told apart only by which certificate they appear on.
+ * That is enough when the input is one classified marksheet, because `FIELDS_BY_DOCUMENT_TYPE`
+ * puts only one level in scope. It is not enough for pasted text (./text.ts) or for an
+ * unclassified document, where all three levels are in scope at once and a bare "Board" would
+ * otherwise resolve by sort order.
  *
- * These negatives make a label that names its class resolve to that class outright. A label that
- * names neither stays genuinely ambiguous and is demoted into review, which is the honest answer.
+ * These negatives make a label that names its level resolve to that level outright. A label that
+ * names none stays genuinely ambiguous and is demoted into review, which is the honest answer.
  */
-const CLASS_10_NEGATIVES = [
+
+/** Phrases that name a level of education. Written by the level they name, not by the rule. */
+const CLASS_10_TERMS = [
+  'class 10',
+  'class x',
+  '10th',
+  'matric',
+  'high school',
+  'secondary school',
+  'कक्षा 10',
+  'हाई स्कूल',
+  'माध्यमिक',
+] as const;
+
+const CLASS_12_TERMS = [
   'class 12',
   'class xii',
   '12th',
@@ -96,17 +111,26 @@ const CLASS_10_NEGATIVES = [
   'उच्चतर माध्यमिक',
 ] as const;
 
-const CLASS_12_NEGATIVES = [
-  'class 10',
-  'class x',
-  '10th',
-  'matric',
-  'high school',
-  'secondary school',
-  'कक्षा 10',
-  'हाई स्कूल',
-  'माध्यमिक',
+/**
+ * A degree marksheet prints the same bare labels a school marksheet does — "Roll Number",
+ * "Year of Passing", "Percentage" — so a school rule has to be disqualified by a label that
+ * names a degree just as it is by a label that names the other school class.
+ */
+const HIGHER_EDUCATION_TERMS = [
+  'graduation',
+  'university',
+  'degree',
+  'semester',
+  'sgpa',
+  'cgpa',
+  'स्नातक',
+  'विश्वविद्यालय',
 ] as const;
+
+/** A rule is disqualified by any phrase naming a level other than its own. */
+const CLASS_10_NEGATIVES = [...CLASS_12_TERMS, ...HIGHER_EDUCATION_TERMS] as const;
+const CLASS_12_NEGATIVES = [...CLASS_10_TERMS, ...HIGHER_EDUCATION_TERMS] as const;
+const GRADUATION_NEGATIVES = [...CLASS_10_TERMS, ...CLASS_12_TERMS] as const;
 
 export const LABEL_RULES: readonly LabelRule[] = [
   // --- personal ------------------------------------------------------------
@@ -119,12 +143,20 @@ export const LABEL_RULES: readonly LabelRule[] = [
       'applicant name',
       'name of applicant',
       'candidate name',
+      "candidate's name",
+      'candidates name',
+      'name of candidate',
+      'student name',
+      "student's name",
+      'name of student',
       'holder name',
       'name of the holder',
       'नाम',
       'पूरा नाम',
       'आवेदक का नाम',
       'अभ्यर्थी का नाम',
+      'छात्र का नाम',
+      'विद्यार्थी का नाम',
       'धारक का नाम',
     ],
     negatives: [...RELATIVE_NEGATIVES, ...INSTITUTION_NEGATIVES],
@@ -480,15 +512,147 @@ export const LABEL_RULES: readonly LabelRule[] = [
     ],
     negatives: CLASS_12_NEGATIVES,
   },
+
+  // --- higher education (degree / university marksheets) -------------------
+  {
+    key: 'customer.education.graduation.roll_number',
+    kind: 'text',
+    labels: [
+      'roll number',
+      'roll no',
+      'university roll no',
+      'university roll number',
+      'exam roll no',
+      'graduation roll no',
+      'रोल नंबर',
+      'अनुक्रमांक',
+    ],
+    negatives: GRADUATION_NEGATIVES,
+  },
+  {
+    /**
+     * The registration number is the one identifier a degree marksheet carries and a school
+     * marksheet does not, so it needs no level negatives — nothing else in the dictionary
+     * claims these labels.
+     */
+    key: 'customer.education.graduation.registration_number',
+    kind: 'text',
+    labels: [
+      'registration number',
+      'registration no',
+      'reg number',
+      'reg no',
+      'reg. number',
+      'reg. no',
+      'पंजीकरण संख्या',
+      'पंजीयन संख्या',
+    ],
+  },
+  {
+    key: 'customer.education.graduation.university',
+    kind: 'text',
+    labels: [
+      'university',
+      'university name',
+      'name of university',
+      'विश्वविद्यालय',
+      'विश्वविद्यालय का नाम',
+    ],
+  },
+  {
+    key: 'customer.education.graduation.college',
+    kind: 'text',
+    labels: [
+      'college',
+      'college name',
+      'name of college',
+      'institution name',
+      'महाविद्यालय',
+      'महाविद्यालय का नाम',
+      'कॉलेज',
+    ],
+    negatives: GRADUATION_NEGATIVES,
+  },
+  {
+    key: 'customer.education.graduation.course',
+    kind: 'text',
+    labels: [
+      'course',
+      'course name',
+      'degree',
+      'programme',
+      'program',
+      'major subject',
+      'honours subject',
+      'पाठ्यक्रम',
+      'उपाधि',
+    ],
+  },
+  {
+    key: 'customer.education.graduation.marks_percentage',
+    kind: 'text',
+    labels: [
+      'sgpa',
+      'cgpa',
+      'percentage',
+      'percent',
+      '%',
+      'marks obtained',
+      'total marks',
+      'aggregate marks',
+      'marks secured',
+      'graduation percentage',
+      'प्रतिशत',
+      'प्राप्तांक',
+    ],
+    negatives: GRADUATION_NEGATIVES,
+  },
+  {
+    key: 'customer.education.graduation.passing_year',
+    kind: 'year',
+    labels: [
+      'year of passing',
+      'passing year',
+      'year of examination',
+      'exam year',
+      'year',
+      'graduation passing year',
+      'उत्तीर्ण वर्ष',
+      'परीक्षा वर्ष',
+      'वर्ष',
+    ],
+    negatives: GRADUATION_NEGATIVES,
+  },
+  {
+    /**
+     * "Status" is generic enough to be worth guarding: a payment status or a marital status is
+     * not an examination result, and this rule is in scope for every unclassified document.
+     */
+    key: 'customer.education.graduation.result',
+    kind: 'text',
+    labels: ['result', 'result status', 'division', 'class obtained', 'status', 'परिणाम', 'श्रेणी प्राप्त'],
+    negatives: ['marital', 'payment', 'वैवाहिक', 'भुगतान', ...GRADUATION_NEGATIVES],
+  },
 ];
 
 /**
- * Which fields a given document class can legitimately yield.
+ * Every `customer.*` key the dictionary above can produce.
  *
- * Scoping matters: an income certificate that happens to print the word "board" should not
- * produce a Class 10 board, and a PAN card has no address on it at all. Extracting a field the
- * document cannot contain is how wrong data gets into a profile.
+ * `FIELDS_BY_DOCUMENT_TYPE` narrows extraction to what a given document class can legitimately
+ * contain, which is right when the input is a scan of one *identified* document. Two inputs are
+ * not that, and both open the whole dictionary instead:
+ *
+ *   - text an operator pastes (./text.ts) — it is whatever they had to hand, not one document,
+ *   - a document that could not be classified — `unknown` is an admission that we do not know
+ *     what the page can contain, so narrowing it to four fields discards real data the operator
+ *     can see printed in front of them (§12.2).
+ *
+ * Every field still passes the safety gate and still reaches the operator for review.
  */
+export const ALL_EXTRACTABLE_FIELD_KEYS: readonly string[] = [
+  ...new Set(LABEL_RULES.map((rule) => rule.key)),
+];
+
 const COMMON_IDENTITY_FIELDS = [
   'customer.full_name',
   'customer.father_name',
@@ -509,6 +673,13 @@ const ADDRESS_FIELDS = [
   'customer.address.pincode',
 ] as const;
 
+/**
+ * Which fields a given document class can legitimately yield.
+ *
+ * Scoping matters: an income certificate that happens to print the word "board" should not
+ * produce a Class 10 board, and a PAN card has no address on it at all. Extracting a field the
+ * document cannot contain is how wrong data gets into a profile.
+ */
 export const FIELDS_BY_DOCUMENT_TYPE: Record<DocumentType, readonly string[]> = {
   aadhaar_like: [...COMMON_IDENTITY_FIELDS, ...ADDRESS_FIELDS, 'customer.aadhaar_last4'],
   pan: ['customer.full_name', 'customer.father_name', 'customer.date_of_birth', 'customer.pan'],
@@ -541,6 +712,21 @@ export const FIELDS_BY_DOCUMENT_TYPE: Record<DocumentType, readonly string[]> = 
     'customer.education.class12.passing_year',
     'customer.education.class12.marks_percentage',
   ],
+  marksheet_graduation: [
+    'customer.full_name',
+    'customer.father_name',
+    'customer.mother_name',
+    'customer.date_of_birth',
+    'customer.gender',
+    'customer.education.graduation.roll_number',
+    'customer.education.graduation.registration_number',
+    'customer.education.graduation.university',
+    'customer.education.graduation.college',
+    'customer.education.graduation.course',
+    'customer.education.graduation.passing_year',
+    'customer.education.graduation.marks_percentage',
+    'customer.education.graduation.result',
+  ],
   caste_certificate: [
     'customer.full_name',
     'customer.father_name',
@@ -572,21 +758,16 @@ export const FIELDS_BY_DOCUMENT_TYPE: Record<DocumentType, readonly string[]> = 
   signature: [],
   receipt: [],
   application_pdf: [],
-  // An unclassified document still gets the safe, universal fields. Better a name and a mobile
-  // than nothing, and every one of them still goes through review.
-  generic: ['customer.full_name', 'customer.father_name', 'customer.mobile', ...ADDRESS_FIELDS],
-  unknown: ['customer.full_name', 'customer.father_name', 'customer.mobile', ...ADDRESS_FIELDS],
+  /*
+   * A document nobody could place gets the whole dictionary, exactly as pasted text does.
+   *
+   * The narrow allow-lists above are a statement about a *known* class: a PAN card has no
+   * address on it, so proposing one would be inventing data. `unknown` and `generic` make no
+   * such statement — they say we do not know what is on the page — and a four-field allow-list
+   * turned that admission into silently discarding a mother's name, a gender or a roll number
+   * the operator can see printed in front of them. Nothing is loosened downstream: every field
+   * still goes through the same normalisers, the same safety gate and the same human review.
+   */
+  generic: ALL_EXTRACTABLE_FIELD_KEYS,
+  unknown: ALL_EXTRACTABLE_FIELD_KEYS,
 };
-
-/**
- * Every `customer.*` key the dictionary above can produce.
- *
- * `FIELDS_BY_DOCUMENT_TYPE` narrows extraction to what a given document class can legitimately
- * contain, which is right when the input is a scan of one document. Text an operator pastes is
- * not one document — it is whatever they had to hand — so the pasted-text path (./text.ts) opens
- * the whole dictionary instead. Every field still passes the safety gate and still reaches the
- * operator for review.
- */
-export const ALL_EXTRACTABLE_FIELD_KEYS: readonly string[] = [
-  ...new Set(LABEL_RULES.map((rule) => rule.key)),
-];

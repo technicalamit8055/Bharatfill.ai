@@ -86,3 +86,45 @@ describe('classifyDocument', () => {
     expect(result.alternatives[0]?.confidence).toBeLessThanOrEqual(result.confidence);
   });
 });
+
+describe('graduation marksheets (§12.2)', () => {
+  it('recognises a degree marksheet from what only a degree marksheet prints', () => {
+    const result = classify(
+      [
+        'DEMO STATE UNIVERSITY, RAMPUR',
+        'PROVISIONAL MARKSHEET',
+        'B.Sc. (Hons) PART III DEGREE EXAMINATION',
+        'SGPA 7.85 CGPA 7.60',
+      ].join('\n'),
+      'marksheet.pdf',
+    );
+
+    expect(result.documentType).toBe('marksheet_graduation');
+  });
+
+  it('does not claim a school marksheet that mentions a university', () => {
+    // "University" alone is weak on purpose: an issuing office or an address prints it often.
+    const result = classify(
+      [
+        'BOARD OF HIGH SCHOOL AND INTERMEDIATE EDUCATION',
+        'SECONDARY SCHOOL EXAMINATION / माध्यमिक परीक्षा',
+        'Affiliated to the state university',
+      ].join('\n'),
+      'marksheet.pdf',
+    );
+
+    expect(result.documentType).toBe('marksheet_10');
+  });
+
+  it('reads the Hindi word for a graduate', () => {
+    expect(classify('स्नातक उपाधि परीक्षा अंकपत्र, विश्वविद्यालय').documentType).toBe(
+      'marksheet_graduation',
+    );
+  });
+
+  it('takes a degree from the filename when the page is unhelpful', () => {
+    expect(classify('scanned page', 'sunita-graduation-marksheet.pdf').documentType).toBe(
+      'marksheet_graduation',
+    );
+  });
+});

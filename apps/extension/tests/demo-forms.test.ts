@@ -8,10 +8,15 @@
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { buildFillInstructions, proposeMappings } from '@assistigo/form-engine';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  buildFillInstructions,
+  matchDocumentRequirements,
+  proposeMappings,
+} from '@assistigo/form-engine';
 import { collectPageContext, detectFields } from '../src/content/detector';
-import { applyFill } from '../src/content/filler';
+import { applyFill, attachFiles } from '../src/content/filler';
+import { installFileApis } from './file-input-shim';
 
 const DEMO_DIR = path.resolve(__dirname, '../../web/public/demo-forms');
 
@@ -231,4 +236,120 @@ describe('demo form — unsupported form', () => {
     expect(fields).toContain('customer.address.printed'); // "Correspondence Address"
     expect(fields).toContain('customer.mobile'); // "Contact Number"
   });
+});
+
+describe('demo form — recruitment application, document attachment (§7.4.5)', () => {
+  let files: ReturnType<typeof installFileApis>;
+
+  beforeEach(() => {
+    files = installFileApis();
+  });
+
+  afterEach(() => {
+    files.restore();
+  });
+
+  /** What the document tools would have produced for this customer. Fake bytes, real shape. */
+  const PREPARED_PHOTO = {
+    filename: 'photo_ssc_35x45.jpg',
+    mimeType: 'image/jpeg',
+    dataBase64: btoa('photo-bytes'),
+  };
+  const PREPARED_SIGNATURE = {
+    filename: 'signature_ssc.jpg',
+    mimeType: 'image/jpeg',
+    dataBase64: btoa('signature-bytes'),
+  };
+
+  function uploadBoxes(doc: Document) {
+    const detection = detectFields(doc);
+    const matches = matchDocumentRequirements(detection, null);
+    const of = (category: string) => matches.find((match) => match.category === category);
+    return { photo: of('photo'), signature: of('signature') };
+  }
+
+  it('recognises the photo and signature upload boxes for what they are', () => {
+    const { photo, signature } = uploadBoxes(loadForm('recruitment.html'));
+
+    expect(photo).toBeDefined();
+    expect(signature).toBeDefined();
+    // The form labels the second box "Signature"; the section around both says "Photo".
+    expect(photo!.signature).not.toBe(signature!.signature);
+  });
+
+  it('attaches the prepared photo and signature into the real upload boxes', () => {
+    const doc = loadForm('recruitment.html');
+    const { photo, signature } = uploadBoxes(doc);
+
+    const results = attachFiles(doc, [
+      { signature: photo!.signature, ...PREPARED_PHOTO },
+      { signature: signature!.signature, ...PREPARED_SIGNATURE },
+    ]);
+
+    expect(results.map((result) => result.action)).toEqual(['filled', 'filled']);
+
+    const photoInput = doc.querySelector<HTMLInputElement>('#photoUpload')!;
+    const signInput = doc.querySelector<HTMLInputElement>('#signUpload')!;
+    expect(photoInput.files![0]!.name).toBe('photo_ssc_35x45.jpg');
+    expect(signInput.files![0]!.name).toBe('signature_ssc.jpg');
+  });
+
+  it('respects the form’s accept="image/jpeg" and refuses a PDF', () => {
+    const doc = loadForm('recruitment.html');
+    const { photo } = uploadBoxes(doc);
+
+    const results = attachFiles(doc, [
+      {
+        signature: photo!.signature,
+        filename: 'domicile.pdf',
+        mimeType: 'application/pdf',
+        dataBase64: btoa('pdf-bytes'),
+      },
+    ]);
+
+    expect(results[0]).toMatchObject({ action: 'skipped', skipReason: 'file_type_rejected' });
+    expect(doc.querySelector<HTMLInputElement>('#photoUpload')!.files).toBeNull();
+  });
+
+  it('attaches without submitting the form', () => {
+    const doc = loadForm('recruitment.html');
+    const { photo } = uploadBoxes(doc);
+
+    const submitted = vi.fn();
+    for (const form of Array.from(doc.forms)) form.addEventListener('submit', submitted);
+
+    attachFiles(doc, [{ signature: photo!.signature, ...PREPARED_PHOTO }]);
+
+    expect(submitted).not.toHaveBeenCalled();
+  });
+
+  it('fills the text fields and attaches the files in one pass', async () => {
+    const doc = loadForm('recruitment.html');
+    const { detection, mappings } = runPipeline(doc);
+    const { photo, signature } = uploadBoxes(doc);
+
+    const instructions = buildFillInstructions(
+      mappings,
+      CUSTOMER,
+      new Set(mappings.filter((m) => m.customerField !== null).map((m) => m.signature)),
+      detection.fields,
+    );
+
+    // The order the content script uses: values first, then attachments, because attaching can
+    // make a portal re-render the section around the box.
+    const results = [
+      ...(await applyFill(doc, instructions)),
+      ...attachFiles(doc, [
+        { signature: photo!.signature, ...PREPARED_PHOTO },
+        { signature: signature!.signature, ...PREPARED_SIGNATURE },
+      ]),
+    ];
+
+    expect(results.filter((result) => result.action === 'filled').length).toBeGreaterThan(5);
+    expect(doc.querySelector<HTMLInputElement>('[name="candidate_name"]')!.value).toBe(
+      'Amit Kumar',
+    );
+    expect(doc.querySelector<HTMLInputElement>('#photoUpload')!.files).toHaveLength(1);
+    expect(doc.querySelector<HTMLInputElement>('#signUpload')!.files).toHaveLength(1);
+  }, 10_000);
 });

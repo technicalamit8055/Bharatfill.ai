@@ -76,12 +76,47 @@ Customer data is never used for model training. Only the provider request id is 
 never the payload. The filename is deliberately **not** transmitted: it routinely carries the
 customer's name and adds nothing to a transcription (§19.6).
 
-### The AI reader transcribes; it does not extract
+### The AI reader transcribes by default; it does not extract
 
 The vision model is asked for the text on the page. Turning that text into `customer.*` fields is
 still the rules engine's job (§4). Letting the model emit field keys directly would route
 customer data around every guarantee downstream of OCR — the Aadhaar masking gate (§9), the
 normalisers (§5), the high-risk review rules (§6) and the golden tests (§8).
+
+Because certificates are printed as grids, the transcription prompt asks for **one label/value
+pair per line**: a grid row carrying two pairs side by side must not come back as one line, and a
+missing colon must be supplied. The splitter in `extract.ts` handles the rows that arrive merged
+anyway (§4).
+
+#### The two structured-mode exceptions
+
+Structured mode is where the model *does* emit field keys. There are two ways in, and neither
+loosens anything downstream: `buildFieldsFromStructuredOutput` runs every candidate through the
+same per-kind normaliser, the same high-risk review rules and the same safety gate as the rules
+engine, and drops a key that is not in the customer field registry with a warning.
+
+| Entrance                 | Set by                                            | Asked for                              |
+| ------------------------ | ------------------------------------------------- | -------------------------------------- |
+| `customPrompt`           | an organization, in AI settings                    | whatever the organization's prompt says |
+| `dynamicSchema`          | the pipeline, for one case only (below)            | a mapping onto the field registry       |
+
+**The dynamic-schema escalation.** When a document was read but matched **no printed label at
+all**, there is nothing further the rules engine can do with text it has already failed to place —
+an unclassified university marksheet, a college certificate, a state form nobody has written
+label rules for. The pipeline then asks the model to map the page onto the profile schema itself,
+using a prompt generated from the field registry (`buildDynamicSchemaPrompt`).
+
+It is deliberately narrow, because it costs a second vendor request:
+
+- never in `non_ai` mode, and never without `ai_processing_enabled` — the same gates as any
+  other AI read (rule 10),
+- only when the page yielded **zero** fields, so a document that was read is never re-read,
+- never for a class that has no fields by design — a photo or a signature *is* the value,
+- never when an organization's own `customPrompt` already asked the model to map the document.
+
+The transcription stays the retained text and the class stays as the page decided it; only the
+fields come from the second pass. Both vendor request ids are recorded on the extraction row.
+The operator sees `documents.warnings.aiDynamicExtractionUsed`.
 
 ### What each reader cannot do
 
@@ -97,11 +132,31 @@ Every one of these becomes an operator-facing warning under `documents.warnings.
 
 ## 3. Document classes (§12.2)
 
-`aadhaar_like` · `pan` · `voter_id` · `marksheet_10` · `marksheet_12` · `caste_certificate` ·
-`income_certificate` · `residence_certificate` · `photo` · `signature` · `generic` · `unknown`
+`aadhaar_like` · `pan` · `voter_id` · `marksheet_10` · `marksheet_12` · `marksheet_graduation` ·
+`caste_certificate` · `income_certificate` · `residence_certificate` · `photo` · `signature` ·
+`generic` · `unknown`
 
 Classification is a scored keyword/layout match over the OCR text plus filename hints. `unknown`
 is a first-class result — the operator can still attach and label the document by hand.
+
+`marksheet_graduation` is recognised by what only a degree marksheet prints — a spelled-out
+degree, "provisional marksheet", "degree examination", `स्नातक` — with "university", "semester",
+"SGPA" and "CGPA" as weak signals. "University" alone is deliberately weak: an issuing office or
+an address prints it often enough that the word should not decide a class on its own.
+
+### What an unclassified document may yield
+
+Each class has an allow-list of the fields it can legitimately produce
+(`FIELDS_BY_DOCUMENT_TYPE`), so a PAN card never yields a district and an income certificate never
+yields a Class 10 board. Extracting a field the document cannot contain is how wrong data gets
+into a profile.
+
+`unknown` and `generic` are the exception: they get the **whole** dictionary, exactly as pasted
+text does (§11). The narrow allow-lists are a statement about a *known* class; `unknown` makes no
+such statement — it says we do not know what is on the page — and a four-field allow-list turned
+that admission into silently discarding a mother's name, a gender or a roll number the operator
+can see printed in front of them. Nothing is loosened downstream: every field still goes through
+the same normalisers, the same safety gate and the same human review.
 
 ## 4. Extraction output (§12.4)
 
@@ -129,6 +184,36 @@ is a first-class result — the operator can still attach and label the document
 
 `status` is one of `needs_review` | `ok`. High-risk keys are always `needs_review` regardless of
 confidence.
+
+### Grid rows
+
+Indian certificates are laid out as grids, and one row transcribes as several label/value pairs on
+a single line — often with no colon anywhere on it:
+
+```text
+Candidate's Name PRITAM KUMAR Father's Name KRISHNA SINGH
+```
+
+Read as one pair, the father's name ends up inside the candidate's, which is the most damaging
+extraction error there is (§14.4); read by the label/value regex alone, the row yields nothing at
+all. `splitMultiLabelLine` splits it — but only once the line has proved twice over that it is a
+grid row, because a wrong split files a value under the wrong field:
+
+1. the line must **begin** with a known label (a value that merely contains a label word does
+   not, which is what keeps `Address: Near the Government School` in one piece), and
+2. it must carry a second label that is more than a stray noun: followed by its own `:` when the
+   line punctuates its pairs at all, or — with no punctuation to go on — a label of two or more
+   words, one starting a new whitespace column, or a row whose every cell is short enough that it
+   can only be a grid.
+
+Every cell of an unpunctuated row must also read as a *value* rather than a phrase, which is what
+stops a heading such as `BOARD OF HIGH SCHOOL AND INTERMEDIATE EDUCATION` from proposing
+`Board = OF HIGH`. Words that occur inside the names of institutions — "College", "Degree",
+"School", "University", "Board", "State" — may open a line but never start a column part-way
+through one, so `College Name Rampur Degree College, Sitapur` keeps its value whole.
+
+A row that proves (1) but not (2) still gives up its first cell, but only where the label/value
+regex found nothing, and the cell is cut at the next label rather than swallowing it.
 
 ## 5. Normalisation (§12.5)
 

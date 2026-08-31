@@ -47,6 +47,8 @@ export const detectedFieldSchema = z.object({
   required: z.boolean(),
   maxLength: z.number().int().positive().nullable(),
   pattern: z.string().max(300).nullable(),
+  /** `accept` attribute of a file input, e.g. "image/*" or ".pdf,.jpg". Null for every other type. */
+  accept: z.string().max(200).nullable(),
   /** Whether the field already holds something — never what it holds. */
   hasValue: z.boolean(),
   visible: z.boolean(),
@@ -106,6 +108,7 @@ export const SKIP_REASONS = [
   'disabled',
   'readonly',
   'unsupported_type',
+  'file_type_rejected',
   'dependent_not_ready',
   'operator_skipped',
   'low_confidence',
@@ -124,6 +127,10 @@ export const SKIP_REASON_LABELS: Record<SkipReason, { en: string; hi: string }> 
   disabled: { en: 'Disabled', hi: 'निष्क्रिय' },
   readonly: { en: 'Read-only', hi: 'केवल पढ़ने योग्य' },
   unsupported_type: { en: 'Field type not supported', hi: 'यह फ़ील्ड प्रकार समर्थित नहीं' },
+  file_type_rejected: {
+    en: 'This upload box does not accept that file type',
+    hi: 'यह अपलोड बॉक्स इस फ़ाइल प्रकार को स्वीकार नहीं करता',
+  },
   dependent_not_ready: { en: 'Waiting on an earlier dropdown', hi: 'पिछले ड्रॉपडाउन का इंतज़ार' },
   operator_skipped: { en: 'You skipped this', hi: 'आपने इसे छोड़ा' },
   low_confidence: { en: 'Needs your confirmation', hi: 'आपकी पुष्टि चाहिए' },
@@ -136,6 +143,49 @@ export const fillInstructionSchema = z.object({
   inputType: z.string(),
 });
 export type FillInstruction = z.infer<typeof fillInstructionSchema>;
+
+/**
+ * The largest prepared file the extension will carry into a page, in bytes.
+ *
+ * Attachment bytes cross two message hops base64-encoded, which costs a third again in size, so
+ * this is a ceiling on message size as much as on the file. Every derivative the document tools
+ * produce for a portal is far smaller — portals cap photographs at tens of kilobytes.
+ */
+export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+/** Base64 of `MAX_ATTACHMENT_BYTES`, rounded up: 4 characters per 3 bytes, plus padding. */
+export const MAX_ATTACHMENT_BASE64_LENGTH = Math.ceil(MAX_ATTACHMENT_BYTES / 3) * 4 + 4;
+
+/**
+ * What the content script is told to attach, per file input.
+ *
+ * Deliberately a separate shape from `FillInstruction`, travelling its own path through the
+ * filler (`attachFiles`, not `applyFill`). A file input is still not a *fillable* field —
+ * `isSupportedInputType('file')` stays false and `proposeMappings` still skips it — so no value
+ * is ever mapped into one. Attaching is the operator ticking a specific prepared file for a
+ * specific upload box, which is a different decision from approving a mapped value (§7.4.5).
+ */
+export const fileFillInstructionSchema = z.object({
+  signature: z.string(),
+  /** The name the page will see. Never a storage path. */
+  filename: z.string().max(300),
+  mimeType: z.string().max(120),
+  /** The file's bytes, base64-encoded. Present only on the background → content hop. */
+  dataBase64: z.string().max(MAX_ATTACHMENT_BASE64_LENGTH),
+});
+export type FileFillInstruction = z.infer<typeof fileFillInstructionSchema>;
+
+/**
+ * What the side panel asks for, per file input: a prepared file by id, never its bytes.
+ *
+ * The panel has no access to document bytes and gains none here — the background worker fetches
+ * them through a signed URL at fill time (docs/EXTENSION.md §6a).
+ */
+export const fileAttachmentRequestSchema = z.object({
+  signature: z.string(),
+  derivativeId: z.string().uuid(),
+});
+export type FileAttachmentRequest = z.infer<typeof fileAttachmentRequestSchema>;
 
 export const FILL_ACTIONS = ['filled', 'skipped', 'edited', 'failed'] as const;
 export type FillAction = (typeof FILL_ACTIONS)[number];
@@ -160,3 +210,56 @@ export function confidenceBand(score: number): ConfidenceBand {
   if (score >= CONFIDENCE.medium) return 'medium';
   return 'low';
 }
+
+// ---------------------------------------------------------------------------
+// Document attachment helper (spec §7.4.5, §13.3 — "extension can suggest prepared
+// derivatives when a file input is detected")
+// ---------------------------------------------------------------------------
+
+/**
+ * Mirrors `document_derivatives.tool_type` (supabase/migrations/0004_documents.sql) and
+ * `TOOL_TO_DB_TOOL_TYPE` in `@assistigo/document-tools`. A generic file input that matches
+ * neither is not a category the product has a tool for, so it gets no suggestion at all rather
+ * than a guess.
+ */
+export const DOCUMENT_CATEGORIES = ['photo', 'signature', 'pdf'] as const;
+export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
+
+/** A prepared file already on the customer's profile that could satisfy this slot. */
+export const derivativeSuggestionSchema = z.object({
+  id: z.string().uuid(),
+  filename: z.string().max(300),
+  sizeBytes: z.number().int().positive(),
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable(),
+  createdAt: z.string(),
+  mimeType: z.string().max(120),
+  /** Whether this derivative was built against the same preset resolved for this field. */
+  matchesPreset: z.boolean(),
+});
+export type DerivativeSuggestion = z.infer<typeof derivativeSuggestionSchema>;
+
+/** The portal's requirement for one detected file field, resolved as far as the server can tell. */
+export const documentPresetSummarySchema = z.object({
+  code: z.string(),
+  label: z.string(),
+  portal: z.string(),
+  minBytes: z.number().nullable(),
+  maxBytes: z.number().nullable(),
+  widthPx: z.number().nullable(),
+  heightPx: z.number().nullable(),
+  widthMm: z.number().nullable(),
+  heightMm: z.number().nullable(),
+  dpi: z.number().nullable(),
+  colorMode: z.string().nullable(),
+  notes: z.string().nullable(),
+});
+export type DocumentPresetSummary = z.infer<typeof documentPresetSummarySchema>;
+
+export const documentSuggestionSchema = z.object({
+  signature: z.string(),
+  category: z.enum(DOCUMENT_CATEGORIES),
+  preset: documentPresetSummarySchema.nullable(),
+  suggestions: z.array(derivativeSuggestionSchema).max(5),
+});
+export type DocumentSuggestion = z.infer<typeof documentSuggestionSchema>;

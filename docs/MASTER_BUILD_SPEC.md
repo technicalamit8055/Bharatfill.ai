@@ -885,6 +885,10 @@ MVP document classes:
 - Voter ID.
 - 10th marksheet.
 - 12th marksheet.
+- Graduation/degree marksheet. (Approved addition. The profile already carries
+  `customer.education.graduation.*` per §11, and a degree marksheet was previously falling
+  through to unknown, which discarded the roll number, registration number, college, course and
+  result printed on it.)
 - Caste certificate.
 - Income certificate.
 - Residence/domicile certificate.

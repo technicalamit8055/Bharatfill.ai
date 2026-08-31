@@ -22,6 +22,10 @@ export default defineConfig({
     alias: {
       '@assistigo/core': path.resolve(root, '../../packages/core/src/index.ts'),
       '@assistigo/form-engine/types': path.resolve(root, '../../packages/form-engine/src/types.ts'),
+      '@assistigo/form-engine/documents': path.resolve(
+        root,
+        '../../packages/form-engine/src/documents.ts',
+      ),
       '@assistigo/form-engine/safety': path.resolve(
         root,
         '../../packages/form-engine/src/safety.ts',

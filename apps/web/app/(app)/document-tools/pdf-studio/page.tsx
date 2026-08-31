@@ -14,12 +14,12 @@ function todayIso(): string {
 export default async function PdfStudioPage({
   searchParams,
 }: {
-  searchParams: Promise<{ customerId?: string }>;
+  searchParams: Promise<{ customerId?: string; preset?: string }>;
 }) {
   const session = await requirePagePermission('documenttool.use');
   const { t } = await getTranslations();
   const supabase = await createSupabaseServerClient();
-  const { customerId } = await searchParams;
+  const { customerId, preset } = await searchParams;
 
   const customers = await loadCustomerOptions(supabase, session.organization.id);
   const validCustomerId = customers.some((customer) => customer.id === customerId)
@@ -32,7 +32,12 @@ export default async function PdfStudioPage({
         title={t('documentTools.hub.pdfStudio.title')}
         description={t('documentTools.hub.pdfStudio.description')}
       />
-      <PdfStudioEditor customers={customers} defaultCustomerId={validCustomerId} today={todayIso()} />
+      <PdfStudioEditor
+        customers={customers}
+        defaultCustomerId={validCustomerId}
+        defaultPresetCode={preset ?? null}
+        today={todayIso()}
+      />
     </div>
   );
 }

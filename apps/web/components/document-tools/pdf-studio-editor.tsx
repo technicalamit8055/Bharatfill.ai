@@ -6,6 +6,7 @@ import {
   MAX_DERIVATIVE_BYTES,
   RecipeBuilder,
   derivativeFilename,
+  findPreset,
   type RequirementPreset,
 } from '@assistigo/document-tools';
 import {
@@ -51,10 +52,12 @@ const RENDER_DEBOUNCE_MS = 250;
 export function PdfStudioEditor({
   customers,
   defaultCustomerId,
+  defaultPresetCode,
   today,
 }: {
   customers: readonly CustomerOption[];
   defaultCustomerId?: string | null;
+  defaultPresetCode?: string | null;
   today: string;
 }) {
   const t = useTranslations();
@@ -70,8 +73,13 @@ export function PdfStudioEditor({
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  const [preset, setPreset] = useState<RequirementPreset | null>(null);
-  const [maxKb, setMaxKb] = useState<number | ''>('');
+  const [preset, setPreset] = useState<RequirementPreset | null>(
+    defaultPresetCode ? findPreset(defaultPresetCode) : null,
+  );
+  const [maxKb, setMaxKb] = useState<number | ''>(() => {
+    const initial = defaultPresetCode ? findPreset(defaultPresetCode) : null;
+    return initial?.maxBytes ? Math.round(initial.maxBytes / 1024) : '';
+  });
   const [allowRasterise, setAllowRasterise] = useState(true);
 
   const [output, setOutput] = useState<ToolOutput | null>(null);
