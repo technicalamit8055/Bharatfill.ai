@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { AiVisionOcrProvider } from '@assistigo/ai';
 import { validationFailed } from '@assistigo/core';
 import { requirePermission, resolveContext } from '@/lib/api/context';
+import { logger } from '@/lib/api/logger';
 import { handler, ok, parseBody } from '@/lib/api/response';
 import {
   AI_PROVIDER_PRESETS,
@@ -68,6 +69,17 @@ export const POST = handler('api.organizations.aiSettings.testConnection', async
     timeoutMs: 15_000,
   });
 
+  logger.debug('api.organizations.aiSettings.testConnection.request', {
+    provider,
+    baseUrl,
+    model: model ?? '(default)',
+    wireFormat: preset.wireFormat,
+    hasApiKey: !!apiKey,
+  });
+
   const result = await vision.testConnection();
+
+  logger.debug('api.organizations.aiSettings.testConnection.result', { ok: result.ok });
+
   return ok(result);
 });

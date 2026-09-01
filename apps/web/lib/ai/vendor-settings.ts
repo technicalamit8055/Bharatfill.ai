@@ -19,6 +19,7 @@ export type ProviderPreset = {
   label: string;
   /** Empty string for `custom`: there is no vendor-specific default to offer. */
   defaultBaseUrl: string;
+  defaultModel?: string;
   wireFormat: AiWireFormat;
 };
 
@@ -32,21 +33,25 @@ export const AI_PROVIDER_PRESETS: Record<OrganizationAiProvider, ProviderPreset>
   openai: {
     label: 'OpenAI',
     defaultBaseUrl: 'https://api.openai.com',
+    defaultModel: 'gpt-4o',
     wireFormat: 'openai_compatible',
   },
   anthropic: {
     label: 'Anthropic',
     defaultBaseUrl: 'https://api.anthropic.com',
+    defaultModel: 'claude-3-5-sonnet-latest',
     wireFormat: 'anthropic_messages',
   },
   deepseek: {
     label: 'DeepSeek',
     defaultBaseUrl: 'https://api.deepseek.com',
+    defaultModel: 'deepseek-chat',
     wireFormat: 'openai_compatible',
   },
   gemini: {
     label: 'Google Gemini',
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    defaultModel: 'gemini-3.6-flash',
     wireFormat: 'openai_compatible',
   },
   ollama: {

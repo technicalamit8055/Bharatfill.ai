@@ -12,7 +12,7 @@ import { isDocumentType, type AllowedUploadMimeType } from '@assistigo/core';
 import { downloadObject } from '../../documents/storage';
 import { serverEnv } from '../../env';
 import { logger } from '../../api/logger';
-import { loadOrgAiSettings } from '../../ai/vendor-settings';
+import { AI_PROVIDER_PRESETS, loadOrgAiSettings } from '../../ai/vendor-settings';
 import type { AssistigoSupabaseClient } from '../../supabase/server';
 import type { DocumentRow, Json, OrganizationRow } from '../../supabase/database.types';
 
@@ -57,12 +57,18 @@ export async function resolveAiProviderConfig(
   const orgSettings = await loadOrgAiSettings(supabase, organizationId);
 
   if (orgSettings) {
+    const preset = AI_PROVIDER_PRESETS[orgSettings.provider];
+    const model =
+      orgSettings.model && orgSettings.model !== ''
+        ? orgSettings.model
+        : preset?.defaultModel ?? undefined;
+
     return {
       aiProviderName: 'org_ai_vendor',
       providerConfig: {
         apiKey: orgSettings.apiKey ?? undefined,
         baseUrl: orgSettings.baseUrl ?? undefined,
-        model: orgSettings.model ?? undefined,
+        model,
         wireFormat: orgSettings.wireFormat,
         customPrompt: orgSettings.customPrompt ?? undefined,
         name: orgSettings.provider,
@@ -172,7 +178,24 @@ export async function handleOcrExtract(
       })
       .eq('id', document.id);
 
-    if (documentError) throw documentError;
+    if (documentError) {
+      // If the database has an older check constraint that does not yet include a new document type:
+      if (documentError.code === '23514') {
+        logger.warn('jobs.ocr_extract.document_type_constraint_fallback', {
+          documentId: document.id,
+          attemptedType: extraction.documentType,
+        });
+        const { error: fallbackError } = await supabase
+          .from('documents')
+          .update({
+            status: documentStatusAfterExtraction(extraction),
+          })
+          .eq('id', document.id);
+        if (fallbackError) throw fallbackError;
+      } else {
+        throw documentError;
+      }
+    }
 
     // Counts, modes and provider names only — never a key, a label or a value (§24.2).
     logger.info('jobs.ocr_extract.completed', {

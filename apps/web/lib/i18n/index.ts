@@ -37,11 +37,18 @@ export function getDictionary(locale: Locale): Messages {
 }
 
 function lookup(dictionary: unknown, path: readonly string[]): unknown {
-  return path.reduce<unknown>(
-    (node, key) =>
-      node && typeof node === 'object' ? (node as Record<string, unknown>)[key] : undefined,
-    dictionary,
-  );
+  let current = dictionary;
+  for (let i = 0; i < path.length; i++) {
+    if (!current || typeof current !== 'object') return undefined;
+    const key = path[i];
+    if (key !== undefined && key in (current as Record<string, unknown>)) {
+      current = (current as Record<string, unknown>)[key];
+    } else {
+      const remaining = path.slice(i).join('.');
+      return (current as Record<string, unknown>)[remaining];
+    }
+  }
+  return current;
 }
 
 export type TranslateValues = Record<string, string | number>;

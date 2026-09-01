@@ -57,6 +57,15 @@ const ANTHROPIC_VERSION = '2023-06-01';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 
+export function buildOpenAiChatCompletionsUrl(baseUrl: string): string {
+  const clean = baseUrl.replace(/\/+$/, '');
+  if (clean.endsWith('/chat/completions')) return clean;
+  if (clean.endsWith('/v1') || clean.endsWith('/openai') || clean.includes('/v1beta/openai')) {
+    return `${clean}/chat/completions`;
+  }
+  return `${clean}/v1/chat/completions`;
+}
+
 /**
  * Hosted chat endpoints reject large images, and base64 inflates a payload by a third. A file
  * over this cap is refused here rather than turned into a request that will fail slowly.
@@ -372,9 +381,21 @@ export class AiVisionOcrProvider implements OcrProvider {
   ): Promise<ChatContentPart[] | VisionUnreadableReason> {
     if (input.mimeType === 'application/pdf') {
       const local = await readLocalText(input.bytes);
-      if (local.text === '') return 'pdf_needs_image';
-      const prompt = structured ? STRUCTURED_TEXT_PROMPT : TRANSCRIBE_TEXT_PROMPT;
-      return [{ type: 'text', text: `${prompt}\n\n${local.text}` }];
+      if (local.text !== '') {
+        const prompt = structured ? STRUCTURED_TEXT_PROMPT : TRANSCRIBE_TEXT_PROMPT;
+        return [{ type: 'text', text: `${prompt}\n\n${local.text}` }];
+      }
+
+      // Google Gemini's multimodal endpoint accepts PDF documents directly.
+      if (this.name === 'gemini' || this.baseUrl.includes('googleapis.com')) {
+        if (input.bytes.length > MAX_IMAGE_BYTES) return 'file_too_large';
+        return [
+          { type: 'text', text: structured ? STRUCTURED_IMAGE_PROMPT : TRANSCRIBE_IMAGE_PROMPT },
+          { type: 'image', mimeType: 'application/pdf', base64Data: base64(input.bytes) },
+        ];
+      }
+
+      return 'pdf_needs_image';
     }
 
     if (input.bytes.length > MAX_IMAGE_BYTES) return 'file_too_large';
@@ -417,17 +438,25 @@ export class AiVisionOcrProvider implements OcrProvider {
     content: ChatContentPart[],
     signal: AbortSignal,
   ): Promise<{ text: string; requestId: string | null }> {
-    const userContent = content.map((part) =>
-      part.type === 'text'
-        ? part
-        : {
-          type: 'image_url',
-          // A data URL, so no document is ever uploaded to a bucket a third party can re-fetch.
-          image_url: { url: `data:${part.mimeType};base64,${part.base64Data}` },
-        },
-    );
+    const hasImage = content.some((part) => part.type === 'image');
+    const userContent: string | unknown[] = hasImage
+      ? content.map((part) =>
+          part.type === 'text'
+            ? part
+            : {
+                type: 'image_url',
+                // A data URL, so no document is ever uploaded to a bucket a third party can re-fetch.
+                image_url: { url: `data:${part.mimeType};base64,${part.base64Data}` },
+              },
+        )
+      : content.map((part) => (part.type === 'text' ? part.text : '')).join('\n');
 
-    const response = await this.fetchImpl(`${this.baseUrl}/v1/chat/completions`, {
+    let endpointUrl = buildOpenAiChatCompletionsUrl(this.baseUrl);
+    if (endpointUrl.includes('googleapis.com') && !endpointUrl.includes('key=')) {
+      endpointUrl += `${endpointUrl.includes('?') ? '&' : '?'}key=${encodeURIComponent(this.apiKey)}`;
+    }
+
+    const response = await this.fetchImpl(endpointUrl, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${this.apiKey}`,

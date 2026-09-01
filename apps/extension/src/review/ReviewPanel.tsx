@@ -449,6 +449,16 @@ export function ReviewPanel() {
             >
               <RefreshIcon size={14} className={stage === 'detecting' ? 'icon-spin' : undefined} />
             </button>
+            <button
+              type="button"
+              className="btn-ghost tiny"
+              style={{ padding: 6, flexShrink: 0 }}
+              title="Open dashboard"
+              aria-label="Open dashboard"
+              onClick={() => void send({ type: 'OPEN_DASHBOARD' })}
+            >
+              <ExternalIcon size={14} />
+            </button>
             <span className="badge badge-brand truncate">{session.organizationName}</span>
           </div>
         }

@@ -183,7 +183,7 @@ export function AiSettingsForm({
             <Input
               id="ai-model"
               value={model}
-              placeholder="gpt-4o, claude-3-5-sonnet-latest, deepseek-chat…"
+              placeholder="gpt-4o, gemini-3.6-flash, deepseek-chat…"
               onChange={(event) => setModel(event.target.value)}
             />
           </div>
