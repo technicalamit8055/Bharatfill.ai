@@ -41,7 +41,30 @@ Rules:
   and **no access at all to `customer_field_values`** — that table carries encrypted identity
   values and raw extraction provenance, which a read-only role has no reason to hold. A viewer
   still sees the confirmed profile through `customers`.
-- Service role bypasses RLS and is used only by migrations, the job worker and the billing webhook.
+- Service role bypasses RLS and is used only by migrations, the job worker, the billing webhook,
+  the seed script and the Super Admin panel (see below).
+
+### Platform tables (migration 0021)
+
+`platform_admins`, `scraper_sources`, `scraper_runs` and `scraped_schemes_queue` are internal
+staff infrastructure, not tenant data. They carry **no `organization_id`**, hold no personal data,
+and have RLS enabled with **no policy for `authenticated`** — the same shape as `jobs` and
+`billing_webhook_events`. A tenant's JWT presented directly to PostgREST therefore reaches none
+of them, whatever the application layer believes.
+
+The one exception is a self-read policy on `platform_admins`: a signed-in user may select their
+own row and nobody else's, so a client can learn "am I staff?" without the roster of internal
+staff becoming enumerable.
+
+The Super Admin panel is consequently the fourth permitted holder of the service-role client. It
+authorises first — `apps/web/lib/admin/context.ts` verifies the JWT, looks the caller up on the
+roster, and throws before either client is handed out — and only then acts with the service role
+to read tenant aggregates and write global catalogue rows. Both tenant reads go through
+`platform_metrics()` and `platform_tenant_rows()`, which return **counts and organization
+metadata only**; no admin screen has another source of tenant data, so "internal staff cannot see
+customer records" is a property of two reviewable SQL functions rather than of application code.
+Reading a centre's actual records still requires a `support_access_grant` (§19.9), which the panel
+does not issue.
 
 RLS is verified by `packages/database/rls-tests`, which must pass before pilot (spec §23.3).
 

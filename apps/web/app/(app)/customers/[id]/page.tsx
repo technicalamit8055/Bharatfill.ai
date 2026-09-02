@@ -1,13 +1,21 @@
 import { notFound as nextNotFound } from 'next/navigation';
 import Link from 'next/link';
 import { Badge, TBody, TD, TH, THead, TR, Table, Card } from '@assistigo/ui';
-import { CUSTOMER_FIELD_SECTIONS, fieldsInSection, formatIndianDate, isSensitiveField } from '@assistigo/core';
+import {
+  CUSTOMER_FIELD_SECTIONS,
+  fieldsInSection,
+  formatIndianDate,
+  isSensitiveField,
+} from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { localised } from '@/lib/i18n';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { customerValuesFromRow } from '@/lib/customers/values';
 import type { AuditLogRow, CustomerRow } from '@/lib/supabase/database.types';
+import { buildCustomerSchemeReport } from '@/lib/schemes/service';
+import { toReportView } from '@/lib/schemes/present';
+import { CustomerSchemesWidget } from './customer-schemes-widget';
 import { CustomerProfileSections, type ProfileSection } from './profile-sections';
 import { CustomerDocuments } from './customer-documents';
 import { CustomerApplications } from './customer-applications';
@@ -66,6 +74,15 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
   const canUploadDocument = session.permissions.has('document.upload');
   const auditLogs = (auditRows ?? []) as AuditLogRow[];
 
+  // Matched here rather than in the widget: the evaluation is pure and synchronous, so it costs
+  // nothing on this render, and the browser only ever receives the resulting strings.
+  const schemeReport = toReportView(
+    await buildCustomerSchemeReport(supabase, session.organization.id, row),
+    locale,
+    t,
+    row.id,
+  );
+
   // The full Aadhaar number is deliberately left out of the editable field set: storing it in
   // full requires legal review and an org-level opt-in the app has no UI for yet (docs/
   // DEVELOPMENT_RULES.md §1 rule 5), so this page only ever exposes `customer.aadhaar_last4`.
@@ -104,6 +121,8 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
           {canDelete ? <DeleteCustomerButton customerId={row.id} /> : null}
         </div>
       </div>
+
+      <CustomerSchemesWidget customerId={row.id} mobile={row.mobile} report={schemeReport} />
 
       <CustomerProfileSections
         customerId={row.id}

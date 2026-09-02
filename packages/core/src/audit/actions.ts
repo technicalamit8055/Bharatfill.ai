@@ -298,6 +298,96 @@ export const AUDIT_ACTIONS = define([
     sensitivity: 'critical',
     description: 'Support access revoked',
   },
+
+  // --- platform (Super Admin panel, §6.1) ----------------------------------
+  // These rows carry organization_id = null: they are platform-wide acts, not tenant acts. Every
+  // one of them changes what centres across the country see, so none is `normal`.
+  {
+    action: 'platform.admin_signed_in',
+    entityType: 'platform_admin',
+    sensitivity: 'sensitive',
+    description: 'Internal staff opened the admin panel',
+  },
+  {
+    action: 'platform.admin_granted',
+    entityType: 'platform_admin',
+    sensitivity: 'critical',
+    description: 'Platform admin access granted',
+  },
+  {
+    action: 'platform.admin_role_changed',
+    entityType: 'platform_admin',
+    sensitivity: 'critical',
+    description: 'Platform admin role changed',
+  },
+  {
+    action: 'platform.admin_revoked',
+    entityType: 'platform_admin',
+    sensitivity: 'critical',
+    description: 'Platform admin access revoked',
+  },
+  {
+    action: 'platform.scheme_created',
+    entityType: 'schemes_catalog',
+    sensitivity: 'sensitive',
+    description: 'Global scheme created',
+  },
+  {
+    action: 'platform.scheme_updated',
+    entityType: 'schemes_catalog',
+    sensitivity: 'sensitive',
+    description: 'Global scheme updated',
+  },
+  {
+    // Split from scheme_updated because it is the highest-frequency change and the one most
+    // likely to be wrong in a way a citizen feels — a countdown that closes a day early.
+    action: 'platform.scheme_deadline_updated',
+    entityType: 'schemes_catalog',
+    sensitivity: 'sensitive',
+    description: 'Global scheme application window changed',
+  },
+  {
+    action: 'platform.scheme_published',
+    entityType: 'schemes_catalog',
+    sensitivity: 'critical',
+    description: 'Global scheme published or unpublished',
+  },
+  {
+    action: 'platform.scheme_deleted',
+    entityType: 'schemes_catalog',
+    sensitivity: 'critical',
+    description: 'Global scheme deleted',
+  },
+  {
+    action: 'platform.adapter_updated',
+    entityType: 'portal_adapter',
+    sensitivity: 'sensitive',
+    description: 'Global portal adapter changed',
+  },
+  {
+    action: 'platform.scraper_source_updated',
+    entityType: 'scraper_source',
+    sensitivity: 'sensitive',
+    description: 'Scraper source created, changed or removed',
+  },
+  {
+    action: 'platform.scraper_run_triggered',
+    entityType: 'scraper_run',
+    sensitivity: 'sensitive',
+    description: 'Scraper run triggered',
+  },
+  {
+    action: 'platform.queue_item_approved',
+    entityType: 'scraped_schemes_queue',
+    sensitivity: 'critical',
+    description: 'Scraped scheme approved and published to the live catalogue',
+  },
+  {
+    action: 'platform.queue_item_rejected',
+    entityType: 'scraped_schemes_queue',
+    sensitivity: 'sensitive',
+    description: 'Scraped scheme rejected',
+  },
 ] as const);
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]['action'];

@@ -73,6 +73,32 @@ const serverSchema = z.object({
    * Set to `off` when a scheduler owns the queue and upload requests should stay fast.
    */
   JOB_INLINE_RUNNER: z.enum(['on', 'off']).default('on'),
+  /**
+   * Comma-separated emails that are treated as platform Super Admins even without a
+   * `platform_admins` row (spec §6.1).
+   *
+   * This is a bootstrap, not the mechanism: the first owner has to be able to open /admin on a
+   * fresh database in order to add anybody else. Unset means no bootstrap — the roster table is
+   * then the only way in, which is where a mature deployment should end up.
+   */
+  ADMIN_EMAILS: optionalString(z.string()),
+  /**
+   * Whether the scraper's `http` fetcher may make outbound requests to a source URL.
+   *
+   * Off by default and deliberately a deployment-level switch rather than a per-source setting.
+   * Configuring a source is a content decision an employee makes; pointing this product's servers
+   * at a government portal is an operational and legal one that belongs to whoever runs the
+   * deployment. With it off, an `http` source stages nothing and its run records why.
+   */
+  SCRAPER_HTTP_ENABLED: z.enum(['on', 'off']).default('off'),
+  /**
+   * Extra hosts the `http` fetcher may contact, comma-separated (e.g. `ssc.gov.in`).
+   *
+   * Empty means only the well-known public government domains in
+   * apps/web/lib/admin/scraper/fetchers/http.ts are allowed. A source URL outside both lists is
+   * refused before any request is made.
+   */
+  SCRAPER_ALLOWED_HOSTS: optionalString(z.string()),
 });
 
 export type PublicEnv = z.infer<typeof publicSchema>;

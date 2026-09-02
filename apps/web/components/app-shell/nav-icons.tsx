@@ -98,3 +98,13 @@ export function SettingsIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function SchemesIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="3.5" />
+      <path d="M12 2v2M12 20v2M2 12h2M20 12h2" />
+    </svg>
+  );
+}

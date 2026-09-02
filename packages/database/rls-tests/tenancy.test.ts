@@ -11,6 +11,32 @@ import { setupFixture, teardownFixture, type RlsFixture } from './harness';
 
 let fixture: RlsFixture;
 
+/**
+ * The platform scheme catalogue (`organization_id is null`) is the one table in the schema that
+ * is deliberately readable across tenants, so its policy needs pinning down from both sides:
+ * a published platform row must reach everyone, and a draft one must reach nobody.
+ */
+const PLATFORM_PUBLISHED_SLUG = 'rls-fixture-platform-published';
+const PLATFORM_DRAFT_SLUG = 'rls-fixture-platform-draft';
+
+function fixtureScheme(slug: string) {
+  return {
+    slug,
+    category: 'welfare',
+    title: { en: 'Rls fixture scheme', hi: 'आरएलएस फिक्स्चर योजना' },
+    short_description: { en: 'Fixture.', hi: 'फिक्स्चर।' },
+    benefits_summary: { en: 'Fixture.', hi: 'फिक्स्चर।' },
+    benefit_highlight: { en: 'Fixture', hi: 'फिक्स्चर' },
+    portal_name: 'Fixture portal',
+    portal_url: 'https://example.test/',
+    is_always_open: true,
+    estimated_operator_fee: 50,
+    eligibility: {},
+    pitch_template: { en: 'Fixture for ₹{fee}.', hi: '₹{fee} में फिक्स्चर।' },
+    upcoming_pitch_template: { en: 'Opens in {days} days, ₹{fee}.', hi: '{days} दिन, ₹{fee}।' },
+  };
+}
+
 beforeAll(async () => {
   fixture = await setupFixture();
 
@@ -65,6 +91,18 @@ beforeAll(async () => {
     .insert({ organization_id: orgA.id, provider: 'deepseek' });
   if (aiSettingsError) throw aiSettingsError;
 
+  const { error: schemeError } = await owner
+    .from('schemes_catalog')
+    .insert({ organization_id: orgA.id, ...fixtureScheme('rls-fixture-local-scheme') });
+  if (schemeError) throw schemeError;
+
+  // Platform rows are service_role only, so they go in through the admin client.
+  const { error: platformSchemeError } = await fixture.admin.from('schemes_catalog').insert([
+    { organization_id: null, ...fixtureScheme(PLATFORM_PUBLISHED_SLUG), is_published: true },
+    { organization_id: null, ...fixtureScheme(PLATFORM_DRAFT_SLUG), is_published: false },
+  ]);
+  if (platformSchemeError) throw platformSchemeError;
+
   fixture.orgA.usersByRole.owner.client = owner;
   (fixture as unknown as { seeded: Record<string, string> }).seeded = {
     customerId: customer.id,
@@ -74,6 +112,14 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
+  // Platform rows belong to no organization, so dropping the test orgs does not take them with it.
+  if (fixture) {
+    await fixture.admin
+      .from('schemes_catalog')
+      .delete()
+      .is('organization_id', null)
+      .in('slug', [PLATFORM_PUBLISHED_SLUG, PLATFORM_DRAFT_SLUG]);
+  }
   await teardownFixture(fixture);
 });
 
@@ -142,6 +188,54 @@ describe('cross-organization denial', () => {
       .eq('organization_id', fixture.orgA.id);
     expect(error).toBeNull();
     expect(data).toEqual([]);
+  });
+
+  it('returns zero schemes_catalog rows when org B reads org A', async () => {
+    // A centre's own catalogue can carry local schemes and corrected age limits it worked out
+    // itself; it is competitive knowledge, not shared reference data.
+    const { data, error } = await fixture.orgB.usersByRole.owner.client
+      .from('schemes_catalog')
+      .select('id')
+      .eq('organization_id', fixture.orgA.id);
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+  });
+
+  it('does not let org B insert a scheme into org A', async () => {
+    const { error } = await fixture.orgB.usersByRole.owner.client
+      .from('schemes_catalog')
+      .insert({ organization_id: fixture.orgA.id, ...fixtureScheme('rls-fixture-intruder') });
+    expect(error).not.toBeNull();
+  });
+
+  it('shows the published platform catalogue to every organization', async () => {
+    for (const org of [fixture.orgA, fixture.orgB]) {
+      const { data, error } = await org.usersByRole.operator.client
+        .from('schemes_catalog')
+        .select('slug')
+        .eq('slug', PLATFORM_PUBLISHED_SLUG);
+      expect(error).toBeNull();
+      expect(data).toHaveLength(1);
+    }
+  });
+
+  it('hides an unpublished platform scheme from every tenant', async () => {
+    // An unverified import must not become advice given at a counter.
+    for (const org of [fixture.orgA, fixture.orgB]) {
+      const { data, error } = await org.usersByRole.owner.client
+        .from('schemes_catalog')
+        .select('slug')
+        .eq('slug', PLATFORM_DRAFT_SLUG);
+      expect(error).toBeNull();
+      expect(data).toEqual([]);
+    }
+  });
+
+  it('does not let an organization write into the platform catalogue', async () => {
+    const { error } = await fixture.orgA.usersByRole.owner.client
+      .from('schemes_catalog')
+      .insert({ organization_id: null, ...fixtureScheme('rls-fixture-fake-platform') });
+    expect(error).not.toBeNull();
   });
 
   it('does not let org B see org A in organizations', async () => {

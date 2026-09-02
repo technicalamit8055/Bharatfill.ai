@@ -11,7 +11,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { encryptField } from '@assistigo/core/privacy/crypto';
-import { maskPan, maskAccountNumber } from '@assistigo/core';
+import { getBuiltInScheme, maskPan, maskAccountNumber } from '@assistigo/core';
 import { DEMO_ORGANIZATION, DEMO_MEMBERS, DEMO_PASSWORD, fakeCustomer } from './fixtures';
 
 const CUSTOMER_COUNT = 30;
@@ -61,6 +61,7 @@ async function wipeDemoOrgData(admin: SupabaseClient, organizationId: string): P
     'customers',
     'org_field_mappings',
     'usage_events',
+    'schemes_catalog',
   ];
   for (const table of tables) {
     const { error } = await admin.from(table).delete().eq('organization_id', organizationId);
@@ -259,6 +260,76 @@ const DEMO_ADAPTERS = [
   },
 ];
 
+/**
+ * Demo application windows.
+ *
+ * The built-in catalogue deliberately ships no dates (packages/core/src/schemes/catalog.ts),
+ * which is right in production and leaves a fresh demo database with nothing on the Live or
+ * Upcoming tabs. These rows give a handful of real schemes *demo* windows, written as offsets
+ * from today so the demo reads correctly whenever it happens to be seeded.
+ *
+ * They are organization-scoped overrides — the same path a real centre uses when it tracks a live
+ * notification — so seeding them also exercises the built-in → platform → org merge the product
+ * depends on. No dates are invented for the shipped catalogue itself.
+ */
+const DEMO_SCHEME_WINDOWS = [
+  // Closing this week: the row the operator should see first.
+  { slug: 'ssc-gd-constable', opensInDays: -21, closesInDays: 4 },
+  // Comfortably open.
+  { slug: 'up-police-constable', opensInDays: -6, closesInDays: 27 },
+  // Announced but not open — the pre-collect conversation.
+  { slug: 'ssc-chsl', opensInDays: 18, closesInDays: 46 },
+  { slug: 'nsp-post-matric', opensInDays: 34, closesInDays: 95 },
+];
+
+function isoDateOffset(days: number): string {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Copy comes from the built-in definition and only the dates are demo values, so the seeded rows
+ * cannot drift from the catalogue's wording or its eligibility rules.
+ */
+async function seedSchemeWindows(admin: SupabaseClient, organizationId: string): Promise<void> {
+  const rows = DEMO_SCHEME_WINDOWS.flatMap((window) => {
+    const scheme = getBuiltInScheme(window.slug);
+    if (!scheme) return [];
+    return [
+      {
+        organization_id: organizationId,
+        slug: scheme.slug,
+        category: scheme.category,
+        title: scheme.title,
+        short_description: scheme.shortDescription,
+        benefits_summary: scheme.benefitsSummary,
+        benefit_highlight: scheme.benefitHighlight,
+        portal_name: scheme.portalName,
+        portal_url: scheme.portalUrl,
+        adapter_slug: scheme.adapterSlug ?? null,
+        official_notification_url: scheme.officialNotificationUrl,
+        application_start_date: isoDateOffset(window.opensInDays),
+        application_end_date: isoDateOffset(window.closesInDays),
+        is_always_open: false,
+        exam_date: null,
+        estimated_operator_fee: scheme.estimatedOperatorFee,
+        eligibility: scheme.eligibility,
+        pitch_template: scheme.pitchTemplate,
+        upcoming_pitch_template: scheme.upcomingPitchTemplate,
+        source: 'manual',
+        is_published: true,
+      },
+    ];
+  });
+
+  if (rows.length === 0) return;
+  // `wipeDemoOrgData` cleared this org's rows already, so a plain insert stays idempotent without
+  // needing an ON CONFLICT target the partial unique index cannot provide.
+  const { error } = await admin.from('schemes_catalog').insert(rows);
+  if (error) throw error;
+}
+
 async function seedAdapters(admin: SupabaseClient): Promise<void> {
   for (const adapter of DEMO_ADAPTERS) {
     const { error } = await admin.from('portal_adapters').upsert(
@@ -293,6 +364,7 @@ export async function seedDemoData(admin: SupabaseClient): Promise<SeedResult> {
   const operatorId = memberUserIds.operator!;
   const customerIds = await seedCustomers(admin, organizationId, operatorId);
   await seedApplications(admin, organizationId, customerIds, operatorId);
+  await seedSchemeWindows(admin, organizationId);
   await seedAdapters(admin);
 
   return { organizationId, memberUserIds, customerIds };

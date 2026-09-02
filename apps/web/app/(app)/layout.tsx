@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Badge, Button } from '@assistigo/ui';
 import { ORG_ROLE_LABELS } from '@assistigo/core';
 import { requireSession } from '@/lib/auth/session';
+import { isPlatformStaff } from '@/lib/admin/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { localised } from '@/lib/i18n';
 import { Sidebar } from '@/components/app-shell/sidebar';
@@ -11,6 +12,9 @@ import { signOutAction } from '../(auth)/actions';
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
   const { t, locale } = await getTranslations();
+  // Discoverability only. The link is not the gate — /admin re-checks the roster and 404s for
+  // anybody who is not staff.
+  const staff = await isPlatformStaff();
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -27,6 +31,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
 
           <div className="flex items-center gap-3">
+            {staff ? (
+              <Link
+                href="/admin"
+                className="rounded-md bg-slate-900 px-2.5 py-1 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-700"
+              >
+                {t('admin.title')}
+              </Link>
+            ) : null}
             <LocaleSwitcher />
             <form action={signOutAction}>
               <Button type="submit" variant="ghost" size="sm">

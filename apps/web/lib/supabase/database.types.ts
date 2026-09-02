@@ -46,13 +46,7 @@ export type OrganizationRow = Timestamps & {
 };
 
 export type OrganizationAiProvider =
-  | 'openai'
-  | 'anthropic'
-  | 'deepseek'
-  | 'gemini'
-  | 'ollama'
-  | 'openrouter'
-  | 'custom';
+  'openai' | 'anthropic' | 'deepseek' | 'gemini' | 'ollama' | 'openrouter' | 'custom';
 
 export type OrganizationAiSettingsRow = Timestamps & {
   organization_id: string;
@@ -151,7 +145,8 @@ export type DocumentRow = Timestamps & {
   size_bytes: number;
   sha256: string | null;
   document_type: string;
-  status: 'uploaded' | 'processing' | 'extracted' | 'review_required' | 'verified' | 'failed' | 'deleted';
+  status:
+    'uploaded' | 'processing' | 'extracted' | 'review_required' | 'verified' | 'failed' | 'deleted';
   is_sensitive: boolean;
   expires_at: string | null;
   label: string | null;
@@ -455,4 +450,148 @@ export type DashboardSummary = {
   applicationsOpen: number;
   reviewsPending: number;
   fieldsFilledThisMonth: number;
+};
+
+export type SchemeCatalogSource = 'manual' | 'built_in' | 'sync' | 'ai_notification';
+
+/**
+ * A tracked scheme, scholarship or vacancy (migration 0020).
+ *
+ * `organization_id` null is the platform-wide catalogue; a row with one belongs to that centre
+ * and overrides a platform row of the same slug. The localised columns and `eligibility` are
+ * `Json` here rather than a shaped type on purpose — they are re-validated with Zod on read
+ * (`schemeFromRow`), and a hand-written type would only make a malformed row look trustworthy.
+ */
+export type SchemesCatalogRow = Timestamps & {
+  id: string;
+  organization_id: string | null;
+  slug: string;
+  category: string;
+  title: Json;
+  short_description: Json;
+  benefits_summary: Json;
+  benefit_highlight: Json;
+  portal_name: string;
+  portal_url: string;
+  adapter_slug: string | null;
+  official_notification_url: string | null;
+  application_start_date: string | null;
+  application_end_date: string | null;
+  is_always_open: boolean;
+  exam_date: string | null;
+  estimated_operator_fee: number;
+  eligibility: Json;
+  pitch_template: Json;
+  upcoming_pitch_template: Json;
+  source: SchemeCatalogSource;
+  source_url: string | null;
+  last_synced_at: string | null;
+  verified_at: string | null;
+  verified_by: string | null;
+  is_published: boolean;
+  created_by: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// Platform admin & scraper ingestion (0021)
+//
+// None of these tables carries an organization_id: they are internal staff infrastructure, not
+// tenant data, and hold no personal data at all.
+// ---------------------------------------------------------------------------
+
+export type PlatformRoleValue =
+  | 'super_admin'
+  | 'content_manager'
+  | 'scraper_operator'
+  | 'support_admin';
+
+export type PlatformAdminRow = Timestamps & {
+  id: string;
+  user_id: string;
+  role: PlatformRoleValue;
+  email: string;
+  is_active: boolean;
+  notes: string | null;
+  granted_by: string | null;
+};
+
+export type ScraperFetcherValue = 'manual' | 'fixture' | 'http';
+
+export type ScraperRunStatusValue =
+  | 'pending'
+  | 'running'
+  | 'succeeded'
+  | 'partial'
+  | 'failed'
+  | 'cancelled';
+
+export type ScraperSourceRow = Timestamps & {
+  id: string;
+  slug: string;
+  name: string;
+  portal_name: string;
+  source_url: string;
+  fetcher: ScraperFetcherValue;
+  is_enabled: boolean;
+  interval_minutes: number;
+  config: Json;
+  last_run_at: string | null;
+  last_status: ScraperRunStatusValue | null;
+  consecutive_failures: number;
+  notes: string | null;
+  created_by: string | null;
+};
+
+export type ScraperRunRow = Timestamps & {
+  id: string;
+  source_id: string;
+  status: ScraperRunStatusValue;
+  trigger: 'manual' | 'schedule';
+  triggered_by: string | null;
+  items_found: number;
+  items_staged: number;
+  items_skipped: number;
+  error_text: string | null;
+  started_at: string;
+  finished_at: string | null;
+};
+
+export type QueueItemStatusValue = 'pending' | 'approved' | 'rejected' | 'superseded';
+export type QueueChangeKindValue = 'new' | 'deadline_only' | 'update' | 'no_change';
+
+export type ScrapedSchemeQueueRow = Timestamps & {
+  id: string;
+  source_id: string;
+  run_id: string | null;
+  slug: string;
+  category: string;
+  target_scheme_id: string | null;
+  payload: Json;
+  proposed_changes: Json;
+  change_kind: QueueChangeKindValue;
+  status: QueueItemStatusValue;
+  confidence: number;
+  source_url: string;
+  content_hash: string;
+  fetcher_note: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  published_scheme_id: string | null;
+};
+
+/** Shape returned by `public.platform_tenant_rows()`. Metadata and counts only (spec §6.1). */
+export type PlatformTenantRow = {
+  id: string;
+  name: string;
+  business_type: string;
+  city: string | null;
+  state: string | null;
+  plan_code: string;
+  created_at: string;
+  member_count: number;
+  customer_count: number;
+  application_count: number;
+  fill_sessions_30d: number;
+  last_activity_at: string | null;
 };

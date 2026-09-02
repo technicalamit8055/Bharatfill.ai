@@ -15,6 +15,7 @@ import {
   FillSessionsIcon,
   BillingIcon,
   SettingsIcon,
+  SchemesIcon,
 } from './nav-icons';
 
 type NavItem = {
@@ -27,8 +28,18 @@ type NavItem = {
 
 const PRIMARY: NavItem[] = [
   { href: '/dashboard', labelKey: 'nav.home', icon: HomeIcon },
-  { href: '/customers', labelKey: 'nav.customers', icon: CustomersIcon, permission: 'customer.view' },
-  { href: '/documents', labelKey: 'nav.documents', icon: DocumentsIcon, permission: 'document.view' },
+  {
+    href: '/customers',
+    labelKey: 'nav.customers',
+    icon: CustomersIcon,
+    permission: 'customer.view',
+  },
+  {
+    href: '/documents',
+    labelKey: 'nav.documents',
+    icon: DocumentsIcon,
+    permission: 'document.view',
+  },
   {
     href: '/document-tools',
     labelKey: 'nav.documentTools',
@@ -41,11 +52,19 @@ const PRIMARY: NavItem[] = [
     icon: ApplicationsIcon,
     permission: 'application.view',
   },
+  // Sits in the primary group: it is the first thing an operator opens when a walk-in has no
+  // specific form in mind, which is most walk-ins.
+  { href: '/schemes', labelKey: 'nav.schemes', icon: SchemesIcon, permission: 'customer.view' },
 ];
 
 const SECONDARY: NavItem[] = [
   { href: '/form-library', labelKey: 'nav.formLibrary', icon: LibraryIcon, permission: 'fill.run' },
-  { href: '/fill-sessions', labelKey: 'nav.fillSessions', icon: FillSessionsIcon, permission: 'fill.run' },
+  {
+    href: '/fill-sessions',
+    labelKey: 'nav.fillSessions',
+    icon: FillSessionsIcon,
+    permission: 'fill.run',
+  },
   { href: '/billing', labelKey: 'nav.billing', icon: BillingIcon, permission: 'billing.view' },
   { href: '/settings', labelKey: 'nav.settings', icon: SettingsIcon },
 ];

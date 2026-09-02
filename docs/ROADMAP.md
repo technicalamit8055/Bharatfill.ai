@@ -294,6 +294,41 @@ collection, willingness-to-pay signal, time-saved measurement.
 
 ---
 
+## Super Admin panel (`/admin`) ◐
+
+Internal staff surface for spec §6.1 platform roles. Runs alongside the phases above rather than
+inside one: it is owner/employee tooling, not part of the operator product.
+
+Done:
+
+- [x] `PLATFORM_ROLES` extended with `content_manager` and `scraper_operator`; platform permission
+      matrix in `packages/core/src/platform/permissions.ts`, separate from the tenant `Permission`
+      axis and carrying no customer-data permission at all
+- [x] Migration 0021 — `platform_admins`, `scraper_sources`, `scraper_runs`,
+      `scraped_schemes_queue`, `is_platform_admin()`, and the `platform_metrics()` /
+      `platform_tenant_rows()` aggregate RPCs (service_role only)
+- [x] Server-side gate (`lib/admin/session.ts`, `lib/admin/context.ts`) resolving the roster plus
+      the `ADMIN_EMAILS` bootstrap; non-staff get a 404, not a 403
+- [x] Analytics overview, tenant list, scheme catalogue + editor, bulk deadline board, portal
+      adapters, scraper sources and run history, review queue with side-by-side diff, team roster
+- [x] Scraper ingestion: `manual` / `fixture` / `http` fetchers behind a common contract, staging
+      queue with content-hash dedupe, pure diff engine, human-approval-only publish path
+- [x] `GET /api/admin/metrics` and `POST /api/admin/scrapers/run` (scheduler entry point, shared
+      secret, fails closed)
+- [x] 119 unit tests: permission matrix, diff engine, content hashing, notification date reader,
+      identity resolution, SSRF/robots gates, staging decisions
+
+Remaining:
+
+- [ ] Run `packages/database/rls-tests/platform.test.ts` against a live local Supabase (blocked by
+      the same missing Docker as the rest of the RLS suite)
+- [ ] Point a scheduler at `POST /api/admin/scrapers/run` in the deployment config
+- [ ] Decide whether `SCRAPER_HTTP_ENABLED` is ever turned on in production, and against which
+      domains — currently off, so only `manual` and `fixture` sources do anything
+- [ ] Audit log viewer (`platform.audit.view` is granted but has no screen yet)
+
+---
+
 ## Deferred, by decision
 
 - Physical E-card and card reader (spec §4.3) — revisit only against the criteria listed there.

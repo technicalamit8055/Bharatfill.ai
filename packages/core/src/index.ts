@@ -28,3 +28,7 @@ export * from './billing/entitlements';
 export * from './billing/provider';
 
 export * from './audit/actions';
+
+export * from './schemes';
+
+export * from './platform';
