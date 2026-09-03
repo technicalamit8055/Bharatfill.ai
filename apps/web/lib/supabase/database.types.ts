@@ -41,6 +41,8 @@ export type OrganizationRow = Timestamps & {
   settings: Json;
   plan_code: string;
   customer_counter: number;
+  /** Permanent code printed on the counter standee, if this centre has minted one (0022). */
+  counter_drop_code: string | null;
   created_by: string | null;
   deleted_at: string | null;
 };
@@ -594,4 +596,161 @@ export type PlatformTenantRow = {
   application_count: number;
   fill_sessions_30d: number;
   last_activity_at: string | null;
+};
+
+export type DropChannelValue = 'whatsapp' | 'telegram' | 'web';
+export type DropSessionStatusValue = 'active' | 'ready' | 'converted' | 'expired' | 'abandoned';
+
+/**
+ * One unclaimed walk-in intake (0022).
+ *
+ * `sender_id` and `sender_name` are the citizen's own messaging identity. They exist so the
+ * operator does not have to retype a phone number, and they are personal data: never log them,
+ * never put them in audit metadata (§19.6).
+ */
+export type DocumentDropSessionRow = Timestamps & {
+  id: string;
+  organization_id: string;
+  session_code: string;
+  channel: DropChannelValue;
+  sender_id: string | null;
+  sender_name: string | null;
+  status: DropSessionStatusValue;
+  customer_id: string | null;
+  metadata: Json;
+  created_by: string | null;
+  expires_at: string;
+  converted_at: string | null;
+};
+
+export type DocumentDropFileRow = {
+  id: string;
+  session_id: string;
+  organization_id: string;
+  original_filename: string;
+  storage_bucket: string;
+  storage_path: string;
+  mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+  size_bytes: number;
+  sha256: string | null;
+  suggested_document_type: string;
+  converted_document_id: string | null;
+  created_at: string;
+};
+
+// ---------------------------------------------------------------------------
+// Platform channel settings (0023) — WhatsApp/Telegram bot configuration, editable
+// from the Super Admin panel. Deployment-wide: no organization_id.
+// ---------------------------------------------------------------------------
+
+export type PlatformChannelValue = 'whatsapp' | 'telegram';
+
+export type PlatformChannelSettingsRow = Timestamps & {
+  channel: PlatformChannelValue;
+  is_enabled: boolean;
+  config: Json;
+  access_token_encrypted: string | null;
+  app_secret_encrypted: string | null;
+  bot_token_encrypted: string | null;
+  updated_by: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// Cross-operator roaming access (0024) — links, consent OTP challenges, time-boxed grants.
+// See packages/core/src/roaming/types.ts for the shared vocabulary these mirror.
+// ---------------------------------------------------------------------------
+
+export type RoamingPurposeValue =
+  | 'form_filling'
+  | 'scheme_application'
+  | 'profile_update'
+  | 'document_access';
+export type RoamingAuthMethodValue = 'otp' | 'qr_consent' | 'biometric';
+export type RoamingGrantStatusValue = 'active' | 'expired' | 'revoked';
+export type RoamingOtpChannelValue = 'whatsapp' | 'sms';
+
+export type CustomerRoamingLinkRow = {
+  id: string;
+  organization_id: string;
+  customer_id: string;
+  linked_by: string | null;
+  notes: string | null;
+  last_served_at: string;
+  created_at: string;
+};
+
+export type CustomerAccessGrantRow = {
+  id: string;
+  customer_id: string;
+  organization_id: string;
+  granted_to_user_id: string;
+  purpose: RoamingPurposeValue;
+  target_scheme_slug: string | null;
+  status: RoamingGrantStatusValue;
+  auth_method: RoamingAuthMethodValue;
+  granted_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  consent_record_id: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+};
+
+/**
+ * `customer_access_challenges` has no select policy for any role (0024 header note 3), so this
+ * shape is used only by server code holding the service-role client.
+ */
+export type CustomerAccessChallengeRow = {
+  id: string;
+  customer_id: string;
+  organization_id: string;
+  requested_by: string;
+  purpose: RoamingPurposeValue;
+  target_scheme_slug: string | null;
+  duration_minutes: number;
+  channel: RoamingOtpChannelValue;
+  otp_salt: string;
+  otp_hash: string;
+  attempts_left: number;
+  expires_at: string;
+  consumed_at: string | null;
+  created_at: string;
+};
+
+/** Row shape returned by `public.roaming_customer_search()` and `public.roaming_customer_card()`. */
+export type RoamingCustomerCardRow = {
+  customer_id: string;
+  home_organization_id: string;
+  full_name: string;
+  mobile: string | null;
+  district: string | null;
+  state: string | null;
+  date_of_birth: string | null;
+  gender: string | null;
+  category: string | null;
+  education_json: Json;
+  certificates_json: Json;
+  identity_summary_json: Json;
+  verification_status: string;
+  /** Present on `roaming_customer_search` rows only. */
+  created_at?: string;
+  /** Present on `roaming_customer_card` rows only. */
+  is_linked?: boolean;
+};
+
+/** Row shape returned by `public.roaming_linked_customers()`. */
+export type RoamingLinkedCustomerRow = {
+  customer_id: string;
+  home_organization_id: string;
+  given_name: string;
+  family_initial: string | null;
+  mobile_last4: string;
+  district: string | null;
+  state: string | null;
+  verification_status: string;
+  last_served_at: string;
+  has_active_grant: boolean;
+  grant_expires_at: string | null;
 };

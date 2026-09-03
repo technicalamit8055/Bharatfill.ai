@@ -76,7 +76,8 @@ packages/core           Pure domain logic + Zod schemas. No React. No Supabase c
   ├ applications/       status machine, transitions
   ├ billing/            plans, entitlements, usage event types
   ├ audit/              audit action catalogue, sensitivity levels
-  └ privacy/            redaction, masking, encryption helpers
+  ├ privacy/            redaction, masking, encryption helpers
+  └ roaming/            cross-operator access vocabulary, request schemas, grant arithmetic
 
 packages/ai             OCR provider interface + mock/tesseract/vision implementations,
                         field extraction, normalisation, confidence scoring, fixtures.
@@ -159,7 +160,7 @@ jobs(id, organization_id, type, payload, status, attempts, run_after, locked_unt
 There are two ways into the same execution path, because a queue with no worker is a document
 that says "Reading" forever:
 
-- **Inline, by entity.** `POST /api/documents/:id/process` claims and runs *only that document's*
+- **Inline, by entity.** `POST /api/documents/:id/process` claims and runs _only that document's_
   extraction job (`claim_document_job`), in the request. On by default (`JOB_INLINE_RUNNER`).
   Claiming by document rather than draining the queue is what keeps one tenant's upload from
   waiting on another tenant's work. Nothing about the inline run can fail the request — the job
@@ -170,6 +171,52 @@ that says "Reading" forever:
   worth pointing at it.
 
 See docs/AI_PIPELINE.md §10.
+
+## 7a. Walk-in document intake (spec §9.1)
+
+The one feature with callers that are neither the dashboard nor the extension, so it is worth
+stating what is different about it.
+
+```text
+citizen phone ──▶ WhatsApp Cloud API ──▶ POST /api/webhooks/whatsapp  ─┐
+              ──▶ Telegram Bot API   ──▶ POST /api/webhooks/telegram  ─┼─▶ lib/document-drop/intake
+              ──▶ /drop/<code>       ──▶ POST /api/document-drop/…    ─┘        │
+                                                                                ▼
+                                                    document_drop_sessions + private bucket
+                                                                                │
+operator dashboard ◀── GET /api/document-drop/sessions (poll) ──────────────────┘
+                   ──▶ POST …/:id/convert ──▶ customers + documents + ocr.extract
+```
+
+Three properties, because each is a decision that could reasonably have gone the other way:
+
+- **Three transports, one pipeline.** Each channel adapter (`whatsapp.ts`, `telegram.ts`) only
+  authenticates, normalises and replies. Everything that touches data lives in `intake.ts`, so
+  the channels cannot drift into enforcing different limits.
+- **Credentials resolve database-first, environment-fallback.** Both adapters read
+  `platform_channel_settings` (0023) — a Super Admin configures the bots at `/admin/channels`
+  rather than editing `.env`, and the tokens are AES-256-GCM ciphertext at rest, decrypted only
+  in the adapter. An unset or disabled row falls through to the `WHATSAPP_*` / `TELEGRAM_*`
+  variables, so a deployment that configures nothing in the database behaves exactly as before
+  the panel existed. The lookup carries a 2s ceiling: an unreachable database degrades to the
+  environment rather than holding a webhook open past Meta's own timeout, because a delivery
+  that times out is retried, and a retry re-stores documents already taken in.
+- **The webhooks carry no user session, so they fail closed.** Unconfigured credentials mean the
+  route 404s rather than half-working. Each delivery is verified — Meta's `X-Hub-Signature-256`
+  over the raw body, Telegram's secret-token header — and both routes then always answer 200,
+  because a non-2xx earns a retry that would re-download and re-store the same documents.
+- **`/drop/<code>` is the only unauthenticated write path in the product.** It is add-only: a code
+  in the wrong hands can put a file into one session and can read nothing, list nothing and
+  enumerate nothing. Unknown, expired and already-claimed codes are one indistinguishable 404.
+
+Intake is staged, not trusted. Files sit in `document_drop_sessions` until an operator presses
+Intake, which is the only step that creates a customer, promotes files into `documents` and queues
+extraction — and the operator verification gate downstream is unchanged: extraction proposes,
+review accepts (§12.6). See docs/DATABASE.md §5 for the status-transition rule that makes the
+claim safe, and the retention sweep that removes whatever nobody claimed.
+
+The QR encoder (`lib/document-drop/qr.ts`) is written out rather than taken from npm: it runs in
+both the browser and the server render, and it is a well-specified 200-line algorithm.
 
 ## 8. Frontend structure
 

@@ -68,6 +68,32 @@ does not issue.
 
 RLS is verified by `packages/database/rls-tests`, which must pass before pilot (spec §23.3).
 
+### Cross-operator roaming access (migration 0024)
+
+The one place a tenant's row is _meant_ to become readable to a different tenant's session, and
+it is consent-gated and time-boxed rather than role-based:
+
+- A `customer_roaming_links` row only bookmarks a customer to a visiting centre. It carries no
+  weight in any RLS policy — a centre that has bookmarked a citizen can see nothing about them
+  beyond a masked pre-auth card until the citizen consents.
+- `customers`, `customer_field_values`, `documents` and `document_derivatives` each gained one
+  extra `or has_active_customer_grant(id)` clause. A grant names one user, not an organization, so
+  a colleague at the same counter gets nothing from a teammate's grant. `applications`,
+  `fill_sessions` and `document_extractions` were deliberately left untouched — a roaming session
+  unlocks the confirmed profile and its files, never another centre's operational history or the
+  raw OCR transcript behind a document.
+- The OTP itself never has a select policy: `customer_access_challenges` is unreadable through
+  PostgREST by any role but `service_role`, which only `apps/web/lib/roaming/service.ts` uses.
+  `customer_access_grants` likewise has no insert/update policy for `authenticated` — a grant is
+  minted only after that code verifies the code the citizen supplied.
+- The platform-wide search (`roaming_customer_search`) and the by-id pre-auth projection
+  (`roaming_customer_card`) are both **service-role-only**, never granted to `authenticated`, even
+  though the boolean checks that gate the RLS policies (`has_active_customer_grant`,
+  `has_customer_roaming_link`) are safe to expose. The difference is what each returns: the
+  boolean checks leak nothing, while the two RPCs return raw name/mobile/certificate data that
+  only the server is trusted to mask before it reaches a client — granting either to
+  `authenticated` would let a bookmarking centre read that raw data straight over PostgREST.
+
 ## 3. Role permission matrix
 
 | Capability               | owner |    manager    | operator |  viewer  | billing_admin |
@@ -141,7 +167,7 @@ Recorded in `audit_logs` with sensitivity `normal | sensitive | critical`:
 login failure · member invite/remove/role change · customer create/update/delete ·
 sensitive field reveal · document upload/download/delete · extraction accepted ·
 fill session run · application status change · billing plan change · data export/delete ·
-support access grant and use.
+support access grant and use · roaming lookup/link/OTP requested/access granted/revoked/expired.
 
 The action catalogue is `packages/core/src/audit/actions.ts`. Audit rows are insert-only:
 no update or delete policy exists for any role.

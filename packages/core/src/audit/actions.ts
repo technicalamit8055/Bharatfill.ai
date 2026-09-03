@@ -131,6 +131,48 @@ export const AUDIT_ACTIONS = define([
     description: 'Customer data exported',
   },
 
+  // --- cross-centre roaming access (migration 0024) -------------------------
+  // The only path in the product by which one tenant reads another tenant's citizen, so the
+  // whole sequence is recorded — including the lookup that found nothing, because a pattern of
+  // those is what an operator fishing for numbers looks like.
+  {
+    action: 'customer.roaming_lookup',
+    entityType: 'customer',
+    sensitivity: 'normal',
+    description: 'Looked up a customer across the Assistigo network by mobile',
+  },
+  {
+    action: 'customer.roaming_linked',
+    entityType: 'customer_roaming_link',
+    sensitivity: 'normal',
+    description: 'Customer registered at another centre linked to this counter',
+  },
+  {
+    action: 'customer.roaming_otp_requested',
+    entityType: 'customer',
+    sensitivity: 'sensitive',
+    description: 'Consent OTP sent to a roaming customer',
+  },
+  {
+    // Critical: this is the moment another centre's citizen record becomes readable here.
+    action: 'customer.roaming_access_granted',
+    entityType: 'customer_access_grant',
+    sensitivity: 'critical',
+    description: 'Time-limited access to a roaming customer granted after consent',
+  },
+  {
+    action: 'customer.roaming_access_revoked',
+    entityType: 'customer_access_grant',
+    sensitivity: 'sensitive',
+    description: 'Roaming access session ended early',
+  },
+  {
+    action: 'customer.roaming_access_expired',
+    entityType: 'customer_access_grant',
+    sensitivity: 'normal',
+    description: 'Roaming access session expired on its timer',
+  },
+
   // --- documents -----------------------------------------------------------
   {
     action: 'document.uploaded',
@@ -173,6 +215,30 @@ export const AUDIT_ACTIONS = define([
     entityType: 'document_derivative',
     sensitivity: 'normal',
     description: 'Prepared file generated',
+  },
+
+  // --- walk-in document drop (§9.1) ----------------------------------------
+  {
+    // Opening a drop session publishes a code that, until it expires, lets anyone who can read
+    // it send documents into this organization. Worth a row for that reason alone.
+    action: 'drop_session.created',
+    entityType: 'document_drop_session',
+    sensitivity: 'sensitive',
+    description: 'Walk-in document drop session opened',
+  },
+  {
+    // The moment staged intake becomes customer data: a profile appears, documents are created
+    // and extraction is queued. Critical because it is the only step that crosses that line.
+    action: 'drop_session.converted',
+    entityType: 'document_drop_session',
+    sensitivity: 'critical',
+    description: 'Walk-in drop session converted into a customer and documents',
+  },
+  {
+    action: 'drop_session.discarded',
+    entityType: 'document_drop_session',
+    sensitivity: 'sensitive',
+    description: 'Walk-in drop session discarded without intake',
   },
 
   // --- form filling --------------------------------------------------------
@@ -387,6 +453,21 @@ export const AUDIT_ACTIONS = define([
     entityType: 'scraped_schemes_queue',
     sensitivity: 'sensitive',
     description: 'Scraped scheme rejected',
+  },
+  {
+    // Every centre's walk-in intake shares one WhatsApp/Telegram bot, so a change here is
+    // platform-wide and touches a stored secret — critical for the same reason
+    // organization.ai_settings_updated is.
+    action: 'platform.channel_settings_updated',
+    entityType: 'platform_channel_settings',
+    sensitivity: 'critical',
+    description: 'WhatsApp/Telegram channel settings changed',
+  },
+  {
+    action: 'platform.channel_webhook_registered',
+    entityType: 'platform_channel_settings',
+    sensitivity: 'sensitive',
+    description: 'Telegram webhook registered with Telegram',
   },
 ] as const);
 

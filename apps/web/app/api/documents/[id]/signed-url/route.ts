@@ -23,11 +23,13 @@ export const POST = handler(
 
     const id = idSchema.parse((await ctx.params).id);
 
+    // No organization_id filter: `documents_select` (migration 0024) also admits a caller
+    // holding a live roaming grant over the document's customer, whose home centre may not be
+    // this caller's organization at all.
     const { data, error } = await context.supabase
       .from('documents')
       .select('id, storage_bucket, storage_path, mime_type, original_filename')
       .eq('id', id)
-      .eq('organization_id', context.organization.id)
       .is('deleted_at', null)
       .maybeSingle();
 

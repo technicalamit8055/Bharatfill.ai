@@ -45,6 +45,7 @@ const PIPELINE: Omit<AdminNavItem, 'badge'>[] = [
 
 const SYSTEM: Omit<AdminNavItem, 'badge'>[] = [
   { href: '/admin/team', labelKey: 'admin.nav.team', permission: 'platform.team.view' },
+  { href: '/admin/channels', labelKey: 'admin.nav.channels', permission: 'platform.team.manage' },
 ];
 
 function NavLink({

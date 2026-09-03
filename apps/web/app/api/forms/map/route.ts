@@ -93,18 +93,24 @@ export const POST = handler('api.forms.map', async (request) => {
   const decision = checkUsageEntitlement(entitlements, 'fill');
   if (!decision.allowed) throw entitlementExceeded(decision.reason);
 
+  /*
+   * Neither query below filters by `context.organization.id`: a customer being filled here may
+   * belong to another centre entirely, reachable only through a live roaming grant
+   * (migration 0024). RLS is the only gate that can tell the two cases apart correctly — the
+   * `customers_select` and `customer_field_values_select` policies already allow a home-org
+   * member OR a live grant holder, and either way the row's own `organization_id` is what ends
+   * up on this fill session, not the caller's.
+   */
   const [customerResult, fieldValuesResult, adaptersResult, orgMappingsResult] = await Promise.all([
     context.supabase
       .from('customers')
       .select('*')
       .eq('id', customerId)
-      .eq('organization_id', context.organization.id)
       .is('deleted_at', null)
       .maybeSingle(),
     context.supabase
       .from('customer_field_values')
       .select('field_key, status, display_value, value_text')
-      .eq('organization_id', context.organization.id)
       .eq('customer_id', customerId),
     context.supabase
       .from('portal_adapters')
@@ -263,10 +269,11 @@ export const POST = handler('api.forms.map', async (request) => {
   const derivativesByCategory = new Map<string, DerivativeCandidateRow[]>();
   if (canSuggestDerivatives && documentMatches.length > 0) {
     const categories = Array.from(new Set(documentMatches.map((match) => match.category)));
+    // No organization_id filter here either — see the comment on the customer/field-values
+    // queries above. document_derivatives_select allows a live grant holder through the same way.
     const { data: derivativeRows, error: derivativesError } = await context.supabase
       .from('document_derivatives')
       .select('id, tool_type, filename, mime_type, size_bytes, width, height, metadata, created_at')
-      .eq('organization_id', context.organization.id)
       .eq('customer_id', customerId)
       .in('tool_type', categories)
       .order('created_at', { ascending: false })

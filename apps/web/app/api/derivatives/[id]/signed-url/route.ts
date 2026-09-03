@@ -23,11 +23,12 @@ export const POST = handler(
 
     const id = idSchema.parse((await ctx.params).id);
 
+    // No organization_id filter: `document_derivatives_select` (migration 0024) also admits a
+    // caller holding a live roaming grant over the derivative's customer.
     const { data, error } = await context.supabase
       .from('document_derivatives')
       .select('id, storage_bucket, storage_path, mime_type, filename')
       .eq('id', id)
-      .eq('organization_id', context.organization.id)
       .maybeSingle();
 
     if (error) throw error;

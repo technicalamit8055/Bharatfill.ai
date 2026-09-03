@@ -12,6 +12,7 @@ import { getTranslations } from '@/lib/i18n/server';
 import { localised } from '@/lib/i18n';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { customerValuesFromRow } from '@/lib/customers/values';
+import { resolveRoamingAccess } from '@/lib/roaming/service';
 import type { AuditLogRow, CustomerRow } from '@/lib/supabase/database.types';
 import { buildCustomerSchemeReport } from '@/lib/schemes/service';
 import { toReportView } from '@/lib/schemes/present';
@@ -22,6 +23,8 @@ import { CustomerApplications } from './customer-applications';
 import { CustomerFillHistory } from './customer-fill-history';
 import { AddProfileInfo } from './add-profile-info';
 import { DeleteCustomerButton } from './delete-customer-button';
+import { RoamingLockedCard } from './roaming-locked-card';
+import { RoamingActiveBanner } from './roaming-active-banner';
 
 export const metadata = { title: 'Customer profile' };
 
@@ -31,11 +34,31 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
   const { t, locale } = await getTranslations();
   const supabase = await createSupabaseServerClient();
 
+  /*
+   * Cross-centre roaming (migration 0024): a customer id reachable from this dashboard is not
+   * necessarily this centre's own. `resolveRoamingAccess` is the single place that tells
+   * "my customer", "someone else's customer I have live consent to see" and "nothing here" apart
+   * — the customer detail page and `GET /api/customers/:id` both defer to it rather than each
+   * re-deriving the same three-way branch.
+   */
+  const access = await resolveRoamingAccess(
+    { supabase, userId: session.userId, organization: { id: session.organization.id } },
+    id,
+  );
+
+  if (access.state === 'roaming_locked') {
+    if (!access.card) nextNotFound();
+    return (
+      <div className="space-y-6">
+        <RoamingLockedCard customerId={id} card={access.card} topSchemes={access.topSchemes} />
+      </div>
+    );
+  }
+
   const { data: customer } = await supabase
     .from('customers')
     .select('*')
     .eq('id', id)
-    .eq('organization_id', session.organization.id)
     .is('deleted_at', null)
     .maybeSingle();
 
@@ -43,12 +66,12 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
 
   const row = customer as CustomerRow;
   const values = customerValuesFromRow(row);
+  const isRoaming = access.state === 'roaming_active';
 
   const [{ data: fieldValueRows }, { data: auditRows }] = await Promise.all([
     supabase
       .from('customer_field_values')
       .select('field_key, value_encrypted')
-      .eq('organization_id', session.organization.id)
       .eq('customer_id', id),
     session.permissions.has('audit.view')
       ? supabase
@@ -68,10 +91,13 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
       .map((rowValue) => rowValue.field_key as string),
   );
 
+  // A roaming session grants a time-boxed *read*, never a write against another centre's
+  // record: editing, uploading, and delete all stay behind the home-centre's own membership, so
+  // none of these light up here even for an owner-level visiting role.
   const canReveal = session.permissions.has('customer.reveal_sensitive');
-  const canUpdate = session.permissions.has('customer.update');
-  const canDelete = session.permissions.has('customer.delete');
-  const canUploadDocument = session.permissions.has('document.upload');
+  const canUpdate = !isRoaming && session.permissions.has('customer.update');
+  const canDelete = !isRoaming && session.permissions.has('customer.delete');
+  const canUploadDocument = !isRoaming && session.permissions.has('document.upload');
   const auditLogs = (auditRows ?? []) as AuditLogRow[];
 
   // Matched here rather than in the widget: the evaluation is pure and synchronous, so it costs
@@ -111,12 +137,17 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
 
   return (
     <div className="space-y-6">
+      {isRoaming && access.session ? (
+        <RoamingActiveBanner customerId={row.id} session={access.session} />
+      ) : null}
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold text-slate-900">{row.full_name}</h1>
           <p className="mt-1 font-mono text-xs text-slate-500">{row.customer_code}</p>
         </div>
         <div className="flex items-center gap-3">
+          {isRoaming ? <Badge tone="info">🌐 {t('customers.roaming.badge')}</Badge> : null}
           <Badge tone="info">{row.verification_status}</Badge>
           {canDelete ? <DeleteCustomerButton customerId={row.id} /> : null}
         </div>
@@ -147,10 +178,19 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
       ) : null}
 
       {session.permissions.has('document.view') ? (
-        <CustomerDocuments customerId={row.id} organizationId={session.organization.id} />
+        // The customer's own organization_id, not the caller's: for a roaming session that is
+        // the home centre, and `documents_select` (migration 0024) admits the read via the
+        // live grant either way.
+        <CustomerDocuments customerId={row.id} organizationId={row.organization_id} />
       ) : null}
 
-      {session.permissions.has('application.view') ? (
+      {/*
+       * Applications and fill history stay home-centre-only: migration 0024 does not extend
+       * `applications` or `fill_sessions` RLS for a roaming grant, so a visiting operator sees
+       * only the profile and the documents they were given consent for — not another centre's
+       * operational history for this citizen.
+       */}
+      {!isRoaming && session.permissions.has('application.view') ? (
         <CustomerApplications
           customerId={row.id}
           organizationId={session.organization.id}
@@ -158,7 +198,7 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
         />
       ) : null}
 
-      {session.permissions.has('fill.run') ? (
+      {!isRoaming && session.permissions.has('fill.run') ? (
         <CustomerFillHistory customerId={row.id} organizationId={session.organization.id} />
       ) : null}
 

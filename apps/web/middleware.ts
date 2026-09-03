@@ -21,6 +21,16 @@ const PUBLIC_PATHS = [
   '/reset-password',
   '/auth/callback',
   '/demo-forms',
+  /*
+   * The walk-in document drop page (§9.1). A citizen scans the counter QR with their own phone
+   * and lands here; redirecting them to sign-in would defeat the entire feature.
+   *
+   * Public routing, not public data. The page renders nothing but the centre's name and an
+   * upload control, and the endpoint behind it — /api/document-drop/public/:code — only ever
+   * adds a file to the one session the code resolves to. There is no read path from here to
+   * anybody's documents.
+   */
+  '/drop',
 ];
 
 function isPublic(pathname: string): boolean {

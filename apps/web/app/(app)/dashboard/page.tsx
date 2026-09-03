@@ -1,25 +1,25 @@
-import Link from 'next/link';
-import {
-  Alert,
-  Button,
-  Card,
-  EmptyState,
-  Table,
-  TBody,
-  TD,
-  TH,
-  THead,
-  TR,
-} from '@assistigo/ui';
-import { formatIndianDate, maskMobile } from '@assistigo/core';
+import { Alert } from '@assistigo/ui';
+import { OPEN_STATUSES, formatIndianDate, maskMobile } from '@assistigo/core';
 import { requireSession } from '@/lib/auth/session';
+import { isProduction } from '@/lib/env';
 import { getTranslations } from '@/lib/i18n/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type { CustomerRow, DashboardSummary } from '@/lib/supabase/database.types';
+import { filterSchemes, loadSchemeCatalog, type SchemeListing } from '@/lib/schemes/service';
+import { bucketByIstDay, greetingKey, istHour, trendFrom } from '@/lib/dashboard/metrics';
+import type { ApplicationRow, CustomerRow, DashboardSummary } from '@/lib/supabase/database.types';
 import { OnboardingChecklist } from './onboarding-checklist';
-import { StatCard } from './stat-card';
-import { QuickActions } from './quick-actions';
-import { FormIcon, UsersIcon, DocumentIcon, ClipboardIcon, AlertIcon, ClockIcon } from './icons';
+import { DashboardHero } from './dashboard-hero';
+import { DocumentDropQueue } from './document-drop-queue';
+import { PowerToolsLauncher } from './power-tools-launcher';
+import { StatCard, type StatTone, type StatTrend } from './stat-card';
+import { RecentCustomersCard, type RecentCustomerView } from './recent-customers-card';
+import {
+  ApplicationsPipelineCard,
+  type PipelineApplicationView,
+} from './applications-pipeline-card';
+import { SchemesOpportunityRadar } from './schemes-opportunity-radar';
+import { ProductivityWidget } from './productivity-widget';
+import { AlertIcon, ClipboardIcon, DocumentIcon, FormIcon, UsersIcon } from './icons';
 
 export const metadata = { title: 'Home' };
 
@@ -33,84 +33,235 @@ const EMPTY_SUMMARY: DashboardSummary = {
   fieldsFilledThisMonth: 0,
 };
 
+/** The sparkline window. Seven days covers a full week including the quiet one. */
+const TREND_DAYS = 7;
+
 /**
- * Time saved is presented as an estimate and labelled as one (spec §8.6 — no overclaiming).
- * 12 seconds per field is a placeholder until the pilot measures it for real; Phase 10 replaces
- * this with observed data.
+ * How far back the trend queries reach. A day of slack on top of the window so a row written
+ * just before IST midnight is still inside the range when the page renders just after it.
  */
-const SECONDS_SAVED_PER_FIELD = 12;
+const TREND_LOOKBACK_DAYS = TREND_DAYS + 1;
 
-function formatDuration(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.round((totalSeconds % 3600) / 60);
-  if (hours === 0) return `${minutes}m`;
-  return `${hours}h ${minutes}m`;
-}
+/** Enough to cover a busy week at a large centre without pulling an unbounded set. */
+const TREND_ROW_LIMIT = 5000;
 
-function greetingKey(hour: number): string {
-  if (hour < 12) return 'dashboard.greetingMorning';
-  if (hour < 17) return 'dashboard.greetingAfternoon';
-  return 'dashboard.greetingEvening';
-}
+/** Only the closing end of the catalogue belongs on the home screen. */
+const RADAR_LIMIT = 4;
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
-  return (first + last).toUpperCase();
-}
+type TrendRow = { created_at: string };
+type FillSessionTrendRow = TrendRow & { status: string; filled_fields_count: number | null };
 
+type RecentCustomerRow = Pick<
+  CustomerRow,
+  'id' | 'customer_code' | 'full_name' | 'mobile' | 'verification_status' | 'created_at'
+>;
+
+type RecentApplicationRow = Pick<
+  ApplicationRow,
+  | 'id'
+  | 'title'
+  | 'status'
+  | 'portal_name'
+  | 'deadline_at'
+  | 'amount_charged'
+  | 'payment_status'
+  | 'created_at'
+> & { customers: { full_name: string } | null };
+
+/**
+ * The operator command centre (spec §7.3.1).
+ *
+ * Everything the counter needs before the first walk-in of the day loads in one pass: the day's
+ * counters, the seven-day shape behind each of them, who came in recently, what is in flight,
+ * and which government window shuts first. Each query is gated on the caller's permission as
+ * well as by RLS — a viewer should not pay for an applications query they are not allowed to
+ * read, and a role check that only hides a card is not a check at all (DEVELOPMENT_RULES §4).
+ */
 export default async function DashboardPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await requireSession();
-  const { t } = await getTranslations();
+  const { t, locale } = await getTranslations();
   const params = await searchParams;
   const supabase = await createSupabaseServerClient();
 
-  const [summaryResult, customersResult] = await Promise.all([
-    supabase.rpc('dashboard_summary', { p_organization_id: session.organization.id }),
+  const organizationId = session.organization.id;
+  const canViewCustomers = session.permissions.has('customer.view');
+  const canViewApplications = session.permissions.has('application.view');
+  const canViewDocuments = session.permissions.has('document.view');
+  const canRunFills = session.permissions.has('fill.run');
+  const canUploadDocuments = session.permissions.has('document.upload');
+
+  const asOf = new Date();
+  const since = new Date(asOf.getTime() - TREND_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  const [
+    summaryResult,
+    customersResult,
+    applicationsResult,
+    fillTrendResult,
+    customerTrendResult,
+    documentTrendResult,
+    catalog,
+  ] = await Promise.all([
+    supabase.rpc('dashboard_summary', { p_organization_id: organizationId }),
+
+    canViewCustomers
+      ? supabase
+          .from('customers')
+          .select('id, customer_code, full_name, mobile, verification_status, created_at')
+          .eq('organization_id', organizationId)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(6)
+      : Promise.resolve({ data: null }),
+
+    // Open statuses only: the card is titled "in flight", and an approved or cancelled
+    // application appearing under that heading would be a lie the operator has to click to
+    // discover. The full list, terminal rows included, is one link away.
+    canViewApplications
+      ? supabase
+          .from('applications')
+          .select(
+            'id, title, status, portal_name, deadline_at, amount_charged, payment_status, created_at, customers(full_name)',
+          )
+          .eq('organization_id', organizationId)
+          .is('deleted_at', null)
+          .in('status', OPEN_STATUSES)
+          .order('created_at', { ascending: false })
+          .limit(5)
+      : Promise.resolve({ data: null }),
+
+    /*
+     * The trend queries project timestamps and counters only — no customer id, no field value.
+     * A seven-day shape is derivable from nothing more personal than "something happened at
+     * 14:02", which is why this can sit on the home screen at all (docs/SECURITY.md §5).
+     */
     supabase
-      .from('customers')
-      .select('id, customer_code, full_name, mobile, created_at')
-      .eq('organization_id', session.organization.id)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(8),
+      .from('fill_sessions')
+      .select('created_at, status, filled_fields_count')
+      .eq('organization_id', organizationId)
+      .gte('created_at', since)
+      .limit(TREND_ROW_LIMIT),
+
+    canViewCustomers
+      ? supabase
+          .from('customers')
+          .select('created_at')
+          .eq('organization_id', organizationId)
+          .is('deleted_at', null)
+          .gte('created_at', since)
+          .limit(TREND_ROW_LIMIT)
+      : Promise.resolve({ data: null }),
+
+    canViewDocuments
+      ? supabase
+          .from('document_extractions')
+          .select('created_at')
+          .eq('organization_id', organizationId)
+          .in('status', ['completed', 'accepted', 'review_required'])
+          .gte('created_at', since)
+          .limit(TREND_ROW_LIMIT)
+      : Promise.resolve({ data: null }),
+
+    // Built-ins are the floor of this list even when the query fails, so the radar is never
+    // empty for a reason the operator cannot see.
+    canViewCustomers ? loadSchemeCatalog(supabase, organizationId) : Promise.resolve([]),
   ]);
 
   const summary: DashboardSummary = {
     ...EMPTY_SUMMARY,
     ...((summaryResult.data as DashboardSummary | null) ?? {}),
   };
-  const recentCustomers = (customersResult.data ?? []) as Pick<
-    CustomerRow,
-    'id' | 'customer_code' | 'full_name' | 'mobile' | 'created_at'
-  >[];
 
-  const timeSaved = formatDuration(summary.fieldsFilledThisMonth * SECONDS_SAVED_PER_FIELD);
-  const greeting = greetingKey(new Date().getHours());
+  const fillRows = (fillTrendResult.data ?? []) as FillSessionTrendRow[];
+  const filledRows = fillRows.filter((row) => row.status === 'filled');
+
+  const fillsSeries = bucketByIstDay(filledRows, TREND_DAYS, asOf);
+  const fieldsSeries = bucketByIstDay(
+    fillRows,
+    TREND_DAYS,
+    asOf,
+    (row) => row.filled_fields_count ?? 0,
+  );
+  const customersSeries = bucketByIstDay(
+    (customerTrendResult.data ?? []) as TrendRow[],
+    TREND_DAYS,
+    asOf,
+  );
+  const documentsSeries = bucketByIstDay(
+    (documentTrendResult.data ?? []) as TrendRow[],
+    TREND_DAYS,
+    asOf,
+  );
+
+  const recentCustomers: RecentCustomerView[] = (
+    (customersResult.data ?? []) as RecentCustomerRow[]
+  ).map((customer) => ({
+    id: customer.id,
+    customerCode: customer.customer_code,
+    fullName: customer.full_name,
+    mobile: customer.mobile,
+    mobileMasked: maskMobile(customer.mobile),
+    verificationStatus: customer.verification_status,
+    createdOn: formatIndianDate(customer.created_at.slice(0, 10)),
+  }));
+
+  const recentApplications: PipelineApplicationView[] = (
+    (applicationsResult.data ?? []) as unknown as RecentApplicationRow[]
+  ).map((application) => ({
+    id: application.id,
+    title: application.title,
+    status: application.status,
+    portalName: application.portal_name,
+    customerName: application.customers?.full_name ?? null,
+    deadlineOn: application.deadline_at?.slice(0, 10) ?? null,
+    amountCharged: application.amount_charged,
+    paymentStatus: application.payment_status,
+  }));
+
+  // `filterSchemes` drops closed windows and sorts what shuts first to the top, so the radar is
+  // the head of that list rather than a second opinion about urgency.
+  const radarListings: SchemeListing[] = filterSchemes(catalog, { lifecycle: 'open' }, asOf).slice(
+    0,
+    RADAR_LIMIT,
+  );
+
+  const place = [session.organization.district, session.organization.state]
+    .filter((part): part is string => Boolean(part))
+    .join(', ');
+
+  /** Today against the mean of the six days before it, phrased once for every card that has one. */
+  const trendFor = (series: readonly number[]): StatTrend | null => {
+    const trend = trendFrom(series);
+    if (!trend) return null;
+    if (trend.deltaPercent === null) {
+      return { label: t('dashboard.trendNoBaseline'), direction: trend.direction };
+    }
+    return {
+      label: t('dashboard.trendVsAverage', { delta: Math.abs(trend.deltaPercent) }),
+      direction: trend.direction,
+    };
+  };
+
+  const reviewsTone: StatTone = summary.reviewsPending > 0 ? 'rose' : 'emerald';
 
   return (
-    <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl border border-brand-700/20 bg-gradient-to-br from-brand-600 via-brand-700 to-brand-800 px-6 py-6 text-white shadow-sm animate-fade-in-up sm:px-8 sm:py-7">
-        <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
-        <div className="pointer-events-none absolute -bottom-16 right-20 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
-        <div className="relative">
-          <p className="text-sm font-medium text-brand-100">{t(greeting)}</p>
-          <h1 className="mt-1 text-2xl font-semibold sm:text-3xl">{t('dashboard.title')}</h1>
-          <p className="mt-1.5 text-sm text-brand-100">
-            {t('dashboard.subtitle', { org: session.organization.name })}
-          </p>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <DashboardHero
+        organizationName={session.organization.name}
+        place={place || null}
+        initialGreeting={t(greetingKey(istHour(asOf)))}
+        canSearchCustomers={canViewCustomers}
+        canCreateCustomer={session.permissions.has('customer.create')}
+        canOpenDocumentDrop={canUploadDocuments}
+        /* The simulator drops invented documents, so it is off wherever intake is real (§32.1). */
+        simulatorEnabled={!isProduction()}
+      />
 
       {params.denied ? <Alert tone="warning">{t('errors.permission_denied')}</Alert> : null}
-
-      <QuickActions permissions={session.permissions} t={t} />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
@@ -118,7 +269,10 @@ export default async function DashboardPage({
           value={summary.fillsToday}
           icon={<FormIcon />}
           tone="brand"
-          href={session.permissions.has('fill.run') ? '/fill-sessions' : undefined}
+          href={canRunFills ? '/fill-sessions' : undefined}
+          series={fillsSeries}
+          seriesLabel={t('dashboard.lastSevenDays')}
+          trend={trendFor(fillsSeries)}
           style={{ animationDelay: '0ms' }}
         />
         <StatCard
@@ -126,7 +280,10 @@ export default async function DashboardPage({
           value={summary.customersServedToday}
           icon={<UsersIcon />}
           tone="sky"
-          href={session.permissions.has('customer.view') ? '/customers' : undefined}
+          href={canViewCustomers ? '/customers' : undefined}
+          series={canViewCustomers ? customersSeries : undefined}
+          seriesLabel={t('dashboard.newCustomersSevenDays')}
+          hint={t('dashboard.customersTotalHint', { total: summary.customersTotal })}
           style={{ animationDelay: '40ms' }}
         />
         <StatCard
@@ -134,7 +291,10 @@ export default async function DashboardPage({
           value={summary.documentsProcessedToday}
           icon={<DocumentIcon />}
           tone="violet"
-          href={session.permissions.has('document.view') ? '/documents' : undefined}
+          href={canViewDocuments ? '/documents' : undefined}
+          series={canViewDocuments ? documentsSeries : undefined}
+          seriesLabel={t('dashboard.lastSevenDays')}
+          trend={canViewDocuments ? trendFor(documentsSeries) : null}
           style={{ animationDelay: '80ms' }}
         />
         <StatCard
@@ -142,106 +302,77 @@ export default async function DashboardPage({
           value={summary.applicationsOpen}
           icon={<ClipboardIcon />}
           tone="amber"
-          href={session.permissions.has('application.view') ? '/applications?filter=open' : undefined}
+          href={canViewApplications ? '/applications?filter=open' : undefined}
+          hint={t('dashboard.applicationsOpenHint')}
           style={{ animationDelay: '120ms' }}
         />
         <StatCard
           label={t('dashboard.reviewsPending')}
           value={summary.reviewsPending}
           icon={<AlertIcon />}
-          tone={summary.reviewsPending > 0 ? 'amber' : 'brand'}
-          href={session.permissions.has('document.view') ? '/documents' : undefined}
+          tone={reviewsTone}
+          href={canViewDocuments ? '/documents' : undefined}
+          hint={t(
+            summary.reviewsPending > 0
+              ? 'dashboard.reviewsPendingHint'
+              : 'dashboard.reviewsClearHint',
+          )}
           style={{ animationDelay: '160ms' }}
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <Card
-            title={t('dashboard.recentCustomers')}
-            actions={
-              <div className="flex items-center gap-3">
-                {session.permissions.has('customer.view') ? (
-                  <Link href="/customers" className="text-sm font-medium text-brand-700 hover:underline">
-                    {t('dashboard.viewAll')}
-                  </Link>
-                ) : null}
-                {session.permissions.has('customer.create') ? (
-                  <Link href="/customers/new">
-                    <Button size="sm">{t('customers.new')}</Button>
-                  </Link>
-                ) : null}
-              </div>
-            }
-          >
-            {recentCustomers.length === 0 ? (
-              <EmptyState
-                title={t('dashboard.emptyCustomers')}
-                action={
-                  session.permissions.has('customer.create') ? (
-                    <Link href="/customers/new">
-                      <Button size="sm">{t('customers.new')}</Button>
-                    </Link>
-                  ) : null
-                }
-              />
-            ) : (
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>{t('customers.code')}</TH>
-                    <TH>{t('customers.name')}</TH>
-                    <TH>{t('customers.mobile')}</TH>
-                    <TH>{t('customers.created')}</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {recentCustomers.map((customer) => (
-                    <TR key={customer.id} className="transition-colors hover:bg-slate-50">
-                      <TD className="font-mono text-xs text-slate-500">{customer.customer_code}</TD>
-                      <TD>
-                        <Link
-                          href={`/customers/${customer.id}`}
-                          className="flex items-center gap-2.5 font-medium text-brand-700 hover:underline"
-                        >
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[11px] font-semibold text-brand-700">
-                            {initials(customer.full_name)}
-                          </span>
-                          {customer.full_name}
-                        </Link>
-                      </TD>
-                      {/* Masked by default; the full number needs an audited reveal (§19.3). */}
-                      <TD className="masked-value">{maskMobile(customer.mobile) ?? '—'}</TD>
-                      <TD className="text-slate-500">
-                        {formatIndianDate(customer.created_at.slice(0, 10)) ?? '—'}
-                      </TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
-            )}
-          </Card>
+      <PowerToolsLauncher permissions={session.permissions} t={t} />
+
+      <div className="grid gap-5 xl:grid-cols-3">
+        <div className="space-y-5 xl:col-span-2">
+          {canViewCustomers ? (
+            <RecentCustomersCard
+              customers={recentCustomers}
+              canCreate={session.permissions.has('customer.create')}
+              canReveal={session.permissions.has('customer.reveal_sensitive')}
+              canUploadDocument={session.permissions.has('document.upload')}
+              canCreateApplication={session.permissions.has('application.create')}
+            />
+          ) : null}
+
+          {canViewApplications ? (
+            <ApplicationsPipelineCard
+              applications={recentApplications}
+              canCreate={session.permissions.has('application.create')}
+              locale={locale}
+              t={t}
+            />
+          ) : null}
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-5">
+          {/*
+           * First in the sidebar, above the checklist: when somebody is standing at the counter
+           * having just sent their Aadhaar, that is the most time-critical thing on this screen.
+           * Rendered for anyone who can see documents — a viewer should be able to tell an
+           * operator that a walk-in is waiting, even though only an operator can claim it.
+           */}
+          {canViewDocuments ? (
+            <DocumentDropQueue
+              canIntake={canUploadDocuments}
+              canDiscard={session.permissions.has('document.delete')}
+            />
+          ) : null}
+
           <OnboardingChecklist
             hasCustomers={summary.customersTotal > 0}
             hasDocuments={summary.documentsProcessedToday > 0}
           />
 
-          <Card title={t('dashboard.timeSaved')}>
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                <ClockIcon />
-              </span>
-              <div>
-                <p className="text-2xl font-semibold tabular-nums text-slate-900">{timeSaved}</p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {t('dashboard.timeSavedHint', { fields: summary.fieldsFilledThisMonth })}
-                </p>
-              </div>
-            </div>
-          </Card>
+          <ProductivityWidget
+            fieldsFilledThisMonth={summary.fieldsFilledThisMonth}
+            fieldsSeries={fieldsSeries}
+            t={t}
+          />
+
+          {canViewCustomers ? (
+            <SchemesOpportunityRadar listings={radarListings} locale={locale} t={t} />
+          ) : null}
         </div>
       </div>
     </div>

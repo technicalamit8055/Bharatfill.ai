@@ -74,6 +74,32 @@ const serverSchema = z.object({
    */
   JOB_INLINE_RUNNER: z.enum(['on', 'off']).default('on'),
   /**
+   * Walk-in document drop channels (spec §9.1).
+   *
+   * Every one of these is optional and every one fails closed: with no credentials configured
+   * the channel refuses to mint a session and its webhook returns 404, rather than half-working.
+   * The mobile web drop needs none of them, so a deployment that configures nothing here still
+   * has a working walk-in intake.
+   */
+  /** Verify token echoed back to Meta during the webhook handshake. */
+  WHATSAPP_VERIFY_TOKEN: optionalString(z.string().min(16)),
+  /** Graph API token used to fetch inbound media and post the acknowledgement replies. */
+  WHATSAPP_ACCESS_TOKEN: optionalString(z.string().min(16)),
+  /** The business phone number id messages are sent from. */
+  WHATSAPP_PHONE_NUMBER_ID: optionalString(z.string()),
+  /** The public number a citizen messages, used to build the `wa.me` deep link. */
+  WHATSAPP_BOT_NUMBER: optionalString(z.string()),
+  /**
+   * Meta's `X-Hub-Signature-256` app secret. Separate from the verify token, which only
+   * authenticates the one-time handshake and says nothing about a later delivery.
+   */
+  WHATSAPP_APP_SECRET: optionalString(z.string().min(16)),
+  TELEGRAM_BOT_TOKEN: optionalString(z.string().min(16)),
+  /** The bot's @handle, used to build the `t.me` deep link. */
+  TELEGRAM_BOT_USERNAME: optionalString(z.string()),
+  /** Secret token Telegram echoes in `X-Telegram-Bot-Api-Secret-Token` on every delivery. */
+  TELEGRAM_WEBHOOK_SECRET: optionalString(z.string().min(16)),
+  /**
    * Comma-separated emails that are treated as platform Super Admins even without a
    * `platform_admins` row (spec §6.1).
    *

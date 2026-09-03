@@ -16,6 +16,7 @@ import {
 } from '@assistigo/form-engine';
 import { send } from '../shared/send';
 import { CustomerPicker } from '../shared/CustomerPicker';
+import { RoamingAuthBanner } from '../shared/RoamingAuthBanner';
 import {
   AlertIcon,
   ArrowIcon,
@@ -44,12 +45,41 @@ function ConnectDecor() {
       </defs>
       <rect x="-20" y="10" width="90" height="90" fill="url(#connect-dots)" opacity="0.5" />
       <rect x="330" y="120" width="90" height="90" fill="url(#connect-dots)" opacity="0.5" />
-      <path d="M20 90 Q 90 40 180 55" stroke="currentColor" strokeWidth="1" opacity="0.25" fill="none" />
-      <rect x="336" y="16" width="30" height="38" rx="4" fill="none" stroke="currentColor" opacity="0.3" />
-      <path d="M343 27h16M343 34h16M343 41h10" stroke="currentColor" strokeWidth="2" opacity="0.3" strokeLinecap="round" />
-      <path d="M56 18l2.5 6 6 2.5-6 2.5-2.5 6-2.5-6-6-2.5 6-2.5Z" fill="currentColor" opacity="0.35" />
+      <path
+        d="M20 90 Q 90 40 180 55"
+        stroke="currentColor"
+        strokeWidth="1"
+        opacity="0.25"
+        fill="none"
+      />
+      <rect
+        x="336"
+        y="16"
+        width="30"
+        height="38"
+        rx="4"
+        fill="none"
+        stroke="currentColor"
+        opacity="0.3"
+      />
+      <path
+        d="M343 27h16M343 34h16M343 41h10"
+        stroke="currentColor"
+        strokeWidth="2"
+        opacity="0.3"
+        strokeLinecap="round"
+      />
+      <path
+        d="M56 18l2.5 6 6 2.5-6 2.5-2.5 6-2.5-6-6-2.5 6-2.5Z"
+        fill="currentColor"
+        opacity="0.35"
+      />
       <path d="M300 60l2 5 5 2-5 2-2 5-2-5-5-2 5-2Z" fill="currentColor" opacity="0.3" />
-      <path d="M250 20l1.6 4 4 1.6-4 1.6-1.6 4-1.6-4-4-1.6 4-1.6Z" fill="currentColor" opacity="0.3" />
+      <path
+        d="M250 20l1.6 4 4 1.6-4 1.6-1.6 4-1.6-4-4-1.6 4-1.6Z"
+        fill="currentColor"
+        opacity="0.3"
+      />
     </svg>
   );
 }
@@ -57,7 +87,12 @@ function ConnectDecor() {
 /** How-it-works illustration: profile data flows through a lock to fill the page safely. */
 function ConnectIllustration() {
   return (
-    <svg className="connect-illustration" viewBox="0 0 320 150" aria-hidden="true" focusable="false">
+    <svg
+      className="connect-illustration"
+      viewBox="0 0 320 150"
+      aria-hidden="true"
+      focusable="false"
+    >
       <defs>
         <linearGradient id="connect-lock-gradient" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="#0066ff" />
@@ -83,7 +118,15 @@ function ConnectIllustration() {
       />
 
       <g>
-        <rect x="70" y="8" width="180" height="96" rx="10" fill="var(--surface)" stroke="var(--line)" />
+        <rect
+          x="70"
+          y="8"
+          width="180"
+          height="96"
+          rx="10"
+          fill="var(--surface)"
+          stroke="var(--line)"
+        />
         <rect x="70" y="8" width="180" height="20" rx="10" fill="var(--line-soft)" />
         <rect x="70" y="18" width="180" height="10" fill="var(--line-soft)" />
         <circle cx="82" cy="18" r="2.5" fill="var(--line)" />
@@ -109,8 +152,18 @@ function ConnectIllustration() {
 
       <g transform="translate(258,104)">
         <circle cx="20" cy="20" r="22" fill="var(--brand-50)" stroke="var(--brand-100)" />
-        <path d="M20 8l11 4v8c0 8-4.7 13.6-11 16-6.3-2.4-11-8-11-16v-8l11-4Z" fill="var(--brand-500)" />
-        <path d="m14.5 20 3.6 3.6 7-7" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d="M20 8l11 4v8c0 8-4.7 13.6-11 16-6.3-2.4-11-8-11-16v-8l11-4Z"
+          fill="var(--brand-500)"
+        />
+        <path
+          d="m14.5 20 3.6 3.6 7-7"
+          stroke="#fff"
+          strokeWidth="2"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </g>
     </svg>
   );
@@ -149,7 +202,8 @@ function formatKb(bytes: number): string {
 
 /** "20–50 KB", "up to 50 KB" or "at least 20 KB" — whatever the notice actually stated. */
 function formatSizeRange(preset: DocumentPresetSummary): string | null {
-  if (preset.minBytes && preset.maxBytes) return `${formatKb(preset.minBytes)}–${formatKb(preset.maxBytes)}`;
+  if (preset.minBytes && preset.maxBytes)
+    return `${formatKb(preset.minBytes)}–${formatKb(preset.maxBytes)}`;
   if (preset.maxBytes) return `up to ${formatKb(preset.maxBytes)}`;
   if (preset.minBytes) return `at least ${formatKb(preset.minBytes)}`;
   return null;
@@ -162,7 +216,11 @@ function formatDimensions(preset: DocumentPresetSummary): string | null {
 }
 
 function formatPresetConstraints(preset: DocumentPresetSummary): string {
-  return [formatSizeRange(preset), formatDimensions(preset), preset.dpi ? `${preset.dpi} DPI` : null]
+  return [
+    formatSizeRange(preset),
+    formatDimensions(preset),
+    preset.dpi ? `${preset.dpi} DPI` : null,
+  ]
     .filter(Boolean)
     .join(' · ');
 }
@@ -310,12 +368,12 @@ export function ReviewPanel() {
      * not here and never reach this panel: the background worker fetches each file through a
      * signed URL at the moment of the fill.
      */
-    const attachmentRequests: FileAttachmentRequest[] = (proposal.documentSuggestions ?? []).flatMap(
-      (suggestion) => {
-        const derivativeId = attachments[suggestion.signature];
-        return derivativeId ? [{ signature: suggestion.signature, derivativeId }] : [];
-      },
-    );
+    const attachmentRequests: FileAttachmentRequest[] = (
+      proposal.documentSuggestions ?? []
+    ).flatMap((suggestion) => {
+      const derivativeId = attachments[suggestion.signature];
+      return derivativeId ? [{ signature: suggestion.signature, derivativeId }] : [];
+    });
 
     const response = await send<{ results: FillResult[] }>({
       type: 'APPLY_FILL',
@@ -419,7 +477,10 @@ export function ReviewPanel() {
             Need help?
           </button>
           <span className="connect-footer__divider" aria-hidden="true" />
-          <button type="button" className="btn-ghost connect-footer__link connect-footer__link--accent">
+          <button
+            type="button"
+            className="btn-ghost connect-footer__link connect-footer__link--accent"
+          >
             Learn more
             <ExternalIcon size={12} />
           </button>
@@ -490,6 +551,13 @@ export function ReviewPanel() {
           }}
         />
 
+        {session.selectedCustomer?.isRoaming ? (
+          <RoamingAuthBanner
+            customer={session.selectedCustomer}
+            onChange={() => void refreshSession()}
+          />
+        ) : null}
+
         {error ? (
           <div className="notice notice-danger">
             <AlertIcon size={13} />
@@ -514,7 +582,15 @@ export function ReviewPanel() {
             <button
               type="button"
               className="btn-primary btn-block"
-              disabled={!session.selectedCustomer || stage === 'detecting'}
+              disabled={
+                !session.selectedCustomer ||
+                stage === 'detecting' ||
+                // A roaming customer's fields cannot be read until the citizen has consented —
+                // detecting is harmless, but requesting the mapping would just fail server-side,
+                // so the button stays disabled until the banner above reports an active session.
+                (session.selectedCustomer.isRoaming &&
+                  session.selectedCustomer.accessStatus !== 'granted')
+              }
               onClick={() => void detect()}
             >
               {stage === 'detecting' ? (
@@ -568,7 +644,9 @@ export function ReviewPanel() {
                 <div className="card card-flush">
                   {proposal.documentSuggestions.map((suggestion) => {
                     const docField = fieldBySignature.get(suggestion.signature);
-                    const constraints = suggestion.preset ? formatPresetConstraints(suggestion.preset) : null;
+                    const constraints = suggestion.preset
+                      ? formatPresetConstraints(suggestion.preset)
+                      : null;
 
                     return (
                       <div key={suggestion.signature} className="field-row">
@@ -609,7 +687,9 @@ export function ReviewPanel() {
                                       type="checkbox"
                                       checked={ticked}
                                       disabled={!accepted}
-                                      onChange={() => toggleAttachment(suggestion.signature, file.id)}
+                                      onChange={() =>
+                                        toggleAttachment(suggestion.signature, file.id)
+                                      }
                                     />
                                     <span className="truncate">
                                       {file.filename} · {formatKb(file.sizeBytes)}
@@ -687,8 +767,8 @@ export function ReviewPanel() {
                   </div>
                   <p className="strong">No matches on this page</p>
                   <p className="tiny muted" style={{ marginTop: 2 }}>
-                    Nothing here matches this customer&rsquo;s saved details. Report the form and
-                    it can be supported.
+                    Nothing here matches this customer&rsquo;s saved details. Report the form and it
+                    can be supported.
                   </p>
                 </div>
               ) : (
@@ -844,17 +924,21 @@ export function ReviewPanel() {
               ) : null}
 
               {/*
-                * A failed row is mostly an upload box whose file could not be attached. Naming it
-                * matters more than the count does: a ticked document the operator hears nothing
-                * about reads as attached, and the application goes in incomplete.
-                */}
+               * A failed row is mostly an upload box whose file could not be attached. Naming it
+               * matters more than the count does: a ticked document the operator hears nothing
+               * about reads as attached, and the application goes in incomplete.
+               */}
               {results.some((result) => result.action === 'failed') ? (
                 <div className="stack-sm">
                   <h2>Not filled</h2>
                   {results
                     .filter((result) => result.action === 'failed')
                     .map((result) => (
-                      <p key={result.signature} className="tiny truncate" style={{ color: 'var(--danger)' }}>
+                      <p
+                        key={result.signature}
+                        className="tiny truncate"
+                        style={{ color: 'var(--danger)' }}
+                      >
                         {fieldLabel(fieldBySignature.get(result.signature))} — do this one by hand
                       </p>
                     ))}

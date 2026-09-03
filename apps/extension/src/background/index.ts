@@ -13,6 +13,7 @@
  *   results    → PATCH /api/fill-sessions/:id
  */
 
+import type { RoamingAccessView } from '@assistigo/core';
 import { ApiError, apiFetch, pairWithCode } from '../shared/api';
 import {
   fail,
@@ -20,6 +21,7 @@ import {
   parseMessage,
   type CustomerSummary,
   type Message,
+  type RoamingSearchResult,
   type SessionState,
 } from '../shared/messages';
 import {
@@ -97,7 +99,10 @@ async function ensureContentScript(tabId: number): Promise<boolean> {
   }
 
   try {
-    await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ['content.js'] });
+    await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      files: ['content.js'],
+    });
     return true;
   } catch {
     return false;
@@ -359,6 +364,96 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       return ok({ selected: message.customer });
     }
 
+    case 'SEARCH_ROAMING_CUSTOMER': {
+      const results = await apiFetch<{ customers: RoamingSearchResult[] }>(
+        `/api/customers/roaming/search?mobile=${encodeURIComponent(message.query)}`,
+      );
+      return ok(results);
+    }
+
+    case 'GET_ROAMING_ACCESS': {
+      const access = await apiFetch<RoamingAccessView>(
+        `/api/customers/${message.customerId}/roaming`,
+      );
+      return ok(access);
+    }
+
+    /*
+     * Bookmarks the customer to this counter and, in the same step, selects them — the operator
+     * came here to serve this walk-in now, not to file them away for later. The selection starts
+     * 'locked': linking alone never unlocks anything (migration 0024).
+     */
+    case 'LINK_ROAMING_CUSTOMER': {
+      const linked = await apiFetch<{
+        customer: { customerId: string; displayName: string; mobileLast4: string | null };
+      }>('/api/customers/roaming/link', {
+        method: 'POST',
+        body: JSON.stringify({ customerId: message.customerId }),
+      });
+
+      const summary: CustomerSummary = {
+        id: linked.customer.customerId,
+        displayName: linked.customer.displayName,
+        customerCode: null,
+        mobileLast4: linked.customer.mobileLast4,
+        isRoaming: true,
+        accessStatus: 'locked',
+        grantExpiresAt: null,
+      };
+      await selectedCustomerStore.set(summary);
+      await recentCustomersStore.push(summary);
+      return ok({ customer: summary });
+    }
+
+    case 'REQUEST_ROAMING_OTP': {
+      const result = await apiFetch<{ mobileLast4: string | null; expiresInSeconds: number }>(
+        `/api/customers/${message.customerId}/roaming/request-otp`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            purpose: message.purpose,
+            durationMinutes: message.durationMinutes,
+            targetSchemeSlug: message.targetSchemeSlug,
+            channel: 'whatsapp',
+          }),
+        },
+      );
+      return ok(result);
+    }
+
+    case 'VERIFY_ROAMING_OTP': {
+      const response = await apiFetch<{ session: { expiresAt: string } }>(
+        `/api/customers/${message.customerId}/roaming/verify-otp`,
+        { method: 'POST', body: JSON.stringify({ otp: message.otp }) },
+      );
+
+      // The selected customer, if it is still this one, moves from locked to granted so the
+      // side panel's fill controls light up without a round trip to GET_SESSION.
+      const current = await selectedCustomerStore.get<CustomerSummary>();
+      if (current?.id === message.customerId) {
+        await selectedCustomerStore.set({
+          ...current,
+          accessStatus: 'granted',
+          grantExpiresAt: response.session.expiresAt,
+        });
+      }
+      return ok(response.session);
+    }
+
+    case 'REVOKE_ROAMING_SESSION': {
+      await apiFetch(`/api/customers/${message.customerId}/roaming/revoke`, { method: 'POST' });
+
+      const current = await selectedCustomerStore.get<CustomerSummary>();
+      if (current?.id === message.customerId) {
+        await selectedCustomerStore.set({
+          ...current,
+          accessStatus: 'locked',
+          grantExpiresAt: null,
+        });
+      }
+      return ok({ revoked: true });
+    }
+
     case 'DETECT_FIELDS': {
       const tabId = await targetTabId(sender);
       if (tabId === null) return fail('no_active_tab');
@@ -373,7 +468,9 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
         if (chrome.webNavigation?.getAllFrames) {
           const frames = await chrome.webNavigation.getAllFrames({ tabId });
           if (frames && frames.length > 1) {
-            const allFields: DetectionPayload['fields'] = detection?.fields ? [...detection.fields] : [];
+            const allFields: DetectionPayload['fields'] = detection?.fields
+              ? [...detection.fields]
+              : [];
             let mainPageContext = detection?.page;
 
             for (const frame of frames) {
@@ -486,7 +583,9 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
                 if (subResponse?.ok && subResponse.data.results) {
                   for (const subRes of subResponse.data.results) {
                     if (subRes.action === 'filled' || subRes.error !== 'element_not_found') {
-                      const idx = response.results.findIndex((r) => r.signature === subRes.signature);
+                      const idx = response.results.findIndex(
+                        (r) => r.signature === subRes.signature,
+                      );
                       if (idx >= 0) response.results[idx] = subRes;
                     }
                   }

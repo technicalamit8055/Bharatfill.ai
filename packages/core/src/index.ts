@@ -19,7 +19,11 @@ export * from './customers/normalize';
 export * from './customers/schema';
 export * from './customers/duplicates';
 
+export * from './roaming';
+
 export * from './documents/types';
+
+export * from './document-drop';
 
 export * from './applications/status';
 

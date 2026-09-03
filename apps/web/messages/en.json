@@ -24,6 +24,7 @@
     "masked": "Hidden for privacy",
     "reveal": "Reveal",
     "copy": "Copy",
+    "copied": "Copied",
     "apply": "Apply",
     "close": "Close",
     "open": "Open",
@@ -152,7 +153,83 @@
     "extensionNotConnected": "Not connected",
     "extensionInstall": "Install the extension",
     "emptyCustomers": "No customers yet. Add your first one to get started.",
-    "emptyApplications": "No applications yet."
+    "emptyApplications": "No applications yet.",
+    "heroSubtitle": "Your command centre at {org} — every walk-in, form and deadline in one place.",
+    "istLabel": "IST",
+    "assistantOnline": "AI assistant online",
+    "assistantOffline": "Assistant not connected",
+    "jumpSearchLabel": "Jump to a customer",
+    "jumpSearchPlaceholder": "Name, mobile or customer code…",
+    "jumpSearchEmpty": "Nobody matches that yet.",
+    "jumpSearchCreate": "Add a new customer",
+    "lastSevenDays": "Last 7 days",
+    "newCustomersSevenDays": "New customers, last 7 days",
+    "trendVsAverage": "{delta}% vs 7-day average",
+    "trendNoBaseline": "First activity this week",
+    "customersTotalHint": "{total} on file",
+    "applicationsOpenHint": "Not yet submitted or closed",
+    "reviewsPendingHint": "Check before you fill",
+    "reviewsClearHint": "Nothing waiting",
+    "walkInCustomers": "Recent walk-ins",
+    "walkInCustomersHint": "Message, call or start a form without leaving this screen.",
+    "whatsapp": "WhatsApp",
+    "whatsappGreeting": "Namaste! Message from your service centre.",
+    "messageOnWhatsapp": "Message on WhatsApp",
+    "call": "Call",
+    "callCustomer": "Call this customer",
+    "startApplication": "Start application",
+    "revealFailed": "Could not show the number.",
+    "pipelineTitle": "Applications in flight",
+    "pipelineHint": "Where each form stands, and whether the fee is collected.",
+    "pipelineDeadline": "Due {date}",
+    "emptyApplicationsHint": "Start one from a customer profile or the form library.",
+    "radarTitle": "Opportunity radar",
+    "radarHint": "Government windows shutting first — the calls worth making today.",
+    "radarEmpty": "No window is closing right now.",
+    "radarEmptyHint": "Open the hub to see everything currently accepting applications.",
+    "productivityTitle": "Estimated time saved",
+    "productivityHint": "Modelled from the fields autofilled this month, not measured.",
+    "fieldsToday": "Fields today",
+    "keystrokesSaved": "Keystrokes avoided (estimate)",
+    "fieldsThisMonth": "Fields filled this month",
+    "durationHoursMinutes": "{hours}h {minutes}m",
+    "durationMinutes": "{minutes}m",
+    "estimateFootnote": "An estimate, not a measurement: 12 seconds and 14 keystrokes per autofilled field, pending pilot data.",
+    "tools": {
+      "walkInDrop": {
+        "title": "Walk-in QR drop",
+        "spec": "Customer sends documents by QR"
+      },
+      "title": "Counter tools",
+      "photo": {
+        "title": "Passport photo",
+        "spec": "35 × 45 mm, 20–50 KB"
+      },
+      "signature": {
+        "title": "Signature cleaner",
+        "spec": "Crop and clean, 10–20 KB"
+      },
+      "pdf": {
+        "title": "PDF studio",
+        "spec": "Merge, split, compress"
+      },
+      "ocr": {
+        "title": "Smart OCR extract",
+        "spec": "Read Aadhaar, PAN, marksheet"
+      },
+      "pvc": {
+        "title": "PVC card & masking",
+        "spec": "Card layout, mask an ID"
+      },
+      "grid": {
+        "title": "Photo print grid",
+        "spec": "4–16 up on 4×6 or A4"
+      },
+      "autofill": {
+        "title": "Autofill bench",
+        "spec": "Open a mapped portal form"
+      }
+    }
   },
   "customers": {
     "title": "Customers",
@@ -226,6 +303,52 @@
         "aadhaarRemoved": "An Aadhaar number was found and removed. Only the last four digits can be stored.",
         "textTruncated": "The text was very long, so only the first part was read."
       }
+    },
+    "verification": {
+      "unverified": "Unverified",
+      "extracted": "Extracted",
+      "operator_verified": "Operator verified",
+      "customer_confirmed": "Customer confirmed",
+      "expired": "Expired",
+      "rejected": "Rejected"
+    },
+    "roaming": {
+      "badge": "Roaming",
+      "tabAll": "All",
+      "tabRoaming": "Roaming customers",
+      "lookupButton": "Look up roaming customer",
+      "lookupTitle": "Look up a customer by mobile number",
+      "mobilePlaceholder": "10-digit mobile number",
+      "noMatch": "No customer on the Assistigo network matches that number.",
+      "linkToCounter": "Link to counter",
+      "viewLinked": "View",
+      "emptyList": "No roaming customers linked to this counter yet.",
+      "accessColumn": "Access",
+      "activeShort": "Active ({remaining})",
+      "lockedShort": "Locked",
+      "lockedTitle": "Customer registered at another centre",
+      "lockedBody": "Sensitive profile details and documents are locked under the DPDP Act 2023 until the customer confirms a one-time code.",
+      "age": "Age",
+      "ageYears": "{years} years",
+      "category": "Category",
+      "state": "State",
+      "education": "Education",
+      "documentsOnFile": "Document types on file",
+      "eligibleFor": "Eligible for",
+      "requestAccess": "🔐 Request customer access via OTP",
+      "modalTitle": "Request access",
+      "modalHelp": "Tell the customer why you need access. A one-time code will be sent to their own phone.",
+      "purposeLabel": "Purpose",
+      "durationLabel": "Access duration",
+      "durationOption": "{hours}h",
+      "sendCode": "Send code via WhatsApp",
+      "codeSentTo": "Sending a code to {mobile} via WhatsApp.",
+      "theirPhone": "their phone",
+      "codeLabel": "6-digit code",
+      "resendCode": "Resend code",
+      "verifyAndUnlock": "Verify & unlock",
+      "activeUntil": "Roaming access active: {remaining} remaining",
+      "endSession": "Lock & end session"
     }
   },
   "applications": {
@@ -582,7 +705,13 @@
       "application.deleted": "Application deleted",
       "application.document_updated": "Application document checklist updated",
       "billing.plan_changed": "Plan changed",
-      "billing.webhook_processed": "Billing webhook processed"
+      "billing.webhook_processed": "Billing webhook processed",
+      "customer.roaming_lookup": "Looked up a customer across the network",
+      "customer.roaming_linked": "Roaming customer linked to this counter",
+      "customer.roaming_otp_requested": "Consent code sent to a roaming customer",
+      "customer.roaming_access_granted": "Roaming access granted",
+      "customer.roaming_access_revoked": "Roaming access ended",
+      "customer.roaming_access_expired": "Roaming access expired"
     }
   },
   "settings": {
@@ -743,7 +872,10 @@
     "preset_mismatch": "That preset does not match the file.",
     "ai_base_url_invalid": "Enter an HTTPS address that Bharatfill's servers can reach — not a localhost or private-network address.",
     "ai_base_url_required": "Enter the base URL for this provider.",
-    "ai_api_key_required": "Enter an API key before testing the connection."
+    "ai_api_key_required": "Enter an API key before testing the connection.",
+    "file_required": "Choose a file to send.",
+    "file_empty": "That file is empty.",
+    "otp_invalid": "Enter the 6-digit code."
   },
   "errors": {
     "unauthenticated": "Please sign in to continue.",
@@ -767,6 +899,10 @@
     "encryption_unavailable": "Secure storage is not configured, so that value could not be saved. Contact support.",
     "ocr_provider_timeout": "The document reader took too long to respond. Please try again.",
     "ocr_provider_failed": "The document reader could not be reached. Please try again.",
+    "channel_credentials_required": "Save a token before testing the connection.",
+    "channel_test_failed": "Could not verify these credentials. Check the value and try again.",
+    "channel_webhook_failed": "Telegram rejected the webhook registration. Check the bot token and try again.",
+    "channel_webhook_secret_missing": "Set a webhook secret and bot token before registering the webhook.",
     "ai_processing_not_enabled": "AI processing is off for this workspace. A workspace owner can turn it on in settings.",
     "file_size_mismatch": "The uploaded file did not match what was expected, so it was not accepted.",
     "invalid_status_transition": "That status change isn't allowed from the application's current status.",
@@ -775,7 +911,17 @@
     "fill_session_not_found": "We could not find that fill session.",
     "portal_adapter_not_found": "We could not find that form.",
     "plan_not_found": "That plan is not available.",
-    "subscription_not_found": "This workspace does not have a billing subscription yet."
+    "subscription_not_found": "This workspace does not have a billing subscription yet.",
+    "roaming_link_same_org": "This customer is already registered at your own centre.",
+    "roaming_no_mobile_on_file": "This customer has no mobile number on file to send a code to.",
+    "roaming_otp_rate_limited": "Too many codes have been requested for this customer recently. Please wait a few minutes and try again.",
+    "roaming_whatsapp_not_configured": "WhatsApp is not configured for this deployment. Contact support.",
+    "roaming_sms_not_configured": "SMS is not available yet. Please use WhatsApp instead.",
+    "roaming_otp_send_failed": "The code could not be sent. Please try again.",
+    "roaming_no_challenge": "No code has been requested for this customer yet.",
+    "roaming_otp_expired": "That code has expired or was already used. Request a new one.",
+    "roaming_otp_incorrect": "That code is not correct. Please check and try again.",
+    "roaming_no_active_session": "There is no active roaming session to end."
   },
   "privacy": {
     "sensitiveNotice": "Sensitive value. Revealing it is recorded in the audit log.",
@@ -1119,7 +1265,8 @@
       "forms": "Portal forms",
       "scrapers": "Scrapers",
       "queue": "Review queue",
-      "team": "Team"
+      "team": "Team",
+      "channels": "Channels & Bots"
     },
     "lifecycle": {
       "active": "Open",
@@ -1507,6 +1654,167 @@
       "userNotFound": "No Bharatfill account uses that email address.",
       "notFound": "That roster entry no longer exists.",
       "lastSuperAdmin": "This is the last active Super Admin. Promote somebody else before changing this one."
+    },
+    "channels": {
+      "title": "Channels & Bots",
+      "subtitle": "Configure the WhatsApp and Telegram bots that power walk-in document drop, without editing .env or redeploying.",
+      "active": "Active",
+      "inactive": "Inactive",
+      "sourceDatabase": "Source: Database",
+      "sourceEnvironment": "Source: Environment",
+      "enableLabel": "Enabled",
+      "generate": "Generate",
+      "secretConfigured": "•••• configured",
+      "secretConfiguredHint": "A value is already saved. Leave blank to keep it, or type a new one to replace it.",
+      "secretEmptyHint": "Not yet configured.",
+      "webhookUrl": "Webhook URL",
+      "testConnection": "Test connection",
+      "testing": "Testing…",
+      "testSuccess": "Connection verified.",
+      "testFailed": "Could not verify these credentials. Check the value and try again.",
+      "saved": "Channel settings saved.",
+      "whatsapp": {
+        "title": "WhatsApp Cloud API",
+        "subtitle": "Meta's WhatsApp Business Platform — the primary walk-in intake channel.",
+        "phoneNumberId": "Phone number ID",
+        "botNumber": "Bot phone number",
+        "verifyToken": "Verify token",
+        "verifyTokenHint": "Used once, during Meta's webhook subscription handshake.",
+        "accessToken": "Access token",
+        "appSecret": "App secret",
+        "webhookHint": "Set this as the callback URL in the Meta App dashboard, alongside the verify token above."
+      },
+      "telegram": {
+        "title": "Telegram Bot",
+        "subtitle": "A Telegram bot as a lighter-weight walk-in intake channel.",
+        "botUsername": "Bot username",
+        "webhookSecret": "Webhook secret",
+        "webhookSecretHint": "Sent back by Telegram on every delivery to prove it is really Telegram calling.",
+        "botToken": "Bot token",
+        "webhookHint": "Registered automatically with the button below — no need to run curl by hand.",
+        "setWebhook": "Set webhook with Telegram",
+        "registeringWebhook": "Registering…",
+        "webhookRegistered": "Webhook registered with Telegram.",
+        "webhookFailed": "Telegram rejected the webhook registration. Check the bot token and try again."
+      }
+    }
+  },
+  "documentDrop": {
+    "title": "Walk-in document drop",
+    "subtitle": "The customer sends their documents to your counter. You press one button.",
+    "openButton": "Walk-in document drop",
+    "heroPill": "Walk-in drop",
+    "channel": {
+      "whatsapp": "WhatsApp",
+      "telegram": "Telegram",
+      "web": "Mobile web",
+      "label": "Send over",
+      "unavailable": "Not configured on this deployment"
+    },
+    "qr": {
+      "heading": "Ask the customer to scan this",
+      "scanOnWhatsapp": "Scan with WhatsApp or the camera",
+      "scanOnTelegram": "Scan with Telegram or the camera",
+      "scanOnWeb": "Scan with any phone camera",
+      "codeLabel": "Code",
+      "validFor": "QR valid for {minutes} min",
+      "expiresIn": "Expires in {time}",
+      "expired": "This code has expired. Open a new one.",
+      "openLink": "Open the link",
+      "copyLink": "Copy link",
+      "copied": "Copied",
+      "newSession": "New code",
+      "creating": "Opening…",
+      "createFailed": "Could not open a drop session. Try again."
+    },
+    "waiting": {
+      "title": "Waiting for the customer",
+      "hint": "Documents appear here the moment they arrive. You can keep working.",
+      "connected": "Customer connected",
+      "filesArrived": "{count} document(s) received"
+    },
+    "queue": {
+      "title": "Walk-in drop queue",
+      "hint": "Documents sent to your counter, waiting to be taken in.",
+      "empty": "Nobody has sent documents yet.",
+      "emptyHint": "Show the QR code at your counter and walk-ins can send documents themselves.",
+      "fileCount": "{count} document(s)",
+      "noFilesYet": "Scanned, nothing sent yet",
+      "from": "From {number}",
+      "fromUnknown": "Sender not identified yet",
+      "ready": "Customer says done",
+      "waitingLabel": "Still sending",
+      "intake": "Intake & extract",
+      "intakeBusy": "Taking in…",
+      "attachExisting": "Attach to an existing customer",
+      "attachHint": "Search by name, mobile or customer code.",
+      "nameLabel": "Customer name (optional)",
+      "namePlaceholder": "As the customer says it",
+      "discard": "Discard",
+      "discardConfirm": "Discard these documents? The files are deleted straight away.",
+      "discardBusy": "Discarding…",
+      "intakeFailed": "Could not take these documents in. Try again.",
+      "partial": "{count} document(s) could not be taken in. They are still in the queue.",
+      "channelBadge": {
+        "whatsapp": "WhatsApp",
+        "telegram": "Telegram",
+        "web": "Phone upload"
+      }
+    },
+    "simulate": {
+      "tab": "Simulate a drop",
+      "hint": "Sends invented test documents into this session, so you can try the whole flow without a live WhatsApp number. Not available in production.",
+      "aadhaar": "Aadhaar (demo)",
+      "marksheet_10": "Class 10 marksheet (demo)",
+      "photo": "Photograph (demo)",
+      "send": "Send selected",
+      "sending": "Sending…",
+      "sent": "Sent. Check the queue.",
+      "failed": "Could not send the test documents."
+    },
+    "standee": {
+      "print": "Print counter card",
+      "title": "Send your documents here",
+      "titleHi": "अपने दस्तावेज़ यहाँ भेजें",
+      "instruction": "Scan this QR code and send your documents on WhatsApp",
+      "steps": {
+        "one": "Scan the QR code",
+        "oneHint": "Use your phone camera or WhatsApp",
+        "two": "Send your documents",
+        "twoHint": "Aadhaar, marksheet, photo, signature",
+        "three": "We fill the form",
+        "threeHint": "Your details are typed in for you"
+      },
+      "codeCaption": "Counter code {code}",
+      "footer": "Your documents go straight to this counter. Nothing is posted publicly.",
+      "printButton": "Print this card",
+      "noCode": "No counter code yet. Open the walk-in drop dialog to create one."
+    },
+    "public": {
+      "title": "Send your documents",
+      "centreLine": "Sending to {centre}",
+      "whatsappCta": "Send on WhatsApp",
+      "uploadCta": "Upload from camera or files",
+      "uploadHint": "JPG, PNG or PDF, up to {size} each. Up to {count} files.",
+      "choose": "Choose files",
+      "uploading": "Sending {name}…",
+      "sent": "{count} document(s) sent",
+      "done": "Your documents have reached the operator. Please see them at the counter.",
+      "doneHi": "दस्तावेज़ ऑपरेटर को प्राप्त हो गए हैं। कृपया काउंटर पर संपर्क करें।",
+      "failed": "That file could not be sent. Please try again.",
+      "tooLarge": "That file is too large. Please send one under {size}.",
+      "wrongType": "Please send a JPG, PNG or PDF.",
+      "expiredTitle": "This code is no longer active",
+      "expiredHint": "Please ask the operator at the counter to show you a new QR code.",
+      "privacy": "Your documents are sent only to this service centre."
+    },
+    "errors": {
+      "codeUnavailable": "Could not create a code just now. Try again.",
+      "channelUnavailable": "That channel is not configured on this deployment.",
+      "alreadyClaimed": "These documents have already been taken in.",
+      "noFiles": "Nothing has been sent to this session yet.",
+      "tooManyFiles": "This session already holds the maximum number of documents.",
+      "sessionNotFound": "That code is not active."
     }
   }
 }

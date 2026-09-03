@@ -14,6 +14,7 @@ import { requirePermission, resolveContext } from '@/lib/api/context';
 import { handler, noContent, ok, parseBody } from '@/lib/api/response';
 import { writeAuditLog } from '@/lib/api/audit';
 import { customerValuesFromRow, unverifiedFieldKeys } from '@/lib/customers/values';
+import { resolveRoamingAccess } from '@/lib/roaming/service';
 import type { CustomerFieldValueRow, CustomerRow, Json } from '@/lib/supabase/database.types';
 
 const idSchema = z.string().uuid();
@@ -63,7 +64,15 @@ function maskSensitiveValues(values: Record<string, string>): Record<string, str
   return masked;
 }
 
-/** GET /api/customers/:id — profile detail, sensitive fields masked (§19.3). */
+/**
+ * GET /api/customers/:id — profile detail, sensitive fields masked (§19.3).
+ *
+ * Three shapes, matching `RoamingAccessView` (migration 0024):
+ *   - home organization or an active roaming grant: the full response below, `locked: false`.
+ *   - a bookmarked roaming customer with no active grant: `locked: true` and the masked
+ *     pre-auth card plus top scheme matches — never a field value, encrypted or otherwise.
+ *   - neither: `resolveRoamingAccess` itself throws `notFound`.
+ */
 export const GET = handler(
   'api.customers.get',
   async (request, ctx: { params: Promise<{ id: string }> }) => {
@@ -71,12 +80,28 @@ export const GET = handler(
     requirePermission(context, 'customer.view');
 
     const id = idSchema.parse((await ctx.params).id);
-    const customer = await loadCustomer(context, id);
+    const access = await resolveRoamingAccess(context, id);
+
+    if (access.state === 'roaming_locked') {
+      return ok({ locked: true, card: access.card, topSchemes: access.topSchemes });
+    }
+
+    // home_org or roaming_active — no organization_id filter here: `customers_select` already
+    // scopes this correctly for both, and the row's own organization_id is what a roaming read
+    // actually belongs to.
+    const { data, error } = await context.supabase
+      .from('customers')
+      .select('*')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw notFound('errors.not_found');
+    const customer = data as CustomerRow;
 
     const { data: fieldValueRows } = await context.supabase
       .from('customer_field_values')
       .select('field_key, value_text, value_encrypted, status')
-      .eq('organization_id', context.organization.id)
       .eq('customer_id', id);
 
     const rows = (fieldValueRows ?? []) as Partial<CustomerFieldValueRow>[];
@@ -93,6 +118,9 @@ export const GET = handler(
     );
 
     return ok({
+      locked: false,
+      roaming: access.state === 'roaming_active',
+      session: access.session,
       customer: {
         id: customer.id,
         customerCode: customer.customer_code,

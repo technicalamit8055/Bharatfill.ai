@@ -121,7 +121,20 @@ APPLY_FILL               sidepanel → background → content   (values travel o
 FILL_RESULT              content → background → sidepanel → server
 REPORT_FORM              sidepanel → background → server
 DOWNLOAD_DERIVATIVE      sidepanel → background → server   (signed URL → chrome.downloads)
+
+SEARCH_ROAMING_CUSTOMER  sidepanel → background → server   (platform-wide, exact mobile only)
+LINK_ROAMING_CUSTOMER    sidepanel → background → server   (bookmark + select; grants nothing)
+GET_ROAMING_ACCESS       sidepanel → background → server   (masked card + top scheme matches)
+REQUEST_ROAMING_OTP      sidepanel → background → server   (never returns the code itself)
+VERIFY_ROAMING_OTP       sidepanel → background → server   (mints the time-boxed grant)
+REVOKE_ROAMING_SESSION   sidepanel → background → server
 ```
+
+The six roaming messages (migration 0024) are `RoamingAuthBanner`'s half of the cross-centre
+roaming feature — see docs/SECURITY.md "Cross-operator roaming access". None of them ever carries
+a value from the customer's record beyond what the masked pre-auth card already shows; the
+selected `CustomerSummary`'s `isRoaming` / `accessStatus` / `grantExpiresAt` fields are what gate
+the Fill button while a roaming customer's window is locked.
 
 Customer values exist in the content script only for the duration of the fill, are never written
 to storage, and are cleared from the message context when the fill completes.
@@ -153,7 +166,7 @@ read.
 `FIELD_SELECTOR` in `detector.ts` is the one definition of what counts as a field: native
 controls, `[contenteditable]`, and the ARIA roles a component library uses when it rebuilds a
 control out of divs. It is exported and imported by `filler.ts` rather than duplicated, because a
-field's signature is derived from its index in *that selector's* result list — a filler querying a
+field's signature is derived from its index in _that selector's_ result list — a filler querying a
 different set of elements would resolve every signature to the wrong field. The same applies to
 `collectCustomOptionElements`: detection and filling look for a custom dropdown's options in the
 same places, so an option the operator was shown is never one the filler cannot find.
@@ -164,7 +177,7 @@ The types a control reports and the values it can accept are covered in
 ## 6a. Document attachment helper (§7.4.5, §13.3)
 
 `detectFields` reports every `<input type="file">` like any other field, plus its `accept`
-attribute. It is never a *mapped* field — `isSupportedInputType('file')` is false and
+attribute. It is never a _mapped_ field — `isSupportedInputType('file')` is false and
 `proposeMappings` always skips it with `unsupported_type` — so no customer value is ever written
 into one. `matchDocumentRequirements` in `packages/form-engine/src/documents.ts` is the other
 half: it infers the field's category (`photo` / `signature` / `pdf`) from its label text first,
@@ -217,7 +230,7 @@ What keeps this inside §7.4.5 rather than becoming autofill of documents:
   narrowed it after detection.
 - **Failure is reported as failure.** If `DataTransfer` is missing or the assignment does not
   take, the result is `failed`, never `filled`. There is deliberately no fallback that redefines
-  `files` on the element: that would make the page *look* right while a native submit sent
+  `files` on the element: that would make the page _look_ right while a native submit sent
   nothing, and an operator would file an incomplete application believing the document was
   attached.
 - **Still no submit.** Attaching dispatches `input` and `change` and nothing else.

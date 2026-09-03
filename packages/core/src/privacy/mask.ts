@@ -74,6 +74,24 @@ export function maskName(name: string | null | undefined): string | null {
 }
 
 /**
+ * Given name plus family initial: "Rahul Kumar Sharma" -> "Rahul S.".
+ *
+ * The counter form of a name. An operator has to greet a walk-in by name and tell two Rahuls
+ * apart, but a centre that has not yet been given consent for this citizen's record should not
+ * come away with their family name — which in India frequently discloses caste (§19.3). Unlike
+ * `maskName`, this is meant to be spoken aloud, so the given name stays whole.
+ */
+export function maskShortName(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const given = words[0];
+  if (!given) return null;
+  if (words.length === 1) return given;
+  const initial = [...(words[words.length - 1] ?? '')][0];
+  return initial ? `${given} ${initial.toUpperCase()}.` : given;
+}
+
+/**
  * The value preview stored in `fill_session_fields.proposed_value_preview` (§18.2).
  * Never store the full value: sessions are an audit trail, not a copy of the customer record.
  */

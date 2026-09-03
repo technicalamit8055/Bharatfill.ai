@@ -16,6 +16,11 @@ export const PERMISSIONS = [
   'customer.delete',
   'customer.reveal_sensitive',
   'customer.export',
+  // roaming (migration 0024) — bookmark a customer registered at another centre, and ask that
+  // customer for the consent that unlocks their record here. Split in two because they are
+  // different acts: linking is a note to self, authenticating reaches into another tenant.
+  'customer.roaming_link',
+  'customer.roaming_authenticate',
   // documents
   'document.view',
   'document.upload',
@@ -55,6 +60,8 @@ const OPERATOR_PERMISSIONS: readonly Permission[] = [
   'customer.create',
   'customer.update',
   'customer.reveal_sensitive',
+  'customer.roaming_link',
+  'customer.roaming_authenticate',
   'document.view',
   'document.upload',
   'document.download',

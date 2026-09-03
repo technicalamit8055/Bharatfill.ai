@@ -99,11 +99,95 @@ Mobile search also matches on a normalized last-10-digit column so `98765 43210`
 Full PAN / bank account live encrypted in `customer_field_values.value_encrypted`.
 There is no column anywhere for a full Aadhaar number in the MVP.
 
+### `document_drop_sessions` — staging, not storage (0022)
+
+Walk-in intake lands in `document_drop_sessions` + `document_drop_files` before it is anything to
+do with a customer. The two tables mirror `documents` on purpose — same bucket, same MIME
+allow-list, same 15 MB ceiling, same `org/<organization_id>/%` path rule — so conversion is a copy
+between rows that already agree on what a file is.
+
+Three things about this schema are load-bearing:
+
+- **`sender_id` is personal data held deliberately.** It is the number the citizen messaged from,
+  and pre-filling it is the whole time saving. It must never reach a log, an error report or audit
+  metadata (§19.6); `redact()` strips it, and nothing should offer it in the first place.
+- **`expires_at` defaults to two hours.** An unclaimed session holds identity documents that
+  nobody has yet taken responsibility for, so the window is the length of a counter queue, not a
+  working day (§12.7).
+- **Status transitions are the concurrency control.** Conversion, discard and the retention sweep
+  all move a session out of `active`/`ready` with a _conditional_ update before touching its
+  bytes. Whoever moves it first wins; everybody else gets a plain refusal. That single rule is
+  what stops two operators creating two customers for one walk-in, and stops the sweep deleting
+  files out from under an intake in progress.
+
+`purge_expired_document_drops()` marks and deletes rows only — Postgres cannot reach the storage
+backend, and deleting from `storage.objects` would orphan the bytes. The application sweep in
+`apps/web/lib/document-drop/purge.ts` marks, removes the objects, then deletes the rows it
+stripped, in that order.
+
+`organizations.counter_drop_code` is the permanent code on a printed standee, unique
+platform-wide. It never expires and mints a fresh session per inbound message, which is what keeps
+two people at one counter out of one intake.
+
+### `platform_channel_settings` — bot credentials, editable from the panel (0023)
+
+The WhatsApp number and Telegram bot behind walk-in intake are **deployment-wide**, not per-tenant:
+every centre shares them. So this table has no `organization_id`, holds exactly two rows keyed by
+`channel`, and — like `platform_admins` in 0021 — grants nothing to `authenticated`. Only the
+service role touches it, behind a `platform.team.manage` check in the admin API.
+
+- **The three token columns are AES-256-GCM ciphertext**, never plaintext, encrypted under a
+  channel-scoped AAD so a WhatsApp ciphertext cannot be transplanted into the Telegram row. The
+  API returns only `hasAccessToken` / `hasAppSecret` / `hasBotToken` — a decrypted secret never
+  reaches a browser.
+- **Non-secret settings live in `config` jsonb** (phone number id, bot number, verify token, bot
+  username, webhook secret). None is a secret on its own: the number is printed on the standee,
+  and the verify token only authenticates Meta's one-time handshake.
+- **A row here does not obligate its use.** The channel adapters read this table first and fall
+  back to `WHATSAPP_*` / `TELEGRAM_*` when a row is missing, disabled, or missing its token — so
+  an existing env-configured deployment is unaffected until a Super Admin explicitly saves one.
+
 ### `fill_session_fields`
 
 Stores `proposed_value_preview` — a **masked, truncated** preview (e.g. `Am… K…`,
 `98•••••210`), never the full value. This makes fill sessions debuggable without turning the
 audit trail into a PII store.
+
+### Cross-operator roaming access (0024)
+
+A customer registered at one centre can walk into another and be served there, with the
+citizen's own time-boxed consent standing in for a second registration. Three tables:
+
+- **`customer_roaming_links`** — a bookmark: "this centre has served this person." It appears in
+  **no RLS predicate anywhere**. Linking a customer grants nothing; it only makes them reachable
+  by id on the visiting centre's own roaming list.
+- **`customer_access_grants`** — the consent window itself: who was granted access, over whose
+  record, for how long (capped at 12 hours by a check constraint), and under which
+  `consent_records` row. RLS on `customers`, `customer_field_values`, `documents` and
+  `document_derivatives` was extended with one clause each — `has_active_customer_grant(id)` —
+  so a live grant reads exactly like home-org membership for those four tables and nothing else
+  (`applications`, `fill_sessions` and `document_extractions` are deliberately untouched).
+- **`customer_access_challenges`** — an outstanding six-digit OTP. RLS is enabled and **carries
+  no policy for any role**, including `service_role` reached through PostgREST with a user JWT:
+  the row holds a salted hash of a code a citizen reads off their own phone, and only
+  `apps/web/lib/roaming/service.ts`, using the service-role client, ever touches it.
+
+Two RPCs cross tenant boundaries and are **service-role-only**, callable only from the trusted
+server after it has resolved the real caller from a verified session — never granted to
+`authenticated`, because both return raw values (full name, mobile, certificate/education JSON)
+that only `apps/web/lib/roaming/card.ts` is allowed to mask before they reach a client:
+
+- `roaming_customer_search(mobile, exclude_org, limit)` — the platform-wide lookup by exact
+  ten-digit mobile.
+- `roaming_customer_card(customer_id, caller_user_id)` — the pre-auth projection for one customer,
+  once its id is already known. Takes the caller as an explicit parameter rather than reading
+  `auth.uid()`, because it is invoked via the admin client — an `auth.uid()`-based check would
+  silently see no caller and return nothing.
+
+Two more RPCs mask in SQL and so remain safe for `authenticated`:
+`roaming_linked_customers()` (a centre's own roaming list — given name, family initial, last-four
+mobile) and the boolean checks `has_customer_roaming_link()` / `has_active_customer_grant()`,
+which back the RLS policies themselves.
 
 ## 6. Indexes
 

@@ -1,36 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import { Badge, Card } from '@assistigo/ui';
 import { useTranslations } from '@/lib/i18n/client';
+import { useExtensionInstalled } from './use-extension-installed';
 
-/**
- * First-run checklist (spec §7.2.4, §9.1).
- *
- * Extension detection: the content script sets `data-assistigo-extension` on <html> when it
- * loads on a dashboard page. Nothing is inferred from the absence of the marker beyond
- * "not connected" — we never probe the browser for installed extensions.
- */
-function useExtensionInstalled(): boolean {
-  const [installed, setInstalled] = useState(false);
-
-  useEffect(() => {
-    const check = () =>
-      setInstalled(document.documentElement.hasAttribute('data-assistigo-extension'));
-
-    check();
-    // The service worker may inject the marker a moment after hydration.
-    const observer = new MutationObserver(check);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-assistigo-extension'],
-    });
-    return () => observer.disconnect();
-  }, []);
-
-  return installed;
-}
+/** First-run checklist (spec §7.2.4, §9.1). */
 
 function ChecklistRow({ done, label, href }: { done: boolean; label: string; href: string }) {
   const t = useTranslations();

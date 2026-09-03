@@ -91,6 +91,9 @@ export const validationFailed = (details?: Record<string, unknown>) =>
 export const conflict = (key: string, details?: Record<string, unknown>) =>
   new AppError('CONFLICT', key, details ? { details } : undefined);
 
+export const rateLimited = (key = 'errors.rate_limited', details?: Record<string, unknown>) =>
+  new AppError('RATE_LIMITED', key, details ? { details } : undefined);
+
 export const entitlementExceeded = (key: string, details?: Record<string, unknown>) =>
   new AppError('ENTITLEMENT_EXCEEDED', key, details ? { details } : undefined);
 

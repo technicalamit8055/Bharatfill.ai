@@ -26,9 +26,39 @@ export const customerSummarySchema = z.object({
   customerCode: z.string().max(20).nullable(),
   /** Last four digits only — enough to confirm the right person, useless if leaked (§8.2). */
   mobileLast4: z.string().length(4).nullable(),
+  /**
+   * Cross-centre roaming (migration 0024). Absent/false for a customer registered at this
+   * counter's own centre. `accessStatus` and `grantExpiresAt` are only meaningful when true.
+   */
+  isRoaming: z.boolean().optional(),
+  /** 'locked': bookmarked but not yet consented to. 'granted': inside a live access window. */
+  accessStatus: z.enum(['granted', 'locked']).optional(),
+  /** ISO timestamp the active grant expires at. Only set when accessStatus is 'granted'. */
+  grantExpiresAt: z.string().nullable().optional(),
 });
 
 export type CustomerSummary = z.infer<typeof customerSummarySchema>;
+
+/**
+ * One masked result from a network-wide roaming lookup — a customer found, but not yet
+ * bookmarked to this counter and never carrying more than the pre-auth card does (0024).
+ */
+export const roamingSearchResultSchema = z.object({
+  customerId: z.string().uuid(),
+  displayName: z.string().max(160),
+  mobileLast4: z.string().length(4).nullable(),
+  state: z.string().max(60).nullable(),
+  isLinked: z.boolean(),
+});
+export type RoamingSearchResult = z.infer<typeof roamingSearchResultSchema>;
+
+const roamingPurposeSchema = z.enum([
+  'form_filling',
+  'scheme_application',
+  'profile_update',
+  'document_access',
+]);
+export type RoamingPurpose = z.infer<typeof roamingPurposeSchema>;
 
 export const sessionStateSchema = z.object({
   connected: z.boolean(),
@@ -50,6 +80,30 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('SEARCH_CUSTOMERS'), query: z.string().max(120) }),
   z.object({ type: z.literal('SELECT_CUSTOMER'), customer: customerSummarySchema }),
   z.object({ type: z.literal('OPEN_DASHBOARD'), path: z.string().max(200).optional() }),
+
+  /**
+   * Cross-centre roaming (migration 0024). Reachable from `CustomerPicker` when a local search
+   * comes up empty for a number that looks real, and from `RoamingAuthBanner` once a roaming
+   * customer is selected. None of these ever carries a value from the customer's record beyond
+   * what the masked pre-auth card already shows.
+   */
+  z.object({ type: z.literal('SEARCH_ROAMING_CUSTOMER'), query: z.string().max(20) }),
+  z.object({ type: z.literal('LINK_ROAMING_CUSTOMER'), customerId: z.string().uuid() }),
+  /** The masked pre-auth card plus top scheme matches, for the locked-state banner. */
+  z.object({ type: z.literal('GET_ROAMING_ACCESS'), customerId: z.string().uuid() }),
+  z.object({
+    type: z.literal('REQUEST_ROAMING_OTP'),
+    customerId: z.string().uuid(),
+    purpose: roamingPurposeSchema.default('form_filling'),
+    durationMinutes: z.union([z.literal(60), z.literal(120), z.literal(240)]).default(120),
+    targetSchemeSlug: z.string().max(80).optional(),
+  }),
+  z.object({
+    type: z.literal('VERIFY_ROAMING_OTP'),
+    customerId: z.string().uuid(),
+    otp: z.string().min(4).max(8),
+  }),
+  z.object({ type: z.literal('REVOKE_ROAMING_SESSION'), customerId: z.string().uuid() }),
 
   /** side panel → background → content */
   z.object({ type: z.literal('DETECT_FIELDS') }),

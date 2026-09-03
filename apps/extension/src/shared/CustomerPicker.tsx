@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { send } from './send';
-import { AlertIcon, CheckIcon, SearchIcon } from './Brand';
-import type { CustomerSummary } from './messages';
+import { AlertIcon, CheckIcon, LinkIcon, SearchIcon } from './Brand';
+import type { CustomerSummary, RoamingSearchResult } from './messages';
+
+/** A query worth asking the rest of the Assistigo network about (§7.4.3, migration 0024). */
+function looksLikeMobile(query: string): boolean {
+  return /^\d{10}$/.test(query.trim());
+}
 
 /**
  * Customer selector (spec §7.4.3).
@@ -34,6 +39,13 @@ export function CustomerPicker({
   const [open, setOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Cross-centre roaming lookup (migration 0024) — a separate, explicit step from the local
+  // search: nothing is asked of the rest of the network until the operator chooses to.
+  const [roamingResults, setRoamingResults] = useState<RoamingSearchResult[] | null>(null);
+  const [roamingSearching, setRoamingSearching] = useState(false);
+  const [roamingError, setRoamingError] = useState<string | null>(null);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+
   const showSearch = open || !selected;
 
   useEffect(() => {
@@ -42,6 +54,10 @@ export function CustomerPicker({
       setResults([]);
       return;
     }
+
+    // A fresh keystroke invalidates any roaming search made against the previous query.
+    setRoamingResults(null);
+    setRoamingError(null);
 
     // Debounced: an operator types a name fast, and every keystroke is a database query.
     timer.current = setTimeout(() => {
@@ -67,7 +83,44 @@ export function CustomerPicker({
     onSelect(customer);
     setQuery('');
     setResults([]);
+    setRoamingResults(null);
     setOpen(false);
+  };
+
+  const trimmedQuery = query.trim();
+  const searchNetwork = async () => {
+    setRoamingSearching(true);
+    setRoamingError(null);
+    const response = await send<{ customers: RoamingSearchResult[] }>({
+      type: 'SEARCH_ROAMING_CUSTOMER',
+      query: trimmedQuery,
+    });
+    setRoamingSearching(false);
+    if (response.ok) setRoamingResults(response.data.customers);
+    else setRoamingError('Could not reach the Assistigo network right now.');
+  };
+
+  const linkAndChoose = async (customerId: string) => {
+    setLinkingId(customerId);
+    const response = await send<{ customer: CustomerSummary }>({
+      type: 'LINK_ROAMING_CUSTOMER',
+      customerId,
+    });
+    setLinkingId(null);
+    if (response.ok) choose(response.data.customer);
+    else setRoamingError('Could not link this customer. Try again.');
+  };
+
+  const selectRoamingResult = (result: RoamingSearchResult) => {
+    choose({
+      id: result.customerId,
+      displayName: result.displayName,
+      customerCode: null,
+      mobileLast4: result.mobileLast4,
+      isRoaming: true,
+      accessStatus: 'locked',
+      grantExpiresAt: null,
+    });
   };
 
   return (
@@ -79,7 +132,10 @@ export function CustomerPicker({
               {initials(selected.displayName)}
             </div>
             <div className="grow">
-              <div className="strong truncate">{selected.displayName}</div>
+              <div className="strong truncate">
+                {selected.displayName}
+                {selected.isRoaming ? <span className="badge badge-brand"> 🌐 Roaming</span> : null}
+              </div>
               <div className="tiny muted truncate">
                 {selected.customerCode ? `${selected.customerCode} · ` : ''}
                 {selected.mobileLast4 ? `••••${selected.mobileLast4}` : 'no mobile on file'}
@@ -159,6 +215,75 @@ export function CustomerPicker({
                 );
               })}
             </div>
+          ) : null}
+
+          {/*
+           * Cross-centre roaming (§7.4.3, migration 0024). Offered only for a query that reads
+           * as a whole mobile number — a name or partial number is not something the network
+           * search accepts, and offering it anyway would just produce a confusing empty result.
+           */}
+          {!searching &&
+          results.length === 0 &&
+          !error &&
+          looksLikeMobile(trimmedQuery) &&
+          !roamingResults ? (
+            <button
+              type="button"
+              className="btn-ghost btn-block tiny"
+              disabled={roamingSearching}
+              onClick={() => void searchNetwork()}
+            >
+              {roamingSearching ? (
+                <>
+                  <span className="spinner spinner-ink" /> Searching the network…
+                </>
+              ) : (
+                <>🌐 Search Assistigo Network for {trimmedQuery}</>
+              )}
+            </button>
+          ) : null}
+
+          {roamingError ? (
+            <p className="tiny" style={{ color: 'var(--danger)' }}>
+              {roamingError}
+            </p>
+          ) : null}
+
+          {roamingResults ? (
+            roamingResults.length === 0 ? (
+              <p className="tiny muted">No customer on the network matches that number.</p>
+            ) : (
+              <div className="card card-flush result-list">
+                {roamingResults.map((customer) => (
+                  <div key={customer.customerId} className="result-item">
+                    <span className="spread">
+                      <span className="grow truncate">
+                        {customer.displayName}
+                        <span className="badge badge-brand"> 🌐</span>
+                      </span>
+                    </span>
+                    <span className="tiny muted truncate" style={{ display: 'block' }}>
+                      {customer.mobileLast4 ? `••••${customer.mobileLast4}` : ''}
+                      {customer.state ? ` · ${customer.state}` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-ghost tiny"
+                      style={{ marginTop: 4 }}
+                      disabled={linkingId === customer.customerId}
+                      onClick={() =>
+                        customer.isLinked
+                          ? selectRoamingResult(customer)
+                          : void linkAndChoose(customer.customerId)
+                      }
+                    >
+                      <LinkIcon size={12} />
+                      {customer.isLinked ? 'Select' : '+ Link to counter'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )
           ) : null}
         </>
       ) : null}

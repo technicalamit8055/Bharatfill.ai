@@ -36,6 +36,19 @@ describe('role permissions', () => {
     expect(can('operator', 'application.create')).toBe(true);
   });
 
+  it('lets the counter roles serve a roaming walk-in, and nobody else (0024)', () => {
+    for (const role of ['owner', 'manager', 'operator'] as const) {
+      expect(can(role, 'customer.roaming_link')).toBe(true);
+      expect(can(role, 'customer.roaming_authenticate')).toBe(true);
+    }
+    // A viewer may read this centre's own customers; reaching into another centre's record is
+    // not a read-only act, and a billing admin has no business near a citizen at all.
+    for (const role of ['viewer', 'billing_admin'] as const) {
+      expect(can(role, 'customer.roaming_link')).toBe(false);
+      expect(can(role, 'customer.roaming_authenticate')).toBe(false);
+    }
+  });
+
   it('keeps a viewer read-only (§6.2)', () => {
     expect(can('viewer', 'customer.view')).toBe(true);
     expect(can('viewer', 'customer.update')).toBe(false);
