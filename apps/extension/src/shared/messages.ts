@@ -141,8 +141,15 @@ export const messageSchema = z.discriminatedUnion('type', [
   /** content → background */
   z.object({ type: z.literal('DETECTION_RESULT'), payload: detectionPayloadSchema }),
 
-  /** side panel → background → server */
-  z.object({ type: z.literal('REQUEST_MAPPING') }),
+  /**
+   * side panel → background → server.
+   *
+   * `applicationId` links this stage's fill session to a parent application the operator already
+   * saved, so a multi-page portal (RTPS-style main form → annexure → acknowledgement) ends up
+   * with one application row and several linked fill sessions instead of one per page scanned.
+   * Optional: the first stage of a journey has nothing to link to yet.
+   */
+  z.object({ type: z.literal('REQUEST_MAPPING'), applicationId: z.string().uuid().optional() }),
 
   /**
    * side panel → background → content. The only message that ever carries customer values,

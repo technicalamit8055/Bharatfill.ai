@@ -51,6 +51,16 @@ type TabState = {
   detection: DetectionPayload | null;
   mappings: FieldMapping[] | null;
   fillSessionId: string | null;
+  /**
+   * The application this tab's form journey is linked to, once the operator has saved one.
+   *
+   * A multi-stage portal (RTPS-style main form → annexure → acknowledgement) is scanned in
+   * several passes, each of which opens its own `fill_sessions` row. Remembering the id here
+   * lets every later pass on this tab hand it straight to `POST /api/forms/map`, and lets
+   * `CREATE_APPLICATION` answer a second "Save as an application" click without creating a
+   * second row (§ multi-stage form journey).
+   */
+  activeApplicationId: string | null;
 };
 
 const tabStates = new Map<number, TabState>();
@@ -58,7 +68,7 @@ const tabStates = new Map<number, TabState>();
 function stateFor(tabId: number): TabState {
   let state = tabStates.get(tabId);
   if (!state) {
-    state = { detection: null, mappings: null, fillSessionId: null };
+    state = { detection: null, mappings: null, fillSessionId: null, activeApplicationId: null };
     tabStates.set(tabId, state);
   }
   return state;
@@ -638,6 +648,12 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       if (!state.detection) return fail('no_detection');
       if (!customer) return fail('no_customer_selected');
 
+      // The side panel is the durable memory across a service-worker restart, so its own
+      // `applicationId` (when it sends one) wins; otherwise this tab's own memory of a link
+      // made earlier in the same journey carries forward automatically.
+      const applicationId = message.applicationId ?? state.activeApplicationId ?? undefined;
+      if (applicationId) state.activeApplicationId = applicationId;
+
       const proposal = await apiFetch<{
         fillSessionId: string;
         mappings: FieldMapping[];
@@ -648,7 +664,11 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
         values: Record<string, string>;
       }>('/api/forms/map', {
         method: 'POST',
-        body: JSON.stringify({ customerId: customer.id, detection: state.detection }),
+        body: JSON.stringify({
+          customerId: customer.id,
+          detection: state.detection,
+          ...(applicationId ? { applicationId } : {}),
+        }),
       });
 
       state.mappings = proposal.mappings;
@@ -762,13 +782,24 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       return ok({ reported: true });
     }
 
+    /*
+     * Idempotent per tab: a multi-stage journey (main form → annexure → acknowledgement) can
+     * see this pressed more than once as the operator moves through stages, and it must never
+     * create a second `applications` row for the same journey (§ multi-stage form journey). The
+     * first call creates the row and remembers its id on this tab; every later call on the same
+     * tab just hands that id back.
+     */
     case 'CREATE_APPLICATION': {
       const tabId = await targetTabId(sender);
       const state = tabId === null ? null : stateFor(tabId);
       const customer = await selectedCustomerStore.get<CustomerSummary>();
       if (!customer) return fail('no_customer_selected');
 
-      const application = await apiFetch<{ id: string }>('/api/applications', {
+      if (state?.activeApplicationId) {
+        return ok({ id: state.activeApplicationId, existing: true });
+      }
+
+      const created = await apiFetch<{ application: { id: string } }>('/api/applications', {
         method: 'POST',
         body: JSON.stringify({
           customerId: customer.id,
@@ -776,12 +807,13 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
           status: 'filled',
           portalUrl: state?.detection
             ? `${state.detection.page.origin}${state.detection.page.path}`
-            : null,
-          fillSessionId: state?.fillSessionId ?? null,
+            : undefined,
+          ...(state?.fillSessionId ? { fillSessionId: state.fillSessionId } : {}),
         }),
       });
 
-      return ok(application);
+      if (state) state.activeApplicationId = created.application.id;
+      return ok({ id: created.application.id, existing: false });
     }
 
     case 'DOWNLOAD_DERIVATIVE': {

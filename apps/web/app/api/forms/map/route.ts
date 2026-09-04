@@ -144,6 +144,12 @@ function toPresetSummary(preset: RequirementPreset): DocumentSuggestion['preset'
 const bodySchema = z.object({
   customerId: z.string().uuid(),
   detection: detectionPayloadSchema,
+  /**
+   * The application this stage's fill session belongs to (multi-stage form journey: main form →
+   * annexure → acknowledgement). Optional — the first stage of a journey has nothing to link to
+   * yet, and links it retroactively instead when the operator saves it (POST /api/applications).
+   */
+  applicationId: z.string().uuid().optional(),
 });
 
 /**
@@ -159,13 +165,37 @@ export const POST = handler('api.forms.map', async (request) => {
   const context = await resolveContext(request);
   requirePermission(context, 'fill.run');
 
-  const { customerId, detection } = await parseBody(request, bodySchema);
+  const { customerId, detection, applicationId: requestedApplicationId } = await parseBody(
+    request,
+    bodySchema,
+  );
 
   // Entitlement is checked before any work is done, so an out-of-credit organization gets a
   // clear answer rather than a proposal it cannot act on (§22.4).
   const entitlements = await loadEntitlementContext(context);
   const decision = checkUsageEntitlement(entitlements, 'fill');
   if (!decision.allowed) throw entitlementExceeded(decision.reason);
+
+  /*
+   * Verified against this org and this customer before it is trusted — an application belongs
+   * to whichever organization created it (applications are never created for a roaming
+   * customer's home org; see POST /api/applications), so unlike the customer/field-value
+   * queries below this one is scoped normally.
+   */
+  let applicationId: string | null = null;
+  if (requestedApplicationId) {
+    const { data: application, error: applicationError } = await context.supabase
+      .from('applications')
+      .select('id')
+      .eq('id', requestedApplicationId)
+      .eq('organization_id', context.organization.id)
+      .eq('customer_id', customerId)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (applicationError) throw applicationError;
+    if (!application) throw notFound('errors.application_not_found');
+    applicationId = application.id as string;
+  }
 
   /*
    * Neither query below filters by `context.organization.id`: a customer being filled here may
@@ -291,6 +321,7 @@ export const POST = handler('api.forms.map', async (request) => {
     .insert({
       organization_id: context.organization.id,
       customer_id: customerId,
+      application_id: applicationId,
       portal_adapter_id: persistedAdapterId,
       page_origin: detection.page.origin,
       page_path: detection.page.path,

@@ -53,6 +53,11 @@ export const createApplicationSchema = z.object({
   paymentStatus: z.enum(APPLICATION_PAYMENT_STATUSES).optional(),
   assignedTo: z.string().uuid().optional(),
   notes: trimmedString(2000).optional(),
+  /**
+   * The fill session that produced this application (extension "Save as an application"),
+   * retroactively linked to it once the application row exists — see POST handler.
+   */
+  fillSessionId: z.string().uuid().optional(),
 });
 export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;
 

@@ -337,6 +337,20 @@ export function ReviewPanel() {
   const [results, setResults] = useState<FillResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reported, setReported] = useState(false);
+  /**
+   * Which page of a multi-stage portal (main form → annexure → acknowledgement) the operator is
+   * on. Display only — nothing here gates what can be filled, it just labels the "next page"
+   * button so the operator knows Bharatfill is still tracking the same journey (§ multi-stage
+   * form journey).
+   */
+  const [currentStage, setCurrentStage] = useState(1);
+  /**
+   * The application this journey is linked to, once the operator has saved one. Carried forward
+   * into every later `REQUEST_MAPPING` on this page so a second or third stage's fill session
+   * links to the same application instead of starting a disconnected one.
+   */
+  const [activeApplicationId, setActiveApplicationId] = useState<string | null>(null);
+  const [isRetryingSkipped, setIsRetryingSkipped] = useState(false);
   /** File id → transient state, while a row's own Download button is fetching or just finished. */
   const [downloadStates, setDownloadStates] = useState<Record<string, 'working' | 'done'>>({});
   const [previewTarget, setPreviewTarget] = useState<
@@ -437,7 +451,10 @@ export function ReviewPanel() {
     }
     setDetection(detected.data);
 
-    const mapped = await send<Proposal>({ type: 'REQUEST_MAPPING' });
+    const mapped = await send<Proposal>({
+      type: 'REQUEST_MAPPING',
+      ...(activeApplicationId ? { applicationId: activeApplicationId } : {}),
+    });
     if (!mapped.ok) {
       setError(
         mapped.error === 'no_customer_selected'
@@ -515,6 +532,69 @@ export function ReviewPanel() {
 
     setResults(response.data.results);
     setStage('done');
+  };
+
+  /**
+   * Re-sends only the fields the portal itself skipped as `dependent_not_ready` — a dropdown
+   * (e.g. प्रखंड / Block) whose options the page only populates after an earlier one (e.g.
+   * Sub-Division) is chosen. The signature is recomputed from the live DOM at fill time
+   * (`findElementBySignature`), so this needs no fresh detection: the operator picks the parent
+   * value on the portal itself, then this resends the same proposed value for just the fields
+   * that were waiting on it, leaving everything already filled untouched.
+   */
+  const retrySkipped = async () => {
+    if (!proposal || !results) return;
+    const retryable = results.filter(
+      (result) => result.action === 'skipped' && result.skipReason === 'dependent_not_ready',
+    );
+    if (retryable.length === 0) return;
+
+    setIsRetryingSkipped(true);
+    setError(null);
+
+    const retrySignatures = new Set(retryable.map((result) => result.signature));
+    const instructions = buildFillInstructions(
+      proposal.mappings,
+      proposal.values,
+      retrySignatures,
+      detection?.fields ?? [],
+      { edits, ...(proposal.fillOrder ? { order: proposal.fillOrder } : {}) },
+    );
+
+    const response = await send<{ results: FillResult[] }>({ type: 'APPLY_FILL', instructions });
+    setIsRetryingSkipped(false);
+
+    if (!response.ok) {
+      setError('Could not re-fill the skipped fields.');
+      return;
+    }
+
+    const updated = new Map(response.data.results.map((result) => [result.signature, result]));
+    setResults((current) => (current ?? []).map((result) => updated.get(result.signature) ?? result));
+  };
+
+  /**
+   * Advances to the next page of a multi-stage portal (RTPS Bihar-style main form → annexure →
+   * acknowledgement) without leaving the operator stranded on the stage-1 "done" screen. The
+   * portal navigation itself — solving the CAPTCHA, pressing Proceed/Save & Next — is always the
+   * operator's own action (§19.7); this only reads whatever page they land on next.
+   */
+  const scanNextStage = async () => {
+    setCurrentStage((stageNumber) => stageNumber + 1);
+    await detect();
+  };
+
+  /**
+   * Creates the parent application the first time, then just remembers its id — a second click
+   * (or a second stage's "done" screen) must not create a second row for the same journey
+   * (§ multi-stage form journey, zero-migration note: `fill_sessions.application_id`).
+   */
+  const saveApplication = async () => {
+    const response = await send<{ id: string; existing: boolean }>({
+      type: 'CREATE_APPLICATION',
+      title: detection?.page.title?.slice(0, 160) ?? 'Application',
+    });
+    if (response.ok) setActiveApplicationId(response.data.id);
   };
 
   // Re-checks the paired session and, if a page has already been read, re-reads it — so a
@@ -725,6 +805,10 @@ export function ReviewPanel() {
             setProposal(null);
             setResults(null);
             setStage('idle');
+            // A different customer starts a different journey — nothing here should still be
+            // linked to whatever application the previous customer's fill was saved as.
+            setCurrentStage(1);
+            setActiveApplicationId(null);
           }}
         />
 
@@ -1239,6 +1323,39 @@ export function ReviewPanel() {
               ) : null}
 
               {/*
+               * Only `dependent_not_ready` is worth offering a retry for: it means the portal's
+               * own dropdown had no options yet, which is exactly what picking the parent value
+               * on the portal fixes. The others (no_mapping, captcha_field…) would not change.
+               */}
+              {results.some(
+                (result) => result.action === 'skipped' && result.skipReason === 'dependent_not_ready',
+              ) ? (
+                <button
+                  type="button"
+                  className="btn-secondary btn-block"
+                  disabled={isRetryingSkipped}
+                  onClick={() => void retrySkipped()}
+                >
+                  {isRetryingSkipped ? (
+                    <>
+                      <span className="spinner" />
+                      Re-filling…
+                    </>
+                  ) : (
+                    <>
+                      <RefreshIcon size={14} />
+                      {`Re-fill ${
+                        results.filter(
+                          (result) =>
+                            result.action === 'skipped' && result.skipReason === 'dependent_not_ready',
+                        ).length
+                      } skipped field(s)`}
+                    </>
+                  )}
+                </button>
+              ) : null}
+
+              {/*
                * A failed row is mostly an upload box whose file could not be attached. Naming it
                * matters more than the count does: a ticked document the operator hears nothing
                * about reads as attached, and the application goes in incomplete.
@@ -1261,18 +1378,52 @@ export function ReviewPanel() {
               ) : null}
             </div>
 
+            <div className="notice notice-info">
+              <ArrowIcon size={13} />
+              <span>
+                Completed Stage {currentStage}. Solve any CAPTCHA and press the portal&rsquo;s own
+                Proceed / Save &amp; Next, then scan the next page here — Bharatfill never does
+                that step for you.
+              </span>
+            </div>
+
             <button
               type="button"
-              className="btn-secondary btn-block"
-              onClick={() =>
-                void send({
-                  type: 'CREATE_APPLICATION',
-                  title: detection?.page.title?.slice(0, 160) ?? 'Application',
-                })
-              }
+              className="btn-primary btn-block"
+              onClick={() => void scanNextStage()}
             >
-              Save as an application
+              <ScanIcon size={15} />
+              {`Scan Stage ${currentStage + 1} (Next Page)`}
             </button>
+
+            {activeApplicationId ? (
+              <div className="spread">
+                <span className="badge badge-ok truncate">
+                  Application linked: #{activeApplicationId.slice(0, 8)}
+                </span>
+                <button
+                  type="button"
+                  className="btn-ghost tiny"
+                  onClick={() =>
+                    void send({
+                      type: 'OPEN_DASHBOARD',
+                      path: `/applications/${activeApplicationId}`,
+                    })
+                  }
+                >
+                  <ExternalIcon size={12} />
+                  View
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn-secondary btn-block"
+                onClick={() => void saveApplication()}
+              >
+                Save as an application
+              </button>
+            )}
 
             <button
               type="button"

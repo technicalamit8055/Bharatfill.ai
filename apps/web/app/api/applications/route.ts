@@ -121,6 +121,22 @@ export const POST = handler('api.applications.create', async (request) => {
     if (checklistError) throw checklistError;
   }
 
+  /*
+   * Bidirectional link (docs plan: multi-stage form journey). The fill session that produced
+   * this application was created before the application existed, so it could not name it at
+   * insert time — patched in now that the application row is here. Scoped to this org and
+   * customer so a stray or mismatched id cannot relink someone else's session.
+   */
+  if (input.fillSessionId) {
+    const { error: linkError } = await context.supabase
+      .from('fill_sessions')
+      .update({ application_id: application.id })
+      .eq('id', input.fillSessionId)
+      .eq('organization_id', context.organization.id)
+      .eq('customer_id', input.customerId);
+    if (linkError) throw linkError;
+  }
+
   await writeAuditLog(context, {
     action: 'application.created',
     entityType: 'application',
