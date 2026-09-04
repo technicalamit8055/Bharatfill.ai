@@ -12,6 +12,7 @@ import { z } from 'zod';
 // package barrel would drag the dictionary, scorer and mapper into a page bundle that never
 // uses them.
 import {
+  ATTACHMENT_KINDS,
   detectionPayloadSchema,
   fileAttachmentRequestSchema,
   fileFillInstructionSchema,
@@ -71,6 +72,36 @@ export const sessionStateSchema = z.object({
 });
 
 export type SessionState = z.infer<typeof sessionStateSchema>;
+
+/**
+ * One row of the customer's file collection, as the document picker lists it.
+ *
+ * Metadata only, exactly like `DetectedField`: enough to recognise a file, choose between two
+ * of them and decide whether an upload box would accept it. The bytes stay behind
+ * `GET_DOCUMENT_PREVIEW` and the attachment path, both of which mint an audited signed URL per
+ * use (docs/SECURITY.md §4).
+ */
+export const customerDocumentSchema = z.object({
+  id: z.string().uuid(),
+  /** Which table it came from, and so which signed-URL route reaches its bytes. */
+  kind: z.enum(ATTACHMENT_KINDS),
+  filename: z.string().max(300),
+  mimeType: z.string().max(120),
+  sizeBytes: z.number().int().nonnegative(),
+  /**
+   * `documents.document_type` — how the picker groups a file into Identity, Educational and so
+   * on. Carried for a derivative too, read off the source document it was prepared from, so a
+   * cropped Aadhaar scan files under Identity rather than under "Other".
+   */
+  documentType: z.string().max(60).nullable(),
+  /** `document_derivatives.tool_type`. Null for a source document. */
+  toolType: z.string().max(40).nullable(),
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable(),
+  createdAt: z.string(),
+});
+
+export type CustomerDocument = z.infer<typeof customerDocumentSchema>;
 
 export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('PING') }),
@@ -144,6 +175,31 @@ export const messageSchema = z.discriminatedUnion('type', [
 
   /** Saves a prepared file to disk, for a portal whose upload box cannot be attached to. */
   z.object({ type: z.literal('DOWNLOAD_DERIVATIVE'), derivativeId: z.string().uuid() }),
+
+  /** Saves a customer's source document to disk (parity with `DOWNLOAD_DERIVATIVE`). */
+  z.object({ type: z.literal('DOWNLOAD_DOCUMENT'), documentId: z.string().uuid() }),
+
+  /**
+   * side panel → background. Every file on the selected customer's profile — both prepared
+   * derivatives and original uploads — so the operator can attach one the matcher never
+   * suggested: a Voter ID where it ranked Aadhaar first, or anything at all for an upload box
+   * labelled "any other supporting document" that no category could be inferred from.
+   *
+   * Metadata only, and only for the customer already selected in this session.
+   */
+  z.object({ type: z.literal('LIST_CUSTOMER_DOCUMENTS'), customerId: z.string().uuid() }),
+
+  /**
+   * side panel → background. Asks for a short-lived signed URL to preview one suggested file —
+   * never its bytes over this channel, and never persisted; the panel opens the URL directly in
+   * an `<img>`/iframe or a new tab, the same way a `<DOWNLOAD_*>` message hands one to
+   * `chrome.downloads`.
+   */
+  z.object({
+    type: z.literal('GET_DOCUMENT_PREVIEW'),
+    targetId: z.string().uuid(),
+    kind: z.enum(ATTACHMENT_KINDS).default('derivative'),
+  }),
 ]);
 
 export type Message = z.infer<typeof messageSchema>;

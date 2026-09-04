@@ -159,3 +159,53 @@ export const RefreshIcon = ({ size = 14, className }: IconProps) =>
     <path key="c" d="M21 12a9 9 0 0 1-15.5 6.3L3 16" />,
     <path key="d" d="M3 21v-5h5" />,
   ]);
+
+export const EyeIcon = ({ size = 14, className }: IconProps) =>
+  svg(size, className, [
+    <path key="a" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />,
+    <circle key="b" cx="12" cy="12" r="3" />,
+  ]);
+
+export const CloseIcon = ({ size = 14, className }: IconProps) =>
+  svg(size, className, [<path key="a" d="M18 6 6 18" />, <path key="b" d="m6 6 12 12" />]);
+
+export const ZoomInIcon = ({ size = 14, className }: IconProps) =>
+  svg(size, className, [
+    <circle key="c" cx="11" cy="11" r="7" />,
+    <path key="l" d="m20 20-3.5-3.5" />,
+    <path key="p" d="M11 8v6M8 11h6" />,
+  ]);
+
+export const ZoomOutIcon = ({ size = 14, className }: IconProps) =>
+  svg(size, className, [
+    <circle key="c" cx="11" cy="11" r="7" />,
+    <path key="l" d="m20 20-3.5-3.5" />,
+    <path key="p" d="M8 11h6" />,
+  ]);
+
+export const FileTextIcon = ({ size = 14, className }: IconProps) =>
+  svg(size, className, [
+    <path key="a" d="M14 3v4a1 1 0 0 0 1 1h4" />,
+    <path key="b" d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />,
+    <path key="c" d="M9 13h6M9 17h6M9 9h1" />,
+  ]);
+
+export const PaperclipIcon = ({ size = 14, className }: IconProps) =>
+  svg(
+    size,
+    className,
+    <path d="M20.5 12.5 12 21a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7-7" />,
+  );
+
+export const FolderIcon = ({ size = 14, className }: IconProps) =>
+  svg(size, className, [
+    <path key="a" d="M4 7a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" />,
+    <path key="b" d="M4 10h16" />,
+  ]);
+
+export const ImageIcon = ({ size = 14, className }: IconProps) =>
+  svg(size, className, [
+    <rect key="a" x="4" y="4" width="16" height="16" rx="2" />,
+    <circle key="b" cx="9.5" cy="9.5" r="1.5" />,
+    <path key="c" d="m5 17 4.5-4.5L13 16l2.5-2.5L19 17" />,
+  ]);

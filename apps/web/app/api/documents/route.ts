@@ -21,12 +21,20 @@ export const GET = handler('api.documents.list', async (request) => {
       'id, customer_id, original_filename, mime_type, size_bytes, document_type, status, label, expires_at, created_at',
       { count: 'exact' },
     )
-    .eq('organization_id', context.organization.id)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(query.limit);
 
+  /*
+   * The organization filter applies to the unscoped list only. Asked for one customer, the
+   * filter is left to `documents_select` (migration 0024), which also admits a caller holding a
+   * live roaming grant over that customer — whose documents belong to their home centre, not to
+   * this caller's organization. Adding `organization_id` back here would narrow a roaming
+   * customer's file list to nothing, and an empty list reads as "this customer has no documents"
+   * rather than "these are not yours to see".
+   */
   if (query.customerId) builder = builder.eq('customer_id', query.customerId);
+  else builder = builder.eq('organization_id', context.organization.id);
   if (query.status) builder = builder.eq('status', query.status);
   if (query.documentType) builder = builder.eq('document_type', query.documentType);
 

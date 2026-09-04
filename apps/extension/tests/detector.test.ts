@@ -236,6 +236,21 @@ describe('detector — label resolution', () => {
     const doc = render(`<label for="a">पिता का नाम</label><input id="a" name="f" />`);
     expect(resolveLabel(doc.querySelector('input')!)).toBe('पिता का नाम');
   });
+
+  it('discards a punctuation-only table cell instead of reporting it as the label', () => {
+    // A ServicePlus template row whose label cell is empty renders as "." or ".." once
+    // whitespace is trimmed — not something an operator can use to tell one upload box from
+    // another, and the root cause of a phantom document-attachment card per field.
+    const doc = render(`
+      <table><tr><td>.</td><td><input name="rep_upload" type="file" /></td></tr></table>
+    `);
+    expect(resolveLabel(doc.querySelector('input')!)).toBeNull();
+  });
+
+  it('falls through past a punctuation-only sibling to find a real label', () => {
+    const doc = render(`<div><span>Photograph</span><span>..</span><input name="p" /></div>`);
+    expect(resolveLabel(doc.querySelector('input')!)).toBe('Photograph');
+  });
 });
 
 describe('detector — visibility', () => {
@@ -258,6 +273,42 @@ describe('detector — visibility', () => {
   it('respects aria-hidden', () => {
     const doc = render(`<input id="a" name="a" aria-hidden="true" />`);
     expect(isElementVisible(doc.getElementById('a')!)).toBe(false);
+  });
+
+  it('trusts style walking alone under jsdom, since jsdom never lays anything out', () => {
+    const doc = render(`<input id="a" name="a" />`);
+    const element = doc.getElementById('a')!;
+    // jsdom's own getClientRects() is always empty regardless of visibility — confirming this
+    // suite actually runs under the environment the layout check has to skip.
+    expect(element.getClientRects().length).toBe(0);
+    expect(isElementVisible(element)).toBe(true);
+  });
+
+  it('falls back to a layout check outside jsdom, catching what style walking misses', () => {
+    // A portal that collapses a row via layout rather than declaring display/visibility
+    // directly — e.g. an ancestor several levels above this walk's depth limit — is exactly
+    // what surfaced RTPS Bihar's hidden representative-authorization and internal-uploader
+    // widgets as phantom document-attachment cards.
+    const doc = render(`<input id="a" name="a" />`);
+    const element = doc.getElementById('a')!;
+
+    const originalUserAgent = window.navigator.userAgent;
+    const originalGetClientRects = element.getClientRects;
+    Object.defineProperty(window.navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0',
+      configurable: true,
+    });
+    element.getClientRects = () => [] as unknown as DOMRectList;
+
+    try {
+      expect(isElementVisible(element)).toBe(false);
+    } finally {
+      element.getClientRects = originalGetClientRects;
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value: originalUserAgent,
+        configurable: true,
+      });
+    }
   });
 });
 

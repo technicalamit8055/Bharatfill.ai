@@ -18,18 +18,19 @@
       "label": "Applicant photograph",
       "presetCode": "rtps.photo",
       "required": true,
-      "notes": "ServicePlus upload step, after the form. The operator attaches it."
+      "notes": "The only upload field on renderApplicationForm.do (Step 1) itself — a self-attested photograph. The operator attaches it there; this adapter's other document requirements are not expected to match anything on that page."
     },
     {
       "key": "address_proof",
       "label": "Address proof (Aadhaar / voter ID / electricity bill)",
-      "required": true
+      "required": true,
+      "notes": "Attached on the Annexure page (Step 2), after renderApplicationForm.do submits — a separate detection pass from the photo upload. Never satisfied by an educational document (marksheet/certificate) even though both are the same generic 'pdf' upload category."
     },
     {
       "key": "self_declaration",
       "label": "Self declaration (स्वघोषणा)",
       "required": false,
-      "notes": "Required for income certificate at most offices."
+      "notes": "Required for income certificate at most offices. Also attached on the Annexure page (Step 2), not on the form itself."
     }
   ],
   "fields": [

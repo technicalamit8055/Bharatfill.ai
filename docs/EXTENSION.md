@@ -116,11 +116,15 @@ APPLY_FILL               sidepanel → background → content   (values travel o
                          instructions come from buildFillInstructions(), never from the panel
                          itself: that applies the named transforms, re-checks safety classes,
                          and orders dependent dropdowns parent-first
-                         carries ticked file attachments too: the panel sends derivative ids,
+                         carries chosen file attachments too: the panel sends { targetId, kind },
                          the background swaps in the bytes, the page never sees an id (§6a)
 FILL_RESULT              content → background → sidepanel → server
 REPORT_FORM              sidepanel → background → server
 DOWNLOAD_DERIVATIVE      sidepanel → background → server   (signed URL → chrome.downloads)
+DOWNLOAD_DOCUMENT        sidepanel → background → server   (the same, for an original upload)
+LIST_CUSTOMER_DOCUMENTS  sidepanel → background → server   (vault metadata; selected customer
+                         only, and refused while a roaming grant is locked)
+GET_DOCUMENT_PREVIEW     sidepanel → background → server   (short-lived signed URL, not bytes)
 
 SEARCH_ROAMING_CUSTOMER  sidepanel → background → server   (platform-wide, exact mobile only)
 LINK_ROAMING_CUSTOMER    sidepanel → background → server   (bookmark + select; grants nothing)
@@ -187,8 +191,40 @@ the `accept` attribute only as a fallback, then — when the resolved portal ada
 `POST /api/forms/map` resolves the rest server-side and returns it as `documentSuggestions`
 alongside the field mappings: the preset (the adapter's `presetCode`, or a portal-name guess
 against the built-in catalogue in `@assistigo/document-tools`), and — gated on `document.view`,
-so a role that cannot see the customer's documents gets none — up to three of the customer's
-existing `document_derivatives` in that category, ranked with a same-preset match first.
+so a role that cannot see the customer's documents gets none — up to five of the customer's
+existing files in that category, prepared `document_derivatives` first (ranked with a same-preset
+match ahead of the rest) and then original `documents` uploads that no tool has been run over
+yet.
+
+### Manual override: the customer document picker
+
+Heuristic matching is right most of the time and wrong in three recurring ways: it ranks Aadhaar
+first when the citizen would rather use a Voter ID, it cannot infer a category for an upload box
+labelled "any other supporting document" (or labelled in a script `CATEGORY_WORDS` does not
+cover) so it offers nothing at all, and on a step-by-step form the operator reaches a box the
+matcher never saw. `CustomerDocumentPickerModal` is the fallback for all three: it lists every
+file on the profile — `LIST_CUSTOMER_DOCUMENTS` fetches `/api/documents` and `/api/derivatives`
+side by side — grouped as Identity & address / Educational / Photos & signatures / Other, with a
+search box, and any of them can be put into any detected upload box.
+
+Two things keep it inside §7.4.5 rather than turning it into document autofill:
+
+- **The portal's `accept` still wins.** A manual pick is checked with `fileMatchesAccept` against
+  the box's own attribute; a file the box would reject cannot be chosen, and says why. It stays
+  previewable and downloadable, because being unable to attach a file is no reason to be unable
+  to look at it — the operator can still upload it by hand.
+- **Only the selected customer, and only with consent.** The worker refuses a
+  `LIST_CUSTOMER_DOCUMENTS` for anyone but the customer already selected in this session, and
+  refuses outright while a roaming customer's grant is locked — RLS would return an empty list,
+  and an empty vault reads as "this citizen has no documents" rather than "they have not
+  consented yet" (migration 0024).
+
+Both list routes drop their own `organization_id` predicate when scoped to one customer, leaving
+the filter to `documents_select` / `document_derivatives_select`: a roaming customer's files
+belong to their home centre, so an explicit org filter would narrow the vault to nothing.
+
+Upload boxes the server suggested nothing for are listed too, under "Other upload boxes" — a box
+that is never shown is a box the operator cannot attach anything to.
 
 The side panel's "Documents to attach" section renders this: the portal's stated size and
 dimensions, each suggested file with a tick box and a one-click **Download**
@@ -208,22 +244,31 @@ native submit that carries the bytes.
 This runs on its own path end to end, and the separation is the point:
 
 ```text
-side panel     APPLY_FILL { instructions, attachments: [{ signature, derivativeId }] }
+side panel     APPLY_FILL { instructions, attachments: [{ signature, targetId, kind }] }
                  ↑ ids only — the panel never holds document bytes
-background     POST /api/derivatives/:id/signed-url   (re-checks document.download, audits)
+                   kind is 'derivative' | 'source_document': the two live in different tables
+                   behind different routes, and a uuid does not say which
+background     POST /api/derivatives/:id/signed-url      (kind: 'derivative')
+               POST /api/documents/:id/signed-url        (kind: 'source_document')
+                 ↑ both re-check document.download and write an audit row
                fetch(signedUrl) → base64
                APPLY_FILL { instructions, fileInstructions: [{ signature, filename,
                                                                mimeType, dataBase64 }] }
-                 ↑ attachments is dropped; the page never sees a derivative id
+                 ↑ attachments is dropped; the page never sees a document id
 content        applyFill(instructions)  then  attachFiles(fileInstructions)
+                 ↑ kind is spent by now: the filler attaches bytes and does not care
+                   which table they came from
 ```
 
 What keeps this inside §7.4.5 rather than becoming autofill of documents:
 
 - **Nothing is attached by default.** The panel starts with every tick box clear. A mapped text
   value is a proposal the engine can defend; which document belongs in which upload slot is a
-  judgement about what the portal is asking for, so it takes an explicit tick per box.
-- **One file per box**, because an upload input takes one; ticking a second replaces the first.
+  judgement about what the portal is asking for, so it takes an explicit tick per box — or an
+  explicit pick out of the customer document picker.
+- **One file per box**, because an upload input takes one; choosing a second replaces the first.
+  A file chosen out of the picker for a box that also had suggestions is shown in that box's card
+  as an **Override**, so what will be attached is never left implicit.
 - **`attachFiles` re-checks the live element**, exactly as `applyFill` does: a box that
   classifies as CAPTCHA, OTP or payment is refused whatever the instruction says, a disabled box
   is skipped, and the box's own `accept` is re-read from the DOM at fill time in case the page

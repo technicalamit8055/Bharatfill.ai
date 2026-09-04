@@ -511,6 +511,22 @@ function photoInstruction(signature: string) {
   };
 }
 
+/**
+ * One of the customer's own uploads rather than a prepared derivative — the other half of what
+ * the document picker can attach. The filler is deliberately blind to which table an attachment
+ * came from (`kind` is spent in the background worker, choosing a signed-URL route), so what
+ * this proves is that a source document's own shape — a PDF, no width or height ever measured —
+ * travels the attach path exactly as far as a prepared photograph does.
+ */
+function sourceDocumentInstruction(signature: string) {
+  return {
+    signature,
+    filename: 'aadhaar_scan.pdf',
+    mimeType: 'application/pdf',
+    dataBase64: PHOTO_BASE64,
+  };
+}
+
 describe('filler — attaches prepared files', () => {
   let files: ReturnType<typeof installFileApis>;
 
@@ -540,6 +556,44 @@ describe('filler — attaches prepared files', () => {
     expect(attached.size).toBe(3);
     // A portal's upload widget only re-renders, and only validates, when these fire.
     expect(events).toEqual(['input', 'change']);
+  });
+
+  it('attaches an original source document, not only a prepared derivative', () => {
+    const doc = render(
+      `<form><input type="file" name="address_proof" accept="application/pdf" /></form>`,
+    );
+    const input = doc.querySelector('input')!;
+
+    const events: string[] = [];
+    input.addEventListener('input', () => events.push('input'));
+    input.addEventListener('change', () => events.push('change'));
+
+    const results = attachFiles(doc, [
+      sourceDocumentInstruction(signatureOf(doc, 'address_proof')),
+    ]);
+
+    expect(results[0]?.action).toBe('filled');
+
+    const attached = input.files![0]!;
+    expect(attached.name).toBe('aadhaar_scan.pdf');
+    expect(attached.type).toBe('application/pdf');
+    expect(events).toEqual(['input', 'change']);
+  });
+
+  it('refuses an original the box would reject, the same as a prepared file', () => {
+    const doc = render(`<form><input type="file" name="photo" accept="image/*" /></form>`);
+    const results = attachFiles(doc, [sourceDocumentInstruction(signatureOf(doc, 'photo'))]);
+
+    expect(results[0]).toMatchObject({ action: 'skipped', skipReason: 'file_type_rejected' });
+    expect(doc.querySelector('input')!.files).toBeNull();
+  });
+
+  it('attaches an original into a box that accepts it by extension', () => {
+    const doc = render(`<form><input type="file" name="proof" accept=".pdf,.jpg" /></form>`);
+    const results = attachFiles(doc, [sourceDocumentInstruction(signatureOf(doc, 'proof'))]);
+
+    expect(results[0]?.action).toBe('filled');
+    expect(doc.querySelector('input')!.files![0]!.name).toBe('aadhaar_scan.pdf');
   });
 
   it('attaches nothing when the operator ticked nothing', () => {

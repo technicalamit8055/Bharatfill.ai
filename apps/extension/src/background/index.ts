@@ -19,6 +19,7 @@ import {
   fail,
   ok,
   parseMessage,
+  type CustomerDocument,
   type CustomerSummary,
   type Message,
   type RoamingSearchResult,
@@ -33,6 +34,7 @@ import {
 } from '../shared/storage';
 import { MAX_ATTACHMENT_BYTES } from '@assistigo/form-engine';
 import type {
+  AttachmentKind,
   DetectionPayload,
   DocumentSuggestion,
   FieldMapping,
@@ -229,6 +231,20 @@ chrome.runtime.onMessageExternal.addListener((raw, sender, sendResponse) => {
 type SignedDerivative = { url: string; mimeType: string; filename: string };
 
 /**
+ * Which signed-URL route reaches a file's bytes.
+ *
+ * A customer's files live in two tables — `document_derivatives` for what Document Tools Studio
+ * prepared, `documents` for what the customer uploaded — and each has its own route. Asking the
+ * wrong one is not a soft failure: the id simply is not there, so it answers 404 and the
+ * operator is told the file is unavailable when it is sitting right there on the profile.
+ */
+function signedUrlPath(kind: AttachmentKind, id: string): string {
+  return kind === 'source_document'
+    ? `/api/documents/${id}/signed-url`
+    : `/api/derivatives/${id}/signed-url`;
+}
+
+/**
  * Strips anything a file name could smuggle into the download folder: a path separator, a
  * parent-directory hop, or a leading dot that would hide the file. The name is written by an
  * operator in the document tools, so this guards against a mistake more than an attack — but
@@ -255,12 +271,12 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 /**
- * Turns the panel's "attach this prepared file here" requests into instructions carrying bytes.
+ * Turns the panel's "attach this file here" requests into instructions carrying bytes.
  *
- * Every signed URL comes from `/api/derivatives/:id/signed-url`, which re-checks
- * `document.download` and writes an audit row — so an operator allowed to see that a suggestion
- * exists, but not to download the customer's documents, cannot attach one either. The bytes
- * live in this worker for the length of the fill and are never stored.
+ * Every signed URL comes from the route `signedUrlPath` picks for the request's `kind`, and both
+ * of those re-check `document.download` and write an audit row — so an operator allowed to see
+ * that a file exists, but not to download the customer's documents, cannot attach one either.
+ * The bytes live in this worker for the length of the fill and are never stored.
  *
  * A file that cannot be fetched, or that is over the size ceiling, does not fail the whole fill
  * — the typed fields are still worth writing. It does produce a `failed` result for its own
@@ -285,7 +301,7 @@ async function fetchAttachments(
 
     try {
       const signed = await apiFetch<SignedDerivative>(
-        `/api/derivatives/${request.derivativeId}/signed-url`,
+        signedUrlPath(request.kind, request.targetId),
         { method: 'POST' },
       );
 
@@ -324,6 +340,104 @@ async function fetchAttachments(
   }
 
   return batch;
+}
+
+// ---------------------------------------------------------------------------
+// The customer vault (spec §7.4.5 — manual document override)
+// ---------------------------------------------------------------------------
+
+type SourceDocumentListRow = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  documentType: string | null;
+  createdAt: string;
+};
+
+type DerivativeListRow = {
+  id: string;
+  sourceDocumentId: string | null;
+  toolType: string | null;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  createdAt: string;
+};
+
+/** Newest first, across both halves, so the picker's default order is "what we did last". */
+function byCreatedAtDescending(a: CustomerDocument, b: CustomerDocument): number {
+  return a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0;
+}
+
+/**
+ * Every file on one customer's profile, prepared and original alike, as metadata.
+ *
+ * Two requests rather than one: the two halves live in different tables behind different routes,
+ * and neither list route knows about the other. They are fetched together and only one has to
+ * succeed — an org whose role can list documents but not derivatives (or the other way round)
+ * still gets a usable picker rather than an empty one.
+ *
+ * A derivative inherits the `documentType` of the document it was prepared from, which is what
+ * lets the picker file a cropped Aadhaar photo under Identity instead of under "Other". The
+ * derivative's own `toolType` only ever says photo/signature/pdf.
+ */
+async function listCustomerDocuments(customerId: string): Promise<CustomerDocument[]> {
+  const id = encodeURIComponent(customerId);
+  const [documentsResult, derivativesResult] = await Promise.allSettled([
+    apiFetch<{ documents: SourceDocumentListRow[] }>(`/api/documents?customerId=${id}&limit=100`),
+    apiFetch<{ derivatives: DerivativeListRow[] }>(`/api/derivatives?customerId=${id}&limit=100`),
+  ]);
+
+  // Both refused: a permission problem or a dead session, not an empty profile. Told apart,
+  // because "you cannot see this customer's documents" and "this customer has none" ask
+  // completely different things of the operator.
+  if (documentsResult.status === 'rejected' && derivativesResult.status === 'rejected') {
+    throw documentsResult.reason;
+  }
+
+  const sourceDocuments =
+    documentsResult.status === 'fulfilled' ? (documentsResult.value.documents ?? []) : [];
+  const derivatives =
+    derivativesResult.status === 'fulfilled' ? (derivativesResult.value.derivatives ?? []) : [];
+
+  const typeBySourceDocument = new Map(
+    sourceDocuments.map((row) => [row.id, row.documentType ?? null] as const),
+  );
+
+  const rows: CustomerDocument[] = [
+    ...derivatives.map((row) => ({
+      id: row.id,
+      kind: 'derivative' as const,
+      filename: row.filename,
+      mimeType: row.mimeType,
+      sizeBytes: row.sizeBytes,
+      documentType: row.sourceDocumentId
+        ? (typeBySourceDocument.get(row.sourceDocumentId) ?? null)
+        : null,
+      toolType: row.toolType ?? null,
+      width: row.width ?? null,
+      height: row.height ?? null,
+      createdAt: row.createdAt,
+    })),
+    ...sourceDocuments.map((row) => ({
+      id: row.id,
+      kind: 'source_document' as const,
+      filename: row.filename,
+      mimeType: row.mimeType,
+      sizeBytes: row.sizeBytes,
+      documentType: row.documentType ?? null,
+      toolType: null,
+      // Source documents are stored as uploaded; nobody has measured them.
+      width: null,
+      height: null,
+      createdAt: row.createdAt,
+    })),
+  ];
+
+  return rows.sort(byCreatedAtDescending);
 }
 
 // ---------------------------------------------------------------------------
@@ -549,10 +663,10 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       const state = stateFor(tabId);
 
       /*
-       * The side panel names the prepared files it wants attached; their bytes are fetched here
-       * and only here. `attachments` is dropped from what goes on to the page: the content
-       * script has no business knowing a derivative's id, and a hostile page that got hold of
-       * one could not use it anyway without the operator's session.
+       * The side panel names the files it wants attached; their bytes are fetched here and only
+       * here. `attachments` is dropped from what goes on to the page: the content script has no
+       * business knowing a document's id, and a hostile page that got hold of one could not use
+       * it anyway without the operator's session.
        */
       const { attachments, ...forPage } = message;
       const batch = attachments?.length
@@ -686,6 +800,45 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
         saveAs: false,
       });
       return ok({ downloadId });
+    }
+
+    case 'DOWNLOAD_DOCUMENT': {
+      const signed = await apiFetch<SignedDerivative>(
+        `/api/documents/${message.documentId}/signed-url`,
+        { method: 'POST' },
+      );
+      const downloadId = await chrome.downloads.download({
+        url: signed.url,
+        filename: safeDownloadName(signed.filename),
+        saveAs: false,
+      });
+      return ok({ downloadId });
+    }
+
+    /*
+     * Only ever for the customer this counter already has selected, and only while a roaming
+     * customer's consent window is open. RLS refuses anything else on its own — see
+     * `documents_select` in migration 0024 — but a locked roaming customer would come back
+     * empty rather than refused, and an empty vault reads as "this customer has no documents"
+     * when the truth is "the citizen has not consented yet".
+     */
+    case 'LIST_CUSTOMER_DOCUMENTS': {
+      const customer = await selectedCustomerStore.get<CustomerSummary>();
+      if (!customer) return fail('no_customer_selected');
+      if (customer.id !== message.customerId) return fail('customer_not_selected');
+      if (customer.isRoaming && customer.accessStatus !== 'granted') {
+        return fail('roaming_access_locked');
+      }
+
+      return ok({ documents: await listCustomerDocuments(customer.id) });
+    }
+
+    case 'GET_DOCUMENT_PREVIEW': {
+      const signed = await apiFetch<SignedDerivative & { expiresInSeconds: number }>(
+        signedUrlPath(message.kind, message.targetId),
+        { method: 'POST' },
+      );
+      return ok(signed);
     }
 
     default:

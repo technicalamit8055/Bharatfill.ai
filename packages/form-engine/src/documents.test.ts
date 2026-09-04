@@ -79,7 +79,9 @@ describe('inferFileFieldCategory', () => {
     expect(inferFileFieldCategory(f)).toBe('signature');
   });
 
-  it('returns null for an unrecognizable file field', () => {
+  it('returns null for an unrecognizable file field rather than guessing "pdf"', () => {
+    // No label text, accept attribute, or adapter requirement to go on — the shape of a portal's
+    // hidden/internal file input, which should not surface a phantom document-attachment card.
     const f = field({ signature: 's6', labelText: 'Supporting document' });
     expect(inferFileFieldCategory(f)).toBeNull();
   });
@@ -87,6 +89,23 @@ describe('inferFileFieldCategory', () => {
   it('returns null for a non-file field even with a matching label', () => {
     const f = field({ signature: 's7', inputType: 'text', labelText: 'Photo' });
     expect(inferFileFieldCategory(f)).toBeNull();
+  });
+
+  it.each([
+    'Aadhaar Card',
+    'PAN Card',
+    'Upload ID Proof',
+    'Voter ID',
+    'Marksheet',
+    'Class 10 Certificate',
+    'Address Proof',
+    'Income Certificate',
+    'Caste Certificate',
+    'Domicile Certificate',
+    'Ration Card',
+  ])('recognizes "%s" as a pdf/document upload', (labelText) => {
+    const f = field({ signature: `s-${labelText}`, labelText });
+    expect(inferFileFieldCategory(f)).toBe('pdf');
   });
 });
 
@@ -138,7 +157,7 @@ describe('matchDocumentRequirements', () => {
     expect(matches).toEqual([{ signature: 'f1', category: 'signature', requirement: null }]);
   });
 
-  it('skips fields with no inferable category', () => {
+  it('skips fields with no inferable category rather than guessing "pdf"', () => {
     const matches = matchDocumentRequirements(
       [field({ signature: 'f1', labelText: 'Supporting document' })],
       undefined,
@@ -149,6 +168,16 @@ describe('matchDocumentRequirements', () => {
   it('skips non-file fields entirely', () => {
     const matches = matchDocumentRequirements(
       [field({ signature: 'f1', inputType: 'text', labelText: 'Full name' })],
+      undefined,
+    );
+    expect(matches).toEqual([]);
+  });
+
+  it('skips a file field that is not visible on the page', () => {
+    // RTPS Bihar's hidden representative-authorization and internal-uploader widgets: a real
+    // category match (labelText: 'Photo'), but not visible, so it must not surface a card.
+    const matches = matchDocumentRequirements(
+      [field({ signature: 'f1', labelText: 'Photo', visible: false })],
       undefined,
     );
     expect(matches).toEqual([]);

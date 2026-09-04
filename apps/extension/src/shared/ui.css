@@ -767,6 +767,339 @@ input[type='checkbox'] {
   }
 }
 
+/* ---------------------------------------------------------------- modal */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(3px);
+  animation: modalFadeIn 0.15s ease;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 420px;
+  max-height: min(560px, 92vh);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.modal-header__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: var(--brand-50);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.modal-footnote {
+  margin: 0 14px 12px;
+  border-radius: var(--radius);
+}
+
+.preview-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 0;
+}
+
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--line-soft);
+  align-self: center;
+}
+
+.preview-canvas {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  max-height: 320px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background-color: #f1f5f9;
+  background-image:
+    linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+    linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+}
+
+.preview-canvas img {
+  user-select: none;
+}
+
+.preview-pdf-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--line-soft);
+  color: var(--muted);
+  text-align: center;
+}
+
+.compliance-list {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.compliance-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 10.5px;
+  font-weight: 600;
+  border: 1px solid;
+}
+.compliance-pill-ok {
+  color: var(--ok);
+  background: var(--ok-bg);
+  border-color: var(--ok-line);
+}
+.compliance-pill-warn {
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-color: var(--warn-line);
+}
+
+/* -------------------------------------------- customer document picker */
+
+/*
+ * Taller and wider than the preview dialog: this one is a list to scan, not a single file to
+ * look at, and a side panel is narrow enough already. The preview opens *over* it, and the
+ * shared `.modal-backdrop` z-index plus DOM order is what keeps it on top.
+ */
+.picker-dialog {
+  max-width: 460px;
+  max-height: min(640px, 94vh);
+}
+
+.picker-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.picker-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted-soft);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.picker-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.12);
+}
+.picker-search input[type='search'] {
+  border: none;
+  background: none;
+  padding: 8px 0;
+  border-radius: 0;
+}
+.picker-search input[type='search']:hover,
+.picker-search input[type='search']:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.picker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.picker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.picker-chip:hover {
+  border-color: var(--brand-200);
+  background: var(--line-soft);
+}
+.picker-chip-on {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+  color: var(--accent);
+}
+.picker-chip__count {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.picker-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.picker-row-on {
+  border-color: var(--brand-200);
+  background: var(--brand-50);
+}
+/* Still readable, still previewable — dimmed only because it cannot be attached. */
+.picker-row-off {
+  background: var(--line-soft);
+}
+
+.picker-row__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: var(--line-soft);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.picker-row-on .picker-row__icon {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.picker-row__body {
+  display: block;
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-row__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* The file an operator chose by hand, named in the upload card it belongs to. */
+.attach-chosen {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 7px;
+  padding: 8px 9px;
+  border: 1px solid var(--brand-200);
+  border-radius: var(--radius);
+  background: var(--brand-50);
+}
+.attach-chosen__body {
+  display: block;
+  min-width: 0;
+}
+
 /* ------------------------------------------------------------ scrollbar */
 
 ::-webkit-scrollbar {

@@ -26,11 +26,14 @@ export const GET = handler('api.derivatives.list', async (request) => {
     .select(
       'id, customer_id, source_document_id, tool_type, filename, mime_type, size_bytes, width, height, metadata, created_at',
     )
-    .eq('organization_id', context.organization.id)
     .order('created_at', { ascending: false })
     .limit(input.limit);
 
+  // Scoped to one customer, RLS is the filter — `document_derivatives_select` admits a live
+  // roaming grant holder, whose customer's prepared files sit in another organization. Same
+  // reasoning as GET /api/documents.
   if (input.customerId) query = query.eq('customer_id', input.customerId);
+  else query = query.eq('organization_id', context.organization.id);
   if (input.sourceDocumentId) query = query.eq('source_document_id', input.sourceDocumentId);
   if (input.toolType) query = query.eq('tool_type', input.toolType);
 

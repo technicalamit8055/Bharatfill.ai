@@ -21,7 +21,10 @@ const CATEGORY_WORDS: Record<DocumentCategory, RegExp> = {
   // section heading, and the word "signature" is the more specific signal in that text.
   signature: /sign(?:ature)?s?\b|hastak+shar|हस्ताक्षर|dastkhat/i,
   photo: /photo(?:graph)?s?\b|passport[\s-]?size|picture|फोटो|तस्वीर/i,
-  pdf: /\bpdf\b|marksheet|certificate|scan(?:ned)?\s*copy|document\s*upload/i,
+  // Broadened to the Indian identity and educational documents an upload box is commonly
+  // labelled with — a portal that asks for "Aadhaar Card" or "Marksheet" gets a document
+  // suggestion rather than falling through to `null` for want of the word "pdf" or "scan".
+  pdf: /\bpdf\b|marksheet|certificate|scan(?:ned)?\s*copy|document\s*upload|aadhaar|pan\s*card|\bpan\b|voter|identity|id\s*proof|address\s*proof|income|caste|domicile|residence|ration/i,
 };
 
 function fieldText(
@@ -51,8 +54,13 @@ function categoryFromText(text: string): DocumentCategory | null {
 }
 
 /**
- * What kind of upload slot this file field is, or `null` when neither the surrounding text nor
- * the `accept` attribute says anything the product has a tool for.
+ * What kind of upload slot this file field is. Returns `null` for a non-file field, and also for
+ * a file field with no usable signal at all — an upload box with no label, no `accept` and no
+ * adapter requirement match is exactly the shape of a portal's hidden/internal file input
+ * (RTPS Bihar's representative-authorization and internal-uploader widgets), and guessing `pdf`
+ * for it produced a phantom document-attachment card offering unrelated customer files. A field
+ * with a real signal is unaffected: broadening `CATEGORY_WORDS.pdf` already covers the common
+ * Indian identity/educational upload labels, so this only changes the *no signal at all* case.
  *
  * Text wins over `accept`: "Photo (JPG only)" with `accept="image/*"` is a photo, but a bare
  * `accept="image/*"` with no label at all is too weak a signal to promise a specific preset —
@@ -110,6 +118,10 @@ export type DocumentFieldMatch = {
  * whose own label falls in the same category, then break ties (or fall back, if none did) by
  * text overlap against the field's own label/nearby text. A category match with only one
  * candidate is trusted outright — two upload boxes are rarely both "photo".
+ *
+ * A field the operator cannot see is skipped outright, regardless of category: a portal's hidden
+ * representative-authorization or internal-uploader file input is not something the operator can
+ * attach anything to, so offering it a document suggestion is a phantom card, not a helpful one.
  */
 export function matchDocumentRequirements(
   fields: readonly DetectedField[],
@@ -119,6 +131,8 @@ export function matchDocumentRequirements(
   const matches: DocumentFieldMatch[] = [];
 
   for (const field of fields) {
+    if (field.visible === false) continue;
+
     const category = inferFileFieldCategory(field);
     if (!category) continue;
 

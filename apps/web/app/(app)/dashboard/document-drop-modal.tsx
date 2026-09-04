@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Alert, Badge, Button, Spinner } from '@assistigo/ui';
 import {
@@ -272,7 +273,14 @@ export function DocumentDropModal({
 
   const channels = available ?? ['web'];
 
-  return (
+  // Portalled to <body>: this component mounts inside the hero banner's `overflow-hidden`
+  // section, which clips a `fixed` descendant to that section's box instead of the viewport
+  // (an `overflow`/`transform` ancestor creates a new containing block for fixed position).
+  // Left in place, the dialog would render squeezed inside the banner rather than as a
+  // full-screen overlay.
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -498,7 +506,8 @@ export function DocumentDropModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

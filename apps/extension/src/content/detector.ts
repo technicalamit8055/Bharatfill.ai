@@ -76,11 +76,25 @@ function styleOf(element: Element): CSSStyleDeclaration | null {
 }
 
 /**
- * Visibility, decided from computed style rather than layout boxes.
+ * jsdom never lays a page out — `getClientRects()` and `offsetParent` come back empty for every
+ * element regardless of actual visibility — so a layout-based check has to be skipped there
+ * rather than silently hiding an entire test page. jsdom's own user agent string is the
+ * documented way to tell the two environments apart.
+ */
+function isJsdomDocument(doc: Document | null | undefined): boolean {
+  return (doc?.defaultView?.navigator.userAgent ?? '').includes('jsdom');
+}
+
+/**
+ * Visibility, decided from computed style first and (in a real browser) confirmed against layout.
  *
  * Layout-based checks (`offsetParent`, client rects) are more accurate in a real browser but
  * meaningless in a headless test environment, and a field wrongly judged invisible is silently
- * dropped from the operator's review list. Style walking behaves identically in both.
+ * dropped from the operator's review list. Style walking behaves identically in both, so it stays
+ * the first pass; the layout check only runs where layout is real, catching what style walking
+ * misses — a portal collapsing a row via an ancestor several levels above this walk's depth
+ * limit, for instance (RTPS Bihar's hidden representative-authorization and internal uploader
+ * widgets, which otherwise surface as phantom document-attachment cards).
  */
 export function isElementVisible(element: Element): boolean {
   if (element instanceof HTMLElement && element.hidden) return false;
@@ -106,12 +120,27 @@ export function isElementVisible(element: Element): boolean {
     current = current.parentElement;
     depth += 1;
   }
+
+  if (!isJsdomDocument(element.ownerDocument) && element.getClientRects().length === 0) {
+    return false;
+  }
+
   return true;
 }
 
 function textOf(node: Element | null | undefined): string | null {
   const text = node?.textContent?.replace(/\s+/g, ' ').trim();
   return text ? text : null;
+}
+
+/**
+ * True when text carries at least one letter or digit (any script) rather than only punctuation
+ * or whitespace. A ServicePlus template row that leaves its label cell empty renders as "." or
+ * ".." once trimmed, and neither is a label an operator can use to tell one upload box from
+ * another — treating it as one produces a phantom document-attachment card instead of no card.
+ */
+function isMeaningfulLabel(text: string): boolean {
+  return /[\p{L}\p{N}]/u.test(text);
 }
 
 /** Label resolution, in the order that gives the most reliable answer first */
@@ -123,13 +152,13 @@ export function resolveLabel(element: Element): string | null {
     const escaped = id.replace(/["\\]/g, '\\$&');
     const explicit = doc?.querySelector(`label[for="${escaped}"]`);
     const text = textOf(explicit);
-    if (text) return text;
+    if (text && isMeaningfulLabel(text)) return text;
   }
 
   const wrapping = element.closest('label');
   if (wrapping) {
     const text = textOf(wrapping);
-    if (text) return text;
+    if (text && isMeaningfulLabel(text)) return text;
   }
 
   const labelledBy = element.getAttribute('aria-labelledby');
@@ -137,7 +166,7 @@ export function resolveLabel(element: Element): string | null {
     const parts = labelledBy
       .split(/\s+/)
       .map((refId) => textOf(doc.getElementById(refId)))
-      .filter(Boolean);
+      .filter((text): text is string => Boolean(text && isMeaningfulLabel(text)));
     if (parts.length > 0) return parts.join(' ');
   }
 
@@ -145,14 +174,14 @@ export function resolveLabel(element: Element): string | null {
   const previousCell = cell?.previousElementSibling;
   if (previousCell) {
     const text = textOf(previousCell);
-    if (text && text.length <= 120) return text;
+    if (text && text.length <= 120 && isMeaningfulLabel(text)) return text;
   }
 
   let sibling = element.previousElementSibling;
   let steps = 0;
   while (sibling && steps < 3) {
     const text = textOf(sibling);
-    if (text && text.length <= 120) return text;
+    if (text && text.length <= 120 && isMeaningfulLabel(text)) return text;
     sibling = sibling.previousElementSibling;
     steps += 1;
   }

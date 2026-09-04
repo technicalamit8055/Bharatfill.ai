@@ -54,6 +54,11 @@ export const POST = handler(
       metadata: { mimeType: row.mime_type },
     });
 
-    return ok({ url, expiresInSeconds: SIGNED_URL_TTL_SECONDS, mimeType: row.mime_type });
+    return ok({
+      url,
+      expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+      mimeType: row.mime_type,
+      filename: row.original_filename,
+    });
   },
 );

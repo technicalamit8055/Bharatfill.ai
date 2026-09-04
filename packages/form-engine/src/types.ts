@@ -175,17 +175,42 @@ export const fileFillInstructionSchema = z.object({
 });
 export type FileFillInstruction = z.infer<typeof fileFillInstructionSchema>;
 
+/** Which table an attachment's id belongs to, and so which signed-URL route serves its bytes. */
+export const ATTACHMENT_KINDS = ['derivative', 'source_document'] as const;
+export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
+
 /**
- * What the side panel asks for, per file input: a prepared file by id, never its bytes.
+ * What the side panel asks for, per file input: a customer's file by id, never its bytes.
  *
  * The panel has no access to document bytes and gains none here — the background worker fetches
  * them through a signed URL at fill time (docs/EXTENSION.md §6a).
+ *
+ * `kind` is what tells the worker *which* signed-URL route to call. Both halves of a customer's
+ * files can be attached: a `derivative` prepared by Document Tools Studio, and an original
+ * `source_document` the customer uploaded (an Aadhaar PDF, a marksheet scan) that no tool has
+ * been run over yet. Without it, an operator picking an original out of the customer vault would
+ * have its id looked up in `document_derivatives`, where it does not exist.
  */
-export const fileAttachmentRequestSchema = z.object({
+const fileAttachmentRequestObjectSchema = z.object({
   signature: z.string(),
-  derivativeId: z.string().uuid(),
+  targetId: z.string().uuid(),
+  kind: z.enum(ATTACHMENT_KINDS).default('derivative'),
 });
-export type FileAttachmentRequest = z.infer<typeof fileAttachmentRequestSchema>;
+
+export const fileAttachmentRequestSchema = z.preprocess((raw) => {
+  /*
+   * `derivativeId` is this field's former name, kept as an alias so an extension build that
+   * predates `kind` keeps working against a newer worker: an old panel only ever named
+   * derivatives, which is exactly what the `kind` default resolves to.
+   */
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const record = raw as Record<string, unknown>;
+  if (record.targetId !== undefined || typeof record.derivativeId !== 'string') return raw;
+  const { derivativeId, ...rest } = record;
+  return { ...rest, targetId: derivativeId };
+}, fileAttachmentRequestObjectSchema);
+
+export type FileAttachmentRequest = z.output<typeof fileAttachmentRequestSchema>;
 
 export const FILL_ACTIONS = ['filled', 'skipped', 'edited', 'failed'] as const;
 export type FillAction = (typeof FILL_ACTIONS)[number];
@@ -225,7 +250,11 @@ export function confidenceBand(score: number): ConfidenceBand {
 export const DOCUMENT_CATEGORIES = ['photo', 'signature', 'pdf'] as const;
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
 
-/** A prepared file already on the customer's profile that could satisfy this slot. */
+/**
+ * A file already on the customer's profile that could satisfy this slot — either a prepared
+ * derivative (built by Document Tools Studio for a specific preset) or one of the customer's own
+ * source documents (an upload with no derivative made from it yet).
+ */
 export const derivativeSuggestionSchema = z.object({
   id: z.string().uuid(),
   filename: z.string().max(300),
@@ -236,6 +265,10 @@ export const derivativeSuggestionSchema = z.object({
   mimeType: z.string().max(120),
   /** Whether this derivative was built against the same preset resolved for this field. */
   matchesPreset: z.boolean(),
+  /** Distinguishes a prepared derivative from an original source document. */
+  kind: z.enum(ATTACHMENT_KINDS).default('derivative'),
+  /** `documents.document_type`, present only for a `source_document` suggestion. */
+  documentType: z.string().max(60).optional(),
 });
 export type DerivativeSuggestion = z.infer<typeof derivativeSuggestionSchema>;
 

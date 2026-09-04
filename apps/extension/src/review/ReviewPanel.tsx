@@ -5,6 +5,7 @@ import {
   confidenceBand,
   fileMatchesAccept,
   resolveFillValue,
+  type AttachmentKind,
   type DetectedField,
   type DetectionPayload,
   type DocumentCategory,
@@ -17,22 +18,32 @@ import {
 import { send } from '../shared/send';
 import { CustomerPicker } from '../shared/CustomerPicker';
 import { RoamingAuthBanner } from '../shared/RoamingAuthBanner';
+import { DocumentPreviewModal, type PreviewTarget } from './DocumentPreviewModal';
+import {
+  CustomerDocumentPickerModal,
+  attachRejection,
+  describeAccept,
+  type PickerSlot,
+} from './CustomerDocumentPickerModal';
 import {
   AlertIcon,
   ArrowIcon,
   CheckIcon,
   DownloadIcon,
   ExternalIcon,
+  EyeIcon,
+  FolderIcon,
   Header,
   HelpIcon,
   LinkIcon,
+  PaperclipIcon,
   RefreshIcon,
   ScanIcon,
   ShieldIcon,
   SparkIcon,
   Wordmark,
 } from '../shared/Brand';
-import type { CustomerSummary, SessionState } from '../shared/messages';
+import type { CustomerDocument, CustomerSummary, SessionState } from '../shared/messages';
 
 /** Faint dot grids and sparkles behind the connect screen's hero. Purely decorative. */
 function ConnectDecor() {
@@ -184,6 +195,36 @@ const DOCUMENT_CATEGORY_LABEL: Record<DocumentCategory, string> = {
   pdf: 'PDF',
 };
 
+/**
+ * One upload box's chosen file, as the panel holds it before Fill.
+ *
+ * More than the id, because two things need the rest of it: `APPLY_FILL` needs `kind` to know
+ * which signed-URL route reaches the bytes, and a file chosen out of the customer vault has to
+ * be nameable in the card even though it appears in no suggestion list. `manual` is what tells
+ * the two apart — a ticked suggestion can be described from the suggestion itself, an override
+ * cannot.
+ */
+type AttachmentChoice = {
+  id: string;
+  kind: AttachmentKind;
+  filename: string;
+  sizeBytes: number;
+  mimeType: string;
+  manual: boolean;
+};
+
+/** A file the operator picked out of the vault, in the shape an attachment choice needs. */
+function choiceFromDocument(doc: CustomerDocument): AttachmentChoice {
+  return {
+    id: doc.id,
+    kind: doc.kind,
+    filename: doc.filename,
+    sizeBytes: doc.sizeBytes,
+    mimeType: doc.mimeType,
+    manual: true,
+  };
+}
+
 /** The tool that owns a category, and the path its page reads a preset from (§13.2). */
 function documentToolPath(
   category: DocumentCategory,
@@ -225,6 +266,44 @@ function formatPresetConstraints(preset: DocumentPresetSummary): string {
     .join(' · ');
 }
 
+/**
+ * The file an operator put into one upload box by hand, named in the card it belongs to.
+ *
+ * A manual pick has to be shown somewhere: an override for a box that had suggestions is not in
+ * the suggestion list, and a box that had none has no list at all. Without this the operator
+ * presses Fill with no visible sign of what they chose.
+ */
+function ChosenFileCard({
+  choice,
+  badge,
+  clearLabel,
+  onClear,
+}: {
+  choice: AttachmentChoice;
+  badge: string;
+  clearLabel: string;
+  onClear: () => void;
+}) {
+  return (
+    <div className="attach-chosen">
+      <span className="attach-chosen__body">
+        <span className="row" style={{ gap: 5, flexWrap: 'wrap' }}>
+          <span className="badge badge-brand">{badge}</span>
+          <span className="badge badge-muted">
+            {choice.kind === 'derivative' ? 'Prepared' : 'Original'}
+          </span>
+        </span>
+        <span className="tiny truncate" style={{ display: 'block', marginTop: 3 }}>
+          {choice.filename} · {formatKb(choice.sizeBytes)}
+        </span>
+      </span>
+      <button type="button" className="btn-ghost tiny" onClick={onClear} style={{ flexShrink: 0 }}>
+        {clearLabel}
+      </button>
+    </div>
+  );
+}
+
 type Stage = 'idle' | 'detecting' | 'reviewing' | 'filling' | 'done';
 
 const BAND_BADGE: Record<ReturnType<typeof confidenceBand>, string> = {
@@ -246,18 +325,28 @@ export function ReviewPanel() {
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [approved, setApproved] = useState<Set<string>>(new Set());
   /**
-   * Which prepared file the operator ticked for each upload box, keyed by field signature.
+   * Which file the operator chose for each upload box, keyed by field signature.
    *
-   * Starts empty and stays empty unless someone ticks a box: a mapped text value is a proposal
+   * Starts empty and stays empty unless someone chooses one: a mapped text value is a proposal
    * the engine can defend, but putting a particular document into a particular upload slot is a
    * judgement about what this portal is asking for, so nothing is attached by default (§7.4.5).
    * One file per box, because a portal's upload input takes one.
    */
-  const [attachments, setAttachments] = useState<Record<string, string>>({});
+  const [attachments, setAttachments] = useState<Record<string, AttachmentChoice>>({});
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [results, setResults] = useState<FillResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reported, setReported] = useState(false);
+  /** File id → transient state, while a row's own Download button is fetching or just finished. */
+  const [downloadStates, setDownloadStates] = useState<Record<string, 'working' | 'done'>>({});
+  const [previewTarget, setPreviewTarget] = useState<
+    (PreviewTarget & { signature: string }) | null
+  >(null);
+  /**
+   * The document picker, when it is open. `slot` null means the operator opened the customer
+   * vault to look around rather than to fill a particular upload box.
+   */
+  const [picker, setPicker] = useState<{ slot: PickerSlot | null } | null>(null);
 
   const refreshSession = useCallback(async () => {
     const response = await send<SessionState>({ type: 'GET_SESSION' });
@@ -300,6 +389,35 @@ export function ReviewPanel() {
     [proposal],
   );
 
+  /**
+   * Every upload box the operator can see on this page.
+   *
+   * Not the same set as `documentSuggestions`: the server only suggests for a box whose category
+   * it could infer, and a portal that labels one "any other supporting document" — or labels it
+   * in Devanagari the category words do not cover — gets no suggestion card at all. Those boxes
+   * still exist, and the operator can still put a file in one by hand, so they are listed too.
+   *
+   * Invisible file inputs are excluded here as they are server-side: a portal's hidden
+   * representative-authorization widget is not something anybody can attach to.
+   */
+  const uploadFields = useMemo(
+    () =>
+      (detection?.fields ?? []).filter(
+        (field) => field.inputType.toLowerCase() === 'file' && field.visible !== false,
+      ),
+    [detection],
+  );
+
+  const suggestedUploadSignatures = useMemo(
+    () => new Set((proposal?.documentSuggestions ?? []).map((suggestion) => suggestion.signature)),
+    [proposal],
+  );
+
+  const unmatchedUploads = useMemo(
+    () => uploadFields.filter((field) => !suggestedUploadSignatures.has(field.signature)),
+    [uploadFields, suggestedUploadSignatures],
+  );
+
   const detect = async () => {
     setStage('detecting');
     setError(null);
@@ -308,6 +426,8 @@ export function ReviewPanel() {
     // A fresh reading of the page invalidates edits keyed to the previous detection's signatures.
     setEdits({});
     setAttachments({});
+    setPreviewTarget(null);
+    setPicker(null);
 
     const detected = await send<DetectionPayload>({ type: 'DETECT_FIELDS' });
     if (!detected.ok) {
@@ -364,16 +484,22 @@ export function ReviewPanel() {
     );
 
     /*
-     * Only ticked entries, and only for boxes the latest detection still reports. The bytes are
-     * not here and never reach this panel: the background worker fetches each file through a
+     * Only chosen files, and only for upload boxes the latest detection still reports — keyed off
+     * the detected fields rather than off `documentSuggestions`, because a file picked out of the
+     * customer vault can be assigned to a box the server never suggested anything for.
+     *
+     * `kind` travels with each one: an original upload and a prepared derivative are reached
+     * through different signed-URL routes, and the worker cannot tell which is which from a uuid.
+     * The bytes are not here and never reach this panel — the worker fetches each file through a
      * signed URL at the moment of the fill.
      */
-    const attachmentRequests: FileAttachmentRequest[] = (
-      proposal.documentSuggestions ?? []
-    ).flatMap((suggestion) => {
-      const derivativeId = attachments[suggestion.signature];
-      return derivativeId ? [{ signature: suggestion.signature, derivativeId }] : [];
-    });
+    const attachableSignatures = new Set(uploadFields.map((field) => field.signature));
+    const attachmentRequests: FileAttachmentRequest[] = Object.entries(attachments).flatMap(
+      ([signature, choice]) =>
+        attachableSignatures.has(signature)
+          ? [{ signature, targetId: choice.id, kind: choice.kind }]
+          : [],
+    );
 
     const response = await send<{ results: FillResult[] }>({
       type: 'APPLY_FILL',
@@ -399,14 +525,65 @@ export function ReviewPanel() {
     if (proposal) await detect();
   };
 
-  /** Ticking a second file for the same box replaces the first — an upload input takes one. */
-  const toggleAttachment = (signature: string, derivativeId: string) => {
+  /** Choosing a second file for the same box replaces the first — an upload input takes one. */
+  const chooseAttachment = (signature: string, choice: AttachmentChoice) => {
     setAttachments((current) => {
       const next = { ...current };
-      if (next[signature] === derivativeId) delete next[signature];
-      else next[signature] = derivativeId;
+      if (next[signature]?.id === choice.id) delete next[signature];
+      else next[signature] = choice;
       return next;
     });
+  };
+
+  /** Reverts a box to attaching nothing, which is also how an override goes back to auto. */
+  const clearAttachment = (signature: string) => {
+    setAttachments((current) => {
+      if (current[signature] === undefined) return current;
+      const next = { ...current };
+      delete next[signature];
+      return next;
+    });
+  };
+
+  /** The upload box a picker session is about, described from the latest detection. */
+  const slotFor = (
+    field: DetectedField | undefined,
+    suggestion?: DocumentSuggestion,
+  ): PickerSlot | null =>
+    field
+      ? {
+          signature: field.signature,
+          label: fieldLabel(field),
+          accept: field.accept,
+          category: suggestion?.category ?? null,
+          preset: suggestion?.preset ?? null,
+        }
+      : null;
+
+  const downloadFile = async (id: string, kind: 'derivative' | 'source_document') => {
+    setDownloadStates((current) => ({ ...current, [id]: 'working' }));
+    const response =
+      kind === 'derivative'
+        ? await send({ type: 'DOWNLOAD_DERIVATIVE', derivativeId: id })
+        : await send({ type: 'DOWNLOAD_DOCUMENT', documentId: id });
+
+    if (!response.ok) {
+      setDownloadStates((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+
+    setDownloadStates((current) => ({ ...current, [id]: 'done' }));
+    setTimeout(() => {
+      setDownloadStates((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+    }, 2500);
   };
 
   const toggle = (signature: string) => {
@@ -558,6 +735,27 @@ export function ReviewPanel() {
           />
         ) : null}
 
+        {/*
+          * Available before the page has even been read: an operator often wants to check what
+          * the citizen already has on file before deciding which form to open. Disabled for a
+          * roaming customer until the citizen has consented — their files are not readable yet,
+          * and an empty vault would read as "they have none" (migration 0024).
+          */}
+        {session.selectedCustomer ? (
+          <button
+            type="button"
+            className="btn-ghost tiny btn-block"
+            disabled={
+              session.selectedCustomer.isRoaming &&
+              session.selectedCustomer.accessStatus !== 'granted'
+            }
+            onClick={() => setPicker({ slot: null })}
+          >
+            <FolderIcon size={13} />
+            Customer vault — all saved documents
+          </button>
+        ) : null}
+
         {error ? (
           <div className="notice notice-danger">
             <AlertIcon size={13} />
@@ -644,6 +842,7 @@ export function ReviewPanel() {
                 <div className="card card-flush">
                   {proposal.documentSuggestions.map((suggestion) => {
                     const docField = fieldBySignature.get(suggestion.signature);
+                    const chosen = attachments[suggestion.signature];
                     const constraints = suggestion.preset
                       ? formatPresetConstraints(suggestion.preset)
                       : null;
@@ -670,7 +869,9 @@ export function ReviewPanel() {
                               // The box's own `accept` decides. A file it would reject can still
                               // be downloaded, but not ticked for attaching.
                               const accepted = fileMatchesAccept(docField?.accept, file);
-                              const ticked = attachments[suggestion.signature] === file.id;
+                              const ticked = chosen?.id === file.id;
+                              const downloadState = downloadStates[file.id];
+                              const kind = file.kind ?? 'derivative';
 
                               return (
                                 <div key={file.id} className="spread">
@@ -688,28 +889,63 @@ export function ReviewPanel() {
                                       checked={ticked}
                                       disabled={!accepted}
                                       onChange={() =>
-                                        toggleAttachment(suggestion.signature, file.id)
+                                        chooseAttachment(suggestion.signature, {
+                                          id: file.id,
+                                          kind,
+                                          filename: file.filename,
+                                          sizeBytes: file.sizeBytes,
+                                          mimeType: file.mimeType,
+                                          manual: false,
+                                        })
                                       }
                                     />
+                                    <span className="badge badge-muted" style={{ flexShrink: 0 }}>
+                                      {kind === 'derivative' ? 'Prepared' : 'Original'}
+                                    </span>
                                     <span className="truncate">
                                       {file.filename} · {formatKb(file.sizeBytes)}
                                       {file.matchesPreset ? ' · matches this portal' : ''}
                                       {accepted ? '' : ' · this box does not accept this type'}
                                     </span>
                                   </label>
-                                  <button
-                                    type="button"
-                                    className="btn-ghost tiny"
-                                    onClick={() =>
-                                      void send({
-                                        type: 'DOWNLOAD_DERIVATIVE',
-                                        derivativeId: file.id,
-                                      })
-                                    }
-                                  >
-                                    <DownloadIcon size={12} />
-                                    Download
-                                  </button>
+                                  <span className="row" style={{ gap: 4, flexShrink: 0 }}>
+                                    <button
+                                      type="button"
+                                      className="btn-ghost tiny"
+                                      onClick={() =>
+                                        setPreviewTarget({
+                                          signature: suggestion.signature,
+                                          id: file.id,
+                                          kind,
+                                          filename: file.filename,
+                                          sizeBytes: file.sizeBytes,
+                                          width: file.width,
+                                          height: file.height,
+                                          mimeType: file.mimeType,
+                                          category: suggestion.category,
+                                          preset: suggestion.preset,
+                                        })
+                                      }
+                                    >
+                                      <EyeIcon size={12} />
+                                      Preview
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn-ghost tiny"
+                                      disabled={downloadState === 'working'}
+                                      onClick={() => void downloadFile(file.id, kind)}
+                                    >
+                                      {downloadState === 'working' ? (
+                                        <span className="spinner spinner-ink" />
+                                      ) : downloadState === 'done' ? (
+                                        <CheckIcon size={12} />
+                                      ) : (
+                                        <DownloadIcon size={12} />
+                                      )}
+                                      {downloadState === 'done' ? 'Downloaded' : 'Download'}
+                                    </button>
+                                  </span>
                                 </div>
                               );
                             })}
@@ -723,26 +959,105 @@ export function ReviewPanel() {
                           </p>
                         )}
 
-                        {session.selectedCustomer ? (
-                          <button
-                            type="button"
-                            className="btn-secondary tiny btn-block"
-                            style={{ marginTop: 7 }}
-                            onClick={() =>
-                              void send({
-                                type: 'OPEN_DASHBOARD',
-                                path: documentToolPath(
-                                  suggestion.category,
-                                  session.selectedCustomer!.id,
-                                  suggestion.preset?.code ?? null,
-                                ),
-                              })
-                            }
-                          >
-                            <ExternalIcon size={12} />
-                            Prepare in Document Tools Studio
-                          </button>
+                        {/*
+                         * An override is not in the list above, so it is named here or nowhere.
+                         * Reverting drops back to no attachment, which is where a suggestion
+                         * card starts — the suggestions themselves are still right there to tick.
+                         */}
+                        {chosen?.manual ? (
+                          <ChosenFileCard
+                            choice={chosen}
+                            badge="Override"
+                            clearLabel="Use a suggestion instead"
+                            onClear={() => clearAttachment(suggestion.signature)}
+                          />
                         ) : null}
+
+                        {session.selectedCustomer ? (
+                          <div className="stack-sm" style={{ marginTop: 7 }}>
+                            <button
+                              type="button"
+                              className="btn-ghost tiny btn-block"
+                              disabled={!docField}
+                              onClick={() => setPicker({ slot: slotFor(docField, suggestion) })}
+                            >
+                              <PaperclipIcon size={12} />
+                              Choose another file from customer profile…
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-secondary tiny btn-block"
+                              onClick={() =>
+                                void send({
+                                  type: 'OPEN_DASHBOARD',
+                                  path: documentToolPath(
+                                    suggestion.category,
+                                    session.selectedCustomer!.id,
+                                    suggestion.preset?.code ?? null,
+                                  ),
+                                })
+                              }
+                            >
+                              <ExternalIcon size={12} />
+                              Prepare in Document Tools Studio
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : null}
+
+            {/*
+              * Upload boxes the server had nothing to say about — an unlabelled input, a label
+              * in a script the category words do not cover, or a portal's own catch-all "any
+              * other supporting document". There is no suggestion to offer, but the operator can
+              * still put a file in one, and cannot do that at all if the box is never listed.
+              */}
+            {unmatchedUploads.length > 0 && session.selectedCustomer ? (
+              <>
+                <h2>Other upload boxes</h2>
+                <div className="card card-flush">
+                  {unmatchedUploads.map((field) => {
+                    const chosen = attachments[field.signature];
+                    const acceptPhrase = describeAccept(field.accept);
+
+                    return (
+                      <div key={field.signature} className="field-row">
+                        <span className="spread">
+                          {/* Host-page text, rendered as text — never as markup (§19.6). */}
+                          <span className="strong truncate">{fieldLabel(field)}</span>
+                          <span className="badge badge-muted">Upload</span>
+                        </span>
+
+                        <p className="tiny muted" style={{ margin: '4px 0 0' }}>
+                          Nothing suggested for this one
+                          {acceptPhrase ? ` — it accepts ${acceptPhrase}` : ''}. Pick a file
+                          yourself if the portal asks for one.
+                        </p>
+
+                        {chosen ? (
+                          <ChosenFileCard
+                            choice={chosen}
+                            badge="Selected"
+                            clearLabel="Remove"
+                            onClear={() => clearAttachment(field.signature)}
+                          />
+                        ) : null}
+
+                        <button
+                          type="button"
+                          className="btn-secondary tiny btn-block"
+                          style={{ marginTop: 7 }}
+                          onClick={() => setPicker({ slot: slotFor(field) })}
+                        >
+                          <PaperclipIcon size={12} />
+                          {chosen
+                            ? 'Choose a different file…'
+                            : 'Choose a file from customer profile…'}
+                        </button>
                       </div>
                     );
                   })}
@@ -990,6 +1305,57 @@ export function ReviewPanel() {
           </>
         ) : null}
       </div>
+
+      {previewTarget ? (
+        <DocumentPreviewModal
+          target={previewTarget}
+          customerId={session.selectedCustomer?.id ?? null}
+          attached={attachments[previewTarget.signature]?.id === previewTarget.id}
+          attachDisabledReason={attachRejection(
+            fieldBySignature.get(previewTarget.signature)?.accept,
+            previewTarget,
+          )}
+          onToggleAttach={() =>
+            chooseAttachment(previewTarget.signature, {
+              id: previewTarget.id,
+              kind: previewTarget.kind,
+              filename: previewTarget.filename,
+              sizeBytes: previewTarget.sizeBytes,
+              mimeType: previewTarget.mimeType,
+              manual: false,
+            })
+          }
+          onClose={() => setPreviewTarget(null)}
+        />
+      ) : null}
+
+      {picker && session.selectedCustomer ? (
+        <CustomerDocumentPickerModal
+          customerId={session.selectedCustomer.id}
+          slot={picker.slot}
+          selectedId={picker.slot ? (attachments[picker.slot.signature]?.id ?? null) : null}
+          onSelect={(doc) => {
+            if (!picker.slot) return;
+            const { signature } = picker.slot;
+            /*
+             * A pick that happens to be one of this box's own suggestions is not an override —
+             * it ticks the row already on screen. Marking it manual anyway would name the same
+             * file twice, once in the list and once in an "Override" card above it.
+             */
+            const suggested = (proposal?.documentSuggestions ?? [])
+              .find((suggestion) => suggestion.signature === signature)
+              ?.suggestions.some((file) => file.id === doc.id);
+            chooseAttachment(signature, {
+              ...choiceFromDocument(doc),
+              manual: suggested !== true,
+            });
+          }}
+          onClear={() => {
+            if (picker.slot) clearAttachment(picker.slot.signature);
+          }}
+          onClose={() => setPicker(null)}
+        />
+      ) : null}
     </div>
   );
 }
