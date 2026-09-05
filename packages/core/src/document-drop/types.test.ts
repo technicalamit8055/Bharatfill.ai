@@ -111,9 +111,36 @@ describe('operator schemas', () => {
     expect(convertDropSessionSchema.parse({ fullName: '  Test Person  ' }).fullName).toBe(
       'Test Person',
     );
-    expect(convertDropSessionSchema.parse({})).toEqual({});
+    // An empty body still means "the whole session, to a new profile, at this centre".
+    expect(convertDropSessionSchema.parse({})).toEqual({ target: 'local' });
     expect(convertDropSessionSchema.safeParse({ customerId: 'not-a-uuid' }).success).toBe(false);
     expect(convertDropSessionSchema.safeParse({ fullName: 'A' }).success).toBe(false);
+  });
+
+  it('takes a bounded selection of files, or none at all', () => {
+    expect(convertDropSessionSchema.parse({ fileIds: [FILE] }).fileIds).toEqual([FILE]);
+    // Absent, not empty: the service distinguishes "all of them" from "these specific ones".
+    expect(convertDropSessionSchema.parse({}).fileIds).toBeUndefined();
+    expect(convertDropSessionSchema.safeParse({ fileIds: [] }).success).toBe(false);
+    expect(convertDropSessionSchema.safeParse({ fileIds: ['nope'] }).success).toBe(false);
+    expect(
+      convertDropSessionSchema.safeParse({
+        fileIds: Array.from({ length: MAX_DROP_FILES_PER_SESSION + 1 }, () => FILE),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('will not accept a roaming save without the citizen it is for', () => {
+    // A roaming save is consent over one named person; there is nothing to consent to when no
+    // customer is given, so the schema refuses rather than leaving it to a runtime check.
+    expect(convertDropSessionSchema.safeParse({ target: 'roaming' }).success).toBe(false);
+    expect(
+      convertDropSessionSchema.safeParse({ target: 'roaming', fullName: 'Test Person' }).success,
+    ).toBe(false);
+    expect(
+      convertDropSessionSchema.parse({ target: 'roaming', customerId: SESSION }).target,
+    ).toBe('roaming');
+    expect(convertDropSessionSchema.safeParse({ target: 'elsewhere' }).success).toBe(false);
   });
 
   it('restricts the simulator to named fixtures and a bounded count', () => {

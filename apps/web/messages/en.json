@@ -1759,7 +1759,24 @@
         "whatsapp": "WhatsApp",
         "telegram": "Telegram",
         "web": "Phone upload"
-      }
+      },
+      "expand": "Show documents",
+      "collapse": "Hide documents",
+      "selectAll": "Select all",
+      "selectNone": "Clear selection",
+      "selectedCount": "{count} selected",
+      "preview": "Preview",
+      "download": "Download",
+      "save": "Save to customer",
+      "saveBusy": "Saving…",
+      "savedLocal": "Saved to {name}.",
+      "savedRoaming": "Saved to {name}'s file at their home centre.",
+      "savedPartial": "Saved. The remaining documents are still in the queue.",
+      "openProfile": "Open profile",
+      "previewUnavailable": "This file cannot be shown here. Download it instead.",
+      "previewFailed": "Could not open that file. Try again.",
+      "downloadFailed": "Could not download that file. Try again.",
+      "noSelection": "Choose at least one document first."
     },
     "simulate": {
       "tab": "Simulate a drop",
@@ -1814,7 +1831,32 @@
       "alreadyClaimed": "These documents have already been taken in.",
       "noFiles": "Nothing has been sent to this session yet.",
       "tooManyFiles": "This session already holds the maximum number of documents.",
-      "sessionNotFound": "That code is not active."
+      "sessionNotFound": "That code is not active.",
+      "roamingNeedsCustomer": "Choose the citizen these documents belong to.",
+      "roamingIsLocal": "This customer is already at your centre. Save them here instead.",
+      "roamingConsentRequired": "This citizen’s consent has expired. Ask them for a fresh OTP before saving."
+    },
+    "picker": {
+      "title": "Save to customer",
+      "subtitle": "{count} document(s) will be added to the customer you choose.",
+      "tabNew": "New customer",
+      "tabExisting": "Existing customer",
+      "tabRoaming": "Another centre",
+      "newHint": "Creates a profile from the sender’s number. You can fill in the rest afterwards.",
+      "searchLabel": "Search",
+      "searchPlaceholder": "Name, mobile or customer code",
+      "searching": "Searching…",
+      "noResults": "No customer matched that.",
+      "roamingLabel": "Registered mobile number",
+      "roamingPlaceholder": "10-digit mobile",
+      "roamingHint": "Looks the citizen up across every centre. Their documents stay in their own file.",
+      "roamingNoResults": "No citizen is registered with that number.",
+      "roamingLocked": "Consent needed",
+      "roamingLockedHint": "This citizen has not given this counter access yet. Open their card to request an OTP.",
+      "roamingActive": "Access active",
+      "roamingOpenCard": "Request access",
+      "confirm": "Save documents",
+      "cancel": "Cancel"
     }
   }
 }

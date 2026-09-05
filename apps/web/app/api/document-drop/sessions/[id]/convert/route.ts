@@ -19,9 +19,11 @@ const idSchema = z.string().uuid();
  * extraction. The heavy lifting, and the reasoning about ordering and races, is in
  * `convertDropSession`.
  *
- * Two permissions are checked because this one action does two things a role can be allowed
- * separately: it brings documents into the organization, and — unless the operator picked an
- * existing profile — it creates a customer.
+ * Permissions are checked per thing the action actually does, because a role can be allowed one
+ * and not the others: it brings documents in (`document.upload`), it may create a customer
+ * (`customer.create`), and it may write into another centre's citizen file under a consent grant
+ * (`customer.roaming_authenticate`). The service verifies the grant itself; this only refuses a
+ * role that has no business on that path at all.
  */
 export const POST = handler(
   'api.document_drop.convert',
@@ -32,19 +34,29 @@ export const POST = handler(
     const sessionId = idSchema.parse((await ctx.params).id);
     const input = convertDropSessionSchema.parse(await readBody(request));
 
-    if (!input.customerId) requirePermission(context, 'customer.create');
+    const isRoaming = input.target === 'roaming';
+    // A roaming save always names an existing citizen, so it never creates a profile.
+    const createsCustomer = !isRoaming && !input.customerId;
+
+    if (createsCustomer) requirePermission(context, 'customer.create');
+    if (isRoaming) requirePermission(context, 'customer.roaming_authenticate');
 
     // Plan limits are checked here rather than inside the service so the operator is told
     // before anything is claimed, and so the service stays usable from a background context.
     const entitlements = await loadEntitlementContext(context);
 
-    if (!input.customerId) {
+    if (createsCustomer) {
       const customers = checkCustomerLimit(entitlements);
       if (!customers.allowed) throw entitlementExceeded(customers.reason);
     }
 
-    const extraction = checkUsageEntitlement(entitlements, 'ai_extraction');
-    if (!extraction.allowed) throw entitlementExceeded(extraction.reason);
+    // Only a local save queues extraction (see `convertDropSession`), so only a local save
+    // needs the quota for it. Charging a visiting centre for a job that never runs would be
+    // wrong, and blocking the citizen's own document over it would be worse.
+    if (!isRoaming) {
+      const extraction = checkUsageEntitlement(entitlements, 'ai_extraction');
+      if (!extraction.allowed) throw entitlementExceeded(extraction.reason);
+    }
 
     const result = await convertDropSession(context, sessionId, input);
 
@@ -53,7 +65,9 @@ export const POST = handler(
       documentIds: result.documentIds,
       failedFileIds: result.failedFileIds,
       queuedExtractions: result.queuedExtractions,
-      status: 'processing',
+      sessionRemainsOpen: result.sessionRemainsOpen,
+      target: result.target,
+      status: result.target === 'local' ? 'processing' : 'saved',
     });
   },
 );

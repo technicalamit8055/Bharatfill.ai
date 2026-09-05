@@ -356,6 +356,8 @@ export default async function DashboardPage({
             <DocumentDropQueue
               canIntake={canUploadDocuments}
               canDiscard={session.permissions.has('document.delete')}
+              canPreview={session.permissions.has('document.download')}
+              canPickRoaming={session.permissions.has('customer.roaming_link')}
             />
           ) : null}
 

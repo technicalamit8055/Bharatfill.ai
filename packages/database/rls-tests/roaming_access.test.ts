@@ -392,3 +392,161 @@ describe('constraints', () => {
     expect(error?.message).toMatch(/ASSISTIGO_ROAMING_LINK_SAME_ORG/);
   });
 });
+
+/**
+ * Writing to a roaming customer — migration 0025.
+ *
+ * 0024 opened reading; this opens exactly one write, so that a walk-in document handed over at a
+ * visiting counter lands in the citizen's own file rather than forking it across two centres.
+ * The tests below are about the boundaries of that one write, because those are what stop the
+ * clause from becoming a general cross-tenant hole:
+ *
+ *   - a live grant lets org B insert a document for the customer *into org A*,
+ *   - the same grant does not let org B update or delete what org A already holds,
+ *   - it does not let org B write a document into org A for a customer they hold no grant over,
+ *   - and it does not let org B keep the row while claiming org A's id, or vice versa.
+ */
+describe('a live grant permits exactly one cross-centre write (migration 0025)', () => {
+  let grantId: string;
+  let otherCustomerId: string;
+  const written: string[] = [];
+
+  beforeAll(async () => {
+    const { data, error } = await fixture.admin
+      .from('customer_access_grants')
+      .insert({
+        customer_id: customerId,
+        organization_id: fixture.orgB.id,
+        granted_to_user_id: fixture.orgB.usersByRole.operator.id,
+        status: 'active',
+        expires_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+      })
+      .select('id')
+      .single();
+    if (error) throw error;
+    grantId = data.id as string;
+
+    // A second org A customer, with no grant over them, to prove the clause is per-customer.
+    const { data: other, error: otherError } = await fixture.orgA.usersByRole.owner.client
+      .from('customers')
+      .insert({
+        organization_id: fixture.orgA.id,
+        full_name: 'Ungranted Fixture Customer',
+        mobile: '9900011133',
+      })
+      .select('id')
+      .single();
+    if (otherError) throw otherError;
+    otherCustomerId = other.id as string;
+  });
+
+  afterAll(async () => {
+    if (written.length > 0) await fixture.admin.from('documents').delete().in('id', written);
+    await fixture.admin.from('customers').delete().eq('id', otherCustomerId);
+    await fixture.admin.from('customer_access_grants').delete().eq('id', grantId);
+  });
+
+  it('lets the grant holder add a document to the customer home organization', async () => {
+    const { data, error } = await fixture.orgB.usersByRole.operator.client
+      .from('documents')
+      .insert({
+        // Org A, not org B: the document belongs to the citizen's file.
+        organization_id: fixture.orgA.id,
+        customer_id: customerId,
+        original_filename: 'walk-in-drop.jpg',
+        storage_path: `org/${fixture.orgA.id}/customer/${customerId}/${crypto.randomUUID()}/walk-in-drop.jpg`,
+        mime_type: 'image/jpeg',
+        size_bytes: 2048,
+        uploaded_by: fixture.orgB.usersByRole.operator.id,
+      })
+      .select('id')
+      .single();
+
+    expect(error).toBeNull();
+    expect(data?.id).toBeTruthy();
+    if (data?.id) written.push(data.id as string);
+  });
+
+  it('refuses a document for a customer the caller holds no grant over', async () => {
+    const { error } = await fixture.orgB.usersByRole.operator.client.from('documents').insert({
+      organization_id: fixture.orgA.id,
+      customer_id: otherCustomerId,
+      original_filename: 'not-mine.jpg',
+      storage_path: `org/${fixture.orgA.id}/customer/${otherCustomerId}/${crypto.randomUUID()}/not-mine.jpg`,
+      mime_type: 'image/jpeg',
+      size_bytes: 2048,
+      uploaded_by: fixture.orgB.usersByRole.operator.id,
+    });
+    expect(error).not.toBeNull();
+  });
+
+  it('refuses a row whose organization is not the customer home centre', async () => {
+    // Claiming org B's id for org A's customer would put a foreign customer_id on this centre's
+    // books, which is the shape the equality check in the policy exists to reject.
+    const { error } = await fixture.orgB.usersByRole.operator.client.from('documents').insert({
+      organization_id: fixture.orgB.id,
+      customer_id: customerId,
+      original_filename: 'wrong-org.jpg',
+      storage_path: `org/${fixture.orgB.id}/customer/${customerId}/${crypto.randomUUID()}/wrong-org.jpg`,
+      mime_type: 'image/jpeg',
+      size_bytes: 2048,
+      uploaded_by: fixture.orgB.usersByRole.operator.id,
+    });
+    expect(error).not.toBeNull();
+  });
+
+  it('refuses a row attributed to somebody other than the grant holder', async () => {
+    const { error } = await fixture.orgB.usersByRole.operator.client.from('documents').insert({
+      organization_id: fixture.orgA.id,
+      customer_id: customerId,
+      original_filename: 'wrong-actor.jpg',
+      storage_path: `org/${fixture.orgA.id}/customer/${customerId}/${crypto.randomUUID()}/wrong-actor.jpg`,
+      mime_type: 'image/jpeg',
+      size_bytes: 2048,
+      // The grant names one user; a row must not be laundered through a colleague's name.
+      uploaded_by: fixture.orgB.usersByRole.manager.id,
+    });
+    expect(error).not.toBeNull();
+  });
+
+  it('does not let the grant holder update or delete what the home centre already holds', async () => {
+    const operator = fixture.orgB.usersByRole.operator.client;
+
+    const { data: updated } = await operator
+      .from('documents')
+      .update({ original_filename: 'renamed.jpg' })
+      .eq('id', documentId)
+      .select('id');
+    expect(updated ?? []).toEqual([]);
+
+    const { data: deleted } = await operator
+      .from('documents')
+      .delete()
+      .eq('id', documentId)
+      .select('id');
+    expect(deleted ?? []).toEqual([]);
+  });
+
+  it('stops permitting the write once the grant is revoked', async () => {
+    const { error: revokeError } = await fixture.admin
+      .from('customer_access_grants')
+      .update({
+        status: 'revoked',
+        revoked_at: new Date().toISOString(),
+        revoked_by: fixture.orgB.usersByRole.operator.id,
+      })
+      .eq('id', grantId);
+    if (revokeError) throw revokeError;
+
+    const { error } = await fixture.orgB.usersByRole.operator.client.from('documents').insert({
+      organization_id: fixture.orgA.id,
+      customer_id: customerId,
+      original_filename: 'after-revoke.jpg',
+      storage_path: `org/${fixture.orgA.id}/customer/${customerId}/${crypto.randomUUID()}/after-revoke.jpg`,
+      mime_type: 'image/jpeg',
+      size_bytes: 2048,
+      uploaded_by: fixture.orgB.usersByRole.operator.id,
+    });
+    expect(error).not.toBeNull();
+  });
+});

@@ -157,15 +157,47 @@ export const createDropSessionSchema = z.object({
 });
 export type CreateDropSessionInput = z.output<typeof createDropSessionSchema>;
 
-export const convertDropSessionSchema = z.object({
-  /**
-   * Attach to somebody already on file instead of creating a profile. The returning customer is
-   * the common case at a CSC — the same person comes back for the next scheme.
-   */
-  customerId: z.string().uuid().optional(),
-  /** Used only when creating a profile; the citizen's name as the operator heard it. */
-  fullName: z.string().trim().min(2).max(160).optional(),
-});
+/**
+ * Where a saved file lands.
+ *
+ *   - `local`   — a customer in the operator's own organization, or a new profile when no
+ *                 `customerId` is given. The ordinary walk-in.
+ *   - `roaming` — a citizen whose home centre is a different organization, reachable only while
+ *                 the operator holds a live, OTP-consented access grant (migration 0024/0025).
+ *                 The document is written into the citizen's *home* organization, so it stays
+ *                 with them rather than forking their file across two centres.
+ *
+ * A roaming save can never create a profile: consent is granted over a citizen who already
+ * exists, and there is nothing to consent to otherwise. The schema enforces that rather than
+ * leaving it to a runtime check.
+ */
+export const DROP_SAVE_TARGETS = ['local', 'roaming'] as const;
+export type DropSaveTarget = (typeof DROP_SAVE_TARGETS)[number];
+
+export const convertDropSessionSchema = z
+  .object({
+    /**
+     * Attach to somebody already on file instead of creating a profile. The returning customer
+     * is the common case at a CSC — the same person comes back for the next scheme.
+     */
+    customerId: z.string().uuid().optional(),
+    /** Used only when creating a profile; the citizen's name as the operator heard it. */
+    fullName: z.string().trim().min(2).max(160).optional(),
+    /**
+     * Which staged files to save. Absent means the whole session, which is what the one-click
+     * intake sends and what every caller before per-file selection existed did.
+     *
+     * A subset leaves the session open so the rest can go somewhere else — a family that dropped
+     * a father's and a son's documents down one WhatsApp thread is the case this is for.
+     */
+    fileIds: z.array(z.string().uuid()).min(1).max(MAX_DROP_FILES_PER_SESSION).optional(),
+    /** Defaults to the ordinary same-organization save. */
+    target: z.enum(DROP_SAVE_TARGETS).default('local'),
+  })
+  .refine((value) => value.target !== 'roaming' || value.customerId !== undefined, {
+    message: 'documentDrop.errors.roamingNeedsCustomer',
+    path: ['customerId'],
+  });
 export type ConvertDropSessionInput = z.output<typeof convertDropSessionSchema>;
 
 /**

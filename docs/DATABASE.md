@@ -120,6 +120,17 @@ Three things about this schema are load-bearing:
   what stops two operators creating two customers for one walk-in, and stops the sweep deleting
   files out from under an intake in progress.
 
+Staged bytes **are** readable before conversion, through
+`POST /api/document-drop/sessions/:id/files/:fileId/signed-url` — five-minute URL, `document.download`,
+one `drop_file.previewed` audit row per issue. The queue used to withhold them, which was right
+while the only choice was "take the whole session or discard it"; per-file intake made it wrong,
+because telling a father's Aadhaar from his son's is not something a WhatsApp caption can do, and
+an operator who cannot look will take everything onto one profile and untangle it afterwards.
+
+A save may also take a **subset** of a session's files (`fileIds`). When files are left behind the
+session returns to `ready` so the remainder can go to a different customer; the conditional claim
+still happens first, and is released deliberately at the end.
+
 `purge_expired_document_drops()` marks and deletes rows only — Postgres cannot reach the storage
 backend, and deleting from `storage.objects` would orphan the bytes. The application sweep in
 `apps/web/lib/document-drop/purge.ts` marks, removes the objects, then deletes the rows it
@@ -188,6 +199,31 @@ Two more RPCs mask in SQL and so remain safe for `authenticated`:
 `roaming_linked_customers()` (a centre's own roaming list — given name, family initial, last-four
 mobile) and the boolean checks `has_customer_roaming_link()` / `has_active_customer_grant()`,
 which back the RLS policies themselves.
+
+### Writing to a roaming customer (0025)
+
+0024 opened reading only. 0025 opens **one** write, because a walk-in drop handed over at a
+visiting counter has nowhere sensible to go otherwise: staging it at the visiting centre would
+fork the citizen's file across two organizations, which is the outcome roaming exists to prevent.
+
+`documents_insert` gained a second arm. A caller with no role in the organization may insert when
+_all_ of the following hold, and the conjunction is the safety property:
+
+- they hold a live grant over the row's `customer_id` (`has_active_customer_grant`);
+- `organization_id` equals that customer's **own** `organizations` row — so the authority cannot
+  be turned toward any other tenant;
+- `uploaded_by` is the caller themselves — a grant names one user, so the row records which human
+  acted inside an organization they are not a member of.
+
+`update` and `delete` are untouched: a visiting operator may add to the citizen's file and may
+not alter or remove what the home centre holds — 0024's read asymmetry, applied to writes. A
+matching `storage.objects` insert policy admits the bytes, scoped by path to
+`org/<home org>/customer/<granted customer>/…` rather than to the home centre's bucket at large.
+
+The application layer verifies the grant itself before it gets here
+(`resolveRoamingDestination` in `apps/web/lib/document-drop/service.ts`), and neither gate is
+trusted to be the only one. `packages/database/rls-tests/roaming_access.test.ts` covers the
+boundaries; the write is audited as `drop_file.saved_to_roaming`, which carries the grant id.
 
 ## 6. Indexes
 

@@ -86,6 +86,16 @@ it is consent-gated and time-boxed rather than role-based:
   PostgREST by any role but `service_role`, which only `apps/web/lib/roaming/service.ts` uses.
   `customer_access_grants` likewise has no insert/update policy for `authenticated` — a grant is
   minted only after that code verifies the code the citizen supplied.
+- **One write crosses the boundary (migration 0025), and only one.** A grant holder may *insert* a
+  document for the consenting citizen into that citizen's **home** organization — the walk-in drop
+  handed over at a visiting counter. `organization_id` must equal the customer's own centre and
+  `uploaded_by` must be the grant holder, so the permission cannot be aimed at another tenant or
+  laundered through a colleague's name. `update` and `delete` stay closed: a visiting centre may
+  add to a citizen's file and may never alter or remove what the home centre holds. The bytes are
+  admitted by a matching `storage.objects` insert policy scoped to
+  `org/<home org>/customer/<granted customer>/…`. Extraction is deliberately **not** queued for
+  such a document — `document_extractions` was never opened to a grant holder, so the visiting
+  operator could not read the transcript in any case.
 - The platform-wide search (`roaming_customer_search`) and the by-id pre-auth projection
   (`roaming_customer_card`) are both **service-role-only**, never granted to `authenticated`, even
   though the boolean checks that gate the RLS policies (`has_active_customer_grant`,
@@ -167,7 +177,15 @@ Recorded in `audit_logs` with sensitivity `normal | sensitive | critical`:
 login failure · member invite/remove/role change · customer create/update/delete ·
 sensitive field reveal · document upload/download/delete · extraction accepted ·
 fill session run · application status change · billing plan change · data export/delete ·
-support access grant and use · roaming lookup/link/OTP requested/access granted/revoked/expired.
+support access grant and use · roaming lookup/link/OTP requested/access granted/revoked/expired ·
+walk-in drop session created/converted/discarded · staged drop file previewed · drop files saved
+to a roaming customer.
+
+The last two are the walk-in intake pair (§9.1). A staged file is bytes a stranger sent about a
+person who is not yet a customer, so issuing a signed URL over one is audited exactly as
+`document.downloaded` is — reading it is the sensitive act, not claiming it. `drop_file.saved_to_roaming`
+is `critical` and records the grant id, because it is the only write in the product that crosses
+a tenant boundary.
 
 The action catalogue is `packages/core/src/audit/actions.ts`. Audit rows are insert-only:
 no update or delete policy exists for any role.

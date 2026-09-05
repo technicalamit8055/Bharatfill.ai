@@ -22,12 +22,17 @@ import {
   type ConvertDropSessionInput,
   type DocumentType,
   type DropChannel,
+  type DropSaveTarget,
 } from '@assistigo/core';
 import { logger } from '../api/logger';
 import { writeAuditLog } from '../api/audit';
 import type { RequestContext } from '../api/context';
 import { enqueueJob } from '../jobs/queue';
-import { SNIFF_BYTE_COUNT, assertDeclaredTypeMatchesBytes } from '../documents/storage';
+import {
+  SNIFF_BYTE_COUNT,
+  assertDeclaredTypeMatchesBytes,
+  createSignedDownloadUrl,
+} from '../documents/storage';
 import type { AssistigoSupabaseClient } from '../supabase/server';
 import type {
   DocumentDropFileRow,
@@ -686,6 +691,30 @@ export type ConvertedDropSession = {
   /** Files that could not be promoted. The session keeps them so the operator can retry. */
   failedFileIds: string[];
   queuedExtractions: number;
+  /**
+   * True when files were left behind for another customer, so the session is still claimable.
+   * The dashboard uses this to decide between "go to the profile" and "stay on the queue".
+   */
+  sessionRemainsOpen: boolean;
+  /** Where the documents landed. `roaming` means another organization's customer file. */
+  target: DropSaveTarget;
+};
+
+/**
+ * The customer a save is aimed at, once authority for it has actually been established.
+ *
+ * `organizationId` is the organization the `documents` rows are written into, and it is not
+ * always the caller's: for a roaming save it is the citizen's home centre, which is the whole
+ * point of the roaming path (migration 0025). Every caller must therefore use this field rather
+ * than reaching for `context.organization.id`, or a cross-centre save would silently write a row
+ * the home centre cannot see.
+ */
+type SaveDestination = {
+  customerId: string;
+  organizationId: string;
+  target: DropSaveTarget;
+  /** The grant this save is riding on, for the audit row. Null for an ordinary local save. */
+  grantId: string | null;
 };
 
 /**
@@ -697,13 +726,21 @@ export type ConvertedDropSession = {
  *      safe to double-click and what stops the retention sweep expiring a session mid-conversion
  *      — whoever moves the status out of `active`/`ready` first wins, and the loser gets a plain
  *      "already taken" instead of a duplicated customer.
- *   2. Resolve the customer: an existing profile if the operator picked one, otherwise a new one
- *      pre-filled with the sender's number, which is the time saving this whole feature is for.
+ *   2. Resolve the destination: an existing profile if the operator picked one, a roaming
+ *      citizen's home file if they picked one of those and hold live consent, otherwise a new
+ *      profile pre-filled with the sender's number — the time saving this feature is for.
  *   3. Per file: copy the bytes to the canonical document path, insert the `documents` row, then
  *      delete the staged copy. Copy-then-delete rather than move, so a failed insert leaves the
  *      original in place and the operator can press the button again.
  *   4. Queue `ocr.extract` per document, through the same RPC the upload path uses — so the
  *      database re-checks the caller's role rather than trusting this code.
+ *
+ * **Partial saves.** `input.fileIds` narrows the save to some of the staged files. One WhatsApp
+ * thread often carries two people's documents — a father's and a son's — and before this the
+ * operator's only option was to take everything onto one profile and untangle it afterwards.
+ * When files are left behind the session is handed back to `ready` at the end rather than left
+ * `converted`, so the remainder can go to a second customer. The claim in step 1 still happens:
+ * it is what serialises two operators working the same session, and it is released deliberately.
  *
  * The operator verification gate is untouched: extraction proposes, review accepts (§12.6).
  */
@@ -744,7 +781,7 @@ export async function convertDropSession(
 
   if (filesError) throw filesError;
 
-  const staged = (files ?? []) as Pick<
+  const unconverted = (files ?? []) as Pick<
     DocumentDropFileRow,
     | 'id'
     | 'original_filename'
@@ -755,7 +792,20 @@ export async function convertDropSession(
     | 'suggested_document_type'
   >[];
 
-  if (staged.length === 0) throw conflict('documentDrop.errors.noFiles');
+  if (unconverted.length === 0) throw conflict('documentDrop.errors.noFiles');
+
+  // A selection is filtered against what is actually still staged, rather than trusted. An id
+  // from a stale queue poll — already converted, or belonging to another session — must not
+  // silently widen or narrow the save, so an unmatched selection is refused outright.
+  const selected =
+    input.fileIds === undefined
+      ? unconverted
+      : unconverted.filter((file) => input.fileIds?.includes(file.id));
+
+  if (selected.length === 0) throw conflict('documentDrop.errors.noFiles');
+
+  const staged = selected;
+  const leftBehind = unconverted.length - staged.length;
 
   // Step 1 — claim. Conditional on the status we just read, so two operators racing produce one
   // customer and one clear refusal rather than two profiles for the same walk-in.
@@ -772,7 +822,10 @@ export async function convertDropSession(
   if (!claimed) throw conflict('documentDrop.errors.alreadyClaimed');
 
   try {
-    const customerId = await resolveCustomer(context, session, input);
+    const destination = await resolveDestination(context, session, input);
+    const { customerId, target } = destination;
+    // Not `organizationId`: a roaming save writes into the citizen's home centre (0025).
+    const targetOrganizationId = destination.organizationId;
 
     const documentIds: string[] = [];
     const failedFileIds: string[] = [];
@@ -780,7 +833,7 @@ export async function convertDropSession(
     for (const file of staged) {
       const documentId = crypto.randomUUID();
       const targetPath = documentStoragePath({
-        organizationId,
+        organizationId: targetOrganizationId,
         customerId,
         documentId,
         filename: file.original_filename,
@@ -794,7 +847,7 @@ export async function convertDropSession(
 
         const { error: insertError } = await context.supabase.from('documents').insert({
           id: documentId,
-          organization_id: organizationId,
+          organization_id: targetOrganizationId,
           customer_id: customerId,
           original_filename: file.original_filename,
           storage_bucket: file.storage_bucket,
@@ -844,31 +897,55 @@ export async function convertDropSession(
       }
     }
 
+    // Extraction runs only for documents this organization owns. A roaming save deliberately
+    // queues nothing: `document_extractions` was never opened to a grant holder (0024 header),
+    // the visiting operator could not read the transcript it produced, and spending the home
+    // centre's AI quota on a job they did not ask for is not this centre's call. The home centre
+    // presses Read on the document themselves, exactly as they would for a counter upload.
     let queuedExtractions = 0;
-    for (const documentId of documentIds) {
-      try {
-        await enqueueJob(context.supabase, {
-          type: 'ocr.extract',
-          organizationId,
-          payload: { documentId, extractionMode: 'auto' },
-          idempotencyKey: `ocr.extract:${documentId}`,
-        });
-        queuedExtractions += 1;
-      } catch (thrown) {
-        // The document exists and is visible; the operator can press Read on it. Losing the
-        // enqueue is not worth losing the intake over.
-        logger.error('document_drop.enqueue_failed', {
-          documentId,
-          reason: thrown instanceof Error ? thrown.message : 'unknown',
-        });
+    if (target === 'local') {
+      for (const documentId of documentIds) {
+        try {
+          await enqueueJob(context.supabase, {
+            type: 'ocr.extract',
+            organizationId,
+            payload: { documentId, extractionMode: 'auto' },
+            idempotencyKey: `ocr.extract:${documentId}`,
+          });
+          queuedExtractions += 1;
+        } catch (thrown) {
+          // The document exists and is visible; the operator can press Read on it. Losing the
+          // enqueue is not worth losing the intake over.
+          logger.error('document_drop.enqueue_failed', {
+            documentId,
+            reason: thrown instanceof Error ? thrown.message : 'unknown',
+          });
+        }
       }
     }
 
-    await context.supabase
-      .from('document_drop_sessions')
-      .update({ customer_id: customerId })
-      .eq('id', sessionId)
-      .eq('organization_id', organizationId);
+    // Only a local customer is recorded on the session: `document_drop_sessions.customer_id`
+    // is a same-organization pointer, and naming another centre's citizen on this centre's row
+    // would put a customer id somewhere RLS does not expect one.
+    if (target === 'local') {
+      await context.supabase
+        .from('document_drop_sessions')
+        .update({ customer_id: customerId })
+        .eq('id', sessionId)
+        .eq('organization_id', organizationId);
+    }
+
+    // Files were kept back for somebody else, so the session goes back on the queue. Conditional
+    // on the status this call set, so it cannot resurrect a session another path has since moved.
+    const sessionRemainsOpen = leftBehind > 0 && failedFileIds.length < staged.length;
+    if (sessionRemainsOpen) {
+      await context.supabase
+        .from('document_drop_sessions')
+        .update({ status: 'ready', converted_at: null })
+        .eq('id', sessionId)
+        .eq('organization_id', organizationId)
+        .eq('status', 'converted');
+    }
 
     await writeAuditLog(context, {
       action: 'drop_session.converted',
@@ -881,10 +958,36 @@ export async function convertDropSession(
         failedCount: failedFileIds.length,
         queuedExtractions,
         createdCustomer: !input.customerId,
+        target,
+        partial: leftBehind > 0,
       },
     });
 
-    return { customerId, documentIds, failedFileIds, queuedExtractions };
+    if (target === 'roaming') {
+      // The cross-tenant write, recorded against the citizen rather than the session: this is
+      // the row a home centre asking "who added this to my customer's file" needs to find, and
+      // it names the grant that authorised it.
+      await writeAuditLog(context, {
+        action: 'drop_file.saved_to_roaming',
+        entityType: 'customer',
+        entityId: customerId,
+        metadata: {
+          documentCount: documentIds.length,
+          failedCount: failedFileIds.length,
+          grantId: destination.grantId,
+          homeOrganizationId: targetOrganizationId,
+        },
+      });
+    }
+
+    return {
+      customerId,
+      documentIds,
+      failedFileIds,
+      queuedExtractions,
+      sessionRemainsOpen,
+      target,
+    };
   } catch (thrown) {
     // Conversion failed after the claim. Hand the session back so the operator can retry rather
     // than leaving a walk-in stranded in a status nothing will ever pick up.
@@ -899,22 +1002,34 @@ export async function convertDropSession(
 }
 
 /**
- * The customer the documents attach to.
+ * The customer the documents attach to, and the organization they are written into.
  *
- * An operator-picked profile is verified to belong to this organization first: RLS would refuse
- * a foreign id on the join anyway, but failing here gives them a real message instead of a
- * constraint error.
+ * Three cases, and the third is the one with teeth:
  *
- * A new profile is created unverified and deliberately thin — the sender's number and whatever
- * name the messaging profile carried. Everything else arrives through extraction and review,
- * which is the only path that writes to a confirmed profile (§12.6).
+ *   - A picked profile in this organization is verified to belong here first. RLS would refuse a
+ *     foreign id anyway, but failing here gives a real message instead of a constraint error.
+ *   - No profile picked: a new one, created unverified and deliberately thin — the sender's
+ *     number and whatever name the messaging profile carried. Everything else arrives through
+ *     extraction and review, the only path that writes to a confirmed profile (§12.6).
+ *   - A roaming citizen: the documents go to their **home** organization, and the authority for
+ *     that is a live access grant naming this user, verified here against the grant table rather
+ *     than inferred from anything the client sent. This function is what stands between "the
+ *     operator typed a uuid" and a cross-tenant write; migration 0025's policy is the second
+ *     gate, and neither is trusted to be the only one.
  */
-async function resolveCustomer(
+async function resolveDestination(
   context: RequestContext,
   session: Pick<DocumentDropSessionRow, 'sender_id' | 'sender_name'>,
   input: ConvertDropSessionInput,
-): Promise<string> {
+): Promise<SaveDestination> {
   const organizationId = context.organization.id;
+
+  if (input.target === 'roaming') {
+    // The schema guarantees this, but the cast below would hide its absence, and this is the
+    // last place a mistake is still cheap.
+    if (!input.customerId) throw validationFailed({ customerId: 'errors.validation_failed' });
+    return resolveRoamingDestination(context, input.customerId);
+  }
 
   if (input.customerId) {
     const { data, error } = await context.supabase
@@ -927,7 +1042,12 @@ async function resolveCustomer(
 
     if (error) throw error;
     if (!data) throw notFound('errors.not_found');
-    return (data as { id: string }).id;
+    return {
+      customerId: (data as { id: string }).id,
+      organizationId,
+      target: 'local',
+      grantId: null,
+    };
   }
 
   const mobile = normalizeSenderMobile(session.sender_id);
@@ -957,7 +1077,74 @@ async function resolveCustomer(
     metadata: { source: 'document_drop' },
   });
 
-  return (data as { id: string }).id;
+  return {
+    customerId: (data as { id: string }).id,
+    organizationId,
+    target: 'local',
+    grantId: null,
+  };
+}
+
+/**
+ * The roaming destination: another centre's citizen, and the grant that permits writing to them.
+ *
+ * Read with the caller's own client on purpose. 0024's `customers_select` admits a live grant
+ * holder, so this single query answers "may this operator act for this citizen at all" under
+ * RLS, and a caller with no grant sees `errors.not_found` — the same answer a made-up uuid gets,
+ * which is the answer a probe deserves.
+ *
+ * Then two further checks that RLS alone would not make:
+ *
+ *   - The customer must not be in the caller's own organization. If they are, this is an ordinary
+ *     local save wearing the wrong label, and accepting it would route a same-centre write down
+ *     the cross-tenant path for no reason.
+ *   - The grant is read explicitly, unexpired and unrevoked. `has_active_customer_grant` inside
+ *     the policy already says yes or no, but the *id* is needed for the audit row, and a grant
+ *     that lapses between here and the insert must fail the write rather than the read.
+ */
+async function resolveRoamingDestination(
+  context: RequestContext,
+  customerId: string,
+): Promise<SaveDestination> {
+  const { data: customerRow, error: customerError } = await context.supabase
+    .from('customers')
+    .select('id, organization_id')
+    .eq('id', customerId)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (customerError) throw customerError;
+  if (!customerRow) throw notFound('errors.not_found');
+
+  const customer = customerRow as { id: string; organization_id: string };
+
+  if (customer.organization_id === context.organization.id) {
+    throw validationFailed({ target: 'documentDrop.errors.roamingIsLocal' });
+  }
+
+  const { data: grantRow, error: grantError } = await context.supabase
+    .from('customer_access_grants')
+    .select('id, expires_at')
+    .eq('customer_id', customerId)
+    .eq('granted_to_user_id', context.userId)
+    .eq('status', 'active')
+    .is('revoked_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .order('expires_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (grantError) throw grantError;
+  // Reachable when the citizen has consented before and that consent has since lapsed: the
+  // profile is still readable through a bookmark, but writing to it needs live consent.
+  if (!grantRow) throw conflict('documentDrop.errors.roamingConsentRequired');
+
+  return {
+    customerId: customer.id,
+    organizationId: customer.organization_id,
+    target: 'roaming',
+    grantId: (grantRow as { id: string }).id,
+  };
 }
 
 /**
@@ -1045,4 +1232,83 @@ export async function discardDropSession(
   });
 
   return { removedFiles: rows.length };
+}
+
+// ---------------------------------------------------------------------------
+// Reading staged bytes (operator)
+// ---------------------------------------------------------------------------
+
+export type SignedDropFile = {
+  url: string;
+  mimeType: string;
+  filename: string;
+  sizeBytes: number;
+};
+
+/**
+ * A short-lived read URL for one file that is still in staging.
+ *
+ * Why this exists at all. Before per-file intake, the operator decided from the citizen's own
+ * type hints and never saw the bytes until after conversion — the comment on `listDropSessions`
+ * says exactly that, and it was the right trade while the only choice was "take the whole
+ * session or discard it". It stops being right once the operator has to decide *which* file goes
+ * to *which* customer: telling a father's Aadhaar from his son's is not something a caption can
+ * do, and an operator who cannot see the file will simply take everything and sort it out
+ * afterwards, which is worse for the citizen.
+ *
+ * So the bytes are reachable, under the same rules as a real document read (§19.3):
+ *
+ *   - `document.download` on the route, not merely `document.view`. A viewer may see that
+ *     somebody is waiting; reading their identity document is a different thing.
+ *   - The caller's own client mints the URL, so 0010's storage policy is still the second gate —
+ *     an object under another organization's path is unreachable no matter what this code does.
+ *   - Five minutes, chosen by policy and never by the caller.
+ *   - One audit row per issue. `drop_file.previewed` exists so that a staged read is as visible
+ *     after the fact as `document.downloaded` is.
+ */
+export async function signDropFile(
+  context: RequestContext,
+  sessionId: string,
+  fileId: string,
+): Promise<SignedDropFile> {
+  const organizationId = context.organization.id;
+
+  const { data, error } = await context.supabase
+    .from('document_drop_files')
+    .select('id, original_filename, mime_type, size_bytes, storage_bucket, storage_path')
+    .eq('id', fileId)
+    .eq('session_id', sessionId)
+    .eq('organization_id', organizationId)
+    // A converted file's staged copy has already been removed; the document is the way to it now.
+    .is('converted_document_id', null)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) throw notFound('errors.not_found');
+
+  const file = data as Pick<
+    DocumentDropFileRow,
+    'id' | 'original_filename' | 'mime_type' | 'size_bytes' | 'storage_bucket' | 'storage_path'
+  >;
+
+  const url = await createSignedDownloadUrl(
+    context.supabase,
+    file.storage_path,
+    file.storage_bucket,
+  );
+
+  await writeAuditLog(context, {
+    action: 'drop_file.previewed',
+    entityType: 'document_drop_file',
+    entityId: fileId,
+    // The MIME type and the session, never the filename: a citizen's file name is their data.
+    metadata: { sessionId, mimeType: file.mime_type },
+  });
+
+  return {
+    url,
+    mimeType: file.mime_type,
+    filename: file.original_filename,
+    sizeBytes: file.size_bytes,
+  };
 }

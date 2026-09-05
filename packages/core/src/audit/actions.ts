@@ -240,6 +240,24 @@ export const AUDIT_ACTIONS = define([
     sensitivity: 'sensitive',
     description: 'Walk-in drop session discarded without intake',
   },
+  {
+    // Reading staged bytes before the citizen is a customer. Every other route to a document's
+    // contents is audited (document.downloaded), and an identity document is no less sensitive
+    // for sitting in staging — so previewing one is a row here too.
+    action: 'drop_file.previewed',
+    entityType: 'document_drop_file',
+    sensitivity: 'sensitive',
+    description: 'Signed URL issued for a staged walk-in drop file',
+  },
+  {
+    // A visiting centre writing into a citizen's home organization under a consent grant. The
+    // only write in the product that crosses a tenant boundary, so it is critical and carries
+    // the grant it was performed under.
+    action: 'drop_file.saved_to_roaming',
+    entityType: 'customer',
+    sensitivity: 'critical',
+    description: 'Walk-in drop files saved to a roaming customer at their home centre',
+  },
 
   // --- form filling --------------------------------------------------------
   {
