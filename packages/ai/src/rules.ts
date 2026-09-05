@@ -20,6 +20,7 @@ export type FieldDataKind =
   | 'pincode'
   | 'pan'
   | 'aadhaar'
+  | 'aadhaar_full'
   | 'number'
   | 'year'
   | 'gender'
@@ -308,8 +309,8 @@ export const LABEL_RULES: readonly LabelRule[] = [
     labels: ['permanent account number', 'pan', 'pan number', 'स्थायी लेखा संख्या'],
   },
   {
-    key: 'customer.aadhaar_last4',
-    kind: 'aadhaar',
+    key: 'customer.aadhaar',
+    kind: 'aadhaar_full',
     labels: ['aadhaar', 'aadhar', 'aadhaar number', 'आधार', 'आधार संख्या', 'vid'],
   },
   {
@@ -681,7 +682,7 @@ const ADDRESS_FIELDS = [
  * document cannot contain is how wrong data gets into a profile.
  */
 export const FIELDS_BY_DOCUMENT_TYPE: Record<DocumentType, readonly string[]> = {
-  aadhaar_like: [...COMMON_IDENTITY_FIELDS, ...ADDRESS_FIELDS, 'customer.aadhaar_last4'],
+  aadhaar_like: [...COMMON_IDENTITY_FIELDS, ...ADDRESS_FIELDS, 'customer.aadhaar'],
   pan: ['customer.full_name', 'customer.father_name', 'customer.date_of_birth', 'customer.pan'],
   voter_id: [
     ...COMMON_IDENTITY_FIELDS,

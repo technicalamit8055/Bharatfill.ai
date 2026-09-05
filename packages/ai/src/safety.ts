@@ -4,11 +4,13 @@
  *
  * OCR reads whatever is printed on the page, which for an Aadhaar card is a full twelve-digit
  * number. Everything downstream of the provider — extracted fields, source snippets, and the
- * retained raw text — passes through here first, so there is no path by which a full Aadhaar
- * reaches the database.
+ * retained raw text — passes through here first.
  *
- * These functions are a product rule, not a preference. Do not relax them; the regression tests
- * in safety.test.ts exist to keep them honest.
+ * `customer.aadhaar` is the one deliberate exception: the product now stores and uses the full
+ * number (with customer consent), so its value and source snippet both survive untouched. Every
+ * other field, and all raw OCR retention, still has Aadhaar-like numbers masked — a stray number
+ * that leaked into an unrelated field is not the customer's consented, reviewed Aadhaar value,
+ * and rule 7 (no PII in logs/error reports/portal adapter reports) still applies to it.
  */
 
 import { isForbiddenFieldKey } from '@assistigo/core';
@@ -42,8 +44,9 @@ export function containsAadhaarLikeNumber(text: string): boolean {
  * The last gate before an extraction is persisted or returned.
  *
  * Drops any field whose key has no legitimate storage location, and masks identifiers out of
- * both the value and the source snippet. A field keyed `customer.aadhaar_last4` keeps its
- * four-digit value; a full number arriving under any key does not survive.
+ * both the value and the source snippet — except for `customer.aadhaar`, the one field allowed
+ * to carry the full number end to end. A field keyed `customer.aadhaar_last4` keeps its
+ * four-digit value; every other field has any Aadhaar-like run masked out of its value.
  */
 export function sanitizeExtractedFields(fields: readonly ExtractedField[]): ExtractedField[] {
   const safe: ExtractedField[] = [];
@@ -68,7 +71,7 @@ export function sanitizeExtractedFields(fields: readonly ExtractedField[]): Extr
     safe.push({
       ...field,
       value,
-      sourceText: maskIdentifiersInText(field.sourceText),
+      sourceText: field.key === 'customer.aadhaar' ? field.sourceText : maskIdentifiersInText(field.sourceText),
     });
   }
 

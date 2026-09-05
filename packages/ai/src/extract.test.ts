@@ -53,13 +53,14 @@ describe('buildFieldsFromStructuredOutput', () => {
     expect(fields[0]?.value).toBe('9012');
   });
 
-  it('refuses customer.aadhaar outright — that storage location has no opt-in path yet', () => {
-    const { fields, warnings } = buildFieldsFromStructuredOutput({
+  it('accepts customer.aadhaar and still sends it to review like any other high-risk field', () => {
+    const { fields } = buildFieldsFromStructuredOutput({
       fields: [field({ key: 'customer.aadhaar', value: '123456789012' })],
     });
 
-    expect(fields).toHaveLength(0);
-    expect(warnings.map((w) => w.code)).toContain('STRUCTURED_FIELD_NOT_ALLOWED');
+    expect(fields[0]?.value).toBe('123456789012');
+    expect(fields[0]?.status).toBe('needs_review');
+    expect(fields[0]?.reviewReason).toBe('high_risk_field');
   });
 
   it('drops a key that is not part of the customer field registry, with a warning', () => {
@@ -316,8 +317,9 @@ describe('an unclassified document', () => {
   });
 
   it('still cannot reach a key the dictionary has no rule for', () => {
+    // The label rule now targets customer.aadhaar (the full number), not aadhaar_last4.
     const values = extract('Aadhaar Number: 2000 0000 0000', 'unknown');
 
-    expect(values.has('customer.aadhaar')).toBe(false);
+    expect(values.has('customer.aadhaar_last4')).toBe(false);
   });
 });

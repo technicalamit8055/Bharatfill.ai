@@ -11,6 +11,7 @@
  */
 
 import {
+  aadhaarFull,
   aadhaarLastFour,
   getCustomerField,
   isCustomerFieldKey,
@@ -498,9 +499,13 @@ function normaliseValue(raw: string, kind: FieldDataKind): NormalisedField {
       return { value, valid };
     }
     case 'aadhaar': {
-      // Only the last four are ever produced (§19.3). The full number never becomes a field.
+      // For the fields and portal inputs that explicitly want only four digits.
       const last4 = aadhaarLastFour(trimmed);
       return { value: last4, valid: last4 !== null };
+    }
+    case 'aadhaar_full': {
+      const full = aadhaarFull(trimmed);
+      return { value: full, valid: full !== null };
     }
     case 'number': {
       const digits = trimmed.replace(/[,\s₹]/g, '').replace(/\/-$/, '');
@@ -708,19 +713,21 @@ function scanUnlabelledIdentifiers(ocr: OcrResult, allowedKeys: ReadonlySet<stri
         }
       }
 
-      if (allowedKeys.has('customer.aadhaar_last4')) {
+      if (allowedKeys.has('customer.aadhaar') || allowedKeys.has('customer.aadhaar_last4')) {
         const digits = TWELVE_DIGITS.exec(line);
-        // The Verhoeff check decides whether this is plausibly an Aadhaar at all; only the last
-        // four survive either way (§19.3).
+        // The Verhoeff check decides whether this is plausibly an Aadhaar at all.
         if (digits && looksLikeAadhaar(digits[0])) {
-          const last4 = aadhaarLastFour(digits[0]);
-          if (last4) {
+          // Prefer the full number when the caller allows it; last-4 is a narrower fallback
+          // for a caller that only ever wants four digits.
+          const key = allowedKeys.has('customer.aadhaar') ? 'customer.aadhaar' : 'customer.aadhaar_last4';
+          const value =
+            key === 'customer.aadhaar' ? aadhaarFull(digits[0]) : aadhaarLastFour(digits[0]);
+          if (value) {
             found.push({
-              key: 'customer.aadhaar_last4',
+              key,
               label: 'Aadhaar',
-              value: last4,
+              value,
               confidence: 0.85,
-              // Masked by sanitizeExtractedFields before this is stored.
               sourceText: line.slice(0, 500),
               page: block.page,
               bbox: block.bbox,
@@ -752,19 +759,11 @@ export function fieldLabel(key: string, locale: 'en' | 'hi'): string {
 // Structured-mode extraction (an organization's custom prompt)
 // ---------------------------------------------------------------------------
 
-/**
- * Full Aadhaar storage is gated behind `organizations.settings.allow_full_aadhaar`, which has
- * no write path anywhere in the app yet (docs/SECURITY.md §4) — the field exists in the registry
- * only for a future legal-reviewed opt-in. A free-text custom prompt must never be the first
- * thing that makes it reachable, so structured mode refuses this key outright rather than
- * relying on `sanitizeExtractedFields`, which preserves it for that future date (§19.3).
- */
-const STRUCTURED_MODE_DISALLOWED_KEYS = new Set(['customer.aadhaar']);
-
 /** Maps a registry field to the normalisation `extract.ts` already knows how to do. */
 function kindForField(key: string, dataType: CustomerFieldDataType): FieldDataKind {
   if (key === 'customer.pan') return 'pan';
   if (key === 'customer.aadhaar_last4') return 'aadhaar';
+  if (key === 'customer.aadhaar') return 'aadhaar_full';
   if (key === 'customer.gender') return 'gender';
   if (key === 'customer.category') return 'category';
 
@@ -806,7 +805,7 @@ export function buildFieldsFromStructuredOutput(input: {
     const value = raw.value.trim();
     if (value === '') continue;
 
-    if (isForbiddenFieldKey(raw.key) || STRUCTURED_MODE_DISALLOWED_KEYS.has(raw.key)) {
+    if (isForbiddenFieldKey(raw.key)) {
       warnings.push({
         code: 'STRUCTURED_FIELD_NOT_ALLOWED',
         messageKey: 'documents.warnings.structuredFieldNotAllowed',

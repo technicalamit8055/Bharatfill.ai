@@ -80,7 +80,7 @@ customer's name and adds nothing to a transcription (§19.6).
 
 The vision model is asked for the text on the page. Turning that text into `customer.*` fields is
 still the rules engine's job (§4). Letting the model emit field keys directly would route
-customer data around every guarantee downstream of OCR — the Aadhaar masking gate (§9), the
+customer data around every guarantee downstream of OCR — the Aadhaar handling rule (§9), the
 normalisers (§5), the high-risk review rules (§6) and the golden tests (§8).
 
 Because certificates are printed as grids, the transcription prompt asks for **one label/value
@@ -223,7 +223,7 @@ regex found nothing, and the cell is cut at the next label rather than swallowin
 | Mobile       | strip separators, drop `+91`/`0` prefix, must be 10 digits starting 6–9                                        |
 | PIN          | exactly 6 digits, first digit 1–8                                                                              |
 | PAN          | `^[A-Z]{5}[0-9]{4}[A-Z]$` — **format check only, never proof of authenticity**                                 |
-| Aadhaar-like | 12 digits + Verhoeff checksum used only to decide "looks like an Aadhaar"; **only the last four are retained** |
+| Aadhaar-like | 12 digits; the labeled path keeps the full number under `customer.aadhaar` (or last four under `customer.aadhaar_last4` when that's the only key allowed); an unlabelled digit run additionally needs the Verhoeff checksum to be treated as a match at all |
 | Names        | preserved as printed. Whitespace collapsed. Never title-cased, never transliterated.                           |
 | Address      | components extracted **and** the full printed address retained verbatim                                        |
 
@@ -235,7 +235,7 @@ Normalisation never discards the original: `sourceText` always carries what was 
 - `0.70 – 0.89` → medium, shown in review
 - `≥ 0.90` → high, still previewed
 
-Always `needs_review` regardless of confidence: `customer.aadhaar_last4`, `customer.pan`,
+Always `needs_review` regardless of confidence: `customer.aadhaar`, `customer.aadhaar_last4`, `customer.pan`,
 `customer.bank_account`, `customer.category`, `customer.annual_income`,
 `customer.disability_status`, `customer.date_of_birth`.
 
@@ -272,10 +272,12 @@ No real document is ever committed, in any form, including cropped or redacted.
 `packages/ai/src/safety.ts` is the single gate. Every extracted field, every source snippet and
 the retained raw text pass through it before anything is persisted:
 
-- any twelve-digit run is masked to `XXXX XXXX 1234` — deliberately broader than the Verhoeff
-  check, because a misread Aadhaar is still an Aadhaar we must not store,
+- `customer.aadhaar` is the one deliberate exception — its value and source snippet both
+  survive untouched, since the product now stores and uses the full number,
 - `customer.aadhaar_last4` is reduced to four digits whatever the extractor produced,
-- a field keyed to a full number (`customer.aadhaar`, `customer.uid`, …) is dropped outright.
+- every other field, and all raw OCR retention, still has any twelve-digit Aadhaar-like run
+  masked to `XXXX XXXX 1234` — deliberately broader than the Verhoeff check, because a misread
+  Aadhaar is still an Aadhaar that must not leak into an unrelated field or the logs.
 
 `safety.test.ts` is a regression suite for a product rule, not an implementation detail
 (docs/DEVELOPMENT_RULES.md §1 rule 5). Do not weaken it.
@@ -367,7 +369,7 @@ Two things are deliberately different from the document path:
 2. **The write route re-validates every value.** Because nothing was stored, the accepted values
    arrive from the client. `POST /api/customers/:id/values` therefore checks each key against
    the field registry and runs every value through `sanitizeExtractedFields` (§9) before
-   writing, so a full Aadhaar cannot be smuggled in under a permitted key.
+   writing, so a full Aadhaar cannot be smuggled in under an unrelated key.
 
 ```text
 POST /api/customers/parse-text     → proposed fields; stores nothing

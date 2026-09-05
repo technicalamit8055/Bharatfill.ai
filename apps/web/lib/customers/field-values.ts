@@ -112,6 +112,6 @@ function displayValueFor(
 ): string | null {
   if (fieldKey === 'customer.pan') return mask.maskPan(value);
   if (fieldKey === 'customer.bank.account_number') return mask.maskAccountNumber(value);
-  if (fieldKey === 'customer.aadhaar_last4') return mask.maskAadhaar(value);
+  if (fieldKey === 'customer.aadhaar_last4' || fieldKey === 'customer.aadhaar') return mask.maskAadhaar(value);
   return null;
 }

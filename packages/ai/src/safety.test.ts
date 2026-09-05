@@ -1,8 +1,7 @@
 /**
  * Safety regression tests.
- * docs/DEVELOPMENT_RULES.md §1 rule 5 — full Aadhaar numbers are never stored.
- *
- * These guard a product rule, not an implementation detail. Do not weaken them.
+ * docs/DEVELOPMENT_RULES.md §1 rule 5 — `customer.aadhaar` may carry the full number; every
+ * other field still has Aadhaar-like numbers masked out.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -90,13 +89,18 @@ describe('sanitizeExtractedFields', () => {
     expect(containsAadhaarLikeNumber(result?.sourceText ?? '')).toBe(false);
   });
 
-  it('retains fields keyed to customer.aadhaar for auto-fill', () => {
+  it('retains fields keyed to customer.aadhaar for auto-fill, value and source snippet both', () => {
     const result = sanitizeExtractedFields([
-      field({ key: 'customer.aadhaar', value: '200000000000' }),
+      field({
+        key: 'customer.aadhaar',
+        value: '200000000000',
+        sourceText: 'आधार संख्या / Aadhaar Number : 2000 0000 0000',
+      }),
     ]);
     expect(result.length).toBe(1);
     expect(result[0]?.key).toBe('customer.aadhaar');
     expect(result[0]?.value).toBe('200000000000');
+    expect(result[0]?.sourceText).toBe('आधार संख्या / Aadhaar Number : 2000 0000 0000');
   });
 
   it('drops an Aadhaar value too short to be a last-four', () => {

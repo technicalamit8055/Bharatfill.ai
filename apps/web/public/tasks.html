@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bharatfill.ai / Assistigo.ai — Master Tasks & Product Docs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              200: '#c7d2fe',
+              300: '#a5b4fc',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              800: '#3730a3',
+              900: '#312e81',
+              950: '#1e1b4b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbar and sleek GitBook styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.3);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(156, 163, 175, 0.5);
+    }
+    .custom-ring:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
+    }
+    .badge-p0 {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .badge-p1 {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .badge-p2 {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    .badge-future {
+      background: rgba(168, 85, 247, 0.15);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+    .badge-deferred {
+      background: rgba(107, 114, 128, 0.15);
+      color: #9ca3af;
+      border: 1px solid rgba(107, 114, 128, 0.3);
+    }
+    .badge-complete {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .badge-in-progress {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .badge-pending {
+      background: rgba(148, 163, 184, 0.15);
+      color: #94a3b8;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+    }
+    /* Smooth transitions */
+    * {
+      transition-property: background-color, border-color, color, fill, stroke;
+      transition-duration: 150ms;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col selection:bg-brand-500/30 selection:text-brand-200">
+
+  <!-- Top Navigation Bar -->
+  <header class="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md px-4 lg:px-8 py-3">
+    <div class="max-w-[1700px] mx-auto flex items-center justify-between gap-4">
+      
+      <!-- Brand & Project Title -->
+      <div class="flex items-center gap-3 min-w-0">
+        <button id="mobileMenuBtn" class="lg:hidden p-2 text-slate-400 hover:text-slate-100 rounded-lg hover:bg-slate-800/60">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+        
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-brand-600 to-cyan-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20 text-lg">
+            अ
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-base tracking-tight text-white">Bharatfill.ai</span>
+              <span class="text-xs text-slate-500 hidden sm:inline">/ Assistigo Master Spec</span>
+              <div id="syncStatusBadge" class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Changes sync across all your devices">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Cross-Device Sync Active</span>
+              </div>
+            </div>
+            <p class="text-xs text-slate-400 hidden md:block">Interactive Tasks, Architecture Docs & Milestones</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Overall Completion Progress -->
+      <div class="hidden md:flex items-center gap-4 bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-2">
+        <div class="flex flex-col">
+          <div class="flex items-center justify-between gap-4 text-xs">
+            <span class="text-slate-400 font-medium">Overall Progress</span>
+            <span id="overallPercentage" class="font-bold text-brand-400">0%</span>
+          </div>
+          <div class="w-36 lg:w-48 h-2 bg-slate-800 rounded-full mt-1 overflow-hidden">
+            <div id="overallProgressBar" class="h-full bg-gradient-to-r from-brand-500 via-indigo-500 to-emerald-400 rounded-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+        </div>
+        <div class="text-xs text-slate-400 border-l border-slate-800 pl-3">
+          <span id="overallCompletedCount" class="font-bold text-emerald-400">0</span> / <span id="overallTotalCount" class="text-slate-200">0</span> Done
+        </div>
+      </div>
+
+      <!-- Quick Action Controls -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Search Trigger -->
+        <div class="relative">
+          <input id="quickSearchInput" type="text" placeholder="Search tasks or keys (Ctrl+K)..." class="w-36 sm:w-56 lg:w-72 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+          <span class="absolute right-2.5 top-2 text-[10px] text-slate-500 font-mono hidden sm:inline">⌘K</span>
+        </div>
+
+        <!-- Add Custom Task Button -->
+        <button id="addTaskBtn" class="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow-sm transition-all">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          <span class="hidden sm:inline">Add Task</span>
+        </button>
+
+        <!-- Export / Import / Reset Menu -->
+        <div class="relative">
+          <button id="moreActionsBtn" class="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-400 hover:text-slate-200 text-xs">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path></svg>
+          </button>
+          <div id="moreActionsDropdown" class="hidden absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1.5 z-50 text-xs">
+            <button id="exportJsonBtn" class="w-full text-left px-3.5 py-2 hover:bg-slate-800 flex items-center gap-2 text-slate-300">
+              <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+              Export JSON Backup
+            </button>
+            <label class="w-full text-left px-3.5 py-2 hover:bg-slate-800 flex items-center gap-2 text-slate-300 cursor-pointer">
+              <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+              Import JSON Backup
+              <input id="importJsonInput" type="file" accept=".json" class="hidden">
+            </label>
+            <hr class="border-slate-800 my-1">
+            <button id="resetDefaultsBtn" class="w-full text-left px-3.5 py-2 hover:bg-rose-500/10 text-rose-400 flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              Reset to Spec Defaults
+            </button>
+          </div>
+        </div>
+
+        <!-- Theme Toggle -->
+        <button id="themeToggleBtn" class="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-400 hover:text-amber-400 text-xs">
+          <svg id="sunIcon" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+          <svg id="moonIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+        </button>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- App Body Layout -->
+  <div class="flex-1 max-w-[1700px] w-full mx-auto flex">
+    
+    <!-- Sidebar Navigation (GitBook Tree) -->
+    <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 w-72 lg:w-80 bg-slate-950 border-r border-slate-800/80 transform -translate-x-full lg:translate-x-0 transition-transform duration-200 ease-in-out lg:static shrink-0 flex flex-col h-[calc(100vh-61px)] top-[61px]">
+      
+      <!-- Filter Tabs in Sidebar -->
+      <div class="p-3 border-b border-slate-800/80 bg-slate-950/50">
+        <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Filter by Status</div>
+        <div class="grid grid-cols-4 gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800">
+          <button data-status-filter="all" class="status-filter-btn active text-[11px] py-1 rounded font-medium text-center bg-brand-600 text-white">All</button>
+          <button data-status-filter="complete" class="status-filter-btn text-[11px] py-1 rounded font-medium text-center text-slate-400 hover:text-slate-200">Done</button>
+          <button data-status-filter="in-progress" class="status-filter-btn text-[11px] py-1 rounded font-medium text-center text-slate-400 hover:text-slate-200">Active</button>
+          <button data-status-filter="pending" class="status-filter-btn text-[11px] py-1 rounded font-medium text-center text-slate-400 hover:text-slate-200">Todo</button>
+        </div>
+      </div>
+
+      <!-- Navigation Tree Items -->
+      <nav id="sectionNav" class="flex-1 overflow-y-auto p-3 space-y-4">
+        <!-- Overview Link -->
+        <div>
+          <a href="#overview" class="section-nav-link flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-900 transition-colors">
+            <span class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+              Overview & Analytics
+            </span>
+          </a>
+        </div>
+
+        <!-- Section 1: Core MVP Epics -->
+        <div>
+          <div class="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+            <span>Core MVP Modules</span>
+            <span id="mvpCountBadge" class="text-[10px] text-brand-400 font-mono"></span>
+          </div>
+          <div id="mvpNavList" class="space-y-0.5"></div>
+        </div>
+
+        <!-- Section 2: Future Roadmap -->
+        <div>
+          <div class="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+            <span>Future Releases</span>
+            <span id="futureCountBadge" class="text-[10px] text-purple-400 font-mono"></span>
+          </div>
+          <div id="futureNavList" class="space-y-0.5"></div>
+        </div>
+
+        <!-- Section 3: Hardware -->
+        <div>
+          <div class="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+            <span>Deferred Hardware</span>
+            <span id="hwCountBadge" class="text-[10px] text-slate-400 font-mono"></span>
+          </div>
+          <div id="hwNavList" class="space-y-0.5"></div>
+        </div>
+      </nav>
+
+      <!-- Sidebar Footer -->
+      <div class="p-3 border-t border-slate-800/80 bg-slate-950 text-xs text-slate-400 flex items-center justify-between">
+        <span>Changes saved locally</span>
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+      </div>
+    </aside>
+
+    <!-- Backdrop for mobile menu -->
+    <div id="sidebarBackdrop" class="fixed inset-0 bg-black/60 z-20 hidden lg:hidden"></div>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 min-w-0 px-4 sm:px-6 lg:px-10 py-6 overflow-y-auto max-h-[calc(100vh-61px)]">
+      
+      <!-- Top Overview Card (Analytics Banner) -->
+      <section id="overview" class="mb-8 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/40 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          
+          <div>
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-300 text-xs font-semibold mb-3">
+              <span>Bharatfill.ai / Assistigo.ai Product Specification</span>
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Master Feature Board & Roadmap</h1>
+            <p class="text-slate-300 text-sm mt-1.5 max-w-2xl leading-relaxed">
+              Live interactive documentation and progress board. Track, update, and manage every feature, technical requirement, and future release phase. Changes are instantly saved to your browser's local storage.
+            </p>
+          </div>
+
+          <!-- Interactive Stats Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
+            <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 text-center">
+              <div id="statTotal" class="text-2xl font-bold text-white">0</div>
+              <div class="text-xs text-slate-400 mt-0.5">Total Tasks</div>
+            </div>
+            <div class="bg-slate-950/80 border border-emerald-900/30 rounded-xl p-3.5 text-center">
+              <div id="statCompleted" class="text-2xl font-bold text-emerald-400">0</div>
+              <div class="text-xs text-emerald-300/80 mt-0.5">Completed</div>
+            </div>
+            <div class="bg-slate-950/80 border border-amber-900/30 rounded-xl p-3.5 text-center">
+              <div id="statInProgress" class="text-2xl font-bold text-amber-400">0</div>
+              <div class="text-xs text-amber-300/80 mt-0.5">In Progress</div>
+            </div>
+            <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 text-center">
+              <div id="statPending" class="text-2xl font-bold text-slate-300">0</div>
+              <div class="text-xs text-slate-400 mt-0.5">Pending</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Filter Controls Bar -->
+        <div class="mt-6 pt-5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs text-slate-400 font-medium">Milestone:</span>
+            <button data-milestone-filter="all" class="milestone-filter-btn active text-xs px-2.5 py-1 rounded-md font-medium bg-brand-600 text-white">All Milestones</button>
+            <button data-milestone-filter="MVP" class="milestone-filter-btn text-xs px-2.5 py-1 rounded-md font-medium text-slate-300 bg-slate-800 hover:bg-slate-700">MVP Scope</button>
+            <button data-milestone-filter="Future" class="milestone-filter-btn text-xs px-2.5 py-1 rounded-md font-medium text-slate-300 bg-slate-800 hover:bg-slate-700">Future Roadmap</button>
+            <button data-milestone-filter="Deferred" class="milestone-filter-btn text-xs px-2.5 py-1 rounded-md font-medium text-slate-300 bg-slate-800 hover:bg-slate-700">Hardware</button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-400 font-medium">View Mode:</span>
+            <button id="viewListBtn" class="p-1.5 rounded-md bg-slate-800 text-brand-400 font-medium text-xs flex items-center gap-1.5 hover:bg-slate-700" title="Detailed Cards">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+              Detailed List
+            </button>
+            <button id="expandAllBtn" class="p-1.5 rounded-md bg-slate-800 text-slate-300 font-medium text-xs hover:bg-slate-700">
+              Expand All
+            </button>
+            <button id="collapseAllBtn" class="p-1.5 rounded-md bg-slate-800 text-slate-300 font-medium text-xs hover:bg-slate-700">
+              Collapse All
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Dynamic Sections & Tasks List Container -->
+      <div id="tasksContainer" class="space-y-12"></div>
+
+    </main>
+  </div>
+
+  <!-- Custom Task Modal -->
+  <div id="taskModal" class="fixed inset-0 z-50 bg-black/75 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 id="modalTitle" class="text-lg font-bold text-white">Add New Task</h3>
+        <button id="closeModalBtn" class="text-slate-400 hover:text-white p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <form id="taskForm" class="space-y-3.5 text-xs">
+        <input type="hidden" id="taskEditIndex" value="-1">
+        
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Section / Epic</label>
+          <select id="modalEpic" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-brand-500"></select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Task ID</label>
+            <input id="modalTaskId" type="text" placeholder="e.g. CRM-08" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-brand-500">
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Priority</label>
+            <select id="modalPriority" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-brand-500">
+              <option value="P0">P0 (Critical MVP)</option>
+              <option value="P1">P1 (Valuable Pilot)</option>
+              <option value="P2">P2 (Post-Beta)</option>
+              <option value="Future">Future</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Feature Title</label>
+          <input id="modalTaskTitle" type="text" placeholder="e.g. Export Customer to Excel" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-brand-500">
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Status</label>
+          <select id="modalStatus" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-brand-500">
+            <option value="pending">Pending ⭕</option>
+            <option value="in-progress">In Progress 🟡</option>
+            <option value="complete">Complete ✅</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Description</label>
+          <textarea id="modalDescription" rows="3" placeholder="Describe the feature requirement..." required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-brand-500"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Acceptance Criteria (one per line)</label>
+          <textarea id="modalCriteria" rows="2" placeholder="Criteria 1&#10;Criteria 2" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-brand-500"></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+          <button type="button" id="cancelModalBtn" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">Cancel</button>
+          <button type="submit" class="px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-medium">Save Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Client-Side State Management Script -->
+  <script>
+    // Initial data injected from backend spec
+    const DEFAULT_SECTIONS = [{"id":"auth","title":"1. Authentication & Multi-Tenant Access","badge":"Core Foundation","milestone":"MVP","description":"Multi-tenant organization architecture, role-based access control, team invites, onboarding wizard, and session security.","icon":"shield-check"},{"id":"crm","title":"2. Indian Customer Profile & CRM","badge":"Core CRM","milestone":"MVP","description":"Comprehensive Indian customer data model, sub-30s profile creation, multi-attribute search, fuzzy duplicate warnings, and sensitive field masking.","icon":"users"},{"id":"docs","title":"3. Document Management & AI/OCR Pipeline","badge":"AI & Ingestion","milestone":"MVP","description":"Direct-to-storage private upload, document classification, OCR extraction with human-in-the-loop review, and Aadhaar auto-masking.","icon":"file-text"},{"id":"tool","title":"4. Document Preparation Tools & Studio","badge":"Operator Utility","milestone":"MVP","description":"Client-side photo cropping, signature Otsu contrast cleaning, passport photo sheet grid generator, PDF studio, and Aadhaar redaction gate.","icon":"scissors"},{"id":"form","title":"5. Form Engine & Field Mapping","badge":"Form Engine","milestone":"MVP","description":"Privacy-first field detection, multi-tier mapping resolution, Hindi/English dictionary, value transformers, and CAPTCHA/OTP anti-abuse gates.","icon":"cpu"},{"id":"ext","title":"6. Chrome MV3 Extension","badge":"Browser Tool","milestone":"MVP","description":"Manifest V3 companion extension, pairing auth flow, side panel field review, guided one-click autofill, and smart document suggestions.","icon":"puzzle"},{"id":"apps","title":"7. Application Tracking & Management","badge":"Service OS","milestone":"MVP","description":"End-to-end application lifecycle state machine, document requirements checklist, receipt tracking, and post-fill creation.","icon":"clipboard-list"},{"id":"bill","title":"8. Billing, Plans & Usage Entitlements","badge":"Monetization","milestone":"MVP","description":"Tiered subscription model, real-time billable event metering, entitlement enforcement, and Razorpay payment integration.","icon":"credit-card"},{"id":"sec","title":"9. Security, Privacy & DPDP Compliance","badge":"Compliance","milestone":"MVP","description":"PostgreSQL Row Level Security, immutable audit logs, DPDP consent records, data export/erasure, and zero-PII error scrubbing.","icon":"lock"},{"id":"pub","title":"10. Public Website, Admin & Localization","badge":"Platform","milestone":"MVP","description":"Hindi/English localization system, marketing landing page, legal compliance documents, and super admin platform portal with scheme scraper.","icon":"globe"},{"id":"v1.1","title":"11. Release V1.1: Pilot Polish & Stabilization","badge":"Roadmap V1.1","milestone":"Future","description":"Post-pilot enhancements based on real cyber cafe feedback: top 10 portal adapters, duplicate merge wizard, and counter keyboard shortcuts.","icon":"sparkles"},{"id":"v1.5","title":"12. Release V1.5: Service-Centre Operating System","badge":"Roadmap V1.5","milestone":"Future","description":"Transforming into the shop OS: automated customer receipts/invoices, WhatsApp notification gateway, renewal reminders, and multi-branch management.","icon":"layers"},{"id":"v2.0","title":"13. Release V2.0: Portal Intelligence & Multi-State Scale","badge":"Roadmap V2.0","milestone":"Future","description":"Automated portal DOM breakage detection, 20+ state e-District adapters, smart scheme eligibility engine, and regional language expansion.","icon":"compass"},{"id":"v3.0","title":"14. Release V3.0: Platform Ecosystem & Citizen Portal","badge":"Roadmap V3.0","milestone":"Future","description":"Citizen self-service portal, public B2B APIs/webhooks, direct DigiLocker sync, and AI operator copilot for scheme guidelines.","icon":"share-2"},{"id":"hw","title":"15. Deferred Research: Physical Hardware & E-Card","badge":"Deferred","milestone":"Deferred","description":"Offline smart E-card with secure element and desktop USB/NFC card reader. Explicitly deferred until reaching 5,000+ paying centers.","icon":"hard-drive"}];
+    const DEFAULT_TASKS = [{"id":"AUTH-01","epicId":"auth","epicName":"1. Authentication & Multi-Tenant Access","milestone":"MVP","priority":"P0","title":"Multi-Tenant Organization Setup","summary":"Organization provisioning for CSCs, cyber cafes, VLEs, and digital form centers.","status":"complete","description":"Provides multi-tenant organization creation during registration. Stores business type (cyber cafe, CSC/VLE, CSP, digital service centre, recruitment centre), operating location (city, district, state), monthly form volume estimates, and default language. Ensures complete tenant isolation across all tables.","keyCapabilities":["Organization registration and onboarding profile configuration","Tenant isolation via organization_id across all database tables","Business categorization for CSC, VLE, CSP, and recruitment centers","Support for English and Hindi organizational default locales"],"acceptanceCriteria":["New operator can sign up and establish an organization in under 60 seconds","Tenant metadata is correctly stored in organizations table","Cross-organization database access is completely blocked by PostgreSQL RLS"],"sourcePaths":["apps/web/app/(auth)","supabase/migrations/0001_initial_schema.sql"]},{"id":"AUTH-02","epicId":"auth","epicName":"1. Authentication & Multi-Tenant Access","milestone":"MVP","priority":"P0","title":"Role-Based Access Control (RBAC)","summary":"Hierarchical permission matrix for Owner, Manager, Operator, Viewer, and Billing Admin.","status":"complete","description":"Defines 5 tenant-level organization roles with strict functional gates: Org Owner (full authority), Manager (operations & team oversight), Operator (customer entry & form filling), Viewer (read-only), and Billing Admin (financial management without document access).","keyCapabilities":["Granular permission matrix in packages/core/src/roles","Separation of billing duties from sensitive customer document viewing","Viewer role restrictions preventing field edits and form filling","Role resolution middleware on both API route handlers and server actions"],"acceptanceCriteria":["Operators cannot access billing settings or organization deletion","Viewers cannot reveal sensitive fields or trigger form fill executions","Billing admins cannot view customer documents or decrypt identity numbers","Role changes take effect immediately on subsequent requests"],"sourcePaths":["packages/core/src/roles/permissions.ts","apps/web/lib/auth/session.ts"]},{"id":"AUTH-03","epicId":"auth","epicName":"1. Authentication & Multi-Tenant Access","milestone":"MVP","priority":"P1","title":"Team Member Invitations & Management","summary":"Invite staff operators via email with secure expiry tokens and status management.","status":"complete","description":"Allows organization owners and managers to invite staff operators by email with pre-assigned roles. Includes invitation acceptance flow, pending invitation cancellation, role elevation/demotion, and immediate operator suspension/removal.","keyCapabilities":["Tokenized invitation dispatch with time-limited expiration","Acceptance endpoint linking invited auth users to organization_members","Role change dropdown for owners with automatic audit logging","Member revocation immediately terminating active extension and web sessions"],"acceptanceCriteria":["Invited staff can join the organization through their invite link","Expired tokens fail gracefully with clear renewal instructions","Removed members lose all access immediately on token refresh"],"sourcePaths":["apps/web/app/(app)/settings/members","packages/core/src/invitations"]},{"id":"AUTH-04","epicId":"auth","epicName":"1. Authentication & Multi-Tenant Access","milestone":"MVP","priority":"P0","title":"First-Run Onboarding Checklist Wizard","summary":"Interactive 4-step wizard guiding new operators to first successful form fill.","status":"complete","description":"Provides a prominent checklist on the dashboard for new accounts: (1) Add first customer profile, (2) Upload first test document, (3) Pair Chrome extension, and (4) Test guided autofill on a demo form. Auto-updates as milestones are completed.","keyCapabilities":["Live state tracking of onboarding progress indicators","Direct deep links to customer creation, document upload, and extension pairing","Built-in sandbox demo form to test fill execution risk-free","Dismissable checklist once core flows have been experienced"],"acceptanceCriteria":["Checklist displays for new organizations until all 4 steps are complete","Step status auto-advances upon real user actions","Demo form allows end-to-end fill test with zero real citizen data"],"sourcePaths":["apps/web/components/onboarding/checklist.tsx","apps/web/app/(app)/dashboard/page.tsx"]},{"id":"AUTH-05","epicId":"auth","epicName":"1. Authentication & Multi-Tenant Access","milestone":"MVP","priority":"P1","title":"Password Reset Flow & Session Revocation","summary":"Dedicated password reset completion page and active session management.","status":"pending","description":"Implements the completion screen at /reset-password for handling Supabase password recovery tokens, plus an active sessions dashboard in Settings allowing operators to view active browser sessions/extensions and revoke them remotely.","keyCapabilities":["Dedicated /reset-password screen with new password strength meters","Active session roster displaying browser, OS, IP address, and last activity","One-click remote session revocation across devices"],"acceptanceCriteria":["Operators receiving recovery email can reset password and sign in immediately","Revoking a session forces an immediate logout on the target browser","All password changes log an immutable security audit event"],"sourcePaths":["apps/web/app/(auth)/reset-password","apps/web/app/(app)/settings/security"]},{"id":"CRM-01","epicId":"crm","epicName":"2. Indian Customer Profile & CRM","milestone":"MVP","priority":"P0","title":"Sub-30-Second Manual Customer Creation","summary":"Ultra-fast minimal customer entry form for walk-in counter speed.","status":"complete","description":"Streamlined form requiring only essential fields (full name, mobile number, state, and district) allowing an operator to register a walk-in citizen in under 30 seconds before expanding details as needed during form filling.","keyCapabilities":["Minimal required fields: Full name, 10-digit mobile, State, District","Auto-generation of readable customer codes (e.g. CST-1024)","Optimistic keyboard navigation and auto-focus for fast counter entry","Inline duplicate warning surfacing without blocking save"],"acceptanceCriteria":["Customer record created in <30 seconds by a keyboard operator","Validates 10-digit Indian mobile number format","Redirects immediately to customer profile ready for document attach or autofill"],"sourcePaths":["apps/web/app/(app)/customers/new","packages/core/src/customers/validation.ts"]},{"id":"CRM-02","epicId":"crm","epicName":"2. Indian Customer Profile & CRM","milestone":"MVP","priority":"P0","title":"Indian Demographic Profile Schema","summary":"Rich schema capturing full Indian names, Devanagari script, family hierarchy, and administrative addresses.","status":"complete","description":"Tailored Indian demographic model supporting: single-line full names (no forced first/last split), Hindi script names, Father/Mother/Spouse/Guardian names, complete administrative address hierarchy (House, Street, Village, Ward, Post Office, Panchayat, Block, Sub-Division अनुमंडल, Police Station, District, State, PIN code), Caste category (General/OBC/SC/ST/EWS), and sub-caste.","keyCapabilities":["Devanagari script support for Hindi names alongside English","Hierarchical Indian address fields including Block and Sub-Division (अनुमंडल)","Education records (10th, 12th, Graduation, Board, Roll No, Passing Year, Marks)","Certificate details (Income, Caste, Domicile, EWS with issuing authority & dates)"],"acceptanceCriteria":["Supports saving without forcing Western name structures","Address components store correctly in address_json without loss of original text","Sub-division and block data correctly populate for RTPS and state workflows"],"sourcePaths":["packages/core/src/customers/schema.ts","supabase/migrations/0002_customers.sql"]},{"id":"CRM-03","epicId":"crm","epicName":"2. Indian Customer Profile & CRM","milestone":"MVP","priority":"P0","title":"Sensitive Identity & Banking Vault","summary":"Masked storage, AES-256-GCM encryption, and audited reveal flow for Aadhaar, PAN, and Bank details.","status":"complete","description":"Guarantees that sensitive identifiers (Aadhaar last-4, PAN, Voter ID, Ration Card, BPL card, and bank accounts) are displayed masked by default (e.g. XXXX-XXXX-1234). High-risk values are encrypted at rest with AES-256-GCM. An explicit Reveal button is gated by role permission, rate-limited, and audited.","keyCapabilities":["Default masked display for Aadhaar last-4, PAN, and bank accounts","AES-256-GCM field encryption for sensitive fields","Audited reveal endpoint POST /api/customers/:id/reveal (one field per call)","Cooldown rate limiter preventing mass automated reveals"],"acceptanceCriteria":["Unrevealed profile shows only masked strings in HTML DOM and API payloads","Clicking reveal logs an immutable audit event with operator ID and IP","Viewer role cannot reveal sensitive fields under any circumstances"],"sourcePaths":["packages/core/src/crypto/encryption.ts","apps/web/app/api/customers/[id]/reveal/route.ts"]},{"id":"CRM-04","epicId":"crm","epicName":"2. Indian Customer Profile & CRM","milestone":"MVP","priority":"P0","title":"Multi-Attribute Customer Search Engine","summary":"High-speed search across customer name, mobile, customer code, Aadhaar last-4, and village.","status":"complete","description":"Fast counter search powered by PostgreSQL RPC search_customers. Allows operators to instantly locate repeat citizens walking up to the desk using any fragment of their name, 10-digit mobile number, unique customer code, Aadhaar last 4 digits, or village name.","keyCapabilities":["Server-side search_customers RPC with trgm indexing","Instant search by mobile number, name prefix, customer code, or Aadhaar last-4","Filter by registration date, missing documents, or assigned operator","Keyboard-accessible search dropdown with arrow key navigation"],"acceptanceCriteria":["Search query returns matching records in <100ms for databases of 10,000+ customers","Entering 4 digits searches Aadhaar last-4 matches accurately","Results are strictly scoped to the active organization"],"sourcePaths":["supabase/migrations/0005_search_rpc.sql","apps/web/app/(app)/customers/page.tsx"]},{"id":"CRM-05","epicId":"crm","epicName":"2. Indian Customer Profile & CRM","milestone":"MVP","priority":"P0","title":"Fuzzy Duplicate Customer Detection & Warning","summary":"Intelligent warning when creating customers with overlapping mobile, name, or birth date.","status":"complete","description":"Runs findDuplicates on the core customer service to alert operators if a walk-in citizen already has a profile in the system. Compares mobile exact matches and normalized name + DOB similarity, surfacing a non-blocking warning with an option to link to the existing profile or override with ?force=1.","keyCapabilities":["Fuzzy name matching using Levenshtein distance and phonetic heuristics","Exact matching on 10-digit mobile number","Non-blocking banner allowing operator to view duplicate or proceed with ?force=1","Audit logging when an operator deliberately creates a duplicate"],"acceptanceCriteria":["Surfaces duplicate warning when mobile number matches an existing customer","Warns if similar name and exact birth date combination is detected","Allows valid overrides without corrupting data"],"sourcePaths":["packages/core/src/customers/duplicates.ts","apps/web/components/customers/duplicate-alert.tsx"]},{"id":"CRM-06","epicId":"crm","epicName":"2. Indian Customer Profile & CRM","milestone":"MVP","priority":"P0","title":"Paste-Text Customer Import Tool","summary":"Extracts demographic fields from raw text pasted from WhatsApp or notes without running OCR.","status":"complete","description":"Enables operators to paste raw customer information received via WhatsApp, SMS, or informal notes into /api/customers/parse-text. Applies the mapping dictionary, normalizers, and Aadhaar privacy filters to propose structured fields, which the operator reviews and approves with 1 click.","keyCapabilities":["Text extraction parsing names, mobile numbers, DOB, and addresses","Zero OCR cost or external API dependency (pure local parser)","Review panel on customer profile allowing cherry-picking detected values","Re-validates every accepted value through field registry before saving"],"acceptanceCriteria":["Extracts name, 10-digit phone, and dates from unstructured WhatsApp messages","Aadhaar numbers in pasted text are strictly masked to last 4 digits","Proposes values without persisting until operator confirms"],"sourcePaths":["packages/ai/src/text.ts","apps/web/app/api/customers/parse-text/route.ts"]},{"id":"CRM-07","epicId":"crm","epicName":"2. Indian Customer Profile & CRM","milestone":"MVP","priority":"P1","title":"Direct Customer Creation from Document Import","summary":"Create a brand new customer profile directly by uploading an identity document.","status":"pending","description":"Implements the full UX flow described in master spec §9.3: Add Customer > Import from Document. An operator uploads a certificate or ID without selecting an existing customer first. The system processes the document, opens the review screen, and creates a new customer profile populated with confirmed fields.","keyCapabilities":["Stand-alone upload endpoint accepting documents without pre-existing customer ID","Automated customer profile initialization from accepted OCR fields","Source document automatically linked to the newly created customer","Fallback to manual completion if document extraction is only partial"],"acceptanceCriteria":["Operator can drag a marksheet or certificate to create a new customer record","Review screen allows editing extracted fields before profile creation","Resulting customer profile shows full provenance linking to the source document"],"sourcePaths":["apps/web/app/(app)/customers/import-document","apps/web/app/api/customers/from-document/route.ts"]},{"id":"DOCS-01","epicId":"docs","epicName":"3. Document Management & AI/OCR Pipeline","milestone":"MVP","priority":"P0","title":"Direct-to-Storage Private Upload","summary":"Browser-to-bucket direct file uploads using short-lived signed URLs with magic-byte validation.","status":"complete","description":"Implements secure document upload via POST /api/documents/upload-intent which reserves a row and generates a one-time presigned upload URL directly to private Supabase Storage. Avoids routing megabytes through Next.js server memory. Before processing, magic-byte inspection verifies file integrity.","keyCapabilities":["Pre-signed short-lived upload URLs (<=300s expiration)","Direct browser-to-storage upload minimizing server resource strain","Server-side magic-byte sniffing (rejects executables disguised as PDFs)","Storage quota tracking updating storage_used_bytes"],"acceptanceCriteria":["Files upload directly to private storage bucket without public read access","Files with mismatched MIME types and magic bytes are quarantined and deleted","Uploads automatically attach to documents table with SHA-256 checksums"],"sourcePaths":["apps/web/app/api/documents/upload-intent/route.ts","packages/core/src/storage/signed-urls.ts"]},{"id":"DOCS-02","epicId":"docs","epicName":"3. Document Management & AI/OCR Pipeline","milestone":"MVP","priority":"P0","title":"Indian Document Classification Engine","summary":"Automatic classification of uploaded Indian documents into standard categories.","status":"complete","description":"Analyzes visual features and text headers to classify uploaded files into standard Indian document classes: Aadhaar-like ID, PAN card, Voter ID, 10th marksheet, 12th marksheet, Caste certificate, Income certificate, Domicile/Residence certificate, Photo, Signature, or Generic PDF.","keyCapabilities":["Heuristic and keyword-based classification for Indian government certificates","Graceful fallback to unknown category for unsupported document types","Manual classification override dropdown in document detail UI","Confidence scoring for predicted document types"],"acceptanceCriteria":["Correctly classifies income, caste, and residence certificates with >90% accuracy","Identifies photo and signature files for routing to document tools","Unknown documents do not fail the upload pipeline"],"sourcePaths":["packages/ai/src/classification.ts","packages/ai/src/fixtures"]},{"id":"DOCS-03","epicId":"docs","epicName":"3. Document Management & AI/OCR Pipeline","milestone":"MVP","priority":"P0","title":"Pluggable OCR & Rules-Based Field Extraction","summary":"Modular OcrProvider interface with mock and real providers extracting structured Hindi/English fields.","status":"complete","description":"Implements a clean provider abstraction interface (OcrProvider) allowing seamless swapping between Local Tesseract, Cloud OCR, Vision models, and Mock providers. Employs regex and keyword dictionaries across Hindi, English, and Hinglish with negative keyword filters.","keyCapabilities":["OcrProvider TypeScript interface for pluggable OCR backends","Dictionary extraction for names, dates, certificate numbers, and addresses","Negative keyword filtering preventing father names resolving to applicant names","Confidence scoring (High >=0.90, Medium 0.70-0.89, Low <0.70)"],"acceptanceCriteria":["Extracts structured key-value pairs matching Indian customer profile schema","Preserves source snippet and bounding box coordinates where available","Golden regression test suite passes with 53 unit tests"],"sourcePaths":["packages/ai/src/provider.ts","packages/ai/src/extraction.ts"]},{"id":"DOCS-04","epicId":"docs","epicName":"3. Document Management & AI/OCR Pipeline","milestone":"MVP","priority":"P0","title":"Aadhaar Privacy Gate & Automatic Redaction","summary":"Strict pipeline gate ensuring only last 4 digits of Aadhaar are extracted and persisted.","status":"complete","description":"Dedicated privacy layer enforcing compliance with UIDAI regulations and DPDP Act. When processing identity documents, the extraction engine detects 12-digit Aadhaar patterns and explicitly emits ONLY customer.aadhaar_last4. Full numbers are scrubbed from raw text and snippets before database persistence.","keyCapabilities":["Regex detection of 12-digit Verhoeff-compliant Aadhaar patterns","Automatic redaction of full Aadhaar numbers from OCR text and snippets","Emits only masked customer.aadhaar_last4 to customer profile values","Dedicated regression suite with 15 privacy tests verifying zero PII leakage"],"acceptanceCriteria":["Full 12-digit Aadhaar number is never written to documents or extractions tables","Source snippets display XXXX-XXXX-1234 format","Database logs and telemetry contain zero raw Aadhaar numbers"],"sourcePaths":["packages/ai/src/privacy/aadhaar-gate.ts","packages/ai/src/privacy.test.ts"]},{"id":"DOCS-05","epicId":"docs","epicName":"3. Document Management & AI/OCR Pipeline","milestone":"MVP","priority":"P0","title":"Side-by-Side Human Review UI for OCR Extractions","summary":"Intuitive review interface showing extracted fields, confidence badges, source snippets, and accept/edit/reject actions.","status":"complete","description":"Presents extracted document fields side-by-side with confidence ratings and source text snippets. The operator reviews low-confidence or high-risk fields, edits misread values inline, and clicks Accept. Accepted fields update the customer profile and customer_field_values with full provenance.","keyCapabilities":["Side-by-side split screen: source document preview vs extracted fields","Visual confidence badges with explanation for why review is required","Inline edit and one-click Accept / Reject controls per field","Provenance tracking: customer fields link back to source document ID and reviewer"],"acceptanceCriteria":["Operator can accept all high-confidence fields in 1 click or edit individually","Rejected fields are permanently flagged and excluded from form autofill","Accepted values update customer profile and write audit log"],"sourcePaths":["apps/web/app/(app)/documents/[id]/review","apps/web/components/documents/review-table.tsx"]},{"id":"DOCS-06","epicId":"docs","epicName":"3. Document Management & AI/OCR Pipeline","milestone":"MVP","priority":"P1","title":"Background Asynchronous Worker Queue & Job Runner","summary":"Asynchronous job queue and scheduled worker for background OCR and processing tasks.","status":"pending","description":"Wired job runner model (enqueueJob, claim_jobs, complete_job) triggered via POST /api/jobs/run and secured by JOB_RUNNER_SECRET. Needs automated cron setup (e.g. Vercel Cron or Supabase Edge Scheduled Function) to run periodically and process queued document extractions.","keyCapabilities":["Idempotent job runner handling ocr.extract and derivative generation","Shared secret authentication (JOB_RUNNER_SECRET) failing closed","Automatic exponential backoff retries for transient OCR provider errors","Job status reporting and error logging in document_extractions"],"acceptanceCriteria":["Queued jobs are processed within 15 seconds of upload","Runner handles network timeouts without creating duplicate extraction rows","Secured against unauthenticated external execution"],"sourcePaths":["apps/web/app/api/jobs/run/route.ts","packages/core/src/jobs"]},{"id":"DOCS-07","epicId":"docs","epicName":"3. Document Management & AI/OCR Pipeline","milestone":"MVP","priority":"P1","title":"Production Cloud OCR Engine Integration","summary":"Connect real cloud OCR providers (Tesseract, Google Cloud Vision, or AWS Textract) behind OcrProvider.","status":"pending","description":"Implements production adapters for Tesseract OCR (local/containerized) and cloud vision providers (Anthropic Claude Vision / Google Cloud Vision) configured via organization settings with explicit privacy consent and data processing terms.","keyCapabilities":["Containerized or WebAssembly Tesseract OCR for zero-cost offline text extraction","High-accuracy cloud OCR provider fallback for difficult handwritten certificates","Organization-level toggle for enabling cloud AI processing","Automatic redaction before transmitting payloads to external vision APIs"],"acceptanceCriteria":["Switches seamlessly between mock, Tesseract, and cloud providers based on config","Fails loudly with clear diagnostics if external API keys are missing","Complies with DPDP Act constraints regarding external model training"],"sourcePaths":["packages/ai/src/providers/tesseract.ts","packages/ai/src/providers/anthropic.ts"]},{"id":"TOOL-01","epicId":"tool","epicName":"4. Document Preparation Tools & Studio","milestone":"MVP","priority":"P1","title":"Portal Requirement Presets Catalogue","summary":"Pre-configured specifications for SSC, NTA, UPSC, IBPS, Railways RRB, Agniveer, and State PSCs.","status":"complete","description":"Comprehensive built-in database of official photo, signature, and document specifications for major Indian examinations and government portals. Stores target KB ranges (min/max), dimensions in pixels and mm, DPI, and format requirements. Each preset is tagged as published or commonly_reported.","keyCapabilities":["Presets for SSC (20-50 KB), UPSC, NTA (NEET/JEE), IBPS, Railways RRB, Agniveer, State PSCs","Stores min/max size in bytes, width/height in px and mm, DPI, and accepted MIME types","Hindi and English preset names and portal notes","Searchable and filterable by exam category or recruitment board"],"acceptanceCriteria":["Selecting a preset immediately configures photo/signature studio constraints","Presets accurately reflect published portal requirements","Extensible schema supporting custom organization overrides"],"sourcePaths":["packages/document-tools/src/presets.ts","packages/document-tools/src/presets.test.ts"]},{"id":"TOOL-02","epicId":"tool","epicName":"4. Document Preparation Tools & Studio","milestone":"MVP","priority":"P1","title":"Photo Studio (Passport Crop & Target-KB Compression)","summary":"Client-side photo cropping to passport dimensions and target-KB binary search compression.","status":"complete","description":"Browser-based photo studio allowing operators to crop walk-in citizen photos to passport aspect ratios, adjust brightness/contrast, and compress to exact portal file size constraints (e.g. 20 KB to 50 KB). Uses a binary search algorithm to maximize visual quality while strictly guaranteeing target KB.","keyCapabilities":["Interactive crop overlay with passport head/face alignment guides","Target-KB binary search algorithm achieving exact portal file size bounds","JPEG comment segment padding to satisfy minimum file size constraints","Dimension resizing by pixels or mm at 200/300 DPI"],"acceptanceCriteria":["Generated photo file size strictly falls between target portal min and max KB","Original uploaded photo remains untouched; output saved as derivative record","Zero server-side image processing; 100% client-side execution via HTML5 Canvas"],"sourcePaths":["packages/document-tools/src/browser/photo.ts","apps/web/app/(app)/document-tools/photo-signature/page.tsx"]},{"id":"TOOL-03","epicId":"tool","epicName":"4. Document Preparation Tools & Studio","milestone":"MVP","priority":"P1","title":"Signature Studio (Whitespace Crop & Otsu Contrast)","summary":"Signature cleanup with auto whitespace trimming, Otsu ink/paper thresholding, and transparent background.","status":"complete","description":"Specialized editor for cleaning customer signatures photographed on paper. Automatically detects ink boundaries, crops surrounding white borders, applies Otsu thresholding with feathered edges to produce crisp dark signatures on pure white or transparent backgrounds, and compresses to target KB.","keyCapabilities":["Automatic bounding-box detection to trim excess blank paper margins","Otsu threshold algorithm separating blue/black ink from paper grain with feathered edges","Toggle between pure white background and transparent PNG","Target-KB compression for strict portal limits (e.g. 10-20 KB)"],"acceptanceCriteria":["Removes yellow/gray paper cast from mobile phone camera photos","Signature strokes remain smooth without jagged pixelation","Produces output matching portal preset specifications"],"sourcePaths":["packages/document-tools/src/browser/signature.ts","packages/document-tools/src/signature.test.ts"]},{"id":"TOOL-04","epicId":"tool","epicName":"4. Document Preparation Tools & Studio","milestone":"MVP","priority":"P1","title":"Passport Photo Grid & PVC Card Print Studio","summary":"Print-ready passport photo sheet layouts and CR-80 plastic card generator.","status":"complete","description":"Generates print-ready photo sheets for 4x6 inch and A4 paper with multiple passport photo copies, centered short rows, and corner cut marks. Also formats identity cards for standard CR-80 PVC plastic card printing with front/back alignment.","keyCapabilities":["Generates 6, 8, or 12 passport photo copies on 4x6 or A4 photo sheets","Precision corner cut marks for easy rotary trimmer cutting","CR-80 wallet card layout (85.6 x 53.98 mm) for thermal card printers","Direct print and high-resolution JPEG/PDF download"],"acceptanceCriteria":["Printed sheets align accurately to standard photo paper margins","Short rows are centered properly without awkward page offsets","High-resolution output at 300 DPI ready for direct counter printing"],"sourcePaths":["packages/document-tools/src/browser/grid.ts","apps/web/app/(app)/document-tools/passport-grid/page.tsx"]},{"id":"TOOL-05","epicId":"tool","epicName":"4. Document Preparation Tools & Studio","milestone":"MVP","priority":"P0","title":"Mandatory Aadhaar Redaction Tool with Coverage Gate","summary":"Canvas-based Aadhaar mask box with enforced isMeaningfulRedaction gate before saving or printing.","status":"complete","description":"Tool designed specifically for cyber cafes printing PVC Aadhaar cards. In accordance with UIDAI regulations, the operator must mask the first 8 digits of the Aadhaar number. The tool enforces this with an isMeaningfulRedaction gate: the print and save buttons are disabled until a valid mask box covers the number band.","keyCapabilities":["Interactive canvas redaction box positioned over UIDAI 12-digit number band","Algorithmic isMeaningfulRedaction verification checking box coverage coordinates","Hard UI block: download and print actions disabled until redaction is confirmed","Automatic derivative generation tagged with privacy compliance metadata"],"acceptanceCriteria":["Unredacted Aadhaar card cannot be downloaded, printed, or saved as derivative","Meaningful mask covers first 8 digits while leaving last 4 digits visible","Audit log records every Aadhaar derivative generation"],"sourcePaths":["packages/document-tools/src/redaction.ts","apps/web/app/(app)/document-tools/pvc-card/page.tsx"]},{"id":"TOOL-06","epicId":"tool","epicName":"4. Document Preparation Tools & Studio","milestone":"MVP","priority":"P1","title":"PDF Studio (Merge, Split, Reorder, Compress & Decrypt)","summary":"Client-side PDF manipulation and e-Aadhaar password decryption using pdf-lib and pdf.js.","status":"complete","description":"Comprehensive PDF manipulation hub running entirely in the operator browser. Allows merging multiple marksheets and certificates into single PDFs, splitting multi-page applications, reordering and rotating pages, compressing PDFs to portal size limits (e.g. <200 KB), and decrypting password-protected e-Aadhaar PDFs.","keyCapabilities":["Client-side PDF merge, split, reorder, and page rotation using pdf-lib","Convert image collections (JPG/PNG) into portal-ready multi-page PDFs","e-Aadhaar password unlock using standard name + birth year pattern","PDF compression reducing file size while maintaining legible certificate text"],"acceptanceCriteria":["Merges 5+ certificates into a single compliant PDF in <2 seconds","e-Aadhaar PDF unlocks cleanly without sending password to any backend server","Output PDF preserves vector text and sharpness"],"sourcePaths":["packages/document-tools/src/browser/pdf.ts","apps/web/app/(app)/document-tools/pdf-studio/page.tsx"]},{"id":"TOOL-07","epicId":"tool","epicName":"4. Document Preparation Tools & Studio","milestone":"MVP","priority":"P1","title":"Custom Organization Presets Configuration UI","summary":"Settings interface allowing operators to define and save custom portal presets.","status":"pending","description":"Provides an interface in Settings for cyber cafe operators to create and manage custom document presets (e.g. for local state universities or regional cooperative bank recruitments). Stored in document_requirement_presets with organization_id isolation.","keyCapabilities":["Custom preset builder: specify name, dimensions, min/max KB, DPI, and format","Category assignment (photo, signature, marksheet, certificate, general PDF)","Custom presets appear alongside built-in presets in Document Tools dropdowns","Edit and delete controls for organization-owned presets"],"acceptanceCriteria":["Operator can save a custom preset and use it immediately in Photo/Signature Studio","Custom presets are scoped strictly to the creating organization","Validates that min size is strictly less than max size"],"sourcePaths":["apps/web/app/(app)/settings/presets","supabase/migrations/0004_document_tools.sql"]},{"id":"FORM-01","epicId":"form","epicName":"5. Form Engine & Field Mapping","milestone":"MVP","priority":"P0","title":"Privacy-Preserving Field Detector","summary":"Content script inspecting visible DOM inputs and extracting safe field metadata without sending PII.","status":"complete","description":"Injected browser content script that inspects visible inputs, textareas, selects, radios, and checkboxes on target web pages. Resolves labels via label[for], wrapping elements, aria-labelledby, previous table cells, and preceding section headers. Collects structural metadata only — never transmits customer values or raw page HTML.","keyCapabilities":["Label resolution: label[for], wrapping label, aria-labelledby, table cell, preceding text","Stable field signatures computed from element hierarchy and attributes","Same-origin iframe inspection for portals using embedded form frames","Filters out hidden, disabled, or non-visible elements"],"acceptanceCriteria":["Detects all visible form inputs on supported government portals","Payload contains zero customer PII or pre-filled sensitive values","Handles complex portal markup structures (ServicePlus, NIC portals)"],"sourcePaths":["apps/extension/src/content/detector.ts","packages/form-engine/src/schema.ts"]},{"id":"FORM-02","epicId":"form","epicName":"5. Form Engine & Field Mapping","milestone":"MVP","priority":"P0","title":"Anti-Abuse Safety Classifiers","summary":"Automatic detection and strict exclusion of CAPTCHA, OTP, payment, and submit actions.","status":"complete","description":"Enforces fundamental safety and ethical constraints. Scans field labels, IDs, and attributes to identify CAPTCHAs, OTP inputs, credit card/netbanking fields, and final submission buttons. Form engine strictly marks these as unsupported/skipped and will never autofill or click them.","keyCapabilities":["Pattern matching for CAPTCHA images, text boxes, and reCAPTCHA widgets","Pattern matching for OTP, verification code, and 2FA input fields","Exclusion of payment card numbers, CVV, and banking PIN fields","Absolute prohibition on automated submit clicks — human operator must click submit"],"acceptanceCriteria":["CAPTCHA and OTP fields are tagged with safety flags and skipped during fill","Form autofill disengages before final application submission","52 regression safety tests pass verifying zero automated submission capability"],"sourcePaths":["packages/form-engine/src/safety.ts","packages/form-engine/src/safety.test.ts"]},{"id":"FORM-03","epicId":"form","epicName":"5. Form Engine & Field Mapping","milestone":"MVP","priority":"P0","title":"Multi-Tier Mapping Engine with Hindi/English Dictionary","summary":"Resolution hierarchy from portal adapter exact mapping down to bilingual synonym dictionary.","status":"complete","description":"Resolves detected web fields to Indian customer profile keys using priority order: (1) Portal adapter exact mapping, (2) Org custom override, (3) Historical fill mapping, (4) Rules dictionary. Bilingual dictionary contains 60+ entries across English, Hindi, and Hinglish with negative keywords.","keyCapabilities":["Hierarchical resolution: Adapter -> Org Override -> History -> Dictionary","Bilingual dictionary supporting Devanagari labels (नाम, पिता का नाम, जन्म तिथि)","Negative keyword guards (e.g. Father cannot match applicant full name)","Weighted scoring with penalty for mismatched input types and confidence demotion on ties"],"acceptanceCriteria":["Adapter mappings take precedence when URL pattern matches","Generic dictionary accurately maps standard fields on unsupported forms","Confidence score accurately distinguishes high-confidence from review-required fields"],"sourcePaths":["packages/form-engine/src/mapping.ts","packages/form-engine/src/dictionary.ts"]},{"id":"FORM-04","epicId":"form","epicName":"5. Form Engine & Field Mapping","milestone":"MVP","priority":"P0","title":"Value Formatter & Named Transformers","summary":"20 named value transformers adapting profile data to portal-specific formats.","status":"complete","description":"Converts canonical profile data into portal-expected input formats: date.ddmmyyyy (DD/MM/YYYY), date.yyyymmdd, mobile.10digit, pin.6digit, number.plain, gender.full (Male/Female/Transgender), uppercase, lowercase, and title case. Fails closed with null if data is unparseable.","keyCapabilities":["20 named transformers handling date formats, phone numbers, and casing","Fails closed (returns null rather than guessing a corrupted format)","Side panel review table displays transformed value rather than raw database value","Integration with buildFillInstructions ensuring transforms apply to real fills"],"acceptanceCriteria":["ISO dates format cleanly to DD/MM/YYYY or portal-specific date styles","Phone numbers strip country codes (+91) where portal specifies 10 digits","All 20 transformers pass unit regression tests"],"sourcePaths":["packages/form-engine/src/transforms.ts","packages/form-engine/src/transforms.test.ts"]},{"id":"FORM-05","epicId":"form","epicName":"5. Form Engine & Field Mapping","milestone":"MVP","priority":"P0","title":"Dependent Dropdown Sequential Fill","summary":"Sequential filling with dependsOn execution for administrative hierarchies.","status":"complete","description":"Solves the complex problem of cascading dropdowns (e.g. State -> District -> Sub-Division -> Block -> Village). Defines dependsOn relationships in adapter schemas, computes optimal fillOrder, and waits for portal AJAX responses before attempting to select downstream options.","keyCapabilities":["dependsOn dependency graph resolving topological fillOrder","Bounded polling wait (up to 3 seconds) for downstream dropdown options to populate","Matching options by exact value first, then normalized visible label text","Graceful fallback if dependent option is unavailable on portal"],"acceptanceCriteria":["Selecting state triggers district load, which loads sub-division, which loads block","Fills RTPS Bihar certificate administrative chains without timing out","Does not block browser if an AJAX response fails"],"sourcePaths":["packages/form-engine/src/adapters/bihar-rtps.ts","apps/extension/src/content/filler.ts"]},{"id":"FORM-06","epicId":"form","epicName":"5. Form Engine & Field Mapping","milestone":"MVP","priority":"P1","title":"Seed Top 5 High-Volume Portal Adapters","summary":"Production-tested portal adapters for Bihar RTPS, SSC, UP e-District, and National Scholarship.","status":"in-progress","description":"Current status: Built-in adapter for Bihar RTPS ServicePlus (bihar-rtps-serviceonline) completed with 17 E2E tests. Next step: complete live portal smoke test to promote from testing to active, and author the remaining 4 high-volume adapters (SSC CGL/CHSL, UP e-District, NSP, and PM Kisan).","keyCapabilities":["BUILT_IN_ADAPTERS catalogue bundled with build for instant out-of-the-box support","Database seed script npm run db:seed:adapters to publish into portal_adapters table","Adapter URL glob matching with specificity and status ranking","Field definitions with label patterns, transforms, and dependent relations"],"acceptanceCriteria":["bihar-rtps-serviceonline promoted to active following live smoke test","4 additional high-volume recruitment/welfare adapters seeded","Adapters achieve >=85% field mapping accuracy on target portals"],"sourcePaths":["packages/form-engine/src/adapters","scripts/seed-adapters.ts"]},{"id":"FORM-07","epicId":"form","epicName":"5. Form Engine & Field Mapping","milestone":"MVP","priority":"P1","title":"Unsupported Form Reporting Endpoint","summary":"Endpoint allowing operators to report new or broken portals with anonymized metadata.","status":"pending","description":"Implements POST /api/form-reports allowing operators encountering an unrecognized or broken government form to click Report Form in the extension. Transmits URL origin/path, page title, and anonymized field signatures without customer PII to queue adapter creation.","keyCapabilities":["One-click Report Form action from extension side panel","Collects URL pattern, field count, and DOM structure signatures","Strict scrubbing guaranteeing zero customer values or sensitive PII in report","Queues reports in Super Admin dashboard for adapter engineering"],"acceptanceCriteria":["Operator can submit a form report in under 5 seconds","API rejects any payload containing detected PII or query parameter tokens","New reports appear in admin review queue for adapter development"],"sourcePaths":["apps/web/app/api/form-reports/route.ts","apps/extension/src/sidepanel"]},{"id":"FORM-08","epicId":"form","epicName":"5. Form Engine & Field Mapping","milestone":"MVP","priority":"P2","title":"AI-Assisted Metadata Mapping Fallback","summary":"Tier-5 AI mapping fallback using field metadata only, gated on explicit organization opt-in.","status":"pending","description":"Provides intelligent field mapping fallback when an unknown portal has atypical labels that fail dictionary matching. Sends field names, placeholders, and surrounding text (no customer values) to an LLM to propose profile mappings, strictly gated by organization privacy settings.","keyCapabilities":["Metadata-only prompt construction (transmits labels/names, never customer PII)","Organization opt-in setting required before invoking external AI","Caches successful AI mappings locally to avoid repeat API costs","All AI-suggested mappings are categorized as review_required"],"acceptanceCriteria":["Only triggers when dictionary confidence is below 0.70 and org opt-in is active","Maps non-standard labels with >80% accuracy","Operator must confirm suggested mappings before filling"],"sourcePaths":["packages/form-engine/src/ai-mapper.ts","apps/web/app/api/forms/ai-map/route.ts"]},{"id":"EXT-01","epicId":"ext","epicName":"6. Chrome MV3 Extension","milestone":"MVP","priority":"P0","title":"MV3 Service Worker & Pairing Code Auth Flow","summary":"Manifest V3 architecture authenticated via secure one-time pairing codes and JWT tokens.","status":"complete","description":"Manifest V3 companion extension requiring no install-time broad host permissions. Authenticates with the web dashboard via one-time pairing code minted at /extension/connect, gated by EXTENSION_ALLOWED_IDS allowlist. Rotates JWT tokens via background service worker and stores session data in chrome.storage.session.","keyCapabilities":["Manifest V3 with activeTab, storage, scripting, and sidePanel permissions","One-time pairing code handshake with dashboard origin","EXTENSION_ALLOWED_IDS gate preventing unauthorized extension pairing","Secure storage split: auth tokens in session storage, preferences in local storage"],"acceptanceCriteria":["Extension pairs with dashboard account in 1 click without entering password","Content script injected only on demand following explicit user gesture","55 unit and integration tests pass for extension messaging contracts"],"sourcePaths":["apps/extension/manifest.json","apps/extension/src/background/service-worker.ts"]},{"id":"EXT-02","epicId":"ext","epicName":"6. Chrome MV3 Extension","milestone":"MVP","priority":"P0","title":"Extension Popup & Customer Selector","summary":"Quick popup displaying paired organization, active operator, and instant customer search.","status":"complete","description":"Lightweight extension toolbar popup showing current organization status, active operator role, and selected customer card. Features search input to quickly switch between recent customers, clear customer selection, or open the web dashboard in a new tab.","keyCapabilities":["Instant search and selection among recent organization customers","Prominent display of active customer name and masked mobile","Quick action to open side panel or full web dashboard","Disconnect button allowing clean operator logout from shared cyber cafe PCs"],"acceptanceCriteria":["Displays currently selected customer clearly before navigating to target portal","Search filters customer list instantly as operator types","Disconnect immediately purges transient session tokens"],"sourcePaths":["apps/extension/src/popup/popup.tsx","apps/extension/src/popup/customer-picker.tsx"]},{"id":"EXT-03","epicId":"ext","epicName":"6. Chrome MV3 Extension","milestone":"MVP","priority":"P0","title":"Side Panel Field Mapping & Review Interface","summary":"Rich in-browser side panel displaying detected fields, proposed values, and review toggles.","status":"complete","description":"Renders in Chrome Side Panel alongside target government portal. Displays detected form inputs, matched customer profile fields, proposed transformed values, confidence ratings, and edit/skip toggles. Operator reviews mappings before initiating fill.","keyCapabilities":["Side-by-side view with active webpage using native Chrome Side Panel API","Review table with color-coded confidence indicators","Individual field edit and skip checkboxes","Warning alerts for high-risk fields (Aadhaar, PAN, caste, bank account)"],"acceptanceCriteria":["Side panel opens reliably alongside any web form on active tab","Operator can modify proposed value directly before filling","High-risk fields are highlighted with mandatory review notices"],"sourcePaths":["apps/extension/src/sidepanel/sidepanel.tsx","apps/extension/src/sidepanel/review-table.tsx"]},{"id":"EXT-04","epicId":"ext","epicName":"6. Chrome MV3 Extension","milestone":"MVP","priority":"P0","title":"Guided Safe Autofill Execution","summary":"Reliable autofill dispatching native React/Vue events without automated final submission.","status":"complete","description":"Executes form filling by dispatching native DOM input and change events through prototype setter overrides, guaranteeing compatibility with modern single-page apps (React, Vue, Angular). Handles text inputs, selects, radio groups, and checkboxes. Never touches submit buttons.","keyCapabilities":["Native property setter dispatching input and change events for SPA compatibility","Select dropdown matching by value attribute then visible label text","Radio button and checkbox state toggling","Strict execution gate terminating before submission buttons"],"acceptanceCriteria":["Successfully populates fields on modern JavaScript portal frameworks","Does not clear fields when user interacts with page after fill","Operator retains 100% control over final form submission"],"sourcePaths":["apps/extension/src/content/filler.ts","apps/extension/src/content/filler.test.ts"]},{"id":"EXT-05","epicId":"ext","epicName":"6. Chrome MV3 Extension","milestone":"MVP","priority":"P1","title":"Smart File Attachment Helper","summary":"Direct DataTransfer file input injection and deep links to Document Tools Studio.","status":"complete","description":"Detects file upload elements, infers portal requirements (photo, signature, marksheet), and surfaces customer matching derivatives in side panel. Operators can check a box to attach files directly via DataTransfer or click 1-click download with deep link into Document Studio pre-configured with the portal preset.","keyCapabilities":["File input classification (photo, signature, PDF) based on label and accept attribute","Suggests up to 3 best-matching prepared derivatives from customer profile","Direct file attachment into file inputs using DataTransfer event synthesis","Deep link button to Document Tools Studio with pre-loaded preset and customer ID"],"acceptanceCriteria":["Suggests prepared passport photo when candidate photo file input is detected","Direct file attachment attaches correct file bytes to live input element","Deep link opens Document Tools with matching preset parameters"],"sourcePaths":["packages/form-engine/src/documents.ts","apps/extension/src/content/filler.ts"]},{"id":"EXT-06","epicId":"ext","epicName":"6. Chrome MV3 Extension","milestone":"MVP","priority":"P0","title":"Fill Session Logging & Metrics","summary":"Audit log of form fill operations recording detected, filled, and skipped counts without PII.","status":"complete","description":"Upon fill completion, the service worker sends session metadata to POST /api/fill-sessions. Records URL origin, page title, detected fields count, filled count, skipped count, and error summary. Links session to active customer and organization without storing PII in session logs.","keyCapabilities":["Telemetry logging: fields detected, proposed, filled, skipped, and review count","Records portal origin and timestamp for audit and billing meters","Zero customer PII stored in fill_sessions or fill_session_fields tables","Visible fill history on customer profile and organization dashboard"],"acceptanceCriteria":["Every fill execution writes a clean record in fill_sessions table","Logs reflect exact count of fields modified vs skipped","Errors are captured for portal adapter maintenance"],"sourcePaths":["apps/extension/src/background/service-worker.ts","apps/web/app/api/fill-sessions/route.ts"]},{"id":"EXT-07","epicId":"ext","epicName":"6. Chrome MV3 Extension","milestone":"MVP","priority":"P1","title":"Chrome Web Store Packaging & Beta Publishing","summary":"Production build optimization, store assets, and private/unlisted submission to Chrome Web Store.","status":"pending","description":"Prepares the extension bundle for production release: minification, asset bundling, Chrome Web Store policy compliance review, privacy disclosure documentation, store screenshots, and private/unlisted beta release for pilot cyber cafe operators.","keyCapabilities":["Production build script producing signed zip bundle without development artifacts","Chrome Web Store listing copy, privacy disclosures, and single-purpose justification","Store promotional assets: icons (16, 48, 128px), marquee banners, screenshots","Unlisted beta release link restricted to pilot organization emails"],"acceptanceCriteria":["Passes Chrome Web Store automated security and policy checks","Bundle size remains under 200 KB","Pilot cyber cafes can install in 1 click from official Web Store link"],"sourcePaths":["apps/extension/package.json","apps/extension/manifest.json"]},{"id":"APPS-01","epicId":"apps","epicName":"7. Application Tracking & Management","milestone":"MVP","priority":"P0","title":"Applications Board & Filter Views","summary":"Operational dashboard tracking all customer applications with status, portal, and deadline filters.","status":"pending","description":"Central operational dashboard under /applications displaying all citizen applications processed by the center. Features filterable tables with portal type, applicant name, deadline date, assigned operator, fees charged, and status pipeline badges.","keyCapabilities":["Filter by status (draft, pending documents, filled, submitted, approved, rejected)","Filter by portal category (recruitment, scholarship, certificate, welfare)","Sort by deadline date to prevent missed submission cutoff dates","Fast customer and portal reference number search"],"acceptanceCriteria":["Displays all active and historical applications for the organization","Shows deadline countdown alerts for approaching submission dates","Clicking row opens full application detail view"],"sourcePaths":["apps/web/app/(app)/applications/page.tsx","apps/web/components/applications/table.tsx"]},{"id":"APPS-02","epicId":"apps","epicName":"7. Application Tracking & Management","milestone":"MVP","priority":"P0","title":"Application State Machine & Status Transitions","summary":"Audited state machine managing application progress from Draft to Approved/Rejected.","status":"in-progress","description":"Current status: Core state machine and validation built in packages/core. Pending: UI integration in web dashboard. Manages application progress: Draft -> Pending Documents -> Ready to Fill -> Filled -> Submitted -> Pending Follow-up -> Approved / Rejected / Cancelled, logging transitions in application_status_events.","keyCapabilities":["Strict state transition rules preventing invalid jumps (e.g. Draft to Approved)","Status change dialog prompting for optional notes and reference numbers","Immutable audit log in application_status_events recording timestamp and operator","Visual progress timeline on application detail screen"],"acceptanceCriteria":["State transitions follow established lifecycle graph","Status change creates audited event record","Customer profile displays updated application status in real time"],"sourcePaths":["packages/core/src/applications/state-machine.ts","apps/web/app/(app)/applications/[id]/page.tsx"]},{"id":"APPS-03","epicId":"apps","epicName":"7. Application Tracking & Management","milestone":"MVP","priority":"P0","title":"Required Document Checklist per Application","summary":"Interactive checklist tracking required customer documents and derivatives for specific forms.","status":"pending","description":"Interactive document checklist attached to each application based on portal requirements. Operators mark items as Required, Attached, Missing, or Rejected. Allows 1-click attaching of customer profile documents or prepared derivatives to satisfy requirements.","keyCapabilities":["Auto-populates required checklist from portal adapter document requirements","Status badges: Required, Attached, Missing, Rejected","1-click attach of customer documents and photo/signature derivatives","Prevents advancing to Ready to Fill until mandatory documents are attached"],"acceptanceCriteria":["Selecting a portal type populates required document checklist automatically","Attaching a derivative marks requirement as Attached with file link","Checklist status is visible on customer profile and application card"],"sourcePaths":["apps/web/app/(app)/applications/[id]/documents","supabase/migrations/0003_applications.sql"]},{"id":"APPS-04","epicId":"apps","epicName":"7. Application Tracking & Management","milestone":"MVP","priority":"P1","title":"Portal Reference Number, Fees Charged & Receipt Tracking","summary":"Tracks official portal acknowledgement numbers, operator service fees, and receipt slip uploads.","status":"pending","description":"Records official acknowledgement/reference numbers generated by government portals upon final submission, fees collected from the citizen (government fee + center service charge), payment receipt uploads, and internal operator notes.","keyCapabilities":["Portal acknowledgement / reference number input field with duplicate checking","Financial ledger: Government fee, center service charge, total collected, payment status","Acknowledgement slip PDF / image upload directly attached to application","Summary revenue reports on dashboard home"],"acceptanceCriteria":["Stores reference numbers and fee amounts accurately","Uploaded receipt PDF is accessible via signed download URL","Enables searching applications by portal reference number"],"sourcePaths":["apps/web/app/(app)/applications/[id]/receipts","packages/core/src/applications"]},{"id":"APPS-05","epicId":"apps","epicName":"7. Application Tracking & Management","milestone":"MVP","priority":"P1","title":"1-Click Application Record Creation post-Fill","summary":"Prompt in extension side panel to instantly create an application record upon completing form fill.","status":"pending","description":"Closes the loop between form filling and management. Upon successful autofill execution, the extension side panel displays a prompt: Create Application Record? In 1 click, creates a tracked application record linked to the fill session, customer, and portal adapter.","keyCapabilities":["Post-fill prompt in extension side panel: Create Application Record","Pre-populates portal name, form URL, date, and customer details automatically","Sets status to Filled and prompts operator to enter reference number after submission","Seamless link between fill session logs and application management board"],"acceptanceCriteria":["Operator can create application record from extension in 1 click","Application links back to fill session ID for full audit traceability","Appears immediately on web dashboard applications board"],"sourcePaths":["apps/extension/src/sidepanel/fill-complete.tsx","apps/web/app/api/applications/from-fill/route.ts"]},{"id":"BILL-01","epicId":"bill","epicName":"8. Billing, Plans & Usage Entitlements","milestone":"MVP","priority":"P0","title":"Tiered Subscription Plans & Quota Limits","summary":"Plan architecture for Free, Starter (₹299), Professional (₹599), and Business (₹999+).","status":"in-progress","description":"Current status: Plans schema and entitlement calculation built in packages/core. Pending: UI integration in /billing. Configures tiers: Free (₹0, limited fills/extractions), Starter (₹299/mo, 1 seat, 200 fills), Professional (₹599/mo, 3 seats, 1000 fills), Business (₹999+/mo, 5 seats, unlimited fills).","keyCapabilities":["Database plans table defining monthly fill quota, AI extraction credits, seats, and storage","Server-side entitlement engine evaluating quota limits before billable operations","Graceful notifications when quotas are approaching limit (80%, 95%, 100%)","App runs fully in Free tier without requiring payment gateway setup in local/dev"],"acceptanceCriteria":["Enforces quota limits on server side across API routes","Organizations exceeding quotas receive actionable upgrade prompt","Data is never deleted or restricted upon plan downgrade or expiration"],"sourcePaths":["packages/core/src/billing/plans.ts","packages/core/src/billing/entitlements.ts"]},{"id":"BILL-02","epicId":"bill","epicName":"8. Billing, Plans & Usage Entitlements","milestone":"MVP","priority":"P0","title":"Real-Time Billable Event Metering","summary":"Event ingestion logging billable usage events: form fills, AI extractions, and storage.","status":"in-progress","description":"Current status: usage_events schema and core event types built. Records billable events: fill (form autofill session), ai_extraction (OCR document extraction), document_tool (derivative generation), and storage (active storage bytes). Aggregates monthly usage counters for billing cycles.","keyCapabilities":["Ingestion helper recordUsageEvent logging event type, quantity, and metadata","Monthly usage aggregation query calculating current period totals","Atomic counter increments preventing race conditions during concurrent fills","Audit log linking usage events to operator and customer IDs"],"acceptanceCriteria":["Every form fill and OCR extraction increments the correct organization meter","Usage resets cleanly at the start of each billing cycle","Usage metrics are accessible via GET /api/billing/usage"],"sourcePaths":["packages/core/src/billing/usage.ts","apps/web/app/api/billing/usage/route.ts"]},{"id":"BILL-03","epicId":"bill","epicName":"8. Billing, Plans & Usage Entitlements","milestone":"MVP","priority":"P1","title":"Customer Billing Dashboard & Usage Visualizers","summary":"Dedicated billing page under /billing displaying active plan, usage progress bars, and invoices.","status":"pending","description":"Self-service billing dashboard under /billing. Displays current subscription tier, billing period dates, visual progress bars for monthly fills and AI extractions used, active seats roster, downloadable invoice history, and 1-click plan upgrade/downgrade buttons.","keyCapabilities":["Visual progress meters for monthly form fills, AI extractions, and storage quotas","Plan comparison matrix with Upgrade / Downgrade triggers","Invoice history table with downloadable PDF receipts","Seat management allowing owners to purchase additional operator seats"],"acceptanceCriteria":["Operators can check remaining monthly fill and extraction balances at a glance","Invoices display correct GST breakdown and business address","Restricted strictly to Org Owner and Billing Admin roles"],"sourcePaths":["apps/web/app/(app)/billing/page.tsx","apps/web/components/billing/usage-bars.tsx"]},{"id":"BILL-04","epicId":"bill","epicName":"8. Billing, Plans & Usage Entitlements","milestone":"MVP","priority":"P1","title":"Razorpay Payment Gateway Integration","summary":"India-first subscription checkout using Razorpay Recurring Subscriptions and UPI/cards.","status":"pending","description":"Implements the BillingProvider interface for Razorpay. Supports standard Indian payment rails: UPI AutoPay, credit/debit cards, and netbanking. Creates checkout sessions, manages subscription mandates, and handles renewal cycles.","keyCapabilities":["BillingProvider interface with Razorpay provider implementation","Supports UPI AutoPay, cards, and netbanking subscriptions","Mock billing provider for local development without live gateway credentials","Handles prorated upgrades and mid-cycle plan modifications"],"acceptanceCriteria":["Completing Razorpay checkout upgrades organization subscription immediately","Mock provider allows 1-click testing in development environments","Stores zero credit card or bank account details on Assistigo servers"],"sourcePaths":["packages/core/src/billing/provider.ts","apps/web/lib/billing/razorpay.ts"]},{"id":"BILL-05","epicId":"bill","epicName":"8. Billing, Plans & Usage Entitlements","milestone":"MVP","priority":"P1","title":"Idempotent Webhook Processing Handler","summary":"Secure webhook endpoint handling payment success, failure, and renewal events idempotently.","status":"pending","description":"Implements POST /api/billing/webhook to receive gateway event notifications (subscription.charged, subscription.cancelled, payment.failed). Verifies cryptographic webhook signatures, prevents duplicate processing via idempotency keys, and updates subscription state safely.","keyCapabilities":["HMAC-SHA256 signature verification validating webhook authenticity","Idempotency gate ensuring duplicate webhook deliveries execute only once","Automated grace period and failure notification on payment failure","Hard rule: Failed billing never deletes or truncates customer data"],"acceptanceCriteria":["Processes subscription.charged events and updates current_period_end","Duplicate webhook deliveries return 200 OK without double-counting","Invalid signatures are rejected immediately with 401 Unauthorized"],"sourcePaths":["apps/web/app/api/billing/webhook/route.ts","packages/core/src/billing/webhook.test.ts"]},{"id":"SEC-01","epicId":"sec","epicName":"9. Security, Privacy & DPDP Compliance","milestone":"MVP","priority":"P0","title":"Comprehensive Immutable Audit Logging","summary":"Append-only audit trail recording all sensitive operations across the platform.","status":"complete","description":"Comprehensive audit logging via audit_logs table. Automatically records actor ID, organization ID, action, entity type, entity ID, sensitivity level, IP address, and user agent. Covered events: login failures, customer CRUD, sensitive field reveals, document uploads/downloads, and form fills. Immutable via PostgreSQL triggers.","keyCapabilities":["Append-only audit_logs table protected against updates and deletes","Audits sensitive field reveals, customer exports, role changes, and fills","Redaction layer ensuring raw passwords or full Aadhaar numbers never appear in logs","Audit log viewer in customer profile and organization settings"],"acceptanceCriteria":["Every sensitive data access generates an immutable audit record","PostgreSQL RLS prevents non-admin modification or deletion of audit records","Audit history is viewable by authorized organization owners"],"sourcePaths":["supabase/migrations/0006_audit_logs.sql","packages/core/src/audit/catalogue.ts"]},{"id":"SEC-02","epicId":"sec","epicName":"9. Security, Privacy & DPDP Compliance","milestone":"MVP","priority":"P1","title":"Customer DPDP Consent Records & Versioning","summary":"Versioned consent recording framework aligned with India DPDP Act 2023.","status":"pending","description":"Implements consent_records table to record explicit, versioned consent from walk-in citizens for: customer_data storage, document_storage, and ai_processing. Tracks consenting citizen ID, consent notice version, collecting operator, and withdrawal timestamps.","keyCapabilities":["Consent record capture with notice version hash and timestamp","Consent withdrawal workflow updating status to withdrawn","Bilingual consent notice text in Hindi and English","Exportable consent certificate proving compliant notice and consent"],"acceptanceCriteria":["Consent records capture notice version and operator timestamp","Withdrawing consent flags customer profile and restricts automated processing","Audit trail retains historical consent records indefinitely"],"sourcePaths":["apps/web/app/api/consent/route.ts","supabase/migrations/0007_consent_records.sql"]},{"id":"SEC-03","epicId":"sec","epicName":"9. Security, Privacy & DPDP Compliance","milestone":"MVP","priority":"P1","title":"Customer Data Export & Right-to-Erasure Deletion Flow","summary":"One-click customer profile data export (JSON/PDF) and compliant erasure deletion workflows.","status":"pending","description":"Implements customer data subject rights under DPDP: (1) Right to access/export (downloads full customer demographic profile, documents, and application history as portable ZIP/JSON), and (2) Right to erasure (soft-delete with 30-day purge or permanent immediate shredding of private document files).","keyCapabilities":["One-click data export generating portable JSON package of all customer data","Right to erasure: purges document files from storage buckets and anonymizes profile","Soft-delete with 30-day grace recovery window for accidental deletions","Audits all export and deletion events with operator attribution"],"acceptanceCriteria":["Export package contains complete customer records without data loss","Erasure deletes physical storage objects from private buckets permanently","Action restricted strictly to Org Owner role"],"sourcePaths":["apps/web/app/api/customers/[id]/export/route.ts","apps/web/app/api/customers/[id]/purge/route.ts"]},{"id":"SEC-04","epicId":"sec","epicName":"9. Security, Privacy & DPDP Compliance","milestone":"MVP","priority":"P1","title":"Time-Limited Support Staff Access Grants","summary":"Audited, operator-approved temporary access for internal customer support engineers.","status":"pending","description":"Enforces zero standing access for internal Assistigo engineers. Support staff cannot view customer documents or profiles by default. When an operator requests support, they issue a time-limited grant (e.g. 4 hours) with explicit reason, fully audited and revocable at any moment.","keyCapabilities":["Zero standing access: super admins and support staff cannot read customer rows by default","Temporary support grant request and approval workflow with explicit expiration","Every support action logged with mandatory reason and ticket reference","Instant revocation button in organization security settings"],"acceptanceCriteria":["Support staff cannot view customer documents without an active grant","Grants expire automatically after the approved duration (max 24 hours)","All support read and mutation actions are recorded in immutable audit logs"],"sourcePaths":["packages/core/src/security/support-grants.ts","supabase/migrations/0008_support_grants.sql"]},{"id":"SEC-05","epicId":"sec","epicName":"9. Security, Privacy & DPDP Compliance","milestone":"MVP","priority":"P0","title":"Zero-PII Error Scrubbing (Sentry)","summary":"Configures client and server error monitoring to scrub customer names, mobiles, and identifiers.","status":"pending","description":"Configures Sentry / application performance monitoring with strict beforeSend scrubbing rules. Ensures customer full names, 10-digit phone numbers, Aadhaar numbers, PAN numbers, and document OCR payloads are scrubbed from stack traces, breadcrumbs, and request payloads before transmission.","keyCapabilities":["beforeSend hook in client and server Sentry SDKs with PII regex scrubbers","Scrubs Indian mobile numbers, Aadhaar patterns, and PAN formats from error contexts","Redacts URL query parameters containing customer IDs or pairing codes","Captures technical error diagnostics without exposing citizen data"],"acceptanceCriteria":["Deliberately triggered errors contain zero raw customer PII in Sentry dashboard","Stack traces preserve code line numbers and error types without variable leakage","Complies fully with DPDP processor security obligations"],"sourcePaths":["apps/web/lib/observability/sentry.ts","apps/extension/src/utils/telemetry.ts"]},{"id":"PUB-01","epicId":"pub","epicName":"10. Public Website, Admin & Localization","milestone":"MVP","priority":"P0","title":"Complete Hindi / English UI Localization Switcher","summary":"Full bilingual coverage across UI, form mappers, and document tools with instant in-place toggle.","status":"complete","description":"Comprehensive localization system using key-based dictionaries for English (en) and Hindi (hi). Covers the entire application surface: navigation, customer forms, document tools, side panel extension, and error messages. Supports instant in-place switching without page reload.","keyCapabilities":["Complete en and hi translation dictionaries in packages/core and apps/web/messages","In-place locale switcher in header bar and extension settings","Devanagari typography rendering clearly with resilient layout spacing","Bilingual form field synonym matching in form mapping dictionary"],"acceptanceCriteria":["Switching to Hindi translates 100% of dashboard and extension UI text","Devanagari text renders cleanly without truncation or line overlaps","User preferred locale persists across sessions in localStorage and database"],"sourcePaths":["apps/web/messages/en.json","apps/web/messages/hi.json","apps/web/components/app-shell/locale-switcher.tsx"]},{"id":"PUB-02","epicId":"pub","epicName":"10. Public Website, Admin & Localization","milestone":"MVP","priority":"P1","title":"Public Landing Page & Interactive Workflow Demo","summary":"Modern marketing landing page featuring before/after counter workflows and interactive demo.","status":"in-progress","description":"Public landing page at / positioning Bharatfill / Assistigo as India's AI form-filling assistant for CSCs and cyber cafes. Features positioning headline, Before/After typing comparison, interactive form fill simulation demo, pricing preview, and customer testimonials.","keyCapabilities":["Hero section with strong Hindi/English positioning line","Interactive form fill demo component simulating 1-click counter autofill","Before/After comparison: 15 minutes manual typing vs 30 seconds with Assistigo","FAQ section addressing legal compliance, security, and supported forms"],"acceptanceCriteria":["Landing page loads in <1.5s with optimized Lighthouse scores","Interactive demo runs smoothly in browser without requiring login","Clear call-to-action buttons for Start Free, Watch Demo, and Pricing"],"sourcePaths":["apps/web/app/page.tsx","apps/web/components/landing"]},{"id":"PUB-03","epicId":"pub","epicName":"10. Public Website, Admin & Localization","milestone":"MVP","priority":"P1","title":"Compliance Legal Pages (Privacy Policy & DPDP Notice)","summary":"Public legal documents covering Privacy Policy, Terms of Service, DPDP Notice, and Acceptable Use.","status":"pending","description":"Authoritative legal and trust pages under /legal: (1) Privacy Policy (aligned with Digital Personal Data Protection Act 2023), (2) Terms of Service for cyber cafe operators, (3) Acceptable Use Policy (strictly prohibiting CAPTCHA bypass or government impersonation), and (4) Security Architecture whitepaper.","keyCapabilities":["DPDP-compliant Privacy Policy detailing data processor obligations","Acceptable Use Policy explicitly banning automated submissions and botting","Terms of Service clarifying operator responsibility for citizen consent","Security page explaining AES-256-GCM encryption and signed storage URLs"],"acceptanceCriteria":["All legal documents accessible publicly without authentication at /legal/*","Plain-language summaries alongside formal legal text","Meets Chrome Web Store developer compliance disclosure standards"],"sourcePaths":["apps/web/app/(public)/legal","docs/SECURITY.md"]},{"id":"PUB-04","epicId":"pub","epicName":"10. Public Website, Admin & Localization","milestone":"MVP","priority":"P1","title":"Demo Request Lead Capture Form","summary":"Lead generation form collecting center type, city/state, and monthly volume from prospective operators.","status":"pending","description":"Public lead capture page at /demo. Collects prospective operator details: center name, mobile number, center type (CSC, cyber cafe, CSP, recruitment shop), city, district, state, and approximate monthly forms filled. Stores leads in database for sales outreach.","keyCapabilities":["Lead capture form with phone number validation","Dropdown for Indian states and union territories","Automated confirmation email and WhatsApp alert to sales team","Dashboard view for internal staff to manage and contact incoming leads"],"acceptanceCriteria":["Prospective operators can submit demo requests in <45 seconds","Validates 10-digit Indian phone number format","Stores leads in leads table with timestamp and IP address"],"sourcePaths":["apps/web/app/(public)/demo/page.tsx","apps/web/components/landing/demo-form.tsx"]},{"id":"PUB-05","epicId":"pub","epicName":"10. Public Website, Admin & Localization","milestone":"MVP","priority":"P1","title":"Super Admin Platform Portal & Scheme Scraper Pipeline","summary":"Internal staff surface for tenant management, metrics, and automated government scheme scraping.","status":"in-progress","description":"Current status: /admin portal with platform metrics, tenant list, scheme catalogue, diff engine, and scraper queue built with 119 unit tests. Pending: connect production cron scheduler to POST /api/admin/scrapers/run and add platform audit viewer.","keyCapabilities":["Super Admin portal under /admin gated by platform_admins table and isPlatformStaff","Platform aggregate metrics: total organizations, customers, fills, and storage used","Government scheme ingestion engine with manual/fixture/HTTP fetchers","Content-hash deduplication and side-by-side diff review queue before publishing"],"acceptanceCriteria":["Non-staff users visiting /admin receive 404 Not Found (not 403 Forbidden)","Scraper staging queue prevents duplicate scheme updates via content hashing","Schemes require explicit human approval before publishing to operator catalog"],"sourcePaths":["apps/web/app/admin","packages/core/src/platform"]},{"id":"V1.1-01","epicId":"v1.1","epicName":"11. Release V1.1: Pilot Polish & Stabilization","milestone":"Future","priority":"Future","title":"Top 10 High-Volume Government Portal Adapters","summary":"Battle-tested adapters for SSC CGL, NTA NEET/CUET, UP e-District, NSP, and PM Kisan.","status":"pending","description":"Expands the form adapter library with 10 production-tested adapters based on pilot operator interview data: Staff Selection Commission (SSC CGL/CHSL), National Testing Agency (NEET/JEE/CUET), Uttar Pradesh e-District, National Scholarship Portal (NSP), PM Kisan Samman Nidhi, Railway Recruitment Board (RRB), and State PSCs.","keyCapabilities":["Production-tested field mappings for top 10 national and state portals","Pre-configured portal document presets attached to each adapter","Handles multi-page step forms and complex dependent dropdowns","Zero maintenance required from operators for supported portals"],"acceptanceCriteria":["Adapters achieve >=90% field detection and mapping accuracy on target portals","Step-by-step forms navigate cleanly between application stages","Document inputs automatically link to matching prepared customer derivatives"],"sourcePaths":["packages/form-engine/src/adapters/catalogue"]},{"id":"V1.1-02","epicId":"v1.1","epicName":"11. Release V1.1: Pilot Polish & Stabilization","milestone":"Future","priority":"Future","title":"Duplicate Customer Comparison & Merge Wizard","summary":"Visual side-by-side comparison wizard to merge duplicate customer profiles and consolidate histories.","status":"pending","description":"Interactive wizard allowing operators to compare two customer profiles flagged as duplicates side-by-side. Operators select the authoritative value for each field (or combine addresses), merge uploaded documents and application history into a single primary record, and safely archive the duplicate.","keyCapabilities":["Side-by-side field comparison table highlighting conflicting values","Field-level radio selector to choose authoritative values for merged profile","Consolidates all attached documents, derivatives, and applications to primary profile","Preserves full audit trail recording who merged the records and when"],"acceptanceCriteria":["Merges documents and applications without orphaned database records","Archived duplicate profile is soft-deleted and redirects to primary ID","Audit log records both customer IDs and all merged field decisions"],"sourcePaths":["apps/web/app/(app)/customers/merge","packages/core/src/customers/merge.ts"]},{"id":"V1.1-03","epicId":"v1.1","epicName":"11. Release V1.1: Pilot Polish & Stabilization","milestone":"Future","priority":"Future","title":"Operator Offline Training Kit & Counter Reference Poster","summary":"Printable 1-page counter cheat sheet, keyboard shortcut poster, and 2-minute video tutorials.","status":"pending","description":"Comprehensive physical and digital onboarding materials for cyber cafe staff: printable laminated desk reference card, high-resolution keyboard shortcut wall poster, and 2-minute Hindi video walkthroughs demonstrating 1-click counter autofill.","keyCapabilities":["Printable high-resolution desk reference card with 4-step counter workflow","Keyboard shortcut reference chart for high-speed counter operators","Bilingual Hindi and English explanatory text tailored to cyber cafe terminology","Embedded video tutorial modal inside dashboard for self-guided operator training"],"acceptanceCriteria":["New cyber cafe operator can complete first fill independently within 5 minutes","Desk poster provides quick solutions to common portal issues (e.g. photo size)","Video tutorials stream smoothly directly inside the app shell"],"sourcePaths":["docs/training","apps/web/public/assets/cheat-sheets"]},{"id":"V1.1-04","epicId":"v1.1","epicName":"11. Release V1.1: Pilot Polish & Stabilization","milestone":"Future","priority":"Future","title":"High-Speed Counter Keyboard Navigation Shortcuts","summary":"Vim-style and standard desktop keyboard shortcuts across the entire dashboard.","status":"pending","description":"Empowers power operators to navigate the entire dashboard without touching the mouse: / for global customer search, N for new customer, D for document upload, T for document tools, Esc to dismiss modals, and Enter to confirm actions.","keyCapabilities":["Global shortcut listener active across all authenticated dashboard routes","Visual shortcut cheat-sheet modal triggered by pressing ?","Focus trapping and clean arrow-key navigation in dropdowns and tables","Single-key hotkeys for common counter actions (/ search, n new customer)"],"acceptanceCriteria":["Operators can create a customer and search records using keyboard only","Shortcuts do not interfere with standard typing inside input fields","Visual key indicators display on buttons for easy discovery"],"sourcePaths":["apps/web/components/app-shell/keyboard-shortcuts.tsx"]},{"id":"V1.1-05","epicId":"v1.1","epicName":"11. Release V1.1: Pilot Polish & Stabilization","milestone":"Future","priority":"Future","title":"Enhanced OCR Filters for Faded Photocopies","summary":"Computer vision pre-processing filters for low-contrast mobile camera photos and photocopies.","status":"pending","description":"Implements specialized image pre-processing filters designed specifically for the low-quality documents common at Indian service centers: faded carbon copies, skewed mobile camera photos, yellowed paper, and dark stamp marks obscuring text.","keyCapabilities":["Adaptive local contrast enhancement (CLAHE) to reveal faded text","Document corner detection and automatic perspective deskewing","Stamp and seal suppression filter to isolate underlying certificate numbers","Resolution upscaling for low-DPI camera photos"],"acceptanceCriteria":["Improves OCR text extraction accuracy on photocopies by >=35%","Automatically corrects camera rotation and perspective tilt up to 30 degrees","Processes images in <1.5s on client or worker"],"sourcePaths":["packages/ai/src/preprocessing","packages/ai/src/filters"]},{"id":"V1.5-01","epicId":"v1.5","epicName":"12. Release V1.5: Service-Centre Operating System","milestone":"Future","priority":"Future","title":"Automated Customer Thermal/PDF Receipts & Invoicing","summary":"Branded receipts and invoices formatted for both standard A4 and 58mm/80mm thermal POS printers.","status":"pending","description":"Turns Assistigo into the retail billing system for the shop. Generates professional receipts containing: center name, operator phone, citizen name, portal application number, government application fee, center service charge, and GST details. Supports standard A4 and 58mm/80mm thermal receipt printers.","keyCapabilities":["Dual output formatting: Standard A4 PDF receipt and 58mm/80mm thermal POS format","Configurable shop branding: logo, center name, GSTIN, phone, and address","Itemized billing: government fee + online form filing service charge + document scan fee","QR code printed on receipt allowing citizen to check status on their smartphone"],"acceptanceCriteria":["Prints cleanly to standard thermal POS receipt printers used in cyber cafes","Receipt includes portal application reference number for citizen tracking","Financial records aggregate into daily revenue reports for shop owner"],"sourcePaths":["apps/web/app/(app)/billing/receipts","packages/document-tools/src/receipts"]},{"id":"V1.5-02","epicId":"v1.5","epicName":"12. Release V1.5: Service-Centre Operating System","milestone":"Future","priority":"Future","title":"Transactional WhatsApp Status Notification Engine","summary":"Automated WhatsApp messages alerting citizens when their application is submitted or approved.","status":"pending","description":"Integrates with official WhatsApp Business API to send automated, branded status updates to customers: (1) Application successfully filed with portal reference number, (2) Application approved and certificate ready for pickup, or (3) Action required / missing document alert.","keyCapabilities":["Pre-approved WhatsApp Business template messages in Hindi and English","Automated message dispatch triggered by application status transitions","Includes download link for approved certificates and PDF receipts","Center branding on all outgoing messages establishing operator trust"],"acceptanceCriteria":["Walk-in citizen receives WhatsApp confirmation within 10 seconds of status change","Messages include portal application reference number and shop phone number","Delivery status and message history tracked on customer profile"],"sourcePaths":["packages/core/src/notifications/whatsapp.ts","apps/web/app/api/notifications/whatsapp/route.ts"]},{"id":"V1.5-03","epicId":"v1.5","epicName":"12. Release V1.5: Service-Centre Operating System","milestone":"Future","priority":"Future","title":"Certificate Expiry & Annual Renewal Reminders","summary":"Proactive alerts for expiring income, caste, and residence certificates to drive repeat footfall.","status":"pending","description":"Drives repeat footfall to the cyber cafe by tracking certificate validity periods (e.g. 1-year validity for income certificates and OBC-NCL). The system alerts the operator 30 days before expiration, allowing them to contact the citizen for renewal before government recruitment application cycles open.","keyCapabilities":["Automated expiry calendar tracking certificate validity dates","Renewal pipeline view surfacing upcoming expiring certificates across the customer base","One-click WhatsApp renewal reminder: Aapka Income Certificate 31 March ko expire ho raha hai","Direct 1-click renewal application creation copying existing profile demographic data"],"acceptanceCriteria":["Surfaces expiring certificates 30 days and 15 days prior to expiration","Generates renewal application pre-filled with prior year customer data","Significantly increases customer retention and recurring center revenue"],"sourcePaths":["apps/web/app/(app)/customers/renewals","packages/core/src/customers/expiry.ts"]},{"id":"V1.5-04","epicId":"v1.5","epicName":"12. Release V1.5: Service-Centre Operating System","milestone":"Future","priority":"Future","title":"Operator Counter Performance & Throughput Analytics","summary":"Owner analytics measuring daily throughput, time saved, revenue, and error rates per operator desk.","status":"pending","description":"Comprehensive business intelligence dashboard for shop owners managing staff operators across multiple desks. Measures: daily forms filled per desk, average processing time per application, documents processed, revenue collected, and error/rejection rates.","keyCapabilities":["Per-operator throughput metrics: forms filed, customers served, and revenue collected","Time-saved calculation benchmarking automated fill vs manual counter typing","Error and rejection tracking pinpointing training opportunities for staff","Exportable daily and monthly performance reports for payroll and incentives"],"acceptanceCriteria":["Shop owner can view individual operator performance breakdown in real time","Calculates total business hours saved through automated form filling","Restricted strictly to Org Owner and Manager roles"],"sourcePaths":["apps/web/app/(app)/analytics","apps/web/components/analytics/staff-metrics.tsx"]},{"id":"V1.5-05","epicId":"v1.5","epicName":"12. Release V1.5: Service-Centre Operating System","milestone":"Future","priority":"Future","title":"Multi-Branch / Multi-Shop Centralized Management","summary":"Support for franchise owners operating 2-10 cyber cafes or CSC centers across a district.","status":"pending","description":"Enables entrepreneurs operating multiple cyber cafes or CSC branches across a district or state to manage all locations from a single unified account. Provides centralized billing, branch-level customer partitioning, staff transfers, and consolidated district revenue reporting.","keyCapabilities":["Hierarchical branch management: Organization -> Branches -> Desks -> Operators","Branch-scoped customer search with option to share profiles across branches","Consolidated district billing with centralized subscription and credit pool","Branch-level analytics comparing productivity and revenue across locations"],"acceptanceCriteria":["Franchise owner can switch between branch views in 1 click","Staff permissions can be restricted to specific branch locations","Unified billing pool covers all branch operators and form fills"],"sourcePaths":["apps/web/app/(app)/settings/branches","packages/core/src/branches"]},{"id":"V1.5-06","epicId":"v1.5","epicName":"12. Release V1.5: Service-Centre Operating System","milestone":"Future","priority":"Future","title":"Bulk Customer CSV/Excel Import Wizard","summary":"Bulk migration tool with visual column mapper to import customer registers from Excel or CSV.","status":"pending","description":"Allows established cyber cafe operators to migrate their existing customer register books and spreadsheets into Assistigo. Features a visual column mapping wizard, data validation, duplicate detection, and batch customer creation for thousands of records in minutes.","keyCapabilities":["Imports standard Excel (.xlsx, .xls) and CSV spreadsheets","Visual column mapping wizard mapping spreadsheet columns to profile schema","Pre-import validation highlighting invalid phone numbers or missing names","Automatic duplicate detection against existing customer database"],"acceptanceCriteria":["Successfully imports 1,000+ customer records from Excel in <30 seconds","Skips or flags duplicate mobile numbers during import","Generates detailed import summary report with error logs"],"sourcePaths":["apps/web/app/(app)/customers/bulk-import","packages/core/src/customers/importer.ts"]},{"id":"V2.0-01","epicId":"v2.0","epicName":"13. Release V2.0: Portal Intelligence & Multi-State Scale","milestone":"Future","priority":"Future","title":"Synthetic DOM Monitoring & Portal Breakage Detection","summary":"Headless automated daily health checks detecting government portal layout changes before operators.","status":"pending","description":"Synthetic monitoring system running headless browser probes against supported government portals daily. Detects when a portal updates its markup, renames form field IDs, or introduces new steps. Automatically alerts Assistigo engineering team to update adapters before operators encounter failures.","keyCapabilities":["Scheduled synthetic probe visiting supported portal landing and form pages","DOM signature hashing comparing active page inputs against registered adapter schema","Automated severity classification: Broken Selector, Missing Field, Layout Change","Status badge on Form Library page showing live adapter health status"],"acceptanceCriteria":["Flags portal changes within 12 hours of government portal deployment","Adapter health dashboard in Super Admin displays live green/yellow/red status","Prevents operator form fill failures by warning of degraded adapters"],"sourcePaths":["packages/form-engine/src/probes","apps/web/app/admin/adapters/health"]},{"id":"V2.0-02","epicId":"v2.0","epicName":"13. Release V2.0: Portal Intelligence & Multi-State Scale","milestone":"Future","priority":"Future","title":"Multi-State e-District Portal Adapter Library","summary":"Comprehensive adapter coverage for 20+ state service delivery portals across India.","status":"pending","description":"Scales portal adapter coverage across 20+ major state service delivery ecosystems: e-District Uttar Pradesh, MahaOnline (Maharashtra), RTPS Bihar, MP e-District (Madhya Pradesh), Jharsewa (Jharkhand), Seva Sindhu (Karnataka), e-District Delhi, and e-Mitra (Rajasthan).","keyCapabilities":["State-specific adapter packs covering revenue, social welfare, and municipal services","Handles state-specific certificate requirements (Dakhil Kharij, Ration, Domicile)","Understands regional administrative divisions (Tehsils, Mandals, Talukas, Mauzas)","Community adapter contribution guidelines for regional developer partners"],"acceptanceCriteria":["Achieves >=85% field mapping accuracy across top 20 state government portals","Supports state-specific dropdown cascades (Tehsil -> Revenue Village)","Allows operators to select their home state to prioritize local portal adapters"],"sourcePaths":["packages/form-engine/src/adapters/states"]},{"id":"V2.0-03","epicId":"v2.0","epicName":"13. Release V2.0: Portal Intelligence & Multi-State Scale","milestone":"Future","priority":"Future","title":"Rule-Based Scheme Eligibility & Missing Doc Recommender","summary":"Rules engine analyzing customer demographic data to recommend eligible government welfare schemes.","status":"pending","description":"Analyzes a citizen demographic profile (age, gender, caste category, annual family income, land holding, disability status) against central and state government scheme criteria. Suggests eligible scholarships, pensions, and welfare schemes they should apply for, plus missing documents needed.","keyCapabilities":["Scheme eligibility rule engine evaluating age, gender, caste, income, and location","Eligible Schemes card displayed prominently on customer profile overview","Missing document checklist highlighting certificates needed to qualify","1-click action to start application for recommended scheme"],"acceptanceCriteria":["Accurately matches customer demographics against published scheme eligibility criteria","Surfaces missing certificates needed (e.g. Income certificate required for scholarship)","Assists cyber cafes in cross-selling additional relevant services to walk-ins"],"sourcePaths":["packages/core/src/schemes/engine.ts","apps/web/app/(app)/schemes"]},{"id":"V2.0-04","epicId":"v2.0","epicName":"13. Release V2.0: Portal Intelligence & Multi-State Scale","milestone":"Future","priority":"Future","title":"Regional Language Expansion (Bengali, Marathi, Telugu, Tamil, Gujarati)","summary":"Full localization of dashboard UI and form detection dictionary for major regional Indian languages.","status":"pending","description":"Expands localization beyond the Hindi/English foundation to cover major regional languages spoken across key CSC markets: Bengali, Marathi, Telugu, Tamil, Gujarati, Kannada, and Punjabi. Includes both dashboard UI translation and regional script form mapping synonyms.","keyCapabilities":["Translation dictionaries for Bengali, Marathi, Telugu, Tamil, Gujarati, and Kannada","Bilingual and trilingual form field detection in regional scripts","Font optimization ensuring crisp regional script typography rendering","Language selector dropdown supporting instant script switching"],"acceptanceCriteria":["Detects and maps form labels rendered in regional state scripts","Dashboard UI text fully translated for each supported regional language","Maintains clean responsive layout without text truncation"],"sourcePaths":["apps/web/messages/regional","packages/form-engine/src/dictionary/regional.ts"]},{"id":"V3.0-01","epicId":"v3.0","epicName":"14. Release V3.0: Platform Ecosystem & Citizen Portal","milestone":"Future","priority":"Future","title":"Citizen Self-Service Tracking Portal & Document Upload","summary":"Mobile-friendly citizen portal allowing walk-in customers to track status and upload missing documents.","status":"pending","description":"Lightweight, smartphone-optimized web portal for citizens. Accessed via SMS/WhatsApp magic link or counter QR code. Allows citizens to: view the live status of their applications, download approved certificates, and securely upload requested documents from home without returning to the shop.","keyCapabilities":["Mobile-first responsive web app for walk-in citizens (no password needed; phone OTP)","Live application status tracker with progress timeline and portal reference number","Secure document upload control allowing citizens to photograph and submit missing documents","1-click download of completed certificate PDFs and payment receipts"],"acceptanceCriteria":["Citizen can upload missing document from smartphone camera in <60 seconds","Uploaded document appears instantly in operator dashboard under review queue","Citizen can view only their own records; zero cross-customer data leakage"],"sourcePaths":["apps/web/app/(citizen)","apps/web/app/api/citizen"]},{"id":"V3.0-02","epicId":"v3.0","epicName":"14. Release V3.0: Platform Ecosystem & Citizen Portal","milestone":"Future","priority":"Future","title":"Public B2B API & Webhooks for Institutional Partners","summary":"REST API and webhooks for schools, colleges, recruitment agencies, and microfinance partners.","status":"pending","description":"Developer-facing B2B API and webhook ecosystem allowing educational institutions, coaching centers, job placement consultants, and insurance agents to programmatically create customer profiles, query application statuses, and trigger bulk document processing.","keyCapabilities":["REST API with OpenAPI 3.0 specification and interactive Swagger documentation","API key management in dashboard settings with granular scoped permissions","Webhook subscriptions for real-time application status change events","Rate limiting and quota enforcement tied to Business tier subscription"],"acceptanceCriteria":["External developers can authenticate and query customer records via REST API","Webhooks dispatch cryptographically signed JSON events with retry queues","Meets enterprise B2B integration security standards"],"sourcePaths":["apps/web/app/api/v1","docs/api/openapi.yaml"]},{"id":"V3.0-03","epicId":"v3.0","epicName":"14. Release V3.0: Platform Ecosystem & Citizen Portal","milestone":"Future","priority":"Future","title":"DigiLocker Direct API Sync","summary":"Direct DigiLocker integration pulling verified marksheet, caste, and income certificates via citizen OTP.","status":"pending","description":"Integrates with National DigiLocker API ecosystem. With citizen OTP consent at the counter, the operator can directly pull digitally signed, verified 10th/12th marksheets, caste certificates, and driving licences into the customer profile, eliminating manual scanning and OCR errors.","keyCapabilities":["DigiLocker OAuth / OTP authentication flow initiated with citizen mobile consent","Direct retrieval of digitally signed XML/PDF certificates from issuing authorities","Auto-populates customer profile fields with 100% verified government data","Stores official digital signature verification certificates as proof of authenticity"],"acceptanceCriteria":["Imports verified certificates directly into customer profile in <30 seconds","Fields imported via DigiLocker are tagged with operator_verified status","Complies with DigiLocker API security and privacy guidelines"],"sourcePaths":["packages/core/src/integrations/digilocker.ts","apps/web/app/api/digilocker"]},{"id":"V3.0-04","epicId":"v3.0","epicName":"14. Release V3.0: Platform Ecosystem & Citizen Portal","milestone":"Future","priority":"Future","title":"AI Operator Copilot for Government Scheme Guidelines","summary":"Conversational assistant in Hindi and English answering complex eligibility and portal requirement questions.","status":"pending","description":"Embedded AI assistant in the dashboard trained on Indian government schemes, notifications, and portal guidelines. Operators can ask in Hindi or English (e.g. SSC CGL mein OBC-NCL certificate kis date ke baad ka hona chahiye?) and receive verified, cited answers with document checklists.","keyCapabilities":["Conversational AI chat drawer available on all dashboard pages","RAG knowledge base indexed over official government notifications and scheme brochures","Answers in Hindi, English, and Hinglish with direct citations to official rules","Generates custom document checklists and eligibility criteria for walk-in citizens"],"acceptanceCriteria":["Accurately answers complex eligibility and date cutoff questions for major exams","Provides direct reference citations to official government gazette / notification","Refuses to guess if authoritative guidelines are unavailable"],"sourcePaths":["apps/web/app/(app)/copilot","packages/ai/src/copilot"]},{"id":"HW-01","epicId":"hw","epicName":"15. Deferred Research: Physical Hardware & E-Card","milestone":"Deferred","priority":"Deferred","title":"Offline Encrypted Smart E-Card (NFC/Chip)","summary":"Physical citizen smart card storing encrypted credentials for offline rural counter access.","status":"pending","description":"The physical E-card concept from original Assistigofill proposal: an NFC/smart-chip card carried by citizens containing encrypted demographic profiles and document hashes. Explicitly deferred until Assistigo proves software SaaS viability with >=5,000 paying cyber cafes and completes full DPDP legal review.","keyCapabilities":["Secure element / chip card storing encrypted citizen demographic attributes","Zero cloud dependency: readable in remote rural areas with poor internet","Hardware-level encryption keys requiring citizen PIN to unlock","Tamper-evident physical card design with QR code fallback"],"acceptanceCriteria":["Card data decrypts only with citizen PIN verification","Meets Indian hardware secure element manufacturing standards","Reconsidered only after achieving pilot software SaaS milestones"],"sourcePaths":["docs/hardware/e-card-spec.md"]},{"id":"HW-02","epicId":"hw","epicName":"15. Deferred Research: Physical Hardware & E-Card","milestone":"Deferred","priority":"Deferred","title":"Desktop USB/NFC Smart Card Reader Peripheral","summary":"Hardware desktop card reader peripheral connecting to PC for instant counter profile retrieval.","status":"pending","description":"Hardware desktop reader peripheral connected via USB to cyber cafe desktop. When a citizen taps their E-card, the reader securely interfaces with the Chrome extension or desktop app to load customer details in 1 second without typing.","keyCapabilities":["Standard USB CCID and PC/SC protocol compatibility with Windows desktops","WebUSB / WebHID integration allowing direct Chrome browser communication","Hardware secure enclave verifying genuine Assistigo card signatures","Under 1-second counter profile retrieval speed"],"acceptanceCriteria":["Reader communicates with Chrome extension via WebHID without custom drivers","Tapping card populates customer profile in <1 second","Encrypted channel prevents hardware bus snooping"],"sourcePaths":["docs/hardware/card-reader.md"]},{"id":"HW-03","epicId":"hw","epicName":"15. Deferred Research: Physical Hardware & E-Card","milestone":"Deferred","priority":"Deferred","title":"Cryptographic Card-to-Cloud Sync Protocol","summary":"Secure cryptographic synchronization protocol between offline card and cloud database.","status":"pending","description":"Bidirectional cryptographic synchronization protocol managing offline updates made on smart cards and reconciling with cloud servers when connectivity is available. Handles revocation lists, timestamped signatures, and conflict resolution.","keyCapabilities":["Elliptic curve cryptography (ECDSA) validating card authenticity","Offline delta logging with timestamped operator signatures","Reconciliation protocol resolving conflicts between card data and cloud database","Card revocation certificate list broadcast across active cyber cafe nodes"],"acceptanceCriteria":["Offline updates sync cleanly to cloud database once connection is restored","Tampered or forged cards are detected and rejected immediately","Audit log tracks every physical card read and write operation"],"sourcePaths":["docs/hardware/sync-protocol.md"]}];
+
+    const STORAGE_KEY = 'assistigo_master_tasks_state_v1';
+
+    // State object
+    let state = {
+      sections: DEFAULT_SECTIONS,
+      tasks: [],
+      statusFilter: 'all',
+      milestoneFilter: 'all',
+      searchQuery: '',
+    };
+
+    // Load from localStorage or defaults
+    function loadState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
+            // Merge defaults to handle any new spec tasks added
+            const savedMap = new Map(parsed.tasks.map(t => [t.id, t]));
+            state.tasks = DEFAULT_TASKS.map(defaultTask => {
+              if (savedMap.has(defaultTask.id)) {
+                const s = savedMap.get(defaultTask.id);
+                return {
+                  ...defaultTask,
+                  status: s.status || defaultTask.status,
+                  notes: s.notes !== undefined ? s.notes : (defaultTask.notes || ''),
+                  subtasks: s.subtasks || defaultTask.subtasks || [],
+                };
+              }
+              return defaultTask;
+            });
+
+            // Include any user-created custom tasks
+            parsed.tasks.forEach(t => {
+              if (t.isCustom && !state.tasks.some(st => st.id === t.id)) {
+                state.tasks.push(t);
+              }
+            });
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Error loading state from localStorage:', err);
+      }
+      state.tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+    }
+
+    // Update Sync Badge Status
+    function updateSyncBadge(status, text) {
+      const badge = document.getElementById('syncStatusBadge');
+      if (!badge) return;
+      if (status === 'synced') {
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span><span>' + (text || 'Cross-Device Sync Active') + '</span>';
+        badge.className = 'flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+        badge.title = 'Changes automatically sync across all your devices and browsers';
+      } else if (status === 'saving') {
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span><span>' + (text || 'Syncing to Server...') + '</span>';
+        badge.className = 'flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20';
+      } else if (status === 'offline') {
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span><span>' + (text || 'Local Offline Mode') + '</span>';
+        badge.className = 'flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700';
+        badge.title = 'Saved to this browser only (file:// mode)';
+      }
+    }
+
+    // Debounced server save
+    let serverSyncTimer = null;
+    function triggerServerSync() {
+      if (!window.location.protocol.startsWith('http')) {
+        updateSyncBadge('offline', 'Local Offline Mode');
+        return;
+      }
+      updateSyncBadge('saving', 'Syncing...');
+      clearTimeout(serverSyncTimer);
+      serverSyncTimer = setTimeout(async () => {
+        try {
+          const res = await fetch('/api/tasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tasks: state.tasks })
+          });
+          if (res.ok) {
+            updateSyncBadge('synced', 'Cross-Device Sync Active');
+          } else {
+            updateSyncBadge('offline', 'Saved Locally');
+          }
+        } catch (e) {
+          updateSyncBadge('offline', 'Saved Locally');
+        }
+      }, 400);
+    }
+
+    // Fetch latest tasks from server
+    async function fetchServerTasks() {
+      if (!window.location.protocol.startsWith('http')) {
+        updateSyncBadge('offline', 'Local Offline Mode');
+        return;
+      }
+      try {
+        const res = await fetch('/api/tasks');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.tasks) && data.tasks.length > 0) {
+            const serverMap = new Map(data.tasks.map(t => [t.id, t]));
+            state.tasks = DEFAULT_TASKS.map(defaultTask => {
+              if (serverMap.has(defaultTask.id)) {
+                const s = serverMap.get(defaultTask.id);
+                return {
+                  ...defaultTask,
+                  status: s.status || defaultTask.status,
+                  notes: s.notes !== undefined ? s.notes : (defaultTask.notes || ''),
+                  subtasks: s.subtasks || defaultTask.subtasks || [],
+                };
+              }
+              return defaultTask;
+            });
+
+            data.tasks.forEach(t => {
+              if (t.isCustom && !state.tasks.some(st => st.id === t.id)) {
+                state.tasks.push(t);
+              }
+            });
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+              tasks: state.tasks,
+              lastUpdated: data.lastUpdated || new Date().toISOString()
+            }));
+
+            updateStats();
+            renderNav();
+            renderTasks();
+            updateSyncBadge('synced', 'Cross-Device Sync Active');
+            return;
+          }
+        }
+        updateSyncBadge('synced', 'Cross-Device Sync Active');
+      } catch (err) {
+        updateSyncBadge('offline', 'Local Offline Mode');
+      }
+    }
+
+    // Save state to localStorage and sync to server
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          tasks: state.tasks,
+          lastUpdated: new Date().toISOString()
+        }));
+      } catch (err) {
+        console.error('Error saving state:', err);
+      }
+      updateStats();
+      renderNav();
+      triggerServerSync();
+    }
+
+    // Toggle Task Status
+    function setTaskStatus(taskId, newStatus) {
+      const task = state.tasks.find(t => t.id === taskId);
+      if (task) {
+        task.status = newStatus;
+        saveState();
+        renderTasks();
+      }
+    }
+
+    // Cycle Status: pending -> in-progress -> complete -> pending
+    function cycleStatus(taskId) {
+      const task = state.tasks.find(t => t.id === taskId);
+      if (!task) return;
+      const next = task.status === 'pending' ? 'in-progress' : (task.status === 'in-progress' ? 'complete' : 'pending');
+      setTaskStatus(taskId, next);
+    }
+
+    // Save task user note
+    function updateTaskNote(taskId, noteText) {
+      const task = state.tasks.find(t => t.id === taskId);
+      if (task) {
+        task.notes = noteText;
+        saveState();
+        // Show subtle saved indicator
+        const indicator = document.getElementById('noteSaved_' + taskId);
+        if (indicator) {
+          indicator.textContent = 'Saved';
+          indicator.classList.remove('opacity-0');
+          setTimeout(() => indicator.classList.add('opacity-0'), 1500);
+        }
+      }
+    }
+
+    // Update Statistics
+    function updateStats() {
+      const total = state.tasks.length;
+      const completed = state.tasks.filter(t => t.status === 'complete').length;
+      const inProgress = state.tasks.filter(t => t.status === 'in-progress').length;
+      const pending = state.tasks.filter(t => t.status === 'pending').length;
+      const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+      document.getElementById('statTotal').textContent = total;
+      document.getElementById('statCompleted').textContent = completed;
+      document.getElementById('statInProgress').textContent = inProgress;
+      document.getElementById('statPending').textContent = pending;
+
+      document.getElementById('overallCompletedCount').textContent = completed;
+      document.getElementById('overallTotalCount').textContent = total;
+      document.getElementById('overallPercentage').textContent = percentage + '%';
+      document.getElementById('overallProgressBar').style.width = percentage + '%';
+    }
+
+    // Render Navigation Links in Sidebar
+    function renderNav() {
+      const mvpList = document.getElementById('mvpNavList');
+      const futureList = document.getElementById('futureNavList');
+      const hwList = document.getElementById('hwNavList');
+
+      mvpList.innerHTML = '';
+      futureList.innerHTML = '';
+      hwList.innerHTML = '';
+
+      let mvpTotal = 0, mvpDone = 0;
+      let futureTotal = 0, futureDone = 0;
+      let hwTotal = 0, hwDone = 0;
+
+      state.sections.forEach(sec => {
+        const secTasks = state.tasks.filter(t => t.epicId === sec.id);
+        const doneCount = secTasks.filter(t => t.status === 'complete').length;
+        const totalCount = secTasks.length;
+
+        if (sec.milestone === 'MVP') {
+          mvpTotal += totalCount;
+          mvpDone += doneCount;
+        } else if (sec.milestone === 'Future') {
+          futureTotal += totalCount;
+          futureDone += doneCount;
+        } else {
+          hwTotal += totalCount;
+          hwDone += doneCount;
+        }
+
+        const a = document.createElement('a');
+        a.href = '#' + sec.id;
+        a.className = 'section-nav-link flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors group';
+        a.innerHTML = `
+          <span class="truncate">${sec.title}</span>
+          <span class="text-[10px] font-mono px-1.5 py-0.5 rounded ${doneCount === totalCount && totalCount > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'}">${doneCount}/${totalCount}</span>
+        `;
+
+        if (sec.milestone === 'MVP') {
+          mvpList.appendChild(a);
+        } else if (sec.milestone === 'Future') {
+          futureList.appendChild(a);
+        } else {
+          hwList.appendChild(a);
+        }
+      });
+
+      document.getElementById('mvpCountBadge').textContent = `${mvpDone}/${mvpTotal}`;
+      document.getElementById('futureCountBadge').textContent = `${futureDone}/${futureTotal}`;
+      document.getElementById('hwCountBadge').textContent = `${hwDone}/${hwTotal}`;
+    }
+
+    // Render All Tasks
+    function renderTasks() {
+      const container = document.getElementById('tasksContainer');
+      container.innerHTML = '';
+
+      const query = state.searchQuery.toLowerCase().trim();
+
+      state.sections.forEach(sec => {
+        // Filter tasks for this section
+        let secTasks = state.tasks.filter(t => t.epicId === sec.id);
+
+        // Apply Milestone Filter
+        if (state.milestoneFilter !== 'all' && sec.milestone !== state.milestoneFilter) {
+          return;
+        }
+
+        // Apply Status Filter
+        if (state.statusFilter !== 'all') {
+          secTasks = secTasks.filter(t => t.status === state.statusFilter);
+        }
+
+        // Apply Search Query Filter
+        if (query) {
+          secTasks = secTasks.filter(t => 
+            t.title.toLowerCase().includes(query) ||
+            t.id.toLowerCase().includes(query) ||
+            t.summary.toLowerCase().includes(query) ||
+            t.description.toLowerCase().includes(query)
+          );
+        }
+
+        if (secTasks.length === 0 && query) {
+          return; // Skip empty sections during search
+        }
+
+        const sectionElem = document.createElement('section');
+        sectionElem.id = sec.id;
+        sectionElem.className = 'scroll-mt-20';
+
+        const totalSecTasks = state.tasks.filter(t => t.epicId === sec.id).length;
+        const doneSecTasks = state.tasks.filter(t => t.epicId === sec.id && t.status === 'complete').length;
+        const pct = totalSecTasks > 0 ? Math.round((doneSecTasks / totalSecTasks) * 100) : 0;
+
+        // Section Header
+        sectionElem.innerHTML = `
+          <div class="border-b border-slate-800 pb-4 mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${sec.milestone === 'MVP' ? 'bg-brand-500/10 text-brand-400 border border-brand-500/20' : (sec.milestone === 'Future' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-slate-800 text-slate-400')}">${sec.badge}</span>
+                <span class="text-xs text-slate-500 font-mono">${doneSecTasks} of ${totalSecTasks} completed (${pct}%)</span>
+              </div>
+              <h2 class="text-xl font-bold text-white tracking-tight">${sec.title}</h2>
+              <p class="text-xs text-slate-400 mt-1 max-w-3xl">${sec.description}</p>
+            </div>
+            
+            <div class="flex items-center gap-2">
+              <button onclick="markSectionAll('${sec.id}', 'complete')" class="text-[11px] font-medium px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800">
+                Mark All Done
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-3" id="taskList_${sec.id}"></div>
+        `;
+
+        const taskListContainer = sectionElem.querySelector(`#taskList_${sec.id}`);
+
+        if (secTasks.length === 0) {
+          taskListContainer.innerHTML = `
+            <div class="p-4 rounded-xl border border-slate-800/80 bg-slate-900/30 text-xs text-slate-500 text-center">
+              No tasks match the active filters in this section.
+            </div>
+          `;
+        } else {
+          secTasks.forEach(task => {
+            const taskCard = document.createElement('div');
+            taskCard.className = `task-card rounded-xl border transition-all duration-200 ${
+              task.status === 'complete'
+                ? 'bg-slate-900/40 border-slate-800/80 hover:border-emerald-500/30'
+                : (task.status === 'in-progress'
+                  ? 'bg-slate-900/90 border-amber-500/30 shadow-lg shadow-amber-500/5'
+                  : 'bg-slate-900/60 border-slate-800 hover:border-slate-700')
+            }`;
+
+            // Priority Class
+            let priorityBadgeClass = 'badge-p1';
+            if (task.priority === 'P0') priorityBadgeClass = 'badge-p0';
+            else if (task.priority === 'P2') priorityBadgeClass = 'badge-p2';
+            else if (task.priority === 'Future') priorityBadgeClass = 'badge-future';
+            else if (task.priority === 'Deferred') priorityBadgeClass = 'badge-deferred';
+
+            // Status Class
+            let statusBadgeClass = 'badge-pending';
+            let statusLabel = 'Pending';
+            if (task.status === 'complete') {
+              statusBadgeClass = 'badge-complete';
+              statusLabel = 'Complete';
+            } else if (task.status === 'in-progress') {
+              statusBadgeClass = 'badge-in-progress';
+              statusLabel = 'In Progress';
+            }
+
+            taskCard.innerHTML = `
+              <div class="p-4">
+                <div class="flex items-start justify-between gap-3">
+                  
+                  <!-- Left side: Checkbox + Title + Badges -->
+                  <div class="flex items-start gap-3 min-w-0">
+                    <button onclick="cycleStatus('${task.id}')" class="mt-0.5 w-5 h-5 rounded flex items-center justify-center border transition-colors ${
+                      task.status === 'complete'
+                        ? 'bg-emerald-500 border-emerald-400 text-white'
+                        : (task.status === 'in-progress'
+                          ? 'bg-amber-500/20 border-amber-500/60 text-amber-400'
+                          : 'bg-slate-950 border-slate-700 text-transparent hover:border-slate-500')
+                    }" title="Click to toggle status">
+                      ${task.status === 'complete' ? '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>' : (task.status === 'in-progress' ? '<div class="w-2 h-2 rounded-full bg-amber-400"></div>' : '')}
+                    </button>
+
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-mono text-xs font-bold text-slate-300">${task.id}</span>
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded text-[10px] ${priorityBadgeClass}">${task.priority}</span>
+                        ${task.isCustom ? '<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">Custom</span>' : ''}
+                      </div>
+
+                      <h3 class="text-sm font-bold text-white mt-1 cursor-pointer hover:text-brand-300" onclick="toggleTaskDetails('${task.id}')">
+                        ${task.title}
+                      </h3>
+                      
+                      <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                        ${task.summary || task.description.slice(0, 120) + '...'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <!-- Right side: Status Dropdown & Expand Button -->
+                  <div class="flex items-center gap-2 shrink-0">
+                    <select onchange="setTaskStatus('${task.id}', this.value)" class="text-xs font-semibold px-2.5 py-1 rounded-lg border focus:outline-none cursor-pointer ${statusBadgeClass}">
+                      <option value="pending" ${task.status === 'pending' ? 'selected' : ''}>⭕ Pending</option>
+                      <option value="in-progress" ${task.status === 'in-progress' ? 'selected' : ''}>🟡 In Progress</option>
+                      <option value="complete" ${task.status === 'complete' ? 'selected' : ''}>✅ Complete</option>
+                    </select>
+
+                    <button onclick="toggleTaskDetails('${task.id}')" id="expandBtn_${task.id}" class="p-1.5 rounded-lg bg-slate-950/80 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800" title="Toggle detailed specification">
+                      <svg class="w-4 h-4 transform transition-transform" id="arrow_${task.id}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                  </div>
+
+                </div>
+
+                <!-- Expandable Technical Details Drawer -->
+                <div id="details_${task.id}" class="hidden mt-4 pt-4 border-t border-slate-800/80 space-y-3.5 text-xs">
+                  
+                  <!-- Full Technical Description -->
+                  <div>
+                    <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Specification & Purpose</h4>
+                    <p class="text-slate-300 leading-relaxed bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
+                      ${task.description}
+                    </p>
+                  </div>
+
+                  <!-- Key Capabilities / Subtasks -->
+                  ${task.keyCapabilities && task.keyCapabilities.length > 0 ? `
+                    <div>
+                      <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Key Capabilities</h4>
+                      <ul class="space-y-1.5 bg-slate-950/40 p-3 rounded-lg border border-slate-800/60">
+                        ${task.keyCapabilities.map(cap => `
+                          <li class="flex items-start gap-2 text-slate-300">
+                            <span class="text-brand-400 mt-0.5">•</span>
+                            <span>${cap}</span>
+                          </li>
+                        `).join('')}
+                      </ul>
+                    </div>
+                  ` : ''}
+
+                  <!-- Acceptance Criteria Checklist -->
+                  ${task.acceptanceCriteria && task.acceptanceCriteria.length > 0 ? `
+                    <div>
+                      <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Acceptance Criteria</h4>
+                      <ul class="space-y-1.5 bg-slate-950/40 p-3 rounded-lg border border-slate-800/60">
+                        ${task.acceptanceCriteria.map(crit => `
+                          <li class="flex items-start gap-2 text-slate-300">
+                            <span class="text-emerald-400 mt-0.5">✓</span>
+                            <span>${crit}</span>
+                          </li>
+                        `).join('')}
+                      </ul>
+                    </div>
+                  ` : ''}
+
+                  <!-- Source Paths & Files -->
+                  ${task.sourcePaths && task.sourcePaths.length > 0 ? `
+                    <div>
+                      <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Source Components & Database</h4>
+                      <div class="flex flex-wrap gap-1.5">
+                        ${task.sourcePaths.map(p => `
+                          <span class="font-mono text-[11px] bg-slate-950 text-indigo-300 px-2.5 py-1 rounded border border-slate-800">${p}</span>
+                        `).join('')}
+                      </div>
+                    </div>
+                  ` : ''}
+
+                  <!-- Operator Personal Notes Box with Auto-Save -->
+                  <div class="pt-2 border-t border-slate-800/60">
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Operator Notes / Task Assignment</label>
+                      <span id="noteSaved_${task.id}" class="text-[10px] text-emerald-400 font-semibold opacity-0 transition-opacity">Saved</span>
+                    </div>
+                    <textarea 
+                      placeholder="Add custom developer notes, PR links, or task assignment details..." 
+                      rows="2"
+                      oninput="updateTaskNote('${task.id}', this.value)"
+                      class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                    >${task.notes || ''}</textarea>
+                  </div>
+
+                </div>
+              </div>
+            `;
+
+            taskListContainer.appendChild(taskCard);
+          });
+        }
+
+        container.appendChild(sectionElem);
+      });
+    }
+
+    // Toggle Task Expansion
+    function toggleTaskDetails(taskId) {
+      const details = document.getElementById('details_' + taskId);
+      const arrow = document.getElementById('arrow_' + taskId);
+      if (details) {
+        const isHidden = details.classList.contains('hidden');
+        if (isHidden) {
+          details.classList.remove('hidden');
+          arrow.classList.add('rotate-180');
+        } else {
+          details.classList.add('hidden');
+          arrow.classList.remove('rotate-180');
+        }
+      }
+    }
+
+    // Expand / Collapse All
+    function expandAll() {
+      document.querySelectorAll('[id^="details_"]').forEach(el => el.classList.remove('hidden'));
+      document.querySelectorAll('[id^="arrow_"]').forEach(el => el.classList.add('rotate-180'));
+    }
+    function collapseAll() {
+      document.querySelectorAll('[id^="details_"]').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('[id^="arrow_"]').forEach(el => el.classList.remove('rotate-180'));
+    }
+
+    // Mark Section Complete
+    function markSectionAll(sectionId, status) {
+      state.tasks.forEach(t => {
+        if (t.epicId === sectionId) {
+          t.status = status;
+        }
+      });
+      saveState();
+      renderTasks();
+    }
+
+    // Modal Operations
+    function openModal() {
+      const select = document.getElementById('modalEpic');
+      select.innerHTML = state.sections.map(s => `<option value="${s.id}">${s.title}</option>`).join('');
+      document.getElementById('taskForm').reset();
+      document.getElementById('taskEditIndex').value = '-1';
+      document.getElementById('taskModal').classList.remove('hidden');
+    }
+    function closeModal() {
+      document.getElementById('taskModal').classList.add('hidden');
+    }
+
+    // Add Custom Task Submit
+    document.getElementById('taskForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const epicId = document.getElementById('modalEpic').value;
+      const section = state.sections.find(s => s.id === epicId);
+      const taskId = document.getElementById('modalTaskId').value.trim();
+      const title = document.getElementById('modalTaskTitle').value.trim();
+      const priority = document.getElementById('modalPriority').value;
+      const status = document.getElementById('modalStatus').value;
+      const description = document.getElementById('modalDescription').value.trim();
+      const criteria = document.getElementById('modalCriteria').value.split('\n').map(s => s.trim()).filter(Boolean);
+
+      const newTask = {
+        id: taskId,
+        epicId: epicId,
+        epicName: section ? section.title : 'Custom',
+        milestone: section ? section.milestone : 'MVP',
+        priority: priority,
+        title: title,
+        summary: description.slice(0, 100) + '...',
+        status: status,
+        description: description,
+        keyCapabilities: [],
+        acceptanceCriteria: criteria,
+        sourcePaths: [],
+        notes: '',
+        isCustom: true,
+      };
+
+      state.tasks.push(newTask);
+      saveState();
+      closeModal();
+      renderTasks();
+    });
+
+    // Reset Defaults with confirmation
+    document.getElementById('resetDefaultsBtn').addEventListener('click', function() {
+      if (confirm('Are you sure you want to reset all task statuses and notes to spec defaults? This will erase custom tasks and notes stored locally.')) {
+        localStorage.removeItem(STORAGE_KEY);
+        loadState();
+        saveState();
+        renderTasks();
+        alert('Reset to specification defaults successfully.');
+      }
+    });
+
+    // Export State as JSON file
+    document.getElementById('exportJsonBtn').addEventListener('click', function() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+        tasks: state.tasks,
+        sections: state.sections,
+        exportedAt: new Date().toISOString()
+      }, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", "bharatfill-tasks-tracker-backup.json");
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    });
+
+    // Import State from JSON file
+    document.getElementById('importJsonInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const parsed = JSON.parse(evt.target.result);
+          if (parsed && Array.isArray(parsed.tasks)) {
+            state.tasks = parsed.tasks;
+            saveState();
+            renderTasks();
+            alert('Imported ' + parsed.tasks.length + ' tasks successfully!');
+          } else {
+            alert('Invalid backup file format.');
+          }
+        } catch (err) {
+          alert('Error parsing JSON file: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    // Quick Search filter
+    document.getElementById('quickSearchInput').addEventListener('input', function(e) {
+      state.searchQuery = e.target.value;
+      renderTasks();
+    });
+
+    // Keyboard shortcut Ctrl+K / Cmd+K for search
+    window.addEventListener('keydown', function(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        document.getElementById('quickSearchInput').focus();
+      }
+    });
+
+    // Status Filter Tabs
+    document.querySelectorAll('.status-filter-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.status-filter-btn').forEach(b => {
+          b.classList.remove('bg-brand-600', 'text-white', 'active');
+          b.classList.add('text-slate-400');
+        });
+        this.classList.add('bg-brand-600', 'text-white', 'active');
+        this.classList.remove('text-slate-400');
+        state.statusFilter = this.getAttribute('data-status-filter');
+        renderTasks();
+      });
+    });
+
+    // Milestone Filter Buttons
+    document.querySelectorAll('.milestone-filter-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.milestone-filter-btn').forEach(b => {
+          b.classList.remove('bg-brand-600', 'text-white', 'active');
+          b.classList.add('bg-slate-800', 'text-slate-300');
+        });
+        this.classList.add('bg-brand-600', 'text-white', 'active');
+        this.classList.remove('bg-slate-800', 'text-slate-300');
+        state.milestoneFilter = this.getAttribute('data-milestone-filter');
+        renderTasks();
+      });
+    });
+
+    // Theme toggle
+    document.getElementById('themeToggleBtn').addEventListener('click', function() {
+      const html = document.documentElement;
+      const isDark = html.classList.toggle('dark');
+      document.getElementById('sunIcon').classList.toggle('hidden', isDark);
+      document.getElementById('moonIcon').classList.toggle('hidden', !isDark);
+      localStorage.setItem('theme_preference', isDark ? 'dark' : 'light');
+    });
+
+    // Dropdown toggle
+    document.getElementById('moreActionsBtn').addEventListener('click', function(e) {
+      e.stopPropagation();
+      document.getElementById('moreActionsDropdown').classList.toggle('hidden');
+    });
+    window.addEventListener('click', function() {
+      document.getElementById('moreActionsDropdown').classList.add('hidden');
+    });
+
+    // Mobile Sidebar
+    document.getElementById('mobileMenuBtn').addEventListener('click', function() {
+      document.getElementById('sidebar').classList.toggle('-translate-x-full');
+      document.getElementById('sidebarBackdrop').classList.toggle('hidden');
+    });
+    document.getElementById('sidebarBackdrop').addEventListener('click', function() {
+      document.getElementById('sidebar').classList.add('-translate-x-full');
+      document.getElementById('sidebarBackdrop').classList.add('hidden');
+    });
+
+    // Modal events
+    document.getElementById('addTaskBtn').addEventListener('click', openModal);
+    document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+    document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
+    document.getElementById('expandAllBtn').addEventListener('click', expandAll);
+    document.getElementById('collapseAllBtn').addEventListener('click', collapseAll);
+
+    // Initial Load & Render
+    loadState();
+    updateStats();
+    renderNav();
+    renderTasks();
+
+    // Auto-fetch server state on startup and when window regains focus
+    if (window.location.protocol.startsWith('http')) {
+      fetchServerTasks();
+      window.addEventListener('focus', function() {
+        fetchServerTasks();
+      });
+    }
+  </script>
+</body>
+</html>

@@ -791,8 +791,8 @@ Address:
 
 Identity:
 
-- Aadhaar last four only by default.
-- Aadhaar full number encrypted only if a legal/privacy review approves and product owner explicitly enables.
+- Aadhaar full number, stored with customer consent, alongside last-four for callers that only need that.
+- Always high-risk: always reviewed, masked on display, reveal audited.
 - PAN.
 - Voter ID.
 - Driving licence.
@@ -1848,10 +1848,11 @@ This document is not legal advice. Before production launch with real identity d
 
 Aadhaar-like data:
 
-- Store last four by default.
-- Do not store full Aadhaar in MVP unless legal review approves.
-- Mask display values.
+- Full number may be stored, with customer consent; last-four remains available for callers
+  that only need that.
+- Mask display values; reveal is an explicit audited action.
 - Avoid using Aadhaar as search key.
+- Never write it to a log, error report, or portal adapter report.
 
 PAN/bank details:
 
@@ -2445,7 +2446,7 @@ These rules apply to Claude Code, Antigravity, and any future coding agent.
 - Write tests for critical business rules.
 - Run tests before claiming completion.
 - Do not add auto-submit, CAPTCHA bypass, OTP automation, or credential automation.
-- Do not store full Aadhaar-like values unless explicitly approved after legal review.
+- Full Aadhaar may be stored, with customer consent; it stays high-risk (always reviewed, masked on display, never logged).
 - Do not use real citizen data in development.
 - Do not copy competitor branding, code, text, layouts, or proprietary assets.
 - Maintain multi-tenant security.

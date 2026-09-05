@@ -186,14 +186,25 @@ export function looksLikeAadhaar(input: string): boolean {
 }
 
 /**
- * The only Aadhaar-derived value Assistigo retains. Everything else is dropped at the
- * extraction boundary.
+ * The last four digits of an Aadhaar number, for the fields and portal inputs that only want
+ * that much (e.g. a form field that explicitly asks for four digits).
  */
 export function aadhaarLastFour(input: string | null | undefined): string | null {
   if (!input) return null;
   const digits = input.replace(/\D+/g, '');
   if (digits.length < 4) return null;
   return digits.slice(-4);
+}
+
+/**
+ * The full Aadhaar number, digits only. Same leniency as `aadhaarLastFour` — a printed label is
+ * already strong evidence of what the value is, so this does not additionally require the
+ * Verhoeff checksum `looksLikeAadhaar` applies.
+ */
+export function aadhaarFull(input: string | null | undefined): string | null {
+  if (!input) return null;
+  const digits = input.replace(/\D+/g, '');
+  return digits.length === 12 ? digits : null;
 }
 
 // ---------------------------------------------------------------------------

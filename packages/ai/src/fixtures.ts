@@ -64,8 +64,7 @@ export const DEMO_DOCUMENTS: readonly DemoDocument[] = [
       'customer.address.district': 'Sitapur',
       'customer.address.state': 'Uttar Pradesh',
       'customer.address.pincode': '261001',
-      // Only the last four are ever produced (§19.3).
-      'customer.aadhaar_last4': '0000',
+      'customer.aadhaar': '200000000000',
     },
   },
   {

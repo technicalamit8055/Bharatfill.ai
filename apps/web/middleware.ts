@@ -31,6 +31,10 @@ const PUBLIC_PATHS = [
    * anybody's documents.
    */
   '/drop',
+  '/tasks',
+  '/tasks.html',
+  '/roadmap',
+  '/roadmap.html',
 ];
 
 function isPublic(pathname: string): boolean {

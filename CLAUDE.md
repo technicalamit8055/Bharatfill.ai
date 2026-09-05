@@ -11,7 +11,6 @@
 ## Never do these
 
 - Add auto-submit, CAPTCHA bypass, OTP automation or payment autofill.
-- Store a full Aadhaar number.
 - Put customer PII in logs, error reports or portal adapter reports.
 - Use real citizen data in seeds, fixtures or tests.
 - Copy competitor branding, copy, layout or assets.

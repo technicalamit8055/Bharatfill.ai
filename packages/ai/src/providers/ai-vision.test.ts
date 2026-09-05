@@ -468,11 +468,9 @@ describe('dynamic-schema mode', () => {
     expect(prompt).toContain('Graduation — Roll number');
   });
 
-  it('tells the model not to return a full Aadhaar, as well as refusing one downstream', () => {
-    // The gate in ../safety.ts is what actually enforces this. Asking is still worth doing: a
-    // number that is never sent cannot be masked wrongly (§19.3).
-    expect(buildDynamicSchemaPrompt()).toContain('customer.aadhaar_last4');
-    expect(buildDynamicSchemaPrompt()).toMatch(/never output a full aadhaar/i);
+  it('tells the model to use customer.aadhaar for a printed Aadhaar number', () => {
+    expect(buildDynamicSchemaPrompt()).toContain('customer.aadhaar');
+    expect(buildDynamicSchemaPrompt()).toMatch(/use customer\.aadhaar/i);
   });
 
   it('asks for the schema mapping instead of a transcription, and returns candidate fields', async () => {

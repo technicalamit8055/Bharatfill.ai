@@ -16,7 +16,7 @@ These are product-level constraints, not preferences. A PR that violates one is 
 | 2   | Assistigo never reads, solves or bypasses a CAPTCHA.                                                      | §14.5, §19.7 |
 | 3   | Assistigo never retrieves or auto-enters an OTP.                                                          | §14.5, §19.7 |
 | 4   | Payment credential fields are not autofilled in the MVP.                                                  | §14.5, §19.7 |
-| 5   | Full Aadhaar numbers are not stored. Last four only, unless legal review approves and the org enables it. | §11.2, §19.3 |
+| 5   | Full Aadhaar numbers may be stored (`identity_summary_json.aadhaar`) and used for form auto-fill, with customer consent. Always `high_risk`: always reviewed, masked on display, reveal audited. Never logged, searched or indexed. | §11.2, §19.3 |
 | 6   | No real citizen data in dev, test, seed or fixture data.                                                  | §32.1        |
 | 7   | No customer PII in logs, error reports, or portal adapter reports.                                        | §19.6, §24.2 |
 | 8   | No competitor branding, copy, layout or assets.                                                           | §1, §28.1    |

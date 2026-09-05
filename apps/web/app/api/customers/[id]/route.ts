@@ -51,7 +51,7 @@ function maskSensitiveValues(values: Record<string, string>): Record<string, str
       masked[key] = maskMobile(value) ?? '';
     } else if (key === 'customer.email') {
       masked[key] = maskEmail(value) ?? '';
-    } else if (key === 'customer.aadhaar_last4') {
+    } else if (key === 'customer.aadhaar_last4' || key === 'customer.aadhaar') {
       masked[key] = maskAadhaar(value) ?? '';
     } else if (key === 'customer.pan') {
       masked[key] = maskPan(value) ?? '';

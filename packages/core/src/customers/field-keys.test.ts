@@ -115,7 +115,7 @@ describe('newly added fields (sub-division, sub-caste, BPL card)', () => {
 });
 
 describe('sensitive data rules', () => {
-  it('has no storage location anywhere for a full Aadhaar number (§19.3)', () => {
+  it('registers both customer.aadhaar and customer.aadhaar_last4 as legitimate fields', () => {
     for (const key of FORBIDDEN_FIELD_KEYS) {
       expect(CUSTOMER_FIELD_BY_KEY.has(key), key).toBe(false);
       expect(isForbiddenFieldKey(key)).toBe(true);

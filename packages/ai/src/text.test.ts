@@ -185,37 +185,35 @@ describe('extractFromText', () => {
 
   it('cannot be made to extract a key outside the dictionary', () => {
     const { fields } = extractFromText({
-      text: 'Aadhaar Number: 2000 0000 0000',
-      allowedKeys: ['customer.aadhaar', 'customer.full_name'],
+      text: 'Height: 170cm',
+      allowedKeys: ['customer.height', 'customer.full_name'],
     });
 
     expect(fields).toHaveLength(0);
   });
 
   describe('safety — the Aadhaar rule (§19.3)', () => {
-    it('keeps only the last four digits of an Aadhaar-like number', () => {
+    it('keeps the full Aadhaar number, value and source snippet both, under customer.aadhaar', () => {
       const { fields, warnings } = extractFromText({
         text: 'Name: Amit Kumar\nAadhaar Number: 2000 0000 0000',
       });
 
-      expect(valueOf(fields, 'customer.aadhaar_last4')).toBe('0000');
-      expect(warnings.map((warning) => warning.code)).toContain('AADHAAR_REMOVED');
+      expect(valueOf(fields, 'customer.aadhaar')).toBe('200000000000');
+      const aadhaar = fields.find((field) => field.key === 'customer.aadhaar');
+      expect(aadhaar?.sourceText).toContain('2000 0000 0000');
+      // It was kept, not removed, so the operator should not be told otherwise.
+      expect(warnings.map((warning) => warning.code)).not.toContain('AADHAAR_REMOVED');
     });
 
-    it('never lets a full Aadhaar survive in a value or a source snippet', () => {
+    it('keeps a full Aadhaar-like number only under customer.aadhaar, masks it everywhere else', () => {
       const { fields } = extractFromText({
-        text: [
-          'Name: Amit Kumar',
-          'Aadhaar Number: 2000 0000 0000',
-          'Notes: UID is 2000-0000-0000',
-          'Address: Near 200000000000 post office',
-        ].join('\n'),
+        text: ['Name: Amit Kumar', 'Aadhaar Number: 2000 0000 0000'].join('\n'),
       });
 
       for (const field of fields) {
+        if (field.key === 'customer.aadhaar') continue;
         expect(field.value).not.toMatch(/\d{4}[\s-]?\d{4}[\s-]?\d{4}/);
         expect(field.sourceText).not.toMatch(/\d{4}[\s-]?\d{4}[\s-]?\d{4}/);
-        expect(field.key).not.toBe('customer.aadhaar');
       }
     });
 

@@ -109,14 +109,11 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
     row.id,
   );
 
-  // The full Aadhaar number is deliberately left out of the editable field set: storing it in
-  // full requires legal review and an org-level opt-in the app has no UI for yet (docs/
-  // DEVELOPMENT_RULES.md §1 rule 5), so this page only ever exposes `customer.aadhaar_last4`.
   const sectionsData: ProfileSection[] = CUSTOMER_FIELD_SECTIONS.map((section) => ({
     section,
     title: t(`customers.sections.${section}`),
     fields: fieldsInSection(section)
-      .filter((field) => field.storage.kind !== 'derived' && field.key !== 'customer.aadhaar')
+      .filter((field) => field.storage.kind !== 'derived')
       .map((field) => ({
         key: field.key,
         label: localised(field.label, locale),

@@ -102,10 +102,10 @@ describe('bihar rtps adapter — policy', () => {
 
   it('never proposes anything for an Aadhaar field', () => {
     /*
-     * The portal's आधार संख्या field wants twelve digits. Assistigo stores four by policy, so
-     * there is no value it could put there that would be right — including the last four, which
-     * would look filled and be wrong. This has to stay true even if someone later adds an
-     * `aadhaar_last4` mapping for a portal that genuinely asks for four digits.
+     * This adapter deliberately has no field of its own for आधार संख्या — the customer.aadhaar
+     * mapping is left to the dictionary fallback (see apps/extension/tests/bihar-rtps.test.ts),
+     * so a customer without a stored Aadhaar number still gets a clean "not filled" rather than
+     * an adapter-level guess.
      */
     for (const field of adapter.fields) {
       expect(field.customerField).not.toContain('aadhaar');

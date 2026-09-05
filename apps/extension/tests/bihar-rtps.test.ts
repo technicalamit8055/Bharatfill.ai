@@ -230,6 +230,8 @@ describe('bihar rtps — fill', () => {
     expect(valueOf('attr_2010')).toBe('801503');
     // number.plain — "1,20,000" is rejected by a numeric portal field.
     expect(valueOf('attr_3001')).toBe('120000');
+    // number.plain — 12-digit Aadhaar number filled into portal field
+    expect(valueOf('attr_1013')).toBe('999988887777');
   });
 
   it('selects dropdown options by their label, across the bilingual text', async () => {

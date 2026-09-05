@@ -242,7 +242,7 @@ describe('an unavailable reader never fails the document', () => {
 });
 
 describe('AI-read text goes through the same safety gate (§19.3)', () => {
-  it('masks an Aadhaar number a vision model transcribed', async () => {
+  it('masks an Aadhaar number a vision model transcribed, except under customer.aadhaar', async () => {
     // The regression that matters: the masking gate lives downstream of OCR, so it must apply
     // to a transcription exactly as it applies to locally-read text.
     const { impl } = stubVision(
@@ -253,6 +253,7 @@ describe('AI-read text goes through the same safety gate (§19.3)', () => {
 
     expect(containsAadhaarLikeNumber(rawText)).toBe(false);
     for (const field of extraction.fields) {
+      if (field.key === 'customer.aadhaar') continue;
       expect(containsAadhaarLikeNumber(field.value), `value of ${field.key}`).toBe(false);
       expect(containsAadhaarLikeNumber(field.sourceText), `source of ${field.key}`).toBe(false);
     }

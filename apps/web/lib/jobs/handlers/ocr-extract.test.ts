@@ -146,13 +146,16 @@ describe('handleOcrExtract', () => {
     expect(documentUpdate(captured)?.document_type).toBe('income_certificate');
   });
 
-  it('never stores a full Aadhaar in the raw text or any extracted field', async () => {
+  it('never stores a full Aadhaar in the raw text or any field other than customer.aadhaar', async () => {
     const { client, captured } = stubClient(documentRow(), aadhaarText);
     await handleOcrExtract(client, { documentId: documentRow().id });
 
     const row = extractionRow(captured);
     expect(containsAadhaarLikeNumber(String(row?.raw_text ?? ''))).toBe(false);
-    expect(containsAadhaarLikeNumber(JSON.stringify(row?.extracted_fields ?? []))).toBe(false);
+
+    const fields = (row?.extracted_fields ?? []) as { key: string }[];
+    const otherFields = fields.filter((field) => field.key !== 'customer.aadhaar');
+    expect(containsAadhaarLikeNumber(JSON.stringify(otherFields))).toBe(false);
   });
 
   it('records the failure so the operator can see it, rather than failing silently', async () => {

@@ -83,7 +83,7 @@ describe('review rules (§12.6)', () => {
   it('always marks high-risk fields for review however confident the extractor is', async () => {
     const { extraction } = await extractDemo('aadhaar_like');
 
-    for (const key of ['customer.date_of_birth', 'customer.aadhaar_last4']) {
+    for (const key of ['customer.date_of_birth', 'customer.aadhaar']) {
       const found = extraction.fields.find((field) => field.key === key);
       expect(found?.status, key).toBe('needs_review');
       expect(found?.reviewReason, key).toBe('high_risk_field');
@@ -105,15 +105,17 @@ describe('review rules (§12.6)', () => {
 });
 
 describe('Aadhaar handling', () => {
-  it('produces only the last four, never the full number', async () => {
+  it('produces the full number only under customer.aadhaar, masked everywhere else', async () => {
     const { extraction, rawText } = await extractDemo('aadhaar_like');
-    const aadhaar = extraction.fields.find((field) => field.key === 'customer.aadhaar_last4');
+    const aadhaar = extraction.fields.find((field) => field.key === 'customer.aadhaar');
 
-    expect(aadhaar?.value).toBe('0000');
+    expect(aadhaar?.value).toBe('200000000000');
     for (const field of extraction.fields) {
+      if (field.key === 'customer.aadhaar') continue;
       expect(containsAadhaarLikeNumber(field.value), `value of ${field.key}`).toBe(false);
       expect(containsAadhaarLikeNumber(field.sourceText), `source of ${field.key}`).toBe(false);
     }
+    // Raw OCR retention is unaffected by the customer.aadhaar exception — still masked.
     expect(containsAadhaarLikeNumber(rawText)).toBe(false);
   });
 
@@ -125,7 +127,7 @@ describe('Aadhaar handling', () => {
       filename: 'ref.pdf',
       provider: new MockOcrProvider(),
     });
-    expect(extraction.fields.find((field) => field.key === 'customer.aadhaar_last4')).toBeUndefined();
+    expect(extraction.fields.find((field) => field.key === 'customer.aadhaar')).toBeUndefined();
   });
 });
 

@@ -162,18 +162,19 @@ export function extractFromText(input: ExtractFromTextInput): TextExtractionResu
     warnings.push({ code: 'TEXT_TRUNCATED', messageKey: 'customers.paste.warnings.textTruncated' });
   }
 
-  // Said before extraction, because the operator should learn that the number was dropped even
-  // if nothing else in their paste matched a label (§19.3).
-  if (containsAadhaarLikeNumber(text)) {
-    warnings.push({
-      code: 'AADHAAR_REMOVED',
-      messageKey: 'customers.paste.warnings.aadhaarRemoved',
-    });
-  }
+  const hadAadhaarLikeNumber = containsAadhaarLikeNumber(text);
 
   const lines = splitPastedText(text);
 
   if (lines.length === 0) {
+    // No extraction runs on empty input, so any Aadhaar-like number in it was necessarily
+    // discarded rather than captured.
+    if (hadAadhaarLikeNumber) {
+      warnings.push({
+        code: 'AADHAAR_REMOVED',
+        messageKey: 'customers.paste.warnings.aadhaarRemoved',
+      });
+    }
     return {
       fields: [],
       warnings: [
@@ -196,6 +197,15 @@ export function extractFromText(input: ExtractFromTextInput): TextExtractionResu
     documentType: 'generic',
     allowedKeys: allowed,
   });
+
+  // Only warn when the number was actually discarded — a `customer.aadhaar` field means it was
+  // kept, and telling the operator otherwise would be wrong.
+  if (hadAadhaarLikeNumber && !fields.some((field) => field.key === 'customer.aadhaar')) {
+    warnings.push({
+      code: 'AADHAAR_REMOVED',
+      messageKey: 'customers.paste.warnings.aadhaarRemoved',
+    });
+  }
 
   return {
     fields,

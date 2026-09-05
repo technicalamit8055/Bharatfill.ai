@@ -128,11 +128,16 @@ Implemented once in `packages/core/src/auth/permissions.ts` and mirrored by RLS 
 
 ### Aadhaar-like identifiers
 
-- Default: **store last four digits only**, in `identity_summary_json.aadhaar_last4`.
-- Full value storage is gated behind `organizations.settings.allow_full_aadhaar`, which is
-  `false` and cannot be enabled from the UI in the MVP.
-- Display is always masked (`XXXX XXXX 1234`).
-- Aadhaar is never a search key and is never indexed.
+- The full number may be stored, in `identity_summary_json.aadhaar`, with customer consent.
+  `identity_summary_json.aadhaar_last4` remains available for callers that only need four
+  digits (e.g. a portal field that explicitly asks for just that).
+- Extraction masks an Aadhaar-like number out of every field's value and source snippet except
+  `customer.aadhaar` itself — a stray number that leaked into an unrelated field is not the
+  customer's reviewed Aadhaar value, and is still masked (`packages/ai/src/safety.ts`).
+- Display is always masked (`XXXX XXXX 1234`); revealing it is an explicit audited action,
+  exactly as for any other sensitive field.
+- Aadhaar is never a search key and is never indexed, and is never written to a log, error
+  report, or portal adapter report.
 
 ### PAN, bank account
 
