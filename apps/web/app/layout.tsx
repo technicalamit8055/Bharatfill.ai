@@ -1,18 +1,24 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Plus_Jakarta_Sans } from 'next/font/google';
+import { Outfit, Plus_Jakarta_Sans, Noto_Sans_Devanagari } from 'next/font/google';
 import './globals.css';
 import { I18nProvider } from '@/lib/i18n/client';
 import { getLocale } from '@/lib/i18n/server';
 
-const inter = Inter({
+const outfit = Outfit({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-outfit',
   display: 'swap',
 });
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
   variable: '--font-jakarta',
+  display: 'swap',
+});
+
+const devanagari = Noto_Sans_Devanagari({
+  subsets: ['devanagari', 'latin'],
+  variable: '--font-devanagari',
   display: 'swap',
 });
 
@@ -36,7 +42,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const locale = await getLocale();
 
   return (
-    <html lang={locale} className={`${inter.variable} ${jakarta.variable}`} suppressHydrationWarning>
+    <html
+      lang={locale}
+      className={`${outfit.variable} ${jakarta.variable} ${devanagari.variable}`}
+      suppressHydrationWarning
+    >
       <body className="min-h-dvh font-sans antialiased">
         <I18nProvider locale={locale}>{children}</I18nProvider>
       </body>

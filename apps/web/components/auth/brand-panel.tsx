@@ -64,7 +64,7 @@ export async function BrandPanel() {
           <span className="text-xs font-bold text-cyan-100">{t('auth.brand.badge')}</span>
         </div>
 
-        <h2 className="font-jakarta mt-6 text-4xl font-extrabold leading-tight tracking-tight text-white xl:text-5xl">
+        <h2 className="font-heading mt-6 text-4xl font-extrabold leading-tight tracking-tight text-white xl:text-5xl">
           {t('auth.brand.headlineLead')}{' '}
           <span className="bg-gradient-to-r from-cyan-300 to-blue-300 bg-clip-text text-transparent">
             {t('auth.brand.headlineAccent')}
@@ -100,7 +100,9 @@ export async function BrandPanel() {
         <dl className="grid grid-cols-3 gap-4 border-t border-white/10 pt-6">
           {STAT_KEYS.map((stat) => (
             <div key={stat.key}>
-              <dd className={`font-jakarta text-2xl font-extrabold ${stat.tone}`}>{stat.value}</dd>
+              <dd className={`font-heading tabular-nums text-2xl font-extrabold ${stat.tone}`}>
+                {stat.value}
+              </dd>
               <dt className="mt-0.5 text-xs font-medium text-blue-200/70">{t(stat.key)}</dt>
             </div>
           ))}

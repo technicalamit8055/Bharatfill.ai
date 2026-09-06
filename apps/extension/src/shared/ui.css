@@ -7,7 +7,9 @@
  * apps/web/app/globals.css.
  *
  * No @font-face and no remote stylesheet: MV3 forbids remotely hosted resources, so the type
- * stack falls back to the platform UI font the way the site's Tailwind stack does.
+ * stack falls back to the platform UI font the way the site's Tailwind stack does. Plus Jakarta
+ * Sans / Outfit are named first only in case a viewer happens to have them installed locally —
+ * they are not bundled with the extension, so most installs still render the system fallback.
  */
 
 :root {
@@ -63,8 +65,8 @@
 body {
   margin: 0;
   font-family:
-    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans',
-    'Noto Sans Devanagari', Arial, sans-serif;
+    'Plus Jakarta Sans', 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Noto Sans Devanagari', ui-sans-serif, system-ui, 'Noto Sans', Arial, sans-serif;
   font-size: 13px;
   line-height: 1.5;
   color: var(--ink);

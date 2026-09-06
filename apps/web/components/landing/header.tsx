@@ -10,7 +10,6 @@ const NAV_LINKS = [
   { href: '#where-it-works', label: 'Where It Works' },
   { href: '#pricing', label: 'Pricing' },
   { href: '#faq', label: 'FAQ' },
-  { href: '/tasks', label: 'Tasks & Roadmap' },
 ];
 
 export function Header() {

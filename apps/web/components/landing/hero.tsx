@@ -16,7 +16,7 @@ export function Hero() {
         <div className="mx-auto max-w-4xl text-center">
 
           {/* Top Pill Badge */}
-          <div className="font-inter inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/80 px-4 py-1.5 backdrop-blur-md shadow-sm">
+          <div className="font-sans inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/80 px-4 py-1.5 backdrop-blur-md shadow-sm">
             <span className="flex h-2 w-2 rounded-full bg-[#0066FF] animate-ping" />
             <span className="text-xs font-bold text-blue-700 sm:text-sm">
               ⚡ AI-Powered Form Autofill Chrome Extension
@@ -28,7 +28,7 @@ export function Hero() {
           </div>
 
           {/* Main Headline */}
-          <h1 className="font-jakarta mt-8 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-6xl lg:text-7xl">
+          <h1 className="font-heading mt-8 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-6xl lg:text-7xl">
             Fill Any Web Form in{' '}
             <span className="bg-gradient-to-r from-[#0066FF] via-blue-600 to-cyan-500 bg-clip-text text-transparent">
               One Click
@@ -77,19 +77,25 @@ export function Hero() {
           {/* Key Trust Signals */}
           <div className="mt-14 grid grid-cols-2 gap-4 border-t border-slate-200/80 pt-8 sm:grid-cols-4 max-w-3xl mx-auto">
             <div className="flex flex-col items-center">
-              <span className="text-2xl font-extrabold text-slate-900">100,000+</span>
+              <span className="font-heading tabular-nums text-2xl font-extrabold text-slate-900">
+                100,000+
+              </span>
               <span className="text-xs text-slate-500 font-medium mt-0.5">Forms Filled Fast</span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="text-2xl font-extrabold text-[#0066FF]">99.8%</span>
+              <span className="font-heading tabular-nums text-2xl font-extrabold text-[#0066FF]">
+                99.8%
+              </span>
               <span className="text-xs text-slate-500 font-medium mt-0.5">Field Accuracy</span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="text-2xl font-extrabold text-cyan-600">1-Click</span>
+              <span className="font-heading text-2xl font-extrabold text-cyan-600">1-Click</span>
               <span className="text-xs text-slate-500 font-medium mt-0.5">Instant Autofill</span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="text-2xl font-extrabold text-emerald-600">100%</span>
+              <span className="font-heading tabular-nums text-2xl font-extrabold text-emerald-600">
+                100%
+              </span>
               <span className="text-xs text-slate-500 font-medium mt-0.5">Aadhaar Safe & Masked</span>
             </div>
           </div>

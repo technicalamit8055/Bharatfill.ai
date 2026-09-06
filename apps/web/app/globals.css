@@ -17,6 +17,13 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
+  /* Headings & display text get the geometric Outfit face, falling back through Devanagari
+   * (Outfit has no Devanagari glyphs) and Plus Jakarta Sans before the system stack. */
+  :where(h1, h2, h3, h4, .font-heading) {
+    font-family: var(--font-outfit), var(--font-devanagari), var(--font-jakarta), sans-serif;
+    @apply tracking-tight;
+  }
+
   /*
    * Devanagari sits taller than Latin at the same font-size. A slightly looser line-height on
    * Hindi pages stops labels colliding in dense tables (spec §20.3).
@@ -31,6 +38,13 @@
    */
   html[lang='hi'] :where(h1, h2) {
     line-height: 1.45;
+  }
+
+  /* Aadhaar, PAN, pincodes and financial figures line up column-to-column only with fixed-width
+   * digits — proportional figures make e.g. a masked Aadhaar's dots drift against the digits. */
+  :where(input[type='number'], table, .masked-value, .tabular-nums) {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
   }
 
   :where(a, button, input, select, textarea, [tabindex]):focus-visible {

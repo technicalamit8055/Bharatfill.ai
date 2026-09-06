@@ -25,7 +25,7 @@ export function AuthCard({
 
       <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-[0_18px_50px_-20px_rgba(0,102,255,0.28)] backdrop-blur-xl sm:p-8">
         <div className="space-y-1.5">
-          <h1 className="font-jakarta text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+          <h1 className="font-heading text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
             {title}
           </h1>
           {subtitle ? <p className="text-sm leading-relaxed text-slate-500">{subtitle}</p> : null}
