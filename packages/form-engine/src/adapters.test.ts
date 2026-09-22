@@ -5,10 +5,15 @@ import {
   adapterFieldMatches,
   findAdapterField,
   adapterMatchesUrl,
+  portalAdapterSchema,
   selectAdapter,
   urlPatternToRegExp,
+  type AdapterField,
+  type AdapterMatchable,
   type PortalAdapter,
 } from './adapters';
+import biharRtps from './adapters/bihar-rtps.json';
+import sscPortal from './adapters/ssc-portal.json';
 
 function adapter(overrides: Partial<PortalAdapter> & { slug: string }): PortalAdapter {
   return {
@@ -304,5 +309,246 @@ describe('adapterDependencyDepth', () => {
     });
     expect(depths.get('a')).toBeTypeOf('number');
     expect(depths.get('b')).toBeTypeOf('number');
+  });
+});
+
+describe('ssc-portal adapter', () => {
+  const parsed = portalAdapterSchema.parse(sscPortal);
+
+  it('validates against portalAdapterSchema', () => {
+    expect(() => portalAdapterSchema.parse(sscPortal)).not.toThrow();
+    expect(parsed.slug).toBe('ssc-portal');
+  });
+
+  it('matches the SSC application URL', () => {
+    expect(adapterMatchesUrl(parsed, 'https://ssc.gov.in', '/portal/apply')).toBe(true);
+  });
+
+  it('matches an SSC subdomain, which is where the OTR form actually lives', () => {
+    expect(adapterMatchesUrl(parsed, 'https://uatssc.ssc.gov.in', '/registration')).toBe(true);
+  });
+
+  it('does not claim a portal that merely ends in a similar host', () => {
+    // The `.` in the pattern is literal, so a look-alike host must not match.
+    expect(adapterMatchesUrl(parsed, 'https://sscXgov.in', '/portal/apply')).toBe(false);
+    expect(adapterMatchesUrl(parsed, 'https://notssc.gov.in', '/portal/apply')).toBe(false);
+  });
+
+  it("does not let the father's-name field claim the mother's or the candidate's", () => {
+    const fatherName = parsed.fields.find((field) => field.key === 'father_name');
+    expect(fatherName).toBeDefined();
+
+    for (const label of ["Mother's Name", "Candidate's Name", 'माता का नाम']) {
+      expect(
+        adapterFieldMatchScore(fatherName as NonNullable<typeof fatherName>, {
+          signature: 'sig',
+          name: 'ctrl_12',
+          id: 'ctrl_12',
+          labelText: label,
+        }),
+        label,
+      ).toBeNull();
+    }
+
+    expect(
+      adapterFieldMatchScore(fatherName as NonNullable<typeof fatherName>, {
+        signature: 'sig',
+        name: 'ctrl_12',
+        id: 'ctrl_12',
+        labelText: "Father's Name",
+      }),
+    ).not.toBeNull();
+  });
+
+  it('orders the permanent address chain state → district', () => {
+    const depths = adapterDependencyDepth(parsed);
+    expect(depths.get('permanent_state')).toBe(0);
+    expect(depths.get('permanent_district')).toBe(1);
+  });
+
+  it('requires the photo and signature uploads by their real preset codes', () => {
+    expect(parsed.documentRequirements.map((requirement) => requirement.presetCode).sort()).toEqual([
+      'ssc.photo',
+      'ssc.signature',
+    ]);
+  });
+
+  it('never maps a full Aadhaar number, only the last four digits', () => {
+    for (const field of parsed.fields) {
+      expect(field.customerField).not.toBe('customer.aadhaar');
+    }
+    expect(parsed.fields.some((field) => field.customerField === 'customer.aadhaar_last4')).toBe(
+      true,
+    );
+  });
+
+  it('forces review on every high-risk field it maps', () => {
+    // date_of_birth, category and aadhaar_last4 are high_risk in the registry (§14.6); an
+    // adapter proposes at near-certainty, so each must still stop for a human.
+    for (const key of ['date_of_birth', 'category', 'aadhaar_last4']) {
+      expect(parsed.fields.find((field) => field.key === key)?.reviewRequired, key).toBe(true);
+    }
+  });
+});
+
+/**
+ * Rule 3 (docs/DEVELOPMENT_RULES.md §1; master spec §14.5, §19.7): Assistigo never retrieves or
+ * auto-enters an OTP.
+ *
+ * The specific hazard these tests guard is that an OTP box on an Indian portal almost always
+ * says "mobile" or "email" somewhere in its markup — "Enter OTP sent to mobile number",
+ * `name="otpMobile"`, `id="mobile_otp"`. Every one of those strings is a positive signal for the
+ * contact field, so without a disqualifier the adapter would type the customer's real 10-digit
+ * number into the OTP input: a validation error at best, a locked account at worst, and a
+ * straight breach of the rule either way.
+ *
+ * This is tier one of two. `classifyField` in safety.ts is tier two, and safety.test.ts covers
+ * it; a field has to clear both before anything is typed into it.
+ */
+describe('adapters — contact fields never claim an OTP input (Rule 3)', () => {
+  const adapters = [
+    { slug: 'ssc-portal', parsed: portalAdapterSchema.parse(sscPortal) },
+    { slug: 'bihar-rtps', parsed: portalAdapterSchema.parse(biharRtps) },
+  ] as const;
+
+  /** Each case names one attribute, because a portal may poison only one of them. */
+  const mobileOtpFields: ReadonlyArray<Partial<AdapterMatchable> & { readonly why: string }> = [
+    { why: 'English label', labelText: 'Enter OTP sent to mobile number' },
+    { why: 'Hindi label', labelText: 'मोबाइल पर भेजा गया ओटीपी' },
+    { why: 'camelCase name', name: 'otpMobile' },
+    { why: 'snake_case id', id: 'mobile_otp' },
+    { why: 'placeholder', placeholder: 'Enter 6-digit Mobile OTP' },
+    { why: 'aria-label', ariaLabel: 'Mobile Verification Code' },
+    { why: 'spelled-out label', labelText: 'One Time Password sent to your mobile' },
+    { why: 'hyphenated name', name: 'otp-mobile' },
+    { why: 'Hindi verification label', labelText: 'मोबाइल सत्यापन कोड' },
+    { why: 'alternate number', labelText: 'Alternate Mobile Number' },
+  ];
+
+  const emailOtpFields: ReadonlyArray<Partial<AdapterMatchable> & { readonly why: string }> = [
+    { why: 'English label', labelText: 'Enter OTP sent to email address' },
+    { why: 'Hindi label', labelText: 'ईमेल पर भेजा गया ओटीपी' },
+    { why: 'camelCase name', name: 'otpEmail' },
+    { why: 'snake_case id', id: 'email_otp' },
+    { why: 'placeholder', placeholder: 'Enter 6-digit Email OTP' },
+    { why: 'aria-label', ariaLabel: 'Email Verification Code' },
+    { why: 'spelled-out label', labelText: 'One Time Password sent to your email' },
+    { why: 'alternate address', labelText: 'Alternate Email Address' },
+  ];
+
+  /**
+   * Only the attribute under test is populated. Filling the rest with the same hostile string
+   * would let a test pass on the wrong signal and hide a gap in one attribute's coverage.
+   */
+  function matchable(overrides: Partial<AdapterMatchable>): AdapterMatchable {
+    return {
+      signature: 'input#ctrl_99',
+      name: null,
+      id: null,
+      labelText: null,
+      ...overrides,
+    };
+  }
+
+  for (const { slug, parsed } of adapters) {
+    describe(slug, () => {
+      for (const [key, hostile] of [
+        ['mobile', mobileOtpFields],
+        ['email', emailOtpFields],
+      ] as const) {
+        const adapterField = parsed.fields.find((field) => field.key === key);
+
+        it(`defines a ${key} field with negative patterns`, () => {
+          expect(adapterField, `${slug} must map ${key}`).toBeDefined();
+          // A missing negativePatterns array is the failure mode this whole suite exists for:
+          // it reads as "nothing disqualifies this field", not as "not configured yet".
+          expect(adapterField?.negativePatterns ?? [], `${slug}.${key}`).toEqual(
+            expect.arrayContaining(['otp', 'ओटीपी', 'one time password', 'verification', 'verify']),
+          );
+        });
+
+        for (const { why, ...attributes } of hostile) {
+          it(`never claims the ${key} OTP input — ${why}`, () => {
+            expect(adapterField).toBeDefined();
+            expect(
+              adapterFieldMatchScore(
+                adapterField as NonNullable<typeof adapterField>,
+                matchable(attributes),
+              ),
+              `${slug}.${key} claimed an OTP field via ${why}`,
+            ).toBeNull();
+            expect(
+              adapterFieldMatches(
+                adapterField as NonNullable<typeof adapterField>,
+                matchable(attributes),
+              ),
+            ).toBe(false);
+          });
+        }
+      }
+
+      it('still claims the genuine mobile and email fields', () => {
+        // The disqualifiers must not be so broad that the adapter stops filling real contact
+        // fields — an over-eager negative pattern is a silent regression, not a safe default.
+        const mobile = parsed.fields.find((field) => field.key === 'mobile');
+        const email = parsed.fields.find((field) => field.key === 'email');
+
+        expect(
+          adapterFieldMatchScore(
+            mobile as NonNullable<typeof mobile>,
+            matchable({ name: 'mobileNumber', labelText: 'Mobile Number' }),
+          ),
+        ).not.toBeNull();
+
+        expect(
+          adapterFieldMatchScore(
+            email as NonNullable<typeof email>,
+            matchable({ name: 'emailId', labelText: 'Email' }),
+          ),
+        ).not.toBeNull();
+      });
+    });
+  }
+
+  it('disqualifies before the selector shortcut, which outranks every other signal', () => {
+    // adapterFieldMatchScore returns 1000 on a selector hit. That branch must sit *after* the
+    // negative loop, or an adapter whose selector happens to match the OTP box would fill it
+    // at maximum confidence — the exact case the two-tier defence is built to stop.
+    const withSelector = {
+      key: 'mobile',
+      customerField: 'customer.mobile',
+      selector: '#ctrl_99',
+      negativePatterns: ['otp'],
+      inputType: 'text',
+    } satisfies AdapterField;
+
+    expect(
+      adapterFieldMatchScore(withSelector, {
+        signature: 'input#ctrl_99',
+        name: 'otpMobile',
+        id: null,
+        labelText: null,
+      }),
+    ).toBeNull();
+  });
+
+  it('disqualifies before the adapter-key shortcut', () => {
+    // Same argument one tier down: the key "mobile" matches `name="mobile_otp"` as a whole
+    // token and would score 800 if the negatives did not run first.
+    const byKey = {
+      key: 'mobile',
+      customerField: 'customer.mobile',
+      negativePatterns: ['otp'],
+      inputType: 'text',
+    } satisfies AdapterField;
+
+    expect(
+      adapterFieldMatchScore(byKey, {
+        signature: 'sig',
+        name: 'mobile_otp',
+        id: 'mobile_otp',
+        labelText: null,
+      }),
+    ).toBeNull();
   });
 });

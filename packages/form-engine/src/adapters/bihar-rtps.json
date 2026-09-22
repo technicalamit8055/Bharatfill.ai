@@ -111,7 +111,18 @@
         "mobile number",
         "mobile no"
       ],
-      "negativePatterns": ["otp", "ओटीपी", "alternate", "वैकल्पिक"],
+      "negativePatterns": [
+        "otp",
+        "ओटीपी",
+        "one time password",
+        "onetime password",
+        "verification",
+        "verify",
+        "सत्यापन",
+        "alternate",
+        "alternative",
+        "वैकल्पिक"
+      ],
       "inputType": "text",
       "transform": "mobile.10digit",
       "required": true
@@ -120,7 +131,18 @@
       "key": "email",
       "customerField": "customer.email",
       "labelPatterns": ["आवेदक का ईमेल", "ईमेल", "email of applicant", "email"],
-      "inputType": "text"
+      "inputType": "text",
+      "negativePatterns": [
+        "otp",
+        "ओटीपी",
+        "one time password",
+        "onetime password",
+        "verification",
+        "verify",
+        "सत्यापन",
+        "alternate",
+        "alternative"
+      ]
     },
     {
       "key": "village_town",

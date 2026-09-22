@@ -15,12 +15,13 @@
 
 import { portalAdapterSchema, type PortalAdapter } from './adapters';
 import biharRtps from './adapters/bihar-rtps.json';
+import sscPortal from './adapters/ssc-portal.json';
 
 /**
  * Parsed eagerly. If an adapter JSON is broken, the right time to find out is at build and
  * test time, not when an operator presses "Detect fields" in front of a customer.
  */
-export const BUILT_IN_ADAPTERS: readonly PortalAdapter[] = [biharRtps].map((raw) =>
+export const BUILT_IN_ADAPTERS: readonly PortalAdapter[] = [biharRtps, sscPortal].map((raw) =>
   portalAdapterSchema.parse(raw),
 );
 

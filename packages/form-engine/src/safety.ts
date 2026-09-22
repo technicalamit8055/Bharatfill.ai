@@ -51,10 +51,18 @@ function haystack(field: ClassifiableField): string {
     ]
       .filter((part): part is string => typeof part === 'string' && part !== '')
       .join(' ')
-      .toLowerCase()
       // Separators between words vary wildly across portals: captcha_code, captchaCode, captcha-code.
+      //
+      // The camelCase split has to happen *before* lowercasing, or there is no case left to
+      // split on: `otpMobile` would collapse to `otpmobile`, where `\botp\b` does not match and
+      // an OTP box named in camelCase reads as a normal mobile field. Digits are boundaries too
+      // ("otp1", "mobileOtp2"), and a run of capitals keeps its last letter with the next word
+      // so `SMSCode` becomes `sms code` rather than `smsc ode`.
       .replace(/[_\-.]+/g, ' ')
-      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/([a-z])([A-Z0-9])/g, '$1 $2')
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+      .replace(/([0-9])([A-Za-z])/g, '$1 $2')
+      .toLowerCase()
       .replace(/\s+/g, ' ')
       .trim()
   );

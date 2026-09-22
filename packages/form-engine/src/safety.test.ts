@@ -66,6 +66,54 @@ describe('safety — OTP fields are never filled', () => {
   it('does not flag words that merely contain the letters o-t-p', () => {
     expect(isOtpField({ name: 'adoption_status', labelText: 'Adoption status' })).toBe(false);
     expect(isOtpField({ name: 'photo_upload', labelText: 'Photo' })).toBe(false);
+    expect(isOtpField({ name: 'optionalField', labelText: 'Optional' })).toBe(false);
+    expect(isOtpField({ name: 'optOut', labelText: 'Opt out' })).toBe(false);
+  });
+
+  /*
+   * An OTP box on an Indian portal nearly always carries the word "mobile" or "email", because
+   * that is what the code was sent to. `otpMobile` is the dangerous shape: the adapter's mobile
+   * field sees a positive signal, so safety.ts is the tier that has to say no.
+   *
+   * These ran green against a haystack that lowercased before splitting camelCase, which meant
+   * `otpMobile` collapsed to `otpmobile` and `\botp\b` never fired. The separator cases below
+   * exist so that ordering cannot silently regress.
+   */
+  it.each([
+    { name: 'otpMobile' },
+    { name: 'mobileOtp' },
+    { name: 'mobile_otp' },
+    { name: 'otp-mobile' },
+    { name: 'OTP_MOBILE' },
+    { name: 'mobileOTP' },
+    { name: 'otpEmail' },
+    { name: 'emailOtp' },
+    { id: 'mobile_otp' },
+    { id: 'txtOtpMobile' },
+    { labelText: 'Enter OTP sent to mobile number' },
+    { labelText: 'मोबाइल पर भेजा गया ओटीपी' },
+    { placeholder: 'Enter 6-digit Mobile OTP' },
+    { ariaLabel: 'Mobile Verification Code' },
+    { ariaLabel: 'Email Verification Code' },
+    { labelText: 'मोबाइल सत्यापन कोड' },
+  ])('classifies a mobile/email-flavoured OTP box as otp, not as a contact field: %o', (field) => {
+    expect(isOtpField(field)).toBe(true);
+    expect(classifyField(field)).toBe('otp');
+    expect(isFillable(classifyField(field))).toBe(false);
+  });
+
+  it('still leaves a genuine mobile or email field fillable', () => {
+    // The disqualifiers must not swallow the real contact fields, or the operator ends up
+    // typing every form by hand and starts looking for a way around the safety layer.
+    for (const field of [
+      { name: 'mobileNumber', labelText: 'Mobile Number', inputType: 'tel' },
+      { name: 'mobile_no', labelText: 'मोबाइल संख्या', inputType: 'text' },
+      { name: 'emailId', labelText: 'Email ID', inputType: 'email' },
+    ]) {
+      expect(isOtpField(field), field.name).toBe(false);
+      expect(classifyField(field), field.name).toBe('normal');
+      expect(isFillable(classifyField(field)), field.name).toBe(true);
+    }
   });
 });
 
