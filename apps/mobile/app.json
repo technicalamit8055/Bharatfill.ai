@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Bharatfill",
+    "slug": "bharatfill-citizen",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "bharatfill",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "ai.bharatfill.citizen"
+    },
+    "android": {
+      "package": "ai.bharatfill.citizen"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

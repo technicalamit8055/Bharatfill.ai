@@ -55,6 +55,15 @@ export default defineConfig({
       {
         resolve: { alias },
         test: {
+          name: 'mobile',
+          globals: true,
+          environment: 'node',
+          include: ['apps/mobile/tests/**/*.test.ts'],
+        },
+      },
+      {
+        resolve: { alias },
+        test: {
           name: 'extension',
           globals: true,
           environment: 'jsdom',

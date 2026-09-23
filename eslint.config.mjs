@@ -44,6 +44,30 @@ export default tseslint.config(
     },
   },
   {
+    // Metro and Babel only load CommonJS config files, so these two cannot be ESM.
+    files: ['apps/mobile/metro.config.js', 'apps/mobile/babel.config.js'],
+    languageOptions: {
+      globals: {
+        module: 'writable',
+        require: 'readonly',
+        __dirname: 'readonly',
+        process: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
+    // React Native resolves static image assets through Metro at build time, and `require()`
+    // is the documented idiom for it — an ESM import of a .png has no type and defeats the
+    // asset registry. Scoped to the components that actually embed artwork.
+    files: ['apps/mobile/components/**/*.tsx'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
     // Scripts and tests run in Node and may use console freely.
     files: ['scripts/**/*.{ts,mjs,js}', '**/*.test.ts', '**/*.spec.ts', 'tests/**/*.ts'],
     languageOptions: {

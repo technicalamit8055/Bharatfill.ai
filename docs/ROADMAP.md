@@ -332,7 +332,9 @@ Remaining:
 ## Deferred, by decision
 
 - Physical E-card and card reader (spec §4.3) — revisit only against the criteria listed there.
-- Citizen mobile app, customer portal, public API, WhatsApp notifications (V1.5+/V2/V3).
+- Customer portal, public API, WhatsApp notifications (V2/V3).
+- ~~Citizen mobile app~~ — un-deferred by the product owner. Scaffolded as `apps/mobile`
+  (Expo + Expo Router); see `docs/CITIZEN_MOBILE_APP_SPEC.md` §6 Phase 1.
 - Regional languages beyond the Hindi/English foundation.
 
 ---

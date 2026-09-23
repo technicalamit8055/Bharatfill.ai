@@ -1,0 +1,62 @@
+{
+  "app": {
+    "name": "Bharatfill",
+    "tagline": "Your personal document scanner and form vault"
+  },
+  "splash": {
+    "brandPrimary": "Bharat",
+    "brandAccent": "Doc",
+    "hindiMark": "मेरे\nदस्तावेज\nमेरी पहचान",
+    "calligraphy": "Digital\nBharat\nStronger\nCitizens",
+    "subtitle": "Aapka Personal Document Scanner\n& Sarkari Form Vault",
+    "loading": "Loading a Simpler India...",
+    "footer": "MADE FOR A DIGITAL INDIA",
+    "skipHint": "Skip the splash screen"
+  },
+  "tabs": {
+    "home": "Home",
+    "vault": "Vault",
+    "scan": "Scan",
+    "profile": "Profile"
+  },
+  "home": {
+    "title": "Home",
+    "greeting": "Namaste",
+    "vaultSummaryTitle": "Your vault",
+    "vaultSummaryEmpty": "No documents yet. Scan your first document to get started.",
+    "quickScanTitle": "Quick scan",
+    "quickScanBody": "Scan an Aadhaar card, marksheet, photo or signature in seconds.",
+    "quickScanAction": "Start scanning"
+  },
+  "vault": {
+    "title": "Vault",
+    "emptyTitle": "Your vault is empty",
+    "emptyBody": "Documents you scan are stored here, organised by category.",
+    "categories": {
+      "identity": "Identity & citizenship",
+      "academic": "Education & academic",
+      "certificate": "Certificates & reservations",
+      "form_asset": "Ready-to-fill form assets"
+    }
+  },
+  "scan": {
+    "title": "Scan",
+    "placeholderTitle": "Scanner coming next",
+    "placeholderBody": "The document scanner is being built. It will auto-detect edges, flatten the page and clean up shadows."
+  },
+  "profile": {
+    "title": "Profile",
+    "signedOutTitle": "Not signed in",
+    "signedOutBody": "Sign in with your mobile number to sync your vault.",
+    "accessTitle": "Document access",
+    "accessBody": "Choose how cyber cafe operators can access your documents."
+  },
+  "common": {
+    "retry": "Try again",
+    "loading": "Loading",
+    "errorTitle": "Something went wrong"
+  },
+  "onboarding": {
+    "continue": "Get started"
+  }
+}
