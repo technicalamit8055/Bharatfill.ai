@@ -52,5 +52,11 @@
   "overrides": {
     "react-native": "0.86.3",
     "@react-native/virtualized-lists": "0.86.3"
+  },
+  "dependencies": {
+    "expo": "~57.0.25",
+    "expo-image-picker": "~57.0.20",
+    "expo-linking": "~57.0.11",
+    "expo-router": "~57.0.23"
   }
 }

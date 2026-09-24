@@ -7,18 +7,26 @@
     "scheme": "bharatfill",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "ai.bharatfill.citizen"
     },
     "android": {
-      "package": "ai.bharatfill.citizen"
+      "package": "ai.bharatfill.citizen",
+      "allowBackup": false
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Bharatfill opens your photos only when you choose one to add to your vault.",
+          "cameraPermission": "Bharatfill uses the camera to scan your documents. Scans are encrypted and kept on this phone.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

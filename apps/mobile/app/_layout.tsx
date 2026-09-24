@@ -23,6 +23,19 @@ function RootNavigator() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="scanner"
+          options={{
+            headerShown: false,
+            presentation: 'fullScreenModal',
+            animation: 'slide_from_bottom',
+          }}
+        />
+        <Stack.Screen
+          name="scan-review"
+          options={{ headerShown: false, presentation: 'fullScreenModal', gestureEnabled: false }}
+        />
+        <Stack.Screen name="scan-result" options={{ headerShown: false }} />
       </Stack>
     </>
   );

@@ -7,11 +7,30 @@ Spec: `docs/CITIZEN_MOBILE_APP_SPEC.md`. This is Phase 1 (§6) — the scaffold 
 
 ## Run
 
+The document scanner is a native module, so the app runs as a **development build**, not in
+Expo Go. One-time setup: install Android Studio (with the Android SDK), set `ANDROID_HOME`, and
+connect an Android phone with USB debugging on (or start an emulator that has Google Play).
+
 ```bash
-npm run dev:mobile          # from the repo root
+npm run android --workspace @assistigo/mobile   # builds and installs the dev build (first run is slow)
+npm run dev:mobile                              # from the repo root: starts Metro for the dev build
 npm run typecheck --workspace @assistigo/mobile
-npm run test:mobile         # from the repo root
+npm run test:mobile                             # from the repo root
 ```
+
+Rebuild with `npm run android` whenever a native dependency or `app.json` plugin changes; for
+JS-only changes, Metro reloads the installed build.
+
+## Scanner and vault
+
+- `app/scanner.tsx` is a full-screen modal opened by the Scan tab, the Home hero and quick
+  actions. The shutter opens the platform scanner — Google ML Kit on Android (edge detection,
+  auto-capture, crop, filters, shadow/stain/finger clean-up), VisionKit on iOS — through
+  `react-native-document-scanner-plugin`. Gallery imports photos as they are.
+- `lib/vault/vault-storage.ts` encrypts every page with AES-256-GCM before it is stored under
+  the app's document directory; the key lives in the platform keystore (this device only).
+  Plaintext copies left by the scanner or picker are deleted after sealing. Nothing is uploaded.
+- Android backup is off (`allowBackup: false`) so vault files never leave the phone.
 
 ## Layout
 
@@ -52,5 +71,7 @@ tests/                 runs in the root vitest `mobile` project
 
 ## Not built yet
 
-Scanner capture, vault persistence, phone OTP sign-in, cloud sync and the consent/access-mode
-controls. No screen currently reads, stores or logs citizen PII.
+A vault browser (the Vault tab and Home's counts and recent documents still show no saved
+scans), document categories, PDF export, phone OTP sign-in, cloud sync and the
+consent/access-mode controls. Scanned documents are stored encrypted on the phone only; no
+screen logs or uploads citizen PII.

@@ -62,9 +62,9 @@ export const status = {
  */
 export const vaultCategory = {
   identity: '#1D54F0',
-  academic: '#7A3DBD',
-  certificate: '#1B8A5A',
-  form_asset: '#B26A00',
+  academic: '#1B8A5A',
+  certificate: '#B26A00',
+  form_asset: '#7A3DBD',
 } as const;
 
 export type VaultCategory = keyof typeof vaultCategory;

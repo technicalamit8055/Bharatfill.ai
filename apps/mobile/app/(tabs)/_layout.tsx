@@ -1,38 +1,32 @@
 /**
- * Tab shell — the four top-level destinations from the citizen app spec:
- * Home, Vault, Scan and Profile.
+ * Tab shell — the five top-level destinations in the Home mockup: Home, Vault, Scan, Share and
+ * Profile. Scan and the vault come from the citizen app spec; Share is the home for sharing with
+ * a Cyber Cafe / CSC (spec §3 Features 3 and 4), a placeholder until that is built.
  *
- * Icons are text glyphs for now. They are a deliberate placeholder: swapping in an icon set is
- * a one-line change per tab, and shipping the shell without waiting on assets keeps the
- * navigation structure reviewable.
+ * The bar itself is `components/navigation/AppTabBar.tsx`, which draws the icons and the raised
+ * Scan button. Screens here only give each tab its title and label.
  */
 
-import { Tabs } from 'expo-router';
-import { Text, type TextStyle } from 'react-native';
+import { Tabs, useRouter } from 'expo-router';
 
+import { AppTabBar } from '../../components/navigation/AppTabBar';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
 import { useTheme } from '../../theme';
-
-function TabGlyph({ glyph, color }: { glyph: string; color: TextStyle['color'] }) {
-  return (
-    <Text accessible={false} style={{ color, fontSize: 18 }}>
-      {glyph}
-    </Text>
-  );
-}
 
 export default function TabsLayout() {
   const { navigation } = useTheme();
   const { t } = useTranslation();
+  const router = useRouter();
 
   return (
-    <Tabs screenOptions={{ ...navigation.header, ...navigation.tabBar }}>
+    <Tabs screenOptions={navigation.header} tabBar={(props) => <AppTabBar {...props} />}>
       <Tabs.Screen
         name="index"
         options={{
           title: t('home.title'),
+          // The dashboard draws its own greeting header.
+          headerShown: false,
           tabBarLabel: t('tabs.home'),
-          tabBarIcon: ({ color }) => <TabGlyph glyph="⌂" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -40,7 +34,6 @@ export default function TabsLayout() {
         options={{
           title: t('vault.title'),
           tabBarLabel: t('tabs.vault'),
-          tabBarIcon: ({ color }) => <TabGlyph glyph="🗂" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -48,7 +41,20 @@ export default function TabsLayout() {
         options={{
           title: t('scan.title'),
           tabBarLabel: t('tabs.scan'),
-          tabBarIcon: ({ color }) => <TabGlyph glyph="⛶" color={color} />,
+        }}
+        listeners={{
+          // The scanner is a full-screen modal, not a tab: open it over whichever tab is showing.
+          tabPress: (event) => {
+            event.preventDefault();
+            router.push('/scanner');
+          },
+        }}
+      />
+      <Tabs.Screen
+        name="share"
+        options={{
+          title: t('share.title'),
+          tabBarLabel: t('tabs.share'),
         }}
       />
       <Tabs.Screen
@@ -56,7 +62,6 @@ export default function TabsLayout() {
         options={{
           title: t('profile.title'),
           tabBarLabel: t('tabs.profile'),
-          tabBarIcon: ({ color }) => <TabGlyph glyph="☺" color={color} />,
         }}
       />
     </Tabs>

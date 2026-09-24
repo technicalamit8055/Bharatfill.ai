@@ -1,74 +1,89 @@
 /**
- * Home — the citizen's landing screen.
+ * Home tab route. The screen lives in `components/home/HomeDashboardScreen.tsx`; this route owns
+ * navigation and decides what the dashboard holds.
  *
- * Counts are placeholders until the vault store lands; the screen exists to pin down the
- * layout language (card + section header + primary action) that later screens reuse.
+ * There is no vault store or saved profile yet, so a production build shows the empty
+ * dashboard: no name, no counts, no recent documents. Development builds show the design
+ * mockup's sample content instead (`components/home/demo.tsx`) so the layout can be reviewed
+ * full. Features the dashboard points at that do not exist yet — sharing with a Cyber Cafe /
+ * CSC, notifications, per-document actions — say so plainly, and nothing is shared or sent.
  */
 
-import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useIsFocused, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useCallback, useMemo } from 'react';
+import { Alert } from 'react-native';
 
-import { VAULT_CATEGORIES, vaultCategoryLabelKey } from '../../lib/vault/categories';
+import { demoHomeDashboard } from '../../components/home/demo';
+import { HomeDashboardScreen } from '../../components/home/HomeDashboardScreen';
+import { EMPTY_HOME_DASHBOARD, type QuickScanMode } from '../../lib/home/dashboard';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
-import { spacing, useTheme, vaultCategory } from '../../theme';
 
-export default function HomeScreen() {
-  const { colors, presets } = useTheme();
-  const { t } = useTranslation();
+export default function HomeRoute() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  const isFocused = useIsFocused();
+
+  const { dashboard, now } = useMemo(() => {
+    const openedAt = new Date();
+    return {
+      now: openedAt,
+      dashboard: __DEV__ ? demoHomeDashboard(openedAt, t) : EMPTY_HOME_DASHBOARD,
+    };
+  }, [t]);
+
+  const comingSoon = useCallback(
+    (bodyKey: string) => {
+      Alert.alert(t('common.comingSoon'), t(bodyKey), [{ text: t('common.ok') }]);
+    },
+    [t],
+  );
+
+  const handleScan = useCallback(
+    (mode: QuickScanMode) => {
+      // The platform scanner has no photo or signature presets; only the page count differs.
+      router.push({
+        pathname: '/scanner',
+        params: { mode: mode === 'multi_page' ? 'multi' : 'single' },
+      });
+    },
+    [router],
+  );
+
+  const handleOpenVault = useCallback(() => {
+    router.navigate('/vault');
+  }, [router]);
+
+  const handleOpenProfile = useCallback(() => {
+    router.navigate('/profile');
+  }, [router]);
+
+  const handleOpenNotifications = useCallback(() => {
+    comingSoon('home.notificationsUnavailable');
+  }, [comingSoon]);
+
+  const handleConnect = useCallback(() => {
+    comingSoon('home.connect.unavailable');
+  }, [comingSoon]);
+
+  const handleDocumentActions = useCallback(() => {
+    comingSoon('home.recent.actionsUnavailable');
+  }, [comingSoon]);
 
   return (
-    <ScrollView
-      style={presets.screen}
-      contentContainerStyle={[presets.screenContent, { paddingBottom: insets.bottom + spacing.xl }]}
-    >
-      <View>
-        <Text style={presets.textSecondary}>{t('home.greeting')}</Text>
-        <Text style={presets.sectionHeader}>{t('app.name')}</Text>
-        <Text style={presets.textMuted}>{t('app.tagline')}</Text>
-      </View>
-
-      <View style={presets.card}>
-        <Text style={presets.sectionHeader}>{t('home.quickScanTitle')}</Text>
-        <Text style={presets.textSecondary}>{t('home.quickScanBody')}</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('home.quickScanAction')}
-          style={presets.primaryButton}
-          onPress={() => router.navigate('/scan')}
-        >
-          <Text style={presets.primaryButtonLabel}>{t('home.quickScanAction')}</Text>
-        </Pressable>
-      </View>
-
-      <View style={presets.card}>
-        <Text style={presets.sectionHeader}>{t('home.vaultSummaryTitle')}</Text>
-        <Text style={presets.textSecondary}>{t('home.vaultSummaryEmpty')}</Text>
-
-        <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
-          {VAULT_CATEGORIES.map((category) => (
-            <View
-              key={category}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
-            >
-              <View
-                style={{
-                  width: spacing.md,
-                  height: spacing.md,
-                  borderRadius: spacing.md / 2,
-                  backgroundColor: vaultCategory[category],
-                }}
-              />
-              <Text style={[presets.textPrimary, { flex: 1 }]}>
-                {t(vaultCategoryLabelKey(category))}
-              </Text>
-              <Text style={[presets.textMuted, { color: colors.textMuted }]}>0</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    </ScrollView>
+    <>
+      {/* Home is light-only artwork; claim the status bar only while this tab is showing. */}
+      {isFocused ? <StatusBar style="dark" /> : null}
+      <HomeDashboardScreen
+        dashboard={dashboard}
+        now={now}
+        onScan={handleScan}
+        onOpenNotifications={handleOpenNotifications}
+        onOpenProfile={handleOpenProfile}
+        onConnect={handleConnect}
+        onOpenVault={handleOpenVault}
+        onDocumentActions={handleDocumentActions}
+      />
+    </>
   );
 }

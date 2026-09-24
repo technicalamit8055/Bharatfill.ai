@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BharatDoc — Official Mobile App Icon Pack</title>
+  <style>
+    :root {
+      --bg-primary: #081836;
+      --bg-secondary: #0d2a58;
+      --bg-card: rgba(255, 255, 255, 0.04);
+      --border-color: rgba(255, 255, 255, 0.1);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-blue: #047efd;
+      --accent-cyan: #38bdf8;
+      --accent-orange: #ff9933;
+      --accent-green: #138808;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-main);
+      padding: 40px 24px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 50px;
+    }
+
+    .badge-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(4, 126, 253, 0.15);
+      border: 1px solid rgba(4, 126, 253, 0.3);
+      padding: 6px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent-cyan);
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 44px;
+      font-weight: 900;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+
+    h1 span {
+      background: linear-gradient(135deg, #38bdf8 0%, #047efd 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.subtitle {
+      font-size: 18px;
+      color: var(--text-muted);
+      max-width: 650px;
+      margin: 0 auto;
+    }
+
+    .tagline-hindi {
+      font-size: 15px;
+      color: #cbd5e1;
+      margin-top: 6px;
+      font-weight: 500;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn-toggle {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 8px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .btn-toggle:hover, .btn-toggle.active {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: #fff;
+    }
+
+    section {
+      margin-bottom: 48px;
+    }
+
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(4, 126, 253, 0.4);
+    }
+
+    .preview-box {
+      width: 140px;
+      height: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      background: #0f172a;
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+      position: relative;
+    }
+
+    body.light-mode .preview-box {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+
+    body.grid-bg .preview-box {
+      background-image: radial-gradient(rgba(255, 255, 255, 0.2) 1px, transparent 0);
+      background-size: 12px 12px;
+    }
+
+    .preview-box img {
+      max-width: 110px;
+      max-height: 110px;
+      object-fit: contain;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .card-specs {
+      font-size: 12px;
+      color: var(--accent-cyan);
+      font-family: monospace;
+      margin-bottom: 6px;
+    }
+
+    .card-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .banner-card {
+      grid-column: 1 / -1;
+      padding: 24px;
+    }
+
+    .banner-card img {
+      max-width: 100%;
+      border-radius: 12px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+    }
+
+    .directory-tree {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      font-family: monospace;
+      font-size: 13px;
+      color: #94a3b8;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    footer {
+      text-align: center;
+      padding: 40px 0 20px;
+      border-top: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge-bar">🇮🇳 Mobile App Brand Assets</div>
+      <h1>Bharat<span>Doc</span> App Icon Pack</h1>
+      <p class="subtitle">Aapka Personal Document Scanner &amp; Sarkari Form Vault</p>
+      <p class="tagline-hindi">मेरे दस्तावेज़, मेरी पहचान • Digital Bharat, Stronger Citizens</p>
+
+      <div class="controls">
+        <button class="btn-toggle" onclick="toggleTheme('dark')">🌙 Dark Canvas</button>
+        <button class="btn-toggle" onclick="toggleTheme('light')">☀️ Light Canvas</button>
+        <button class="btn-toggle" onclick="togglePattern()">🏁 Grid Background</button>
+      </div>
+    </header>
+
+    <!-- SECTION 1: MASTER VARIANTS -->
+    <section>
+      <h2>🌟 Master 1024x1024 Assets</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="preview-box">
+            <img src="master/master-app-icon.png" alt="Squircle Transparent">
+          </div>
+          <div class="card-title">Squircle (Transparent)</div>
+          <div class="card-specs">1024 x 1024 • PNG</div>
+          <div class="card-desc">Master BharatDoc squircle icon with anti-aliased alpha transparency outside corners.</div>
+        </div>
+
+        <div class="card">
+          <div class="preview-box">
+            <img src="master/master-fullbleed-square.png" alt="Full Bleed Square">
+          </div>
+          <div class="card-title">Full Bleed Square</div>
+          <div class="card-specs">1024 x 1024 • PNG</div>
+          <div class="card-desc">Seamless gradient to 90° corners. Required for iOS App Store submission.</div>
+        </div>
+
+        <div class="card">
+          <div class="preview-box">
+            <img src="master/master-circle.png" alt="Seamless Circle">
+          </div>
+          <div class="card-title">Seamless Circle</div>
+          <div class="card-specs">1024 x 1024 • PNG</div>
+          <div class="card-desc">Round badge cut with full gradient for Android round launcher &amp; app avatars.</div>
+        </div>
+
+        <div class="card">
+          <div class="preview-box">
+            <img src="master/master-floating-shadow.png" alt="Floating Ambient Shadow">
+          </div>
+          <div class="card-title">Floating Ambient Shadow</div>
+          <div class="card-specs">1024 x 1024 • PNG</div>
+          <div class="card-desc">3D soft ambient shadow as seen in the official BharatDoc mobile splash screen.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: EXPO & REACT NATIVE -->
+    <section>
+      <h2>📱 Expo &amp; React Native Mobile App</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="preview-box">
+            <img src="expo/icon.png" alt="Expo Icon">
+          </div>
+          <div class="card-title">icon.png</div>
+          <div class="card-specs">1024 x 1024 • PNG</div>
+          <div class="card-desc">Main BharatDoc mobile app icon.</div>
+        </div>
+
+        <div class="card">
+          <div class="preview-box">
+            <img src="expo/adaptive-icon.png" alt="Android Adaptive">
+          </div>
+          <div class="card-title">adaptive-icon.png</div>
+          <div class="card-specs">1024 x 1024 • PNG</div>
+          <div class="card-desc">Android adaptive foreground centered within the 66% safe viewport zone.</div>
+        </div>
+
+        <div class="card">
+          <div class="preview-box">
+            <img src="expo/splash-icon.png" alt="Splash Mascot">
+          </div>
+          <div class="card-title">splash-icon.png</div>
+          <div class="card-specs">512 x 512 • PNG</div>
+          <div class="card-desc">High-res floating mascot icon for BharatDoc mobile splash screen.</div>
+        </div>
+
+        <div class="card">
+          <div class="preview-box">
+            <img src="expo/favicon.png" alt="Mobile Web Favicon">
+          </div>
+          <div class="card-title">favicon.png</div>
+          <div class="card-specs">48 x 48 • PNG</div>
+          <div class="card-desc">Mobile browser / web preview favicon.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: STORE & APP MARKETING -->
+    <section>
+      <h2>🏪 App Store &amp; Google Play Store Marketing</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="preview-box">
+            <img src="store-and-marketing/playstore-icon-512x512.png" alt="Google Play Store">
+          </div>
+          <div class="card-title">Google Play Store</div>
+          <div class="card-specs">512 x 512 • PNG</div>
+          <div class="card-desc">Google Play Console store listing icon.</div>
+        </div>
+
+        <div class="card">
+          <div class="preview-box">
+            <img src="store-and-marketing/appstore-icon-1024x1024.png" alt="Apple App Store">
+          </div>
+          <div class="card-title">Apple App Store</div>
+          <div class="card-specs">1024 x 1024 • PNG</div>
+          <div class="card-desc">App Store Connect marketing icon (1024x1024 square, full bleed).</div>
+        </div>
+
+        <div class="card">
+          <div class="preview-box">
+            <img src="store-and-marketing/avatar-circle-512x512.png" alt="Circular Avatar">
+          </div>
+          <div class="card-title">Circular App Avatar</div>
+          <div class="card-specs">512 x 512 • PNG</div>
+          <div class="card-desc">For app social media profiles &amp; store community avatars.</div>
+        </div>
+
+        <div class="card">
+          <div class="preview-box">
+            <img src="store-and-marketing/avatar-square-512x512.png" alt="Square Avatar">
+          </div>
+          <div class="card-title">Square App Avatar</div>
+          <div class="card-specs">512 x 512 • PNG</div>
+          <div class="card-desc">For app community channels, notifications, and press kit.</div>
+        </div>
+
+        <div class="card banner-card">
+          <div class="card-title" style="margin-bottom: 12px; font-size: 18px;">Google Play Feature Graphic (1024 x 500)</div>
+          <img src="store-and-marketing/googleplay-feature-graphic-1024x500.png" alt="Google Play Feature Graphic">
+        </div>
+
+        <div class="card banner-card">
+          <div class="card-title" style="margin-bottom: 12px; font-size: 18px;">BharatDoc Social Share &amp; Marketing Card (1200 x 630)</div>
+          <img src="store-and-marketing/bharatdoc-social-card-1200x630.png" alt="BharatDoc Social Card">
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: IOS & ANDROID NATIVE -->
+    <section>
+      <h2>⚙️ Native App Catalog Structures</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="preview-box">
+            <img src="ios/AppIcon.appiconset/AppIcon-60x60@3x.png" alt="iOS App Icon">
+          </div>
+          <div class="card-title">iOS AppIcon.appiconset</div>
+          <div class="card-specs">Xcode Asset Catalog</div>
+          <div class="card-desc">Full set of 11 icons with official Contents.json for iPhone &amp; iPad.</div>
+        </div>
+
+        <div class="card">
+          <div class="preview-box">
+            <img src="android/res/mipmap-xxxhdpi/ic_launcher.png" alt="Android Launcher">
+          </div>
+          <div class="card-title">Android res/mipmap</div>
+          <div class="card-specs">MDPI to XXXHDPI</div>
+          <div class="card-desc">Standard, round, and adaptive launcher icons with background XML.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5: FOLDER STRUCTURE -->
+    <section>
+      <h2>📁 Pack Structure Overview</h2>
+      <div class="directory-tree">logo-pack/
+├── master/                      # 1024x1024 master assets (squircle, square, circle, shadow, adaptive)
+├── expo/                        # Expo drop-in assets (icon.png, adaptive-icon.png, splash-icon.png, favicon.png)
+├── ios/
+│   └── AppIcon.appiconset/      # Complete Xcode asset catalog with Contents.json
+├── android/
+│   ├── playstore-512x512.png    # Google Play Store listing icon
+│   └── res/                     # Android mipmap folders (mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi)
+├── store-and-marketing/         # Google Play Feature Graphic (1024x500), Social Banner (1200x630), Avatars
+└── standard-sizes/              # Standard pixel sizes (16, 32, 48, 64, 128, 256, 512, 1024) in transparent & fullbleed</div>
+    </section>
+
+    <footer>
+      BharatDoc Mobile App • Aapka Personal Document Scanner &amp; Sarkari Form Vault
+    </footer>
+  </div>
+
+  <script>
+    function toggleTheme(mode) {
+      if (mode === 'light') {
+        document.body.classList.add('light-mode');
+      } else {
+        document.body.classList.remove('light-mode');
+      }
+    }
+    function togglePattern() {
+      document.body.classList.toggle('grid-bg');
+    }
+  </script>
+</body>
+</html>
