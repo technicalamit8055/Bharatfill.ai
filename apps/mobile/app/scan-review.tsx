@@ -1,12 +1,12 @@
 /**
- * Scan review route — crop, filter and save the pages of the scan in progress. The screen lives
- * in `components/scanner/ScanReviewScreen.tsx`; the pages live in the capture session.
+ * Scan review route — crop and filter the pages of the scan in progress. The screen lives in
+ * `components/scanner/ScanReviewScreen.tsx`; the pages live in the capture session.
  *
- * Saving seals every page into one encrypted vault document and deletes all temporary files;
- * closing throws the session away the same way.
+ * Save moves on to the Save Document screen (`app/save-document.tsx`), which names and files
+ * the scan and seals it into the vault. Closing throws the session and its temporary files away.
  */
 
-import { useRouter } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 
@@ -17,7 +17,6 @@ import {
   discardSession,
   removePage,
   retryPage,
-  saveSession,
   setPageFilter,
   setPageQuad,
   useCaptureSession,
@@ -32,7 +31,6 @@ export default function ScanReviewRoute() {
 
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [cropping, setCropping] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   // Show the newest page when pages are added, and a neighbour when one is removed.
   const lastId = pages.at(-1)?.id ?? null;
@@ -47,10 +45,12 @@ export default function ScanReviewRoute() {
     else router.replace({ pathname: '/scanner', params: { continue: '1' } });
   }, [router]);
 
-  // Nothing left to review (last page retaken or deleted): back to the camera.
+  // Nothing left to review (last page retaken or deleted): back to the camera. Only while this
+  // screen is on top — saving from Save Document empties the session on its way out.
+  const isFocused = useIsFocused();
   useEffect(() => {
-    if (pages.length === 0 && !saving) backToCamera();
-  }, [backToCamera, pages.length, saving]);
+    if (pages.length === 0 && isFocused) backToCamera();
+  }, [backToCamera, isFocused, pages.length]);
 
   const onFilter = useCallback(
     (filter: PageFilter) => {
@@ -82,20 +82,10 @@ export default function ScanReviewRoute() {
     ]);
   }, [current, t]);
 
-  const onSave = useCallback(async () => {
-    setSaving(true);
-    try {
-      const documentId = await saveSession();
-      // Close the camera and review, so Done on the result goes back to the tabs.
-      router.dismissAll();
-      router.push({ pathname: '/scan-result', params: { id: documentId } });
-    } catch {
-      setSaving(false);
-      Alert.alert(t('scanner.errors.title'), t('scanReview.saveFailed'), [
-        { text: t('common.ok') },
-      ]);
-    }
-  }, [router, t]);
+  const onSave = useCallback(() => {
+    setCropping(false);
+    router.push('/save-document');
+  }, [router]);
 
   const onClose = useCallback(() => {
     Alert.alert(t('scanner.discardTitle'), t('scanner.discardBody', { count: pages.length }), [
@@ -116,7 +106,6 @@ export default function ScanReviewRoute() {
       pages={pages}
       currentId={current?.id ?? null}
       cropping={cropping}
-      saving={saving}
       canAddPage={canAddPages()}
       onSelectPage={setCurrentId}
       onFilter={onFilter}
@@ -128,7 +117,7 @@ export default function ScanReviewRoute() {
       onDeletePage={onDeletePage}
       onRetry={() => current && retryPage(current.id)}
       onAddPage={backToCamera}
-      onSave={() => void onSave()}
+      onSave={onSave}
       onClose={onClose}
     />
   );

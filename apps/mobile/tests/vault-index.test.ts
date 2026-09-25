@@ -18,6 +18,7 @@ import {
   type VaultDocument,
   withDocument,
   withoutDocument,
+  withStarred,
 } from '../lib/vault/vault-index';
 
 const OLDER: VaultDocument = {
@@ -76,6 +77,30 @@ describe('vault index', () => {
     ).toBeNull();
   });
 
+  it('stars and un-stars one document, leaving the others alone', () => {
+    const index = withDocument(withDocument(EMPTY_VAULT_INDEX, OLDER), NEWER);
+    const starred = withStarred(index, OLDER.id, true);
+    expect(findDocument(starred, OLDER.id)?.starred).toBe(true);
+    expect(findDocument(starred, NEWER.id)?.starred).toBeUndefined();
+    expect(findDocument(withStarred(starred, OLDER.id, false), OLDER.id)?.starred).toBe(false);
+    expect(withStarred(index, '00000000-0000-4000-8000-000000000000', true)).toEqual(index);
+  });
+
+  it('keeps the star through serialisation', () => {
+    const index = withStarred(withDocument(EMPTY_VAULT_INDEX, OLDER), OLDER.id, true);
+    expect(parseVaultIndex(serialiseVaultIndex(index))).toEqual(index);
+  });
+
+  it('still reads indexes written before starring existed', () => {
+    const legacy = JSON.stringify({ version: 1, documents: [OLDER] });
+    expect(
+      findDocument(parseVaultIndex(legacy) ?? EMPTY_VAULT_INDEX, OLDER.id)?.starred,
+    ).toBeUndefined();
+    expect(
+      parseVaultIndex(JSON.stringify({ version: 1, documents: [{ ...OLDER, starred: 'yes' }] })),
+    ).toBeNull();
+  });
+
   it('refuses to add an invalid document', () => {
     expect(() => withDocument(EMPTY_VAULT_INDEX, { ...OLDER, id: 'not-a-uuid' })).toThrow();
   });
@@ -84,6 +109,44 @@ describe('vault index', () => {
     const json = serialiseVaultIndex(withDocument(EMPTY_VAULT_INDEX, NEWER));
     // eslint-disable-next-line no-control-regex
     expect(json).toMatch(/^[\x00-\x7F]*$/);
+  });
+});
+
+describe('document details', () => {
+  const DETAILED: VaultDocument = {
+    ...OLDER,
+    title: 'आधार कार्ड — Front 😀',
+    documentType: 'aadhaar_like',
+    category: 'identity',
+    tags: ['पहचान', 'Personal'],
+    expiresOn: '2030-08-12',
+    reminderId: 'reminder-1',
+  };
+
+  it('round-trips a Hindi name and tags through the ASCII index', () => {
+    const json = serialiseVaultIndex(withDocument(EMPTY_VAULT_INDEX, DETAILED));
+    // eslint-disable-next-line no-control-regex
+    expect(json).toMatch(/^[\x00-\x7F]*$/);
+    expect(findDocument(parseVaultIndex(json) ?? EMPTY_VAULT_INDEX, OLDER.id)).toEqual(DETAILED);
+  });
+
+  it('still reads documents saved without details', () => {
+    const index = parseVaultIndex(JSON.stringify({ version: 1, documents: [OLDER] }));
+    expect(findDocument(index ?? EMPTY_VAULT_INDEX, OLDER.id)?.title).toBeUndefined();
+  });
+
+  it('refuses details outside the stored limits', () => {
+    const parses = (patch: Record<string, unknown>) =>
+      parseVaultIndex(JSON.stringify({ version: 1, documents: [{ ...OLDER, ...patch }] })) !== null;
+
+    expect(parses({ title: '' })).toBe(false);
+    expect(parses({ title: 'x'.repeat(81) })).toBe(false);
+    expect(parses({ documentType: 'passport_scan' })).toBe(false);
+    expect(parses({ category: 'misc' })).toBe(false);
+    expect(parses({ tags: Array.from({ length: 11 }, (_, i) => `t${i}`) })).toBe(false);
+    expect(parses({ tags: ['x'.repeat(25)] })).toBe(false);
+    expect(parses({ expiresOn: '12/08/2030' })).toBe(false);
+    expect(parses({ title: 'x'.repeat(80), tags: ['x'.repeat(24)] })).toBe(true);
   });
 });
 

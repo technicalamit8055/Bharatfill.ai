@@ -7,6 +7,8 @@
  * day back (31 → 30), and Done unlocks once all three are chosen.
  *
  * The picked date stays in this sheet until Done hands it to `onConfirm` as an ISO string.
+ *
+ * The Save Document screen reuses it for an expiry date, passing its own title and future years.
  */
 
 import { useMemo, useState } from 'react';
@@ -34,9 +36,19 @@ export type DateOfBirthSheetProps = {
   readonly value: string | null;
   readonly onConfirm: (isoDate: string) => void;
   readonly onClose: () => void;
+  /** Defaults to the date-of-birth label. */
+  readonly title?: string;
+  /** The Year column, top first. Defaults to birth years, newest first. */
+  readonly years?: readonly number[];
 };
 
-export function DateOfBirthSheet({ value, onConfirm, onClose }: DateOfBirthSheetProps) {
+export function DateOfBirthSheet({
+  value,
+  onConfirm,
+  onClose,
+  title,
+  years,
+}: DateOfBirthSheetProps) {
   const { t } = useTranslation();
 
   const [initial] = useState(() => (value ? parseIsoDate(value) : null));
@@ -63,8 +75,12 @@ export function DateOfBirthSheet({ value, onConfirm, onClose }: DateOfBirthSheet
     [t],
   );
   const yearItems = useMemo<ColumnItem[]>(
-    () => birthYearOptions(new Date()).map((option) => ({ value: option, label: String(option) })),
-    [],
+    () =>
+      (years ?? birthYearOptions(new Date())).map((option) => ({
+        value: option,
+        label: String(option),
+      })),
+    [years],
   );
 
   const pickMonth = (next: number) => {
@@ -87,7 +103,7 @@ export function DateOfBirthSheet({ value, onConfirm, onClose }: DateOfBirthSheet
 
   return (
     <BottomSheet
-      title={t('profileSetup.dobLabel')}
+      title={title ?? t('profileSetup.dobLabel')}
       closeLabel={t('profileSetup.sheet.close')}
       onClose={onClose}
     >

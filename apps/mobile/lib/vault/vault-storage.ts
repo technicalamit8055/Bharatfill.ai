@@ -28,7 +28,9 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 
 import { isDisposableScanFile } from '../scan/scan-session';
+import { cancelExpiryReminder } from './expiry-reminders';
 import {
+  type DocumentDetails,
   type DocumentSource,
   EMPTY_VAULT_INDEX,
   findDocument,
@@ -43,6 +45,7 @@ import {
   type VaultIndex,
   withDocument,
   withoutDocument,
+  withStarred,
 } from './vault-index';
 
 const KEY_ENTRY = 'bharatfill.vault.key.v1';
@@ -213,6 +216,7 @@ export function discardIncoming(uris: readonly string[]): void {
 export async function saveDocument(
   pages: readonly IncomingPage[],
   source: DocumentSource,
+  details: DocumentDetails = {},
 ): Promise<string> {
   try {
     if (pages.length === 0 || pages.length > MAX_PAGES_PER_DOCUMENT) {
@@ -240,6 +244,7 @@ export async function saveDocument(
         createdAt: new Date().toISOString(),
         source,
         pages: pages.map(({ mimeType }) => ({ mimeType })),
+        ...details,
       };
       await exclusive(async () =>
         writeIndex(withDocument(await readIndexForUpdate(key), document), key),
@@ -280,10 +285,35 @@ export async function readPageDataUri(document: VaultDocument, pageIndex: number
   return `data:${page.mimeType};base64,${base64}`;
 }
 
+/**
+ * Bytes the document takes on this phone: its encrypted pages, each 28 bytes (IV and tag)
+ * larger than the page itself. Null when a page's size cannot be read.
+ */
+export function documentSizeBytes(document: VaultDocument): number | null {
+  let total = 0;
+  for (const pageIndex of document.pages.keys()) {
+    const size = new File(documentDirectory(document.id), pageFileName(pageIndex)).size;
+    if (size === null) return null;
+    total += size;
+  }
+  return total;
+}
+
+export async function setStarred(id: string, starred: boolean): Promise<void> {
+  const key = await vaultKey();
+  await exclusive(async () => writeIndex(withStarred(await readIndex(key), id, starred), key));
+}
+
+/** Deletes the document's pages and index entry, and cancels its expiry reminder if it has one. */
 export async function deleteDocument(id: string): Promise<void> {
   const key = await vaultKey();
-  await exclusive(async () => writeIndex(withoutDocument(await readIndexForUpdate(key), id), key));
+  const removed = await exclusive(async () => {
+    const index = await readIndexForUpdate(key);
+    await writeIndex(withoutDocument(index, id), key);
+    return findDocument(index, id);
+  });
 
   const directory = documentDirectory(id);
   if (directory.exists) directory.delete();
+  if (removed?.reminderId) await cancelExpiryReminder(removed.reminderId);
 }

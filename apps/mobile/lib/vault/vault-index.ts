@@ -2,14 +2,22 @@
  * The on-device vault's index: which documents exist and how many pages each has.
  *
  * The index is stored encrypted like the pages (see `vault-storage.ts`) and parsed with Zod on
- * every read, so a damaged or tampered file is refused instead of trusted. It holds no citizen
- * data — ids, timestamps, counts and where a document came from — which also keeps it plain
- * ASCII, so it round-trips through base64 without a text encoder.
+ * every read, so a damaged or tampered file is refused instead of trusted.
  *
- * Documents have no vault category yet: choosing or detecting one is the next step.
+ * Besides ids, timestamps and page counts it holds what the citizen chose on the Save Document
+ * screen: a name, a document type, a vault folder, tags, and an expiry date with the id of its
+ * reminder. The name and tags are free text that may name the citizen, so they are sealed like
+ * the pages and never logged. They may also be Hindi; `serialiseVaultIndex` escapes anything
+ * outside ASCII, so the file still round-trips through base64 without a text encoder.
+ *
+ * A document can be starred so the citizen finds the ones they hand over most often. Every field
+ * after `pages` is optional, so indexes written before it existed still parse.
  */
 
+import { DOCUMENT_TYPES } from '@assistigo/core';
 import { z } from 'zod';
+
+import { VAULT_CATEGORIES } from './categories';
 
 export const VAULT_INDEX_VERSION = 1;
 
@@ -24,6 +32,13 @@ export type PageMimeType = (typeof PAGE_MIME_TYPES)[number];
 /** Upper bound on pages per document, above the scanner's own limit to allow gallery imports. */
 export const MAX_PAGES_PER_DOCUMENT = 50;
 
+/** Limits on what the Save Document screen stores. */
+export const MAX_TITLE_LENGTH = 80;
+export const MAX_TAGS = 10;
+export const MAX_TAG_LENGTH = 24;
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 const vaultDocumentSchema = z.object({
   id: z.string().uuid(),
   createdAt: z.string().datetime(),
@@ -32,6 +47,15 @@ const vaultDocumentSchema = z.object({
     .array(z.object({ mimeType: z.enum(PAGE_MIME_TYPES) }))
     .min(1)
     .max(MAX_PAGES_PER_DOCUMENT),
+  starred: z.boolean().optional(),
+  title: z.string().min(1).max(MAX_TITLE_LENGTH).optional(),
+  documentType: z.enum(DOCUMENT_TYPES).optional(),
+  category: z.enum(VAULT_CATEGORIES).optional(),
+  tags: z.array(z.string().min(1).max(MAX_TAG_LENGTH)).max(MAX_TAGS).optional(),
+  /** A calendar date, `YYYY-MM-DD`. */
+  expiresOn: z.string().regex(ISO_DATE).optional(),
+  /** The local notification scheduled for `expiresOn`, so deleting the document cancels it. */
+  reminderId: z.string().min(1).max(200).optional(),
 });
 
 const vaultIndexSchema = z.object({
@@ -41,6 +65,12 @@ const vaultIndexSchema = z.object({
 
 export type VaultDocument = z.infer<typeof vaultDocumentSchema>;
 export type VaultIndex = z.infer<typeof vaultIndexSchema>;
+
+/** What the citizen chose on the Save Document screen. */
+export type DocumentDetails = Pick<
+  VaultDocument,
+  'title' | 'documentType' | 'category' | 'tags' | 'expiresOn' | 'reminderId'
+>;
 
 export const EMPTY_VAULT_INDEX: VaultIndex = { version: VAULT_INDEX_VERSION, documents: [] };
 
@@ -56,8 +86,16 @@ export function parseVaultIndex(json: string): VaultIndex | null {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * JSON with every character outside ASCII written as a `\uXXXX` escape, which `JSON.parse` reads
+ * back unchanged. Only string values can hold such characters, so escaping them in place is
+ * still valid JSON.
+ */
 export function serialiseVaultIndex(index: VaultIndex): string {
-  return JSON.stringify(vaultIndexSchema.parse(index));
+  return JSON.stringify(vaultIndexSchema.parse(index)).replace(
+    /[\u0080-￿]/g,
+    (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  );
 }
 
 /** Newest first, as every list of documents shows them. */
@@ -67,6 +105,16 @@ export function withDocument(index: VaultIndex, document: VaultDocument): VaultI
   return {
     ...index,
     documents: [parsed, ...others].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+  };
+}
+
+/** Stars or un-stars one document. An unknown id leaves the index as it was. */
+export function withStarred(index: VaultIndex, id: string, starred: boolean): VaultIndex {
+  return {
+    ...index,
+    documents: index.documents.map((document) =>
+      document.id === id ? { ...document, starred } : document,
+    ),
   };
 }
 

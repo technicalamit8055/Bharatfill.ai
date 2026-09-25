@@ -3,24 +3,17 @@
  * when the labels fit at a readable size (tablets), two by two on a phone.
  */
 
-import type { LucideIcon } from 'lucide-react-native';
-import { Award, ChevronRight, Folder, GraduationCap, IdCard } from 'lucide-react-native';
+import { ChevronRight } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { documentCountMessage, rowLayout } from '../../lib/home/dashboard';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
 import { VAULT_CATEGORIES, type VaultCategoryKey } from '../../lib/vault/categories';
+import { VAULT_CATEGORY_ICONS as ICONS } from '../vault/categoryIcons';
 import { homePalette as palette } from './palette';
 
 const FOUR_ACROSS_MIN_WIDTH = 104;
 const GAP = 10;
-
-const ICONS: Record<VaultCategoryKey, LucideIcon> = {
-  identity: IdCard,
-  academic: GraduationCap,
-  certificate: Award,
-  form_asset: Folder,
-};
 
 export type VaultCategoryGridProps = {
   /** Width of the page's content column. */

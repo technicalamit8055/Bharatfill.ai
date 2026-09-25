@@ -35,6 +35,14 @@ function RootNavigator() {
           name="scan-review"
           options={{ headerShown: false, presentation: 'fullScreenModal', gestureEnabled: false }}
         />
+        <Stack.Screen
+          name="save-document"
+          options={{
+            headerShown: false,
+            presentation: 'fullScreenModal',
+            animation: 'slide_from_right',
+          }}
+        />
         <Stack.Screen name="scan-result" options={{ headerShown: false }} />
       </Stack>
     </>

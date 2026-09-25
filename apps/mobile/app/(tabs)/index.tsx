@@ -5,8 +5,8 @@
  * There is no vault store or saved profile yet, so a production build shows the empty
  * dashboard: no name, no counts, no recent documents. Development builds show the design
  * mockup's sample content instead (`components/home/demo.tsx`) so the layout can be reviewed
- * full. Features the dashboard points at that do not exist yet — sharing with a Cyber Cafe /
- * CSC, notifications, per-document actions — say so plainly, and nothing is shared or sent.
+ * full. The Cyber Cafe / CSC banner opens the Connect tab. Features the dashboard points at that
+ * do not exist yet — notifications, per-document actions — say so plainly, and nothing is sent.
  */
 
 import { useIsFocused, useRouter } from 'expo-router';
@@ -63,8 +63,8 @@ export default function HomeRoute() {
   }, [comingSoon]);
 
   const handleConnect = useCallback(() => {
-    comingSoon('home.connect.unavailable');
-  }, [comingSoon]);
+    router.navigate('/share');
+  }, [router]);
 
   const handleDocumentActions = useCallback(() => {
     comingSoon('home.recent.actionsUnavailable');

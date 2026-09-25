@@ -76,10 +76,13 @@ export default tseslint.config(
         console: 'readonly',
         Buffer: 'readonly',
         __dirname: 'readonly',
+        require: 'readonly',
+        module: 'writable',
       },
     },
     rules: {
       'no-console': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
     },
   },
   prettier,

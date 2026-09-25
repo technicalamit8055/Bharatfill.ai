@@ -17,7 +17,7 @@
     "home": "Home",
     "vault": "Vault",
     "scan": "Scan",
-    "share": "Share",
+    "share": "Connect",
     "profile": "Profile"
   },
   "home": {
@@ -59,8 +59,7 @@
     "connect": {
       "title": "Form Bharna Ab Aur Bhi Aasaan",
       "body": "Apne documents share karein najdiki Cyber Cafe / CSC ke saath.",
-      "action": "Connect Now",
-      "unavailable": "Sharing your documents with a Cyber Cafe or CSC is not live yet. Nothing has been shared."
+      "action": "Connect Now"
     },
     "vault": {
       "title": "My Document Vault",
@@ -105,8 +104,84 @@
   },
   "vault": {
     "title": "Vault",
-    "emptyTitle": "Your vault is empty",
-    "emptyBody": "Documents you scan are stored here, organised by category.",
+    "heading": "My Documents",
+    "subtitle": "Your personal vault, always with you",
+    "search": "Search documents",
+    "searchPlaceholder": "Search by name or type",
+    "closeSearch": "Close search",
+    "more": "More options",
+    "filters": {
+      "all": "All",
+      "folders": "Folders",
+      "recent": "Recent",
+      "starred": "Starred"
+    },
+    "folderHint": "Shows only the documents in this category",
+    "allDocuments": "All Documents",
+    "clearCategory": "Show every category",
+    "sort": {
+      "label": "Sort by: {sort}",
+      "title": "Sort documents",
+      "close": "Close",
+      "options": {
+        "newest": "Recent",
+        "oldest": "Oldest",
+        "name": "Name"
+      }
+    },
+    "layout": {
+      "list": "Show as a list",
+      "grid": "Show as a grid"
+    },
+    "star": "Star {title}",
+    "unstar": "Remove star from {title}",
+    "moreActions": "More options for {title}",
+    "actions": {
+      "star": "Add star",
+      "unstar": "Remove star",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "deleteTitle": "Delete this document?",
+      "deleteBody": "{title} will be removed from this phone. This cannot be undone.",
+      "scan": "Scan a document",
+      "scanMulti": "Scan a multi-page document"
+    },
+    "untitled": {
+      "scanner": "Scanned document",
+      "gallery": "Imported document"
+    },
+    "source": {
+      "scanner": "Scanned",
+      "gallery": "Gallery"
+    },
+    "meta": {
+      "format": "{format}",
+      "pages": "{count} pages",
+      "date": "{day} {month} {year}"
+    },
+    "empty": {
+      "vault": "Your vault is empty. Documents you scan are kept here, encrypted on this phone.",
+      "starred": "No starred documents yet. Tap the star on a document to find it here quickly.",
+      "recent": "Nothing added in the last {days} days.",
+      "search": "No documents match “{search}”.",
+      "category": "No documents in this category yet."
+    },
+    "emptyAction": "Scan a document",
+    "loadError": "Your documents could not be opened on this phone.",
+    "starFailed": "The star could not be saved. Please try again.",
+    "deleteFailed": "The document could not be deleted. Please try again.",
+    "demo": {
+      "aadhaar": "Aadhaar Card",
+      "photo": "Passport Photo",
+      "marksheet": "10th Marksheet",
+      "signature": "Signature",
+      "pan": "PAN Card",
+      "tagAadhaar": "Aadhaar",
+      "tagPhoto": "Photo",
+      "tagMarksheet": "Marksheet",
+      "tagSignature": "Signature",
+      "tagPan": "PAN"
+    },
     "categories": {
       "identity": "Identity & citizenship",
       "academic": "Education & academic",
@@ -192,13 +267,118 @@
     "deleteTitle": "Delete this page?",
     "deleteBody": "It will be removed from this scan.",
     "addPage": "Add page",
-    "save": "Save",
+    "save": "Next",
     "processing": "Enhancing your scan…",
     "failed": "This page could not be processed.",
     "retry": "Try again",
     "notDetected": "No page edges found, so the whole photo is kept. Tap Crop to adjust.",
     "previewLabel": "Scanned page",
     "saveFailed": "The scan could not be saved securely. Please try again."
+  },
+  "saveDocument": {
+    "title": "Save Document",
+    "subtitle": "Organise your document for easy access",
+    "back": "Back to scan review",
+    "pageOf": "Page {number} of {total}",
+    "previewLabel": "Scanned page {number} of {total}",
+    "editScan": "Edit Scan",
+    "optional": "(Optional)",
+    "sheetClose": "Close",
+    "status": {
+      "clear": {
+        "title": "Document Scanned!",
+        "body": "Page found and straightened."
+      },
+      "uncropped": {
+        "title": "Check the crop",
+        "body": "Page edges not found, so the whole photo is kept."
+      },
+      "failed": {
+        "title": "Could not process",
+        "body": "Tap Edit Scan to try again."
+      },
+      "processing": {
+        "title": "Enhancing scan…",
+        "body": "This takes a moment."
+      }
+    },
+    "name": {
+      "label": "Document Name",
+      "placeholder": "e.g. Aadhaar Card",
+      "clear": "Clear the name"
+    },
+    "type": {
+      "label": "Document Type",
+      "placeholder": "Choose a type",
+      "sheetTitle": "Document type"
+    },
+    "folder": {
+      "label": "Add to Folder",
+      "placeholder": "Choose a folder",
+      "sheetTitle": "Add to folder",
+      "none": "No folder"
+    },
+    "tags": {
+      "label": "Add Tags",
+      "add": "Add Tag",
+      "placeholder": "Tag name",
+      "inputLabel": "New tag",
+      "remove": "Remove tag {tag}",
+      "duplicate": "That tag is already added.",
+      "full": "You can add up to {max} tags."
+    },
+    "secure": {
+      "title": "Keep it Secure",
+      "body": "Your document is encrypted and stored in your personal vault on this phone."
+    },
+    "reminder": {
+      "title": "Set Reminder",
+      "body": "Get notified before expiry date",
+      "expiresOn": "Expires on {date}",
+      "when": "Reminder on {date}",
+      "change": "Change date",
+      "sheetTitle": "Expiry date",
+      "deniedTitle": "Notifications are off",
+      "deniedBody": "Allow notifications for Bharatfill in Settings to get expiry reminders.",
+      "notNow": "Not now",
+      "openSettings": "Open Settings",
+      "permissionFailed": "Reminders could not be turned on. Please try again.",
+      "failedTitle": "Reminder not set",
+      "failed": "Your document was saved, but the expiry reminder could not be set."
+    },
+    "save": "Save to Vault",
+    "saving": "Saving…",
+    "errors": {
+      "titleRequired": "Enter a name for this document.",
+      "typeRequired": "Choose the document type.",
+      "expiry": {
+        "invalid": "Choose a valid expiry date.",
+        "not_future": "The expiry date must be after today.",
+        "too_far": "Choose a date within {years} years."
+      }
+    },
+    "notification": {
+      "title": "Document expiring soon",
+      "body": "A document in your vault expires on {date}. Open Bharatfill to see which one.",
+      "channel": "Document expiry reminders"
+    }
+  },
+  "documentTypes": {
+    "aadhaar_like": "Aadhaar Card",
+    "pan": "PAN Card",
+    "voter_id": "Voter ID",
+    "marksheet_10": "10th Marksheet",
+    "marksheet_12": "12th Marksheet",
+    "marksheet_graduation": "Graduation Marksheet",
+    "caste_certificate": "Caste Certificate",
+    "income_certificate": "Income Certificate",
+    "residence_certificate": "Domicile Certificate",
+    "photo": "Passport Photo",
+    "signature": "Signature",
+    "receipt": "Receipt",
+    "application_pdf": "Application PDF",
+    "generic": "Other Document",
+    "unknown": "Unknown Document"
   },
   "scanResult": {
     "title": "Scan saved",
@@ -216,9 +396,217 @@
     "cancel": "Cancel"
   },
   "share": {
-    "title": "Share",
-    "placeholderTitle": "Share with a Cyber Cafe / CSC",
-    "placeholderBody": "Soon you will be able to let a nearby Cyber Cafe or CSC use the documents you choose, and see each time they open them. Nothing is shared yet."
+    "title": "Connect"
+  },
+  "connect": {
+    "heading": "Connect",
+    "subtitle": "Get in-person support or share documents with trusted CSC operators",
+    "help": "About Connect",
+    "about": {
+      "title": "About Connect",
+      "body": "A Common Service Center (CSC) or Cyber Cafe can fill government forms and upload documents for you. Soon you will be able to find one nearby and choose which of your documents they may use. Nothing is shared unless you choose to share it."
+    },
+    "hero": {
+      "title": "Find a nearby\nCommon Service Center",
+      "body": "Get help with form filling, document upload and government services.",
+      "action": "Find CSC Near You"
+    },
+    "actions": {
+      "find_nearby": {
+        "title": "Find Nearby CSC",
+        "body": "Locate and connect with Common Service Centers"
+      },
+      "share_document": {
+        "title": "Share Document",
+        "body": "Share your documents with CSC operators"
+      },
+      "connections": {
+        "title": "My Connections",
+        "body": "View connected CSCs and access history"
+      },
+      "request_help": {
+        "title": "Request Help",
+        "body": "Get support for form filling and services"
+      }
+    },
+    "nearby": {
+      "title": "Nearby CSC for You",
+      "viewMap": "View Map",
+      "distanceMeters": "{distance} m away",
+      "distanceKm": "{distance} km away",
+      "distanceMetersShort": "{distance} m",
+      "distanceKmShort": "{distance} km",
+      "openNow": "Open Now",
+      "closed": "Closed",
+      "moreServices": "{count} more services",
+      "openHint": "Shows this centre's details",
+      "page": "Centre {page} of {count}",
+      "none": "No Common Service Centers were found near you.",
+      "unavailable": "Nearby centres will show here once centre search is live. Your location is not used."
+    },
+    "offerings": {
+      "aadhaar": "Aadhaar",
+      "pan": "PAN",
+      "voter_id": "Voter ID",
+      "ration_card": "Ration Card",
+      "pension": "Pension",
+      "scholarship": "Scholarship",
+      "certificates": "Certificates",
+      "bill_payment": "Bill Payment",
+      "form_filling": "Form Filling",
+      "document_upload": "Document Upload",
+      "caste_certificate": "Caste Certificate"
+    },
+    "finder": {
+      "title": "Nearby CSC Centers",
+      "subtitle": "Find and connect with nearest Common Service Centers",
+      "back": "Back to Connect",
+      "search": "Search area or centre",
+      "searchPlaceholder": "Search area or centre name",
+      "clearSearch": "Clear search",
+      "useLocation": "Use my current location",
+      "within": "Within {km} km",
+      "filters": "Filters",
+      "filtersActive": "Filters, {count} on",
+      "serviceSheetTitle": "Show centres offering",
+      "serviceSheetClose": "Close",
+      "anyService": "Any service",
+      "views": {
+        "list": "List View",
+        "map": "Map View"
+      },
+      "closedNow": "Closed Now",
+      "bookmark": "Bookmark {name}",
+      "unbookmark": "Remove bookmark from {name}",
+      "directions": "Get Directions",
+      "directionsTo": "Get directions to {name}",
+      "connect": "Connect",
+      "connectTo": "Connect with {name}",
+      "notify": "Notify Me",
+      "notifyFor": "Notify me when {name} opens",
+      "noMatches": "No centres match these filters.",
+      "clearFilters": "Clear filters"
+    },
+    "centre": {
+      "back": "Back",
+      "share": "Share this centre",
+      "shareFailed": "This centre could not be shared. Please try again.",
+      "save": "Save this centre",
+      "unsave": "Remove this centre from saved",
+      "photo": "Photo {page} of {count} of {name}",
+      "hours": "Working Hours",
+      "contact": "Contact",
+      "call": "Call {phone}",
+      "notListed": "Not listed",
+      "verified": "Verified Center",
+      "verifiedBody": "Govt. Authorized CSC Center",
+      "range": "{from} - {to}",
+      "am": "{time} AM",
+      "pm": "{time} PM",
+      "weekdays": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      },
+      "bannerTitle": "Get help with multiple government services",
+      "bannerBody": "Visit this CSC center for form filling, document upload and more.",
+      "services": "Available Services",
+      "showFewer": "Show Less",
+      "noServices": "This centre has not listed its services yet.",
+      "offerings": {
+        "form_filling": {
+          "title": "Form Filling",
+          "caption": "Government & Private Forms"
+        },
+        "document_upload": {
+          "title": "Document Upload",
+          "caption": "Upload & Verification"
+        },
+        "aadhaar": {
+          "title": "Aadhaar Services",
+          "caption": "Enrollment, Update & Correction"
+        },
+        "pan": {
+          "title": "PAN Card Services",
+          "caption": "Apply, Update & Download"
+        },
+        "voter_id": {
+          "title": "Voter ID Services",
+          "caption": "Registration, Correction & Download"
+        },
+        "ration_card": {
+          "title": "Ration Card",
+          "caption": "New Card, Update & Member Changes"
+        },
+        "pension": {
+          "title": "Pension Schemes",
+          "caption": "Old Age, Widow & Disability Pension"
+        },
+        "scholarship": {
+          "title": "Scholarship Forms",
+          "caption": "State & Central Scholarships"
+        },
+        "certificates": {
+          "title": "Certificates",
+          "caption": "Income, Residence & Birth Certificates"
+        },
+        "bill_payment": {
+          "title": "Bill Payment",
+          "caption": "Electricity, Water & Mobile Bills"
+        },
+        "caste_certificate": {
+          "title": "Caste Certificate",
+          "caption": "Apply & Track Status"
+        }
+      },
+      "connectShare": "Connect & Share",
+      "connectShareBody": "Share documents or get support",
+      "notFound": "This centre could not be found. It may no longer be listed."
+    },
+    "services": {
+      "title": "What can CSC help with?",
+      "viewAll": "View All",
+      "viewAllHint": "Shows every service a CSC offers",
+      "form_filling": {
+        "title": "Form Filling",
+        "caption": "Government & Private Forms"
+      },
+      "document_upload": {
+        "title": "Document Upload",
+        "caption": "& Verification"
+      },
+      "identity_services": {
+        "title": "Aadhaar, PAN, Voter",
+        "caption": "and Other Services"
+      },
+      "scholarship": {
+        "title": "Scholarship Forms",
+        "caption": "& Education Services"
+      },
+      "pension_welfare": {
+        "title": "Pension & Social",
+        "caption": "Welfare Schemes"
+      },
+      "other_government": {
+        "title": "Other Government",
+        "caption": "Services"
+      }
+    },
+    "unavailable": {
+      "share_document": "Sharing your documents with a Cyber Cafe or CSC is not live yet. Nothing has been shared.",
+      "connections": "Seeing which centres you are connected to, and when they opened your documents, is not live yet.",
+      "request_help": "Asking a centre for help from the app is not live yet. Nothing has been sent.",
+      "services": "The full list of CSC services is not live yet.",
+      "location": "Finding centres from your current location is not live yet. Your location has not been used.",
+      "directions": "Directions to a centre are not live yet.",
+      "notify": "Alerts for when a centre opens are not live yet.",
+      "call": "Calling a centre from the app is not live yet. No call has been made.",
+      "service": "Details of each service are not live yet."
+    }
   },
   "profile": {
     "title": "Profile",

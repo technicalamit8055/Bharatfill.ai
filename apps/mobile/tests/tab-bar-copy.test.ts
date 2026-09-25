@@ -1,6 +1,6 @@
 /**
- * Guards the tab bar and Share placeholder copy: every tab's label and screen title, and the
- * Share screen's text, must resolve in both catalogues.
+ * Guards the tab bar copy: every tab's label and screen title must resolve in both catalogues.
+ * The Connect (Share) screen's own copy is guarded by `connect-copy.test.ts`.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -11,12 +11,7 @@ import hi from '../messages/hi.json';
 /** The tabs in bar order, as registered in `app/(tabs)/_layout.tsx`. */
 const TABS = ['home', 'vault', 'scan', 'share', 'profile'] as const;
 
-const RENDERED_KEYS = [
-  ...TABS.map((tab) => `tabs.${tab}`),
-  ...TABS.map((tab) => `${tab}.title`),
-  'share.placeholderTitle',
-  'share.placeholderBody',
-];
+const RENDERED_KEYS = [...TABS.map((tab) => `tabs.${tab}`), ...TABS.map((tab) => `${tab}.title`)];
 
 function lookup(dictionary: unknown, key: string): unknown {
   return key.split('.').reduce<unknown>((current, part) => {

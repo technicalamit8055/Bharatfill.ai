@@ -34,7 +34,6 @@ const RENDERED_KEYS = [
   'home.connect.title',
   'home.connect.body',
   'home.connect.action',
-  'home.connect.unavailable',
   'home.vault.title',
   'home.vault.viewAll',
   'home.vault.viewAllHint',

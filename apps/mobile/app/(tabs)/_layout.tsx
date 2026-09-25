@@ -1,7 +1,7 @@
 /**
  * Tab shell — the five top-level destinations in the Home mockup: Home, Vault, Scan, Share and
- * Profile. Scan and the vault come from the citizen app spec; Share is the home for sharing with
- * a Cyber Cafe / CSC (spec §3 Features 3 and 4), a placeholder until that is built.
+ * Profile. Scan and the vault come from the citizen app spec; Share (labelled Connect) is the
+ * home for in-person help from, and sharing with, a Cyber Cafe / CSC (spec §3 Features 3 and 4).
  *
  * The bar itself is `components/navigation/AppTabBar.tsx`, which draws the icons and the raised
  * Scan button. Screens here only give each tab its title and label.
@@ -33,6 +33,8 @@ export default function TabsLayout() {
         name="vault"
         options={{
           title: t('vault.title'),
+          // The vault draws its own "My Documents" header.
+          headerShown: false,
           tabBarLabel: t('tabs.vault'),
         }}
       />
@@ -54,6 +56,8 @@ export default function TabsLayout() {
         name="share"
         options={{
           title: t('share.title'),
+          // Connect draws its own heading with the help button.
+          headerShown: false,
           tabBarLabel: t('tabs.share'),
         }}
       />

@@ -31,7 +31,6 @@ export type ScanReviewScreenProps = {
   readonly pages: readonly SessionPage[];
   readonly currentId: string | null;
   readonly cropping: boolean;
-  readonly saving: boolean;
   readonly canAddPage: boolean;
   readonly onSelectPage: (id: string) => void;
   readonly onFilter: (filter: PageFilter) => void;
@@ -49,7 +48,7 @@ export type ScanReviewScreenProps = {
 
 export function ScanReviewScreen(props: ScanReviewScreenProps) {
   const { t } = useTranslation();
-  const { pages, currentId, cropping, saving } = props;
+  const { pages, currentId, cropping } = props;
 
   const index = Math.max(
     0,
@@ -210,18 +209,12 @@ export function ScanReviewScreen(props: ScanReviewScreenProps) {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('scanReview.save', { count: pages.length })}
-              accessibilityState={{ disabled: saving || pages.length === 0, busy: saving }}
-              disabled={saving || pages.length === 0}
+              accessibilityState={{ disabled: pages.length === 0 }}
+              disabled={pages.length === 0}
               onPress={props.onSave}
               style={({ pressed }) => [styles.save, pressed && styles.savePressed]}
             >
-              {saving ? (
-                <ActivityIndicator color={palette.textPrimary} />
-              ) : (
-                <Text style={styles.saveLabel}>
-                  {t('scanReview.save', { count: pages.length })}
-                </Text>
-              )}
+              <Text style={styles.saveLabel}>{t('scanReview.save', { count: pages.length })}</Text>
             </Pressable>
           </>
         )}

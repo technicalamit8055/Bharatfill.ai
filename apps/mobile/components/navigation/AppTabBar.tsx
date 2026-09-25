@@ -31,6 +31,9 @@ const TAB_ICONS: Readonly<Record<string, LucideIcon>> = {
 
 const SCAN_ROUTE = 'scan';
 
+/** Tabs drawn on Home's light background whatever the colour scheme. */
+const LIGHT_ONLY_ROUTES: ReadonlySet<string> = new Set(['index', 'vault', 'share']);
+
 const BAR_PADDING_TOP = 10;
 const ICON_SIZE = 26;
 const ICON_SLOT = 28;
@@ -46,8 +49,12 @@ export function AppTabBar({ state, descriptors, navigation, insets }: AppTabBarP
   const palette = tabBarPalette(scheme);
 
   const focusedRoute = state.routes[state.index];
-  // Home is light-only artwork on its own background; every other tab uses the theme's.
-  const stripColor = focusedRoute?.name === 'index' ? homePalette.background : colors.background;
+  // Home, the vault and Connect are light-only artwork on their own background; the rest use
+  // the theme's.
+  const stripColor =
+    focusedRoute !== undefined && LIGHT_ONLY_ROUTES.has(focusedRoute.name)
+      ? homePalette.background
+      : colors.background;
 
   const tabs = state.routes.map((route, index) => {
     const focused = index === state.index;

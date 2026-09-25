@@ -14,6 +14,7 @@
 import { useSyncExternalStore } from 'react';
 import { randomUUID } from 'expo-crypto';
 
+import type { DocumentDetails } from '../vault/vault-index';
 import { discardIncoming, saveDocument } from '../vault/vault-storage';
 import {
   analysePhoto,
@@ -199,10 +200,11 @@ export class SessionNotReadyError extends Error {
 }
 
 /**
- * Seals every processed page into one encrypted vault document, then deletes all of the
- * session's temporary files. Returns the new document's id.
+ * Seals every processed page into one encrypted vault document with the details from the Save
+ * Document screen, then deletes all of the session's temporary files. Returns the new
+ * document's id.
  */
-export async function saveSession(): Promise<string> {
+export async function saveSession(details: DocumentDetails = {}): Promise<string> {
   for (const page of state.pages) {
     if (page.status !== 'ready') await processPage(page.id);
   }
@@ -216,6 +218,7 @@ export async function saveSession(): Promise<string> {
   const documentId = await saveDocument(
     pages.map((page) => ({ uri: (page.rendered as RenderedPage).uri, mimeType: 'image/jpeg' })),
     pages.every((page) => page.source === 'gallery') ? 'gallery' : 'scanner',
+    details,
   );
   discardSession();
   return documentId;
