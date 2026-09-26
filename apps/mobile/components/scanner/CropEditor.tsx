@@ -1,7 +1,8 @@
 /**
- * Corner adjustment: the original photo with the page outline and a draggable handle on each
- * corner. Positions are kept in upright photo pixels; the photo is shown letterboxed ("contain"),
- * so screen points are converted with the same scale and offset.
+ * Corner adjustment: the original photo with the crop outlined, the photo outside it dimmed, and
+ * a draggable handle on each corner. Positions are kept in upright photo pixels. The photo is
+ * drawn turned by the page's quarter turns plus the straighten dial (`cropView`), so screen
+ * points and finger movements are converted through the same turn and scale.
  */
 
 import { type ComponentType, useMemo, useRef, useState } from 'react';
@@ -13,53 +14,68 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import RawSvg, { Polygon as RawPolygon } from 'react-native-svg';
+import RawSvg, { Path as RawPath, Polygon as RawPolygon } from 'react-native-svg';
 
-import { clampPoint, type Point, type Quad, type Size } from '../../lib/scan/geometry';
+import {
+  clampPoint,
+  type CropView,
+  cropView,
+  type PageRotation,
+  type Point,
+  photoToView,
+  type Quad,
+  type Size,
+  viewDeltaToPhoto,
+} from '../../lib/scan/geometry';
 import { scannerPalette as palette } from './palette';
 
 type SvgComponent = ComponentType<Record<string, unknown>>;
 const Svg = RawSvg as unknown as SvgComponent;
+const Path = RawPath as unknown as SvgComponent;
 const Polygon = RawPolygon as unknown as SvgComponent;
 
-const HANDLE_SIZE = 30;
+const HANDLE_SIZE = 26;
 /** Touch area around each handle, beyond its drawn size. */
-const HANDLE_SLOP = 14;
+const HANDLE_SLOP = 18;
+/** Room between the photo and the stage's edge, so handles on the photo's edge stay whole. */
+const STAGE_INSET = HANDLE_SIZE / 2 + 4;
 
 export type CropEditorProps = {
   readonly photoUri: string;
   /** The photo's upright size, in pixels. */
   readonly photoSize: Size;
   readonly quad: Quad;
+  /** The page's quarter turns, clockwise. */
+  readonly rotation: PageRotation;
+  /** The straighten dial, in degrees clockwise. */
+  readonly straighten: number;
+  /** Top-left, top-right, bottom-right, bottom-left, as seen on screen. */
   readonly cornerLabels: readonly [string, string, string, string];
   readonly onChange: (quad: Quad) => void;
 };
 
-type Fit = { readonly scale: number; readonly dx: number; readonly dy: number };
-
-function fitContain(box: Size, content: Size): Fit {
-  const scale = Math.min(box.width / content.width, box.height / content.height);
-  return {
-    scale,
-    dx: (box.width - content.width * scale) / 2,
-    dy: (box.height - content.height * scale) / 2,
-  };
-}
-
-export function CropEditor({ photoUri, photoSize, quad, cornerLabels, onChange }: CropEditorProps) {
+export function CropEditor({
+  photoUri,
+  photoSize,
+  quad,
+  rotation,
+  straighten,
+  cornerLabels,
+  onChange,
+}: CropEditorProps) {
   const [box, setBox] = useState<Size | null>(null);
   const [draft, setDraft] = useState<Quad>(quad);
   const [lastQuad, setLastQuad] = useState<Quad>(quad);
 
-  // A new quad from outside (another page, a reset) replaces the draft.
+  // A new quad from outside (another page, a reset, the dial) replaces the draft.
   if (quad !== lastQuad) {
     setLastQuad(quad);
     setDraft(quad);
   }
 
-  const fit = box ? fitContain(box, photoSize) : null;
-  const fitRef = useRef<Fit | null>(fit);
-  fitRef.current = fit;
+  const view = box ? cropView(box, photoSize, rotation, straighten, STAGE_INSET) : null;
+  const viewRef = useRef<CropView | null>(view);
+  viewRef.current = view;
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const onChangeRef = useRef(onChange);
@@ -71,16 +87,15 @@ export function CropEditor({ photoUri, photoSize, quad, cornerLabels, onChange }
       return PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
           start = draftRef.current[index] as Point;
         },
         onPanResponderMove: (_event, gesture) => {
-          const current = fitRef.current;
+          const current = viewRef.current;
           if (!current) return;
-          const moved = clampPoint(
-            { x: start.x + gesture.dx / current.scale, y: start.y + gesture.dy / current.scale },
-            photoSize,
-          );
+          const delta = viewDeltaToPhoto({ x: gesture.dx, y: gesture.dy }, current);
+          const moved = clampPoint({ x: start.x + delta.x, y: start.y + delta.y }, photoSize);
           const next = [...draftRef.current] as [Point, Point, Point, Point];
           next[index] = moved;
           setDraft(next);
@@ -97,47 +112,57 @@ export function CropEditor({ photoUri, photoSize, quad, cornerLabels, onChange }
     setBox({ width, height });
   };
 
-  const toScreen = (p: Point): Point =>
-    fit ? { x: fit.dx + p.x * fit.scale, y: fit.dy + p.y * fit.scale } : p;
+  if (!view || !box) return <View style={styles.root} onLayout={onLayout} />;
+
+  const shown = draft.map((p) => photoToView(p, view));
+  const points = shown.map((p) => `${p.x},${p.y}`).join(' ');
+  // Everything but the crop: the stage's rectangle with the crop cut out of it.
+  const mask = `M0 0H${box.width}V${box.height}H0Z M${shown
+    .map((p) => `${p.x} ${p.y}`)
+    .join(' L')}Z`;
+  const photoWidth = photoSize.width * view.scale;
+  const photoHeight = photoSize.height * view.scale;
+  // Which on-screen corner each photo corner lands on after the quarter turns.
+  const quarterTurns = rotation / 90;
 
   return (
     <View style={styles.root} onLayout={onLayout}>
-      {fit ? (
-        <>
-          <Image
-            source={{ uri: photoUri }}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-            style={StyleSheet.absoluteFill}
-          />
-          <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
-            <Polygon
-              points={draft.map((p) => `${toScreen(p).x},${toScreen(p).y}`).join(' ')}
-              fill={palette.detectedFill}
-              stroke={palette.accent}
-              strokeWidth={2.5}
-              strokeLinejoin="round"
-            />
-          </Svg>
-          {draft.map((point, index) => {
-            const at = toScreen(point);
-            return (
-              <View
-                key={index}
-                accessible
-                accessibilityRole="adjustable"
-                accessibilityLabel={cornerLabels[index]}
-                hitSlop={HANDLE_SLOP}
-                style={[
-                  styles.handle,
-                  { left: at.x - HANDLE_SIZE / 2, top: at.y - HANDLE_SIZE / 2 },
-                ]}
-                {...(responders[index] as PanResponderInstance).panHandlers}
-              />
-            );
-          })}
-        </>
-      ) : null}
+      <Image
+        source={{ uri: photoUri }}
+        resizeMode="stretch"
+        accessibilityIgnoresInvertColors
+        style={[
+          styles.photo,
+          {
+            left: view.centre.x - photoWidth / 2,
+            top: view.centre.y - photoHeight / 2,
+            width: photoWidth,
+            height: photoHeight,
+            transform: [{ rotate: `${view.degrees}deg` }],
+          },
+        ]}
+      />
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Path d={mask} fill={palette.cropMask} fillRule="evenodd" />
+        <Polygon
+          points={points}
+          fill="none"
+          stroke={palette.accent}
+          strokeWidth={2.5}
+          strokeLinejoin="round"
+        />
+      </Svg>
+      {shown.map((at, index) => (
+        <View
+          key={index}
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel={cornerLabels[(index + quarterTurns) % 4]}
+          hitSlop={HANDLE_SLOP}
+          style={[styles.handle, { left: at.x - HANDLE_SIZE / 2, top: at.y - HANDLE_SIZE / 2 }]}
+          {...(responders[index] as PanResponderInstance).panHandlers}
+        />
+      ))}
     </View>
   );
 }
@@ -146,13 +171,16 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
+  photo: {
+    position: 'absolute',
+  },
   handle: {
     position: 'absolute',
     width: HANDLE_SIZE,
     height: HANDLE_SIZE,
     borderRadius: HANDLE_SIZE / 2,
     borderWidth: 3,
-    borderColor: palette.accent,
-    backgroundColor: palette.handle,
+    borderColor: palette.handle,
+    backgroundColor: palette.accent,
   },
 });

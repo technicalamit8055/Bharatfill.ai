@@ -44,6 +44,10 @@ function RootNavigator() {
           }}
         />
         <Stack.Screen name="scan-result" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="document-details"
+          options={{ headerShown: false, animation: 'slide_from_right' }}
+        />
       </Stack>
     </>
   );

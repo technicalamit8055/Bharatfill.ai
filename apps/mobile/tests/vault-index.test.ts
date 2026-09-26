@@ -16,6 +16,7 @@ import {
   parseVaultIndex,
   serialiseVaultIndex,
   type VaultDocument,
+  withDetails,
   withDocument,
   withoutDocument,
   withStarred,
@@ -186,5 +187,60 @@ describe('page MIME types', () => {
     expect(pageMimeTypeFromName('file:///x/y.png?cache=1')).toBe('image/png');
     expect(pageMimeTypeFromName('file:///x/document.pdf')).toBeNull();
     expect(pageMimeTypeFromName('noextension')).toBeNull();
+  });
+});
+
+describe('editing details after saving', () => {
+  const SAVED: VaultDocument = {
+    ...NEWER,
+    title: 'Aadhaar Card',
+    documentType: 'aadhaar_like',
+    category: 'identity',
+    tags: ['Aadhaar'],
+    starred: true,
+  };
+  const index = withDocument(withDocument(EMPTY_VAULT_INDEX, OLDER), SAVED);
+
+  it('renames, re-tags and moves one document, keeping everything else', () => {
+    const edited = withDetails(index, SAVED.id, {
+      title: 'मेरा आधार',
+      tags: ['Aadhaar', 'पहचान'],
+      category: 'certificate',
+    });
+    expect(findDocument(edited, SAVED.id)).toEqual({
+      ...SAVED,
+      title: 'मेरा आधार',
+      tags: ['Aadhaar', 'पहचान'],
+      category: 'certificate',
+    });
+    expect(findDocument(edited, OLDER.id)).toEqual(OLDER);
+    expect(parseVaultIndex(serialiseVaultIndex(edited))).toEqual(edited);
+  });
+
+  it('takes a document out of its folder when moved to none', () => {
+    const moved = findDocument(withDetails(index, SAVED.id, { category: null }), SAVED.id);
+    expect(moved).not.toHaveProperty('category');
+    expect(moved?.title).toBe(SAVED.title);
+  });
+
+  it('leaves fields that are not part of the change alone', () => {
+    expect(withDetails(index, SAVED.id, {})).toEqual(index);
+    expect(findDocument(withDetails(index, SAVED.id, { tags: [] }), SAVED.id)?.category).toBe(
+      'identity',
+    );
+  });
+
+  it('ignores an unknown id', () => {
+    expect(withDetails(index, '00000000-0000-4000-8000-000000000000', { title: 'X' })).toEqual(
+      index,
+    );
+  });
+
+  it('refuses changes outside the stored limits', () => {
+    expect(() => withDetails(index, SAVED.id, { title: '' })).toThrow();
+    expect(() => withDetails(index, SAVED.id, { title: 'x'.repeat(81) })).toThrow();
+    expect(() =>
+      withDetails(index, SAVED.id, { tags: Array.from({ length: 11 }, (_, i) => `t${i}`) }),
+    ).toThrow();
   });
 });

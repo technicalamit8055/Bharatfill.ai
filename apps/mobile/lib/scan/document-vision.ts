@@ -2,10 +2,13 @@
  * The scanner's image processing, on OpenCV (`react-native-fast-opencv`, native C++ over JSI):
  *
  * - `detectDocument` finds a page's four corners in a small greyscale image. It runs several
- *   times a second on shrunken camera frames to drive the live outline and auto-capture, and
- *   once on each captured photo.
+ *   times a second on shrunken camera frames to drive the live outline and auto-capture.
+ *   Captured photos get a slower, more thorough search that also copes with a page filling or
+ *   running off the frame (`page-lines.ts`).
  * - `analysePhoto` and `renderPage` turn a captured photo into a flat, cleaned-up page: turn it
- *   upright (EXIF), find the page, straighten it with a perspective warp, and apply a filter.
+ *   upright (EXIF), find the page, straighten it with a perspective warp, apply a filter and
+ *   the citizen's quarter turns. It can also write a small preview of the page in every filter,
+ *   for the review screen's filter cards.
  *
  * Everything runs on the JS thread in the main runtime, where OpenCV is installed. Every OpenCV
  * object is native memory and is released explicitly; nothing here is logged or uploaded.
@@ -42,35 +45,102 @@ import {
   DEFAULT_PLAUSIBILITY,
   flattenedSize,
   fullFrameQuad,
+  insetQuad,
   isPlausibleDocument,
   orderCorners,
+  pageAspect,
+  type PageRotation,
   type Point as GeometryPoint,
   type Quad,
   quadArea,
+  rotatedSize,
   scaleQuad,
   type Size as GeometrySize,
 } from './geometry';
 import type { LumaImage } from './luma';
+import {
+  findPageFromLines,
+  type GrayImage as PageLinesImage,
+  hasPageEdges,
+  refineQuad,
+  type Segment,
+} from './page-lines';
+import { estimatePaperLight, maxPool } from './paper-light';
+import { chromaCurve, levelsCurve, pageLevels } from './tone-curve';
 
 /** The looks a page can be saved with. Each has copy at `scanner.filters.<filter>`. */
 export const PAGE_FILTERS = ['magic', 'original', 'grayscale', 'blackWhite'] as const;
 export type PageFilter = (typeof PAGE_FILTERS)[number];
 
-/** Longest side of a saved page. Enough for 300-dpi-looking text on A4 without huge files. */
-export const OUTPUT_MAX_SIDE = 2400;
+/**
+ * Longest side of a saved page: A4 at 300 dpi, what a flatbed scanner gives. Pages the camera
+ * caught smaller are enlarged (up to `MAX_UPSCALE`) before filtering, so the filters draw text
+ * edges at this resolution and the page stays crisp when zoomed, instead of being enlarged
+ * blurry by whatever displays it.
+ */
+export const OUTPUT_LONG_SIDE = 3508;
+const MAX_UPSCALE = 2;
+/** Longest side of a filter card's preview: sharp on a 3× screen at card size, and quick. */
+export const PREVIEW_MAX_SIDE = 240;
 /**
  * Width photos are shrunk to before looking for the page in them. Close to the live frames'
  * scale, which the detector is tuned for; at larger sizes desk and cloth texture turns into
  * edges. The citizen can fine-tune the corners in the crop editor.
  */
 const DETECTION_WIDTH = 320;
+/**
+ * Width a photo is looked at again to place the corners found at `DETECTION_WIDTH` precisely.
+ * At 320px one pixel of error becomes ten or more in the photo, which shows as a strip of desk.
+ */
+const REFINE_WIDTH = 1080;
+/**
+ * How far detected corners are pulled towards the page's centre, so the paper's soft edge and
+ * its shadow stay out of the scan.
+ */
+const AUTO_CROP_INSET = 0.005;
+/** Votes a straight segment needs from the line detector. */
+const HOUGH_VOTES = 40;
+/** Shorter segments are glyph strokes, not edges. */
+const MIN_SEGMENT_LENGTH = 8;
 /** `Mat.saveToFile` takes quality as 0–1 and throws on anything outside that range. */
 const JPEG_QUALITY = 0.9;
 
 type Releasable = { release(): void };
+type Keep = <R extends Releasable>(object: R) => R;
+
+function releaseQuietly(object: Releasable): void {
+  try {
+    object.release();
+  } catch {
+    // Already released by OpenCV; nothing to do.
+  }
+}
+
+/**
+ * Runs one step of a filter in a scope of its own: everything it registers is released as soon
+ * as it returns, except its result, which moves to `keep`. Full-size pages are tens of
+ * megabytes per plane, so holding every intermediate to the end would multiply peak memory.
+ */
+function stage<R extends Releasable>(keep: Keep, work: (keep: Keep) => R): R {
+  const owned: Releasable[] = [];
+  const inner: Keep = (object) => {
+    owned.push(object);
+    return object;
+  };
+  let result: R | undefined;
+  try {
+    result = work(inner);
+    return result;
+  } finally {
+    for (const object of owned.reverse()) {
+      if (object !== result) releaseQuietly(object);
+    }
+    if (result !== undefined && owned.includes(result)) keep(result);
+  }
+}
 
 /** Runs `work` and releases every OpenCV object it registered, even if it throws. */
-function withScope<T>(work: (keep: <R extends Releasable>(object: R) => R) => T): T {
+function withScope<T>(work: (keep: Keep) => T): T {
   const owned: Releasable[] = [];
   const keep = <R extends Releasable>(object: R): R => {
     owned.push(object);
@@ -79,13 +149,7 @@ function withScope<T>(work: (keep: <R extends Releasable>(object: R) => R) => T)
   try {
     return work(keep);
   } finally {
-    for (const object of owned.reverse()) {
-      try {
-        object.release();
-      } catch {
-        // Already released by OpenCV; nothing to do.
-      }
-    }
+    for (const object of owned.reverse()) releaseQuietly(object);
   }
 }
 
@@ -109,15 +173,14 @@ const APPROX_EPSILONS = [0.02, 0.035, 0.05, 0.07] as const;
 const MIN_OUTLINE_FILL = 0.85;
 
 /**
- * The page's corners in a greyscale Mat, or null when nothing page-like is in view.
+ * Every plausible page outline in a greyscale Mat.
  *
  * Outlines come from three binary images: edges at two Canny sensitivities, and bright paper
  * split from a darker surface (Otsu). Every outline — inner ones too, so a page edge that a
  * desk plank or a hand runs into still has a clean inner boundary — is wrapped in its convex
- * hull (which bridges a thumb or a torn corner) and simplified to four corners. The largest
- * plausible quadrilateral wins.
+ * hull (which bridges a thumb or a torn corner) and simplified to four corners.
  */
-function detectInGray(gray: Mat, size: GeometrySize): Quad | null {
+function findQuadsInGray(gray: Mat, size: GeometrySize): Quad[] {
   return withScope((keep) => {
     const blurred = keep(emptyMat());
     OpenCV.GaussianBlur(gray, blurred, keep(Size.create(5, 5)), 0);
@@ -158,22 +221,21 @@ function detectInGray(gray: Mat, size: GeometrySize): Quad | null {
     const opened = keep(emptyMat());
     OpenCV.morphologyEx(bright, opened, MorphTypes.MORPH_OPEN, kernel);
     collectQuads(opened, size, found, keep);
-
-    let best: Quad | null = null;
-    for (const quad of found) {
-      if (!best || quadArea(quad) > quadArea(best)) best = quad;
-    }
-    return best;
+    return found;
   });
 }
 
+/** The page's corners in a greyscale Mat — the largest plausible outline — or null. */
+function detectInGray(gray: Mat, size: GeometrySize): Quad | null {
+  let best: Quad | null = null;
+  for (const quad of findQuadsInGray(gray, size)) {
+    if (!best || quadArea(quad) > quadArea(best)) best = quad;
+  }
+  return best;
+}
+
 /** Adds every plausible page outline in a binary image to `found`. */
-function collectQuads(
-  binary: Mat,
-  size: GeometrySize,
-  found: Quad[],
-  keep: <R extends Releasable>(object: R) => R,
-): void {
+function collectQuads(binary: Mat, size: GeometrySize, found: Quad[], keep: Keep): void {
   const contours = keep(MatVector.create());
   OpenCV.findContours(
     binary,
@@ -199,7 +261,7 @@ function collectQuads(
 }
 
 /** Simplifies a convex outline to four corners, loosening the tolerance until it gets there. */
-function simplifyToQuad(hull: Mat, keep: <R extends Releasable>(object: R) => R): Quad | null {
+function simplifyToQuad(hull: Mat, keep: Keep): Quad | null {
   const perimeter = OpenCV.arcLength(hull, true).value;
   for (const epsilon of APPROX_EPSILONS) {
     const approx = keep(PointVector.create());
@@ -222,10 +284,7 @@ export function detectDocument(luma: LumaImage): Quad | null {
 // ---- Photos ------------------------------------------------------------------------------------
 
 /** Decodes a photo into an upright BGR Mat, applying its EXIF orientation. */
-async function loadUpright(
-  uri: string,
-  keep: <R extends Releasable>(object: R) => R,
-): Promise<Mat> {
+async function loadUpright(uri: string, keep: Keep): Promise<Mat> {
   const file = new File(uri);
   const rotation = uprightRotation(readJpegOrientation(await file.bytes()));
 
@@ -265,7 +324,94 @@ export type PhotoAnalysis = {
   readonly detected: boolean;
 };
 
-/** Finds the page in a captured or imported photo. */
+/** Shrinks a BGR photo by `scale` and hands its greyscale copy, and that copy's size, to `work`. */
+function withGrayAt<T>(image: Mat, scale: number, work: (gray: Mat, size: GeometrySize) => T): T {
+  return withScope((keep) => {
+    const small = keep(emptyMat());
+    OpenCV.resize(
+      image,
+      small,
+      keep(
+        Size.create(
+          Math.max(1, Math.round(image.cols * scale)),
+          Math.max(1, Math.round(image.rows * scale)),
+        ),
+      ),
+      0,
+      0,
+      InterpolationFlags.INTER_AREA,
+    );
+    const gray = keep(emptyMat());
+    OpenCV.cvtColor(small, gray, ColorConversionCodes.COLOR_BGR2GRAY);
+    return work(gray, { width: small.cols, height: small.rows });
+  });
+}
+
+/**
+ * The straight segments in a greyscale Mat, and the lightly blurred image they were found in
+ * (which `page-lines.ts` reads brightness steps from).
+ */
+function scanEdges(gray: Mat, keep: Keep): { image: PageLinesImage; segments: Segment[] } {
+  const blurred = keep(emptyMat());
+  OpenCV.GaussianBlur(gray, blurred, keep(Size.create(5, 5)), 0);
+  const [low, high] = CANNY_THRESHOLDS[0];
+  const edges = keep(emptyMat());
+  OpenCV.Canny(blurred, edges, low, high);
+  const closed = keep(emptyMat());
+  OpenCV.morphologyEx(
+    edges,
+    closed,
+    MorphTypes.MORPH_CLOSE,
+    keep(OpenCV.getStructuringElement(MorphShapes.MORPH_RECT, keep(Size.create(3, 3)))),
+  );
+  // The binding passes no minimum length or gap, so edges come back as many short pieces;
+  // `page-lines.ts` fits them back together.
+  const lines = keep(emptyMat());
+  OpenCV.HoughLinesP(closed, lines, 1, Math.PI / 180, HOUGH_VOTES);
+
+  const segments: Segment[] = [];
+  const found = lines.rows > 0 ? lines.toBuffer('int32').buffer : new Int32Array(0);
+  for (let i = 0; i + 3 < found.length; i += 4) {
+    const segment = {
+      x1: found[i] as number,
+      y1: found[i + 1] as number,
+      x2: found[i + 2] as number,
+      y2: found[i + 3] as number,
+    };
+    if (Math.hypot(segment.x2 - segment.x1, segment.y2 - segment.y1) >= MIN_SEGMENT_LENGTH) {
+      segments.push(segment);
+    }
+  }
+  return {
+    image: { width: blurred.cols, height: blurred.rows, pixels: blurred.toBuffer('uint8').buffer },
+    segments,
+  };
+}
+
+/**
+ * The page in a greyscale copy of a photo: first from its straight edges, which copes with a
+ * page filling or running off the frame; failing that, from closed outlines, as long as their
+ * sides are real page edges and not a box printed on the page.
+ */
+function findPageInPhoto(gray: Mat, size: GeometrySize): Quad | null {
+  return withScope((keep) => {
+    const { image, segments } = scanEdges(gray, keep);
+    const fromLines = findPageFromLines(segments, image);
+    if (fromLines) return fromLines;
+
+    let best: Quad | null = null;
+    for (const quad of findQuadsInGray(gray, size)) {
+      if (hasPageEdges(quad, image) && (!best || quadArea(quad) > quadArea(best))) best = quad;
+    }
+    return best;
+  });
+}
+
+/**
+ * Finds the page in a captured or imported photo: at the detector's tuned scale first, then
+ * each side is snapped onto the straight edge it lies on at a higher resolution, so the corners
+ * land on the paper's real edge. The result is inset slightly so no desk shows in the scan.
+ */
 export async function analysePhoto(uri: string): Promise<PhotoAnalysis> {
   const scope: Releasable[] = [];
   const keep = <R extends Releasable>(object: R): R => {
@@ -275,65 +421,101 @@ export async function analysePhoto(uri: string): Promise<PhotoAnalysis> {
   try {
     const image = await loadUpright(uri, keep);
     const size = { width: image.cols, height: image.rows };
-    const scale = Math.min(1, DETECTION_WIDTH / size.width);
 
-    const quad = withScope((inner) => {
-      const small = inner(emptyMat());
-      OpenCV.resize(
-        image,
-        small,
-        inner(Size.create(Math.round(size.width * scale), Math.round(size.height * scale))),
-        0,
-        0,
-        InterpolationFlags.INTER_AREA,
+    const coarseScale = Math.min(1, DETECTION_WIDTH / size.width);
+    const coarse = withGrayAt(image, coarseScale, findPageInPhoto);
+    if (!coarse) return { size, quad: fullFrameQuad(size), detected: false };
+
+    let quad = scaleQuad(coarse, 1 / coarseScale);
+    const fineScale = Math.min(1, REFINE_WIDTH / size.width);
+    if (fineScale > coarseScale) {
+      quad = withGrayAt(image, fineScale, (gray, fineSize) =>
+        withScope((inner) =>
+          scaleQuad(
+            refineQuad(scaleQuad(quad, fineScale), scanEdges(gray, inner).segments, fineSize),
+            1 / fineScale,
+          ),
+        ),
       );
-      const gray = inner(emptyMat());
-      OpenCV.cvtColor(small, gray, ColorConversionCodes.COLOR_BGR2GRAY);
-      return detectInGray(gray, { width: small.cols, height: small.rows });
-    });
+    }
 
-    return quad
-      ? { size, quad: scaleQuad(quad, 1 / scale), detected: true }
-      : { size, quad: fullFrameQuad(size), detected: false };
+    return { size, quad: insetQuad(quad, AUTO_CROP_INSET), detected: true };
   } finally {
     for (const object of scope.reverse()) object.release();
   }
 }
 
 /**
- * Evens out lighting: estimates the paper's brightness everywhere (a heavy blur of a small copy)
- * and divides it out, so shadows and yellow bulb tints go white while ink, stamps and photos
- * keep their colour. This is the "Magic Color" look.
+ * Longest side of the copy the paper's lighting is estimated from, and how much of it is
+ * max-pooled away: about a 256px grid, fine enough to follow a shadow's edge. Proportional to
+ * the page, so a filter card's preview and the saved page get the same look.
  */
-function evenOutLighting(channel: Mat, keep: <R extends Releasable>(object: R) => R): Mat {
+const LIGHTING_SAMPLE_SIDE = 512;
+const LIGHTING_POOL = 2;
+/**
+ * What paper becomes once its lighting is divided out. Below 255, so paper grain is not
+ * clipped and the tone curve can measure it.
+ */
+const PAPER_LEVEL = 220;
+/** Longest side of the copy the tone curve's histogram is taken from. */
+const HISTOGRAM_SAMPLE_SIDE = 800;
+/**
+ * The detail sharpening boosts, as blur widths in photo pixels: the band between them is
+ * stroke-sized. Finer is sensor noise and is left alone; coarser is shading.
+ */
+const SHARPEN_FINE_SIGMA = 0.6;
+const SHARPEN_COARSE_SIGMA = 1.6;
+/**
+ * How much of that band is added back. Strong, because the tone curve runs after it and clips
+ * the overshoot to pure white paper and solid black ink rather than leaving halos: text edges
+ * come out steep, as a flatbed scanner draws them.
+ */
+const SHARPEN_AMOUNT = 2;
+/** Black & White thresholds against the page around each pixel, this share of its longest side. */
+const THRESHOLD_BLOCK_SHARE = 0.013;
+/** Tints closer to neutral than this are sensor noise and turn grey; see `chromaCurve`. */
+const CHROMA_DEAD_ZONE = 6;
+const CHROMA_GAIN = 1.2;
+
+/** A copy of `image` whose longest side is at most `maxSide`. */
+function shrink(image: Mat, maxSide: number, keep: Keep): Mat {
+  const scale = Math.min(1, maxSide / Math.max(image.cols, image.rows, 1));
+  if (scale === 1) return image;
   const small = keep(emptyMat());
-  const scale = 0.25;
   OpenCV.resize(
-    channel,
+    image,
     small,
     keep(
       Size.create(
-        Math.max(1, Math.round(channel.cols * scale)),
-        Math.max(1, Math.round(channel.rows * scale)),
+        Math.max(1, Math.round(image.cols * scale)),
+        Math.max(1, Math.round(image.rows * scale)),
       ),
     ),
     0,
     0,
     InterpolationFlags.INTER_AREA,
   );
+  return small;
+}
 
-  // Closing removes the dark strokes of text, leaving only the paper's lighting.
-  const closed = keep(emptyMat());
-  const kernel = keep(
-    OpenCV.getStructuringElement(MorphShapes.MORPH_ELLIPSE, keep(Size.create(9, 9))),
+/**
+ * Evens out lighting: estimates the paper's brightness everywhere (`paper-light.ts`) and
+ * divides it out, so shadows and yellow bulb tints go to one even paper tone while ink,
+ * banners, stamps and photos keep theirs.
+ */
+function evenOutLighting(channel: Mat, keep: Keep): Mat {
+  const sample = shrink(channel, LIGHTING_SAMPLE_SIDE, keep);
+  const light = estimatePaperLight(
+    maxPool(
+      { width: sample.cols, height: sample.rows, pixels: sample.toBuffer('uint8').buffer },
+      LIGHTING_POOL,
+    ),
   );
-  OpenCV.morphologyEx(small, closed, MorphTypes.MORPH_CLOSE, kernel);
-  const smooth = keep(emptyMat());
-  OpenCV.medianBlur(closed, smooth, 7);
 
+  const grid = keep(Mat.createFromBuffer('uint8', light.height, light.width, 1, light.pixels));
   const background = keep(emptyMat());
   OpenCV.resize(
-    smooth,
+    grid,
     background,
     keep(Size.create(channel.cols, channel.rows)),
     0,
@@ -342,67 +524,233 @@ function evenOutLighting(channel: Mat, keep: <R extends Releasable>(object: R) =
   );
 
   const divided = keep(emptyMat());
-  OpenCV.divide(channel, background, divided, 255);
-
-  // Stretch to the full 0–255 range. Not `OpenCV.normalize`: its binding passes the norm type
-  // through as `beta`, so NORM_MINMAX is ignored and the L2 default turns the page black.
-  const { minVal, maxVal } = OpenCV.minMaxLoc(divided);
-  if (maxVal - minVal < 1) return divided;
-  const alpha = 255 / (maxVal - minVal);
-  const stretched = keep(emptyMat());
-  OpenCV.convertScaleAbs(divided, stretched, alpha, -minVal * alpha);
-  return stretched;
+  OpenCV.divide(channel, background, divided, PAPER_LEVEL);
+  return divided;
 }
 
-function applyFilter(
-  page: Mat,
-  filter: PageFilter,
-  keep: <R extends Releasable>(object: R) => R,
-): Mat {
+function lookUp(image: Mat, table: Uint8Array, keep: Keep): Mat {
+  const lut = keep(Mat.createFromBuffer('uint8', 1, 256, 1, table));
+  const out = keep(emptyMat());
+  OpenCV.LUT(image, lut, out);
+  return out;
+}
+
+/**
+ * Whitens paper and deepens ink in a lighting-evened greyscale Mat, with a tone curve fitted to
+ * this page's histogram (`tone-curve.ts`).
+ */
+function applyToneCurve(even: Mat, keep: Keep): Mat {
+  const { buffer } = shrink(even, HISTOGRAM_SAMPLE_SIDE, keep).toBuffer('uint8');
+  const histogram = new Uint32Array(256);
+  for (let i = 0; i < buffer.length; i += 1) {
+    histogram[buffer[i] as number] = (histogram[buffer[i] as number] as number) + 1;
+  }
+  return lookUp(even, levelsCurve(pageLevels(histogram)), keep);
+}
+
+function gaussianBlur(image: Mat, sigma: number, keep: Keep): Mat {
+  const side = 2 * Math.ceil(3 * sigma) + 1;
+  const blurred = keep(emptyMat());
+  OpenCV.GaussianBlur(image, blurred, keep(Size.create(side, side)), sigma);
+  return blurred;
+}
+
+/**
+ * Band-pass sharpening: adds back `SHARPEN_AMOUNT` times the stroke-sized detail, so thin text
+ * that the lens and the enlargement softened turns dark and hard-edged again, without lifting
+ * pixel-sized sensor noise. `detailScale` is how many page pixels one photo pixel became.
+ */
+function sharpen(image: Mat, detailScale: number, keep: Keep): Mat {
+  return stage(keep, (own) => {
+    const fine = gaussianBlur(image, SHARPEN_FINE_SIGMA * detailScale, own);
+    const coarse = gaussianBlur(image, SHARPEN_COARSE_SIGMA * detailScale, own);
+    // The band, offset to mid-grey so it fits in 8 bits either side of zero.
+    const band = own(emptyMat());
+    OpenCV.addWeighted(fine, SHARPEN_AMOUNT, coarse, -SHARPEN_AMOUNT, 128, band);
+    const sharpened = own(emptyMat());
+    OpenCV.addWeighted(image, 1, band, 1, -128, sharpened);
+    return sharpened;
+  });
+}
+
+/** Sharpens, then tones: the order that turns sharpening's overshoot into clean black and white. */
+function toneText(even: Mat, detailScale: number, keep: Keep): Mat {
+  return stage(keep, (own) => applyToneCurve(sharpen(even, detailScale, own), own));
+}
+
+/**
+ * The "Magic Color" look. Lighting is evened out per colour channel, which also white-balances
+ * the paper; sharpening and the tone curve then run on brightness alone, and faint tints are
+ * snapped to grey, so black text and white paper carry no colour speckle while ink, stamps and
+ * photos keep theirs.
+ */
+function magicColor(page: Mat, detailScale: number, keep: Keep): Mat {
+  const ycrcb = stage(keep, (own) => {
+    const channels = own(MatVector.create());
+    OpenCV.split(page, channels);
+    const evened = own(MatVector.create());
+    for (let i = 0; i < channels.length; i += 1) {
+      evened.push(stage(own, (step) => evenOutLighting(step(channels.get(i)), step)));
+    }
+    const balanced = own(emptyMat());
+    OpenCV.merge(evened, balanced);
+    const converted = own(emptyMat());
+    OpenCV.cvtColor(balanced, converted, ColorConversionCodes.COLOR_BGR2YCrCb);
+    return converted;
+  });
+
+  const toned = stage(keep, (own) => {
+    const planes = own(MatVector.create());
+    OpenCV.split(ycrcb, planes);
+    const chroma = chromaCurve(CHROMA_DEAD_ZONE, CHROMA_GAIN);
+    const out = own(MatVector.create());
+    out.push(toneText(own(planes.get(0)), detailScale, own));
+    out.push(lookUp(own(planes.get(1)), chroma, own));
+    out.push(lookUp(own(planes.get(2)), chroma, own));
+    const merged = own(emptyMat());
+    OpenCV.merge(out, merged);
+    return merged;
+  });
+
+  const result = keep(emptyMat());
+  OpenCV.cvtColor(toned, result, ColorConversionCodes.COLOR_YCrCb2BGR);
+  return result;
+}
+
+function applyFilter(page: Mat, filter: PageFilter, detailScale: number, keep: Keep): Mat {
   if (filter === 'original') return page;
 
-  if (filter === 'magic') {
-    const channels = keep(MatVector.create());
-    OpenCV.split(page, channels);
-    const cleaned = keep(MatVector.create());
-    for (let i = 0; i < channels.length; i += 1) {
-      cleaned.push(evenOutLighting(keep(channels.get(i)), keep));
-    }
-    const merged = keep(emptyMat());
-    OpenCV.merge(cleaned, merged);
-    return merged;
-  }
+  if (filter === 'magic') return magicColor(page, detailScale, keep);
 
-  const gray = keep(emptyMat());
-  OpenCV.cvtColor(page, gray, ColorConversionCodes.COLOR_BGR2GRAY);
-  const even = evenOutLighting(gray, keep);
-  if (filter === 'grayscale') return even;
+  const toned = stage(keep, (own) => {
+    const gray = own(emptyMat());
+    OpenCV.cvtColor(page, gray, ColorConversionCodes.COLOR_BGR2GRAY);
+    return toneText(evenOutLighting(gray, own), detailScale, own);
+  });
+  if (filter === 'grayscale') return toned;
 
+  // Thresholded after the tone curve: paper is already flat white, so it cannot speckle.
+  const block = 2 * Math.round((THRESHOLD_BLOCK_SHARE * Math.max(page.cols, page.rows)) / 2) + 1;
   const bw = keep(emptyMat());
   OpenCV.adaptiveThreshold(
-    even,
+    toned,
     bw,
     255,
     AdaptiveThresholdTypes.ADAPTIVE_THRESH_GAUSSIAN_C,
     ThresholdTypes.THRESH_BINARY,
-    31,
+    Math.max(3, block),
     12,
   );
   return bw;
 }
+
+function rotate(image: Mat, rotation: PageRotation, keep: Keep): Mat {
+  if (rotation === 0) return image;
+  const turned = keep(emptyMat());
+  OpenCV.rotate(
+    image,
+    turned,
+    rotation === 90
+      ? RotateFlags.ROTATE_90_CLOCKWISE
+      : rotation === 180
+        ? RotateFlags.ROTATE_180
+        : RotateFlags.ROTATE_90_COUNTERCLOCKWISE,
+  );
+  return turned;
+}
+
+/** Writes a Mat as a JPEG in the app cache and returns its URI. */
+function saveJpeg(image: Mat, prefix: string): string {
+  const output = new File(Paths.cache, `${prefix}-${randomUUID()}.jpg`);
+  image.saveToFile(output.uri, 'jpeg', JPEG_QUALITY);
+  return output.uri;
+}
+
+/** One small JPEG per filter, for the review screen's filter cards. */
+export type FilterPreviews = Readonly<Record<PageFilter, string>>;
 
 export type RenderedPage = {
   /** A JPEG in the app cache. Plaintext: it is deleted once sealed into the vault. */
   readonly uri: string;
   readonly width: number;
   readonly height: number;
+  /** Only when asked for; plaintext in the app cache like `uri`, and deleted with it. */
+  readonly previews?: FilterPreviews;
 };
 
-/** Flattens the page inside `quad` and applies `filter`, writing a JPEG to the app cache. */
+export type RenderOptions = {
+  /** Quarter turns clockwise, applied after the filter. */
+  readonly rotation?: PageRotation;
+  /** Also write a small preview of the page in every filter. */
+  readonly previews?: boolean;
+};
+
+type FlatPage = {
+  /** The upright page, registered with the caller's `keep`. */
+  readonly flat: Mat;
+  /** How many page pixels one photo pixel became: the scale of the page's finest detail. */
+  readonly detailScale: number;
+};
+
+/**
+ * Warps the page inside `quad` of the photo at `photoUri` to an upright rectangle of its true
+ * shape (`pageAspect`), `OUTPUT_LONG_SIDE` long. The full-size photo is released as soon as the
+ * warp is done. Bicubic, so text stays sharp-edged where the page is enlarged.
+ */
+async function flattenPhoto(photoUri: string, quad: Quad, keep: Keep): Promise<FlatPage> {
+  const owned: Releasable[] = [];
+  const own: Keep = (object) => {
+    owned.push(object);
+    return object;
+  };
+  try {
+    const image = await loadUpright(photoUri, own);
+    const aspect = pageAspect(quad, { width: image.cols, height: image.rows });
+    const out = flattenedSize(quad, OUTPUT_LONG_SIDE, MAX_UPSCALE, aspect);
+    const caught = flattenedSize(quad, Number.POSITIVE_INFINITY, 1, aspect);
+    const detailScale = Math.max(
+      1,
+      Math.max(out.width, out.height) / Math.max(caught.width, caught.height, 1),
+    );
+
+    // Filled point by point: the native `Point2fVector.create` ignores the points its typings
+    // accept and always returns an empty vector.
+    const toVector = (points: readonly GeometryPoint[]) => {
+      const vector = own(Point2fVector.create());
+      for (const p of points) vector.push(own(Point2f.create(p.x, p.y)));
+      return vector;
+    };
+    const source = toVector(quad);
+    const target = toVector(
+      fullFrameQuad(out).map((p) => ({ x: p.x - (p.x ? 1 : 0), y: p.y - (p.y ? 1 : 0) })),
+    );
+    const transform = own(OpenCV.getPerspectiveTransform(source, target, DecompTypes.DECOMP_LU));
+
+    const flat = keep(emptyMat());
+    OpenCV.warpPerspective(
+      image,
+      flat,
+      transform,
+      own(Size.create(out.width, out.height)),
+      InterpolationFlags.INTER_CUBIC,
+      BorderTypes.BORDER_REPLICATE,
+      own(Scalar.create(0)),
+    );
+    return { flat, detailScale };
+  } finally {
+    for (const object of owned.reverse()) releaseQuietly(object);
+  }
+}
+
+/**
+ * Flattens the page inside `quad`, applies `filter` and the rotation, and writes a JPEG to the
+ * app cache — plus, when asked, one small preview per filter from the same flattened page.
+ */
 export async function renderPage(
   photoUri: string,
   quad: Quad,
   filter: PageFilter,
+  { rotation = 0, previews = false }: RenderOptions = {},
 ): Promise<RenderedPage> {
   const scope: Releasable[] = [];
   const keep = <R extends Releasable>(object: R): R => {
@@ -410,38 +758,44 @@ export async function renderPage(
     return object;
   };
   try {
-    const image = await loadUpright(photoUri, keep);
-    const out = flattenedSize(quad, OUTPUT_MAX_SIDE);
+    const { flat, detailScale } = await flattenPhoto(photoUri, quad, keep);
+    const out = { width: flat.cols, height: flat.rows };
 
-    // Filled point by point: the native `Point2fVector.create` ignores the points its typings
-    // accept and always returns an empty vector.
-    const toVector = (points: readonly GeometryPoint[]) => {
-      const vector = keep(Point2fVector.create());
-      for (const p of points) vector.push(keep(Point2f.create(p.x, p.y)));
-      return vector;
+    let previewUris: FilterPreviews | undefined;
+    if (previews) {
+      const scale = Math.min(1, PREVIEW_MAX_SIDE / Math.max(out.width, out.height));
+      const small = keep(emptyMat());
+      OpenCV.resize(
+        flat,
+        small,
+        keep(
+          Size.create(
+            Math.max(1, Math.round(out.width * scale)),
+            Math.max(1, Math.round(out.height * scale)),
+          ),
+        ),
+        0,
+        0,
+        InterpolationFlags.INTER_AREA,
+      );
+      const written: Partial<Record<PageFilter, string>> = {};
+      for (const each of PAGE_FILTERS) {
+        written[each] = saveJpeg(
+          rotate(applyFilter(small, each, 1, keep), rotation, keep),
+          'scan-preview',
+        );
+      }
+      previewUris = written as FilterPreviews;
+    }
+
+    const result = rotate(applyFilter(flat, filter, detailScale, keep), rotation, keep);
+    const size = rotatedSize(out, rotation);
+    return {
+      uri: saveJpeg(result, 'scan-page'),
+      width: size.width,
+      height: size.height,
+      ...(previewUris ? { previews: previewUris } : {}),
     };
-    const source = toVector(quad);
-    const target = toVector(
-      fullFrameQuad(out).map((p) => ({ x: p.x - (p.x ? 1 : 0), y: p.y - (p.y ? 1 : 0) })),
-    );
-    const transform = keep(OpenCV.getPerspectiveTransform(source, target, DecompTypes.DECOMP_LU));
-
-    const flat = keep(emptyMat());
-    OpenCV.warpPerspective(
-      image,
-      flat,
-      transform,
-      keep(Size.create(out.width, out.height)),
-      InterpolationFlags.INTER_LINEAR,
-      BorderTypes.BORDER_REPLICATE,
-      keep(Scalar.create(0)),
-    );
-
-    const result = applyFilter(flat, filter, keep);
-    const output = new File(Paths.cache, `scan-page-${randomUUID()}.jpg`);
-    result.saveToFile(output.uri, 'jpeg', JPEG_QUALITY);
-
-    return { uri: output.uri, width: out.width, height: out.height };
   } finally {
     for (const object of scope.reverse()) object.release();
   }

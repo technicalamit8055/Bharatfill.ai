@@ -16,6 +16,7 @@ import { Alert, AppState, Linking, StyleSheet } from 'react-native';
 import {
   Camera,
   type CameraRef,
+  CommonResolutions,
   useCameraPermission,
   usePhotoOutput,
 } from 'react-native-vision-camera';
@@ -99,10 +100,19 @@ export default function ScannerRoute() {
   const cameraActive = isFocused && appActive && access === 'granted';
 
   const cameraRef = useRef<CameraRef>(null);
-  const photoOutput = usePhotoOutput({ quality: 0.95, qualityPrioritization: 'balanced' });
+  // 12 MP, what the page is cut from: every pixel lost here shows as blur when the scan is
+  // zoomed. 'quality' gives the camera time for its best exposure and processing; a page
+  // holds still, so the slower capture costs little.
+  const photoOutput = usePhotoOutput({
+    targetResolution: CommonResolutions.UHD_4_3,
+    quality: 0.95,
+    qualityPrioritization: 'quality',
+  });
   const { detection, frameOutput } = useLiveDocumentDetection(cameraRef, cameraActive && !busy);
 
   const pageCount = session.pages.length;
+  /** Retake from review: the next photo replaces that page, then review opens on it. */
+  const retaking = session.retakeId !== null;
 
   // Coming back from review with pages in hand ("Add page") means a multi-page scan.
   useEffect(() => {
@@ -110,9 +120,12 @@ export default function ScannerRoute() {
   }, [isFocused, pageCount]);
   const progress = steadyProgress(detection.stability, Date.now());
 
-  const openReview = useCallback(() => {
-    router.push('/scan-review');
-  }, [router]);
+  const openReview = useCallback(
+    (pageId?: string) => {
+      router.push(pageId ? { pathname: '/scan-review', params: { page: pageId } } : '/scan-review');
+    },
+    [router],
+  );
 
   const capture = useCallback(async () => {
     if (busy || !cameraActive) return;
@@ -132,10 +145,11 @@ export default function ScannerRoute() {
         {},
       );
       setShotCount((count) => count + 1);
-      addPhotos([toFileUri(photo.filePath)], 'camera');
+      const [pageId] = addPhotos([toFileUri(photo.filePath)], 'camera');
       detection.reset();
       cooldownUntil.current = Date.now() + AUTO_CAPTURE_COOLDOWN_MS;
-      if (!multiPage) openReview();
+      if (retaking) openReview(pageId);
+      else if (!multiPage) openReview();
     } catch {
       Alert.alert(t('scanner.errors.title'), t('scanner.errors.captureFailed'), [
         { text: t('common.ok') },
@@ -143,7 +157,7 @@ export default function ScannerRoute() {
     } finally {
       setBusy(false);
     }
-  }, [busy, cameraActive, detection, multiPage, openReview, photoOutput, t]);
+  }, [busy, cameraActive, detection, multiPage, openReview, photoOutput, retaking, t]);
 
   // Auto Capture: shoot once the page has been held steady long enough.
   useEffect(() => {
@@ -153,13 +167,14 @@ export default function ScannerRoute() {
   }, [busy, cameraActive, capture, captureMode, detection.outline, progress]);
 
   const pickFromGallery = useCallback(async () => {
-    const room = MULTI_PAGE_LIMIT - pageCount;
+    const room = retaking ? 1 : MULTI_PAGE_LIMIT - pageCount;
     if (room <= 0) return;
+    const several = multiPage && !retaking;
 
     const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsMultipleSelection: multiPage,
-      selectionLimit: multiPage ? room : 1,
+      allowsMultipleSelection: several,
+      selectionLimit: several ? room : 1,
       orderedSelection: true,
       quality: 1,
       exif: false,
@@ -171,9 +186,9 @@ export default function ScannerRoute() {
 
     const uris = picked.assets.map((asset) => asset.uri).filter((uri) => uri.startsWith('file://'));
     if (uris.length === 0) return;
-    addPhotos(uris, 'gallery');
-    openReview();
-  }, [multiPage, openReview, pageCount]);
+    const [pageId] = addPhotos(uris, 'gallery');
+    openReview(retaking ? pageId : undefined);
+  }, [multiPage, openReview, pageCount, retaking]);
 
   const close = useCallback(() => {
     const leave = () => {

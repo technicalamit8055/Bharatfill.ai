@@ -2,9 +2,14 @@
  * The pages of the scan in progress, shared by the camera (`app/scanner.tsx`) and the review
  * screen (`app/scan-review.tsx`). Held in memory only; nothing about a session is persisted.
  *
- * Each page keeps its original photo plus the processed version for its current corners and
- * filter. Processing (OpenCV) runs one page at a time, and a result that went stale while it was
- * computing — the citizen moved a corner or picked another filter — is thrown away.
+ * Each page keeps its original photo plus the processed version for its current corners, filter
+ * and rotation, and small previews of every filter for the review screen's filter cards (redone
+ * only when the corners or the rotation change). Processing (OpenCV) runs one page at a time, and
+ * a result that went stale while it was computing — the citizen moved a corner, picked another
+ * filter or rotated the page — is thrown away.
+ *
+ * Retake marks one page (`startRetake`); the next photo taken or picked replaces that page in
+ * place, keeping its position and filter, instead of being added at the end.
  *
  * Every file a session creates is a plaintext temporary copy in the app's cache or tmp folder.
  * Saving seals the processed pages into the encrypted vault and deletes all of them; discarding
@@ -18,12 +23,13 @@ import type { DocumentDetails } from '../vault/vault-index';
 import { discardIncoming, saveDocument } from '../vault/vault-storage';
 import {
   analysePhoto,
+  type FilterPreviews,
   type PageFilter,
   type PhotoAnalysis,
   type RenderedPage,
   renderPage,
 } from './document-vision';
-import type { Quad } from './geometry';
+import { nextRotation, type PageRotation, type Quad, sameQuad } from './geometry';
 import { MULTI_PAGE_LIMIT } from './scan-session';
 
 export type PageStatus = 'pending' | 'processing' | 'ready' | 'failed';
@@ -37,17 +43,32 @@ export type SessionPage = {
   /** The crop, in upright photo pixels. Starts as the detected page (or the whole photo). */
   readonly quad: Quad | null;
   readonly filter: PageFilter;
+  /** Quarter turns clockwise, applied to the processed page. */
+  readonly rotation: PageRotation;
+  /**
+   * Where the crop editor's straighten dial was left, in degrees. Only for showing the editor
+   * as the citizen left it: the straightening itself is already in `quad`.
+   */
+  readonly straighten: number;
   readonly rendered: RenderedPage | null;
+  /** The page in every filter, small. Null until first processed. */
+  readonly previews: FilterPreviews | null;
+  /** The corners and rotation `previews` were made for; they are redone when either changes. */
+  readonly previewsFor: { readonly quad: Quad; readonly rotation: PageRotation } | null;
   readonly status: PageStatus;
   /** Bumped on every change that invalidates `rendered`. */
   readonly revision: number;
 };
 
-export type SessionState = { readonly pages: readonly SessionPage[] };
+export type SessionState = {
+  readonly pages: readonly SessionPage[];
+  /** The page the next photo replaces, while a Retake is in progress. */
+  readonly retakeId: string | null;
+};
 
 export const DEFAULT_FILTER: PageFilter = 'magic';
 
-let state: SessionState = { pages: [] };
+let state: SessionState = { pages: [], retakeId: null };
 const listeners = new Set<() => void>();
 
 function setState(next: SessionState): void {
@@ -56,11 +77,27 @@ function setState(next: SessionState): void {
 }
 
 function patchPage(id: string, patch: Partial<SessionPage>): void {
-  setState({ pages: state.pages.map((page) => (page.id === id ? { ...page, ...patch } : page)) });
+  setState({
+    ...state,
+    pages: state.pages.map((page) => (page.id === id ? { ...page, ...patch } : page)),
+  });
 }
 
 function findPage(id: string): SessionPage | undefined {
   return state.pages.find((page) => page.id === id);
+}
+
+function previewUris(previews: FilterPreviews | null | undefined): string[] {
+  return previews ? Object.values(previews) : [];
+}
+
+/** Every temporary file a page holds: its photo, processed page and filter previews. */
+function pageFiles(page: SessionPage): string[] {
+  return [
+    page.photoUri,
+    ...(page.rendered ? [page.rendered.uri] : []),
+    ...previewUris(page.previews),
+  ];
 }
 
 export function getSession(): SessionState {
@@ -78,7 +115,14 @@ export function useCaptureSession(): SessionState {
   );
 }
 
+/** The page a Retake is replacing, if it still exists. */
+function retakeTarget(): SessionPage | undefined {
+  return state.retakeId === null ? undefined : findPage(state.retakeId);
+}
+
+/** Whether `count` more photos fit. A retake replaces a page, so one photo always fits. */
 export function canAddPages(count = 1): boolean {
+  if (retakeTarget()) return count <= 1;
   return state.pages.length + count <= MULTI_PAGE_LIMIT;
 }
 
@@ -108,17 +152,35 @@ async function processNow(id: string): Promise<void> {
       patchPage(id, { analysis, quad });
     }
 
-    const rendered = await renderPage(page.photoUri, quad ?? analysis.quad, page.filter);
+    const crop = quad ?? analysis.quad;
+    const wantPreviews =
+      page.previews === null ||
+      page.previewsFor?.quad !== crop ||
+      page.previewsFor.rotation !== page.rotation;
+    const { previews, ...rendered } = await renderPage(page.photoUri, crop, page.filter, {
+      rotation: page.rotation,
+      previews: wantPreviews,
+    });
     const current = findPage(id);
     if (!current || current.revision !== revision) {
       // Stale or deleted meanwhile: this output is not wanted.
-      discardIncoming([rendered.uri]);
+      discardIncoming([rendered.uri, ...previewUris(previews)]);
       if (current) void processPage(id);
       return;
     }
 
     if (current.rendered) discardIncoming([current.rendered.uri]);
-    patchPage(id, { rendered, status: 'ready' });
+    if (previews) {
+      discardIncoming(previewUris(current.previews));
+      patchPage(id, {
+        rendered,
+        previews,
+        previewsFor: { quad: crop, rotation: page.rotation },
+        status: 'ready',
+      });
+    } else {
+      patchPage(id, { rendered, status: 'ready' });
+    }
   } catch (error) {
     // The message is OpenCV's or the file system's; it never holds the page's contents.
     if (__DEV__) console.warn('[scan] page processing failed:', (error as Error)?.message);
@@ -134,8 +196,43 @@ export function processPage(id: string): Promise<void> {
 
 // ---- Editing -------------------------------------------------------------------------------
 
-/** Adds photos as new pages and starts processing them. Returns the new page ids. */
+/**
+ * Adds photos as new pages and starts processing them. Returns the new page ids. While a Retake
+ * is in progress the first photo replaces that page instead (same id, same place) and any others
+ * are dropped.
+ */
 export function addPhotos(uris: readonly string[], source: SessionPage['source']): string[] {
+  const target = retakeTarget();
+  if (target) {
+    const [photoUri, ...extra] = uris;
+    discardIncoming(extra);
+    if (!photoUri) return [];
+    discardIncoming(pageFiles(target));
+    setState({
+      retakeId: null,
+      pages: state.pages.map((page) =>
+        page.id === target.id
+          ? {
+              ...page,
+              photoUri,
+              source,
+              analysis: null,
+              quad: null,
+              rotation: 0,
+              straighten: 0,
+              rendered: null,
+              previews: null,
+              previewsFor: null,
+              status: 'pending',
+              revision: page.revision + 1,
+            }
+          : page,
+      ),
+    });
+    void processPage(target.id);
+    return [target.id];
+  }
+
   const room = Math.max(0, MULTI_PAGE_LIMIT - state.pages.length);
   const accepted = uris.slice(0, room);
   discardIncoming(uris.slice(room));
@@ -147,11 +244,15 @@ export function addPhotos(uris: readonly string[], source: SessionPage['source']
     analysis: null,
     quad: null,
     filter: state.pages.at(-1)?.filter ?? DEFAULT_FILTER,
+    rotation: 0,
+    straighten: 0,
     rendered: null,
+    previews: null,
+    previewsFor: null,
     status: 'pending',
     revision: 0,
   }));
-  setState({ pages: [...state.pages, ...pages] });
+  setState({ ...state, pages: [...state.pages, ...pages] });
   for (const page of pages) void processPage(page.id);
   return pages.map((page) => page.id);
 }
@@ -171,6 +272,43 @@ export function setPageQuad(id: string, quad: Quad): void {
   revise(id, { quad });
 }
 
+export type PageCrop = {
+  readonly quad: Quad;
+  readonly rotation: PageRotation;
+  readonly straighten: number;
+};
+
+/**
+ * Applies the crop editor's result (Done): corners, quarter turns and straightening together, so
+ * the page is processed once. Nothing changed, nothing is redone.
+ */
+export function setPageCrop(id: string, crop: PageCrop): void {
+  const page = findPage(id);
+  if (!page) return;
+  const unchanged =
+    page.quad !== null &&
+    sameQuad(page.quad, crop.quad) &&
+    page.rotation === crop.rotation &&
+    page.straighten === crop.straighten;
+  if (!unchanged) revise(id, crop);
+}
+
+/** Marks a page to be replaced by the next photo taken or picked. */
+export function startRetake(id: string): void {
+  if (findPage(id)) setState({ ...state, retakeId: id });
+}
+
+/** Forgets a Retake the citizen walked away from. */
+export function cancelRetake(): void {
+  if (state.retakeId !== null) setState({ ...state, retakeId: null });
+}
+
+/** Turns a page a quarter clockwise. */
+export function rotatePage(id: string): void {
+  const page = findPage(id);
+  if (page) revise(id, { rotation: nextRotation(page.rotation) });
+}
+
 export function retryPage(id: string): void {
   revise(id, {});
 }
@@ -178,17 +316,17 @@ export function retryPage(id: string): void {
 export function removePage(id: string): void {
   const page = findPage(id);
   if (!page) return;
-  discardIncoming([page.photoUri, ...(page.rendered ? [page.rendered.uri] : [])]);
-  setState({ pages: state.pages.filter((p) => p.id !== id) });
+  discardIncoming(pageFiles(page));
+  setState({
+    pages: state.pages.filter((p) => p.id !== id),
+    retakeId: state.retakeId === id ? null : state.retakeId,
+  });
 }
 
 /** Throws the whole session away, deleting every temporary file. */
 export function discardSession(): void {
-  const uris = state.pages.flatMap((page) => [
-    page.photoUri,
-    ...(page.rendered ? [page.rendered.uri] : []),
-  ]);
-  setState({ pages: [] });
+  const uris = state.pages.flatMap(pageFiles);
+  setState({ pages: [], retakeId: null });
   discardIncoming(uris);
 }
 

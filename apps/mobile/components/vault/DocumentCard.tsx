@@ -1,7 +1,7 @@
 /**
  * One document in the vault list: thumbnail, title, "JPG • 2.4 MB • 12 Sep 2026", a category
  * tag and a grey type tag, then the star and a more-options button. The grid variant stacks the
- * same pieces under a larger thumbnail.
+ * same pieces under a larger thumbnail. Tapping the thumbnail or the text opens the document.
  */
 
 import { EllipsisVertical, Star } from 'lucide-react-native';
@@ -16,6 +16,7 @@ export type DocumentCardProps = {
   readonly item: VaultItem;
   readonly layout: VaultLayout;
   readonly loadThumbnail: (documentId: string) => Promise<string>;
+  readonly onOpen: (item: VaultItem) => void;
   readonly onToggleStar: (item: VaultItem) => void;
   readonly onMore: (item: VaultItem) => void;
 };
@@ -24,6 +25,7 @@ export function DocumentCard({
   item,
   layout,
   loadThumbnail,
+  onOpen,
   onToggleStar,
   onMore,
 }: DocumentCardProps) {
@@ -33,22 +35,29 @@ export function DocumentCard({
 
   return (
     <View style={[styles.card, grid ? styles.gridCard : styles.listCard]}>
-      <DocumentThumbnail
-        documentId={item.id}
-        thumbnail={item.thumbnail}
-        loadThumbnail={loadThumbnail}
-        style={grid ? styles.gridThumbnail : styles.listThumbnail}
-      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${item.title}, ${meta}`}
+        onPress={() => onOpen(item)}
+        style={({ pressed }) => [styles.open, grid && styles.gridOpen, pressed && styles.pressed]}
+      >
+        <DocumentThumbnail
+          documentId={item.id}
+          thumbnail={item.thumbnail}
+          loadThumbnail={loadThumbnail}
+          style={grid ? styles.gridThumbnail : styles.listThumbnail}
+        />
 
-      <View style={styles.details} accessible accessibilityLabel={`${item.title}, ${meta}`}>
-        <Text numberOfLines={1} style={[styles.title, grid && styles.gridTitle]}>
-          {item.title}
-        </Text>
-        <Text numberOfLines={1} style={[styles.meta, grid && styles.gridMeta]}>
-          {meta}
-        </Text>
-        <Tags item={item} />
-      </View>
+        <View style={styles.details}>
+          <Text numberOfLines={1} style={[styles.title, grid && styles.gridTitle]}>
+            {item.title}
+          </Text>
+          <Text numberOfLines={1} style={[styles.meta, grid && styles.gridMeta]}>
+            {meta}
+          </Text>
+          <Tags item={item} />
+        </View>
+      </Pressable>
 
       <View style={[styles.actions, grid && styles.gridActions]}>
         <Pressable
@@ -121,6 +130,19 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.55,
+  },
+  open: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  gridOpen: {
+    flex: 0,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 10,
   },
 
   listCard: {

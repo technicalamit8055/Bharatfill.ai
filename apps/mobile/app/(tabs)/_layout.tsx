@@ -65,6 +65,8 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: t('profile.title'),
+          // Profile draws its own "My Profile" header.
+          headerShown: false,
           tabBarLabel: t('tabs.profile'),
         }}
       />

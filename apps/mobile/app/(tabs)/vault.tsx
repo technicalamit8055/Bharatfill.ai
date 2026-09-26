@@ -1,7 +1,7 @@
 /**
  * Vault tab route. The screen lives in `components/vault/VaultScreen.tsx`; this route reads the
- * encrypted on-device vault, turns its documents into list items, and owns what starring,
- * deleting and the menus do.
+ * encrypted on-device vault, turns its documents into list items, and owns what opening,
+ * starring, deleting and the menus do.
  *
  * The vault is re-read every time the tab comes into focus, so a document saved from the
  * scanner shows up straight away. Documents carry the name, type, folder and tags chosen on the
@@ -191,6 +191,13 @@ export default function VaultRoute() {
     [confirmDelete, t, toggleStar],
   );
 
+  const open = useCallback(
+    (item: VaultItem) => {
+      router.push({ pathname: '/document-details', params: { id: item.id } });
+    },
+    [router],
+  );
+
   const scan = useCallback(
     (mode: 'single' | 'multi' = 'single') => {
       router.push({ pathname: '/scanner', params: { mode } });
@@ -214,6 +221,7 @@ export default function VaultRoute() {
         state={state}
         now={now}
         loadThumbnail={loadThumbnail}
+        onOpenDocument={open}
         onToggleStar={(item) => void toggleStar(item)}
         onDocumentActions={documentActions}
         onMore={more}

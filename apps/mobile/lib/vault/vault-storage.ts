@@ -30,6 +30,7 @@ import * as SecureStore from 'expo-secure-store';
 import { isDisposableScanFile } from '../scan/scan-session';
 import { cancelExpiryReminder } from './expiry-reminders';
 import {
+  type DetailsChange,
   type DocumentDetails,
   type DocumentSource,
   EMPTY_VAULT_INDEX,
@@ -43,6 +44,7 @@ import {
   serialiseVaultIndex,
   type VaultDocument,
   type VaultIndex,
+  withDetails,
   withDocument,
   withoutDocument,
   withStarred,
@@ -173,7 +175,7 @@ async function writeIndex(index: VaultIndex, key: AESEncryptionKey): Promise<voi
   // Written beside the live index and moved over it, so a crash mid-write cannot corrupt it.
   const pending = new File(vaultDirectory(), 'index.enc.pending');
   await sealTo(pending, asciiToBase64(serialiseVaultIndex(index)), INDEX_ASSOCIATED_DATA, key);
-  pending.move(indexFile(), { overwrite: true });
+  await pending.move(indexFile(), { overwrite: true });
 }
 
 // ---- Public API ---------------------------------------------------------------------------
@@ -302,6 +304,19 @@ export function documentSizeBytes(document: VaultDocument): number | null {
 export async function setStarred(id: string, starred: boolean): Promise<void> {
   const key = await vaultKey();
   await exclusive(async () => writeIndex(withStarred(await readIndex(key), id, starred), key));
+}
+
+/** Renames, moves or re-tags a document. Returns it as saved; null when it no longer exists. */
+export async function updateDetails(
+  id: string,
+  change: DetailsChange,
+): Promise<VaultDocument | null> {
+  const key = await vaultKey();
+  return exclusive(async () => {
+    const index = withDetails(await readIndex(key), id, change);
+    await writeIndex(index, key);
+    return findDocument(index, id);
+  });
 }
 
 /** Deletes the document's pages and index entry, and cancels its expiry reminder if it has one. */

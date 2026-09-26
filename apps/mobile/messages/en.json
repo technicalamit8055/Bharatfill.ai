@@ -249,12 +249,12 @@
     }
   },
   "scanReview": {
-    "close": "Discard the scan",
     "pageOf": "Page {number} of {total}",
-    "cropTitle": "Adjust corners",
-    "cropDone": "Done adjusting corners",
+    "cropTitle": "Crop & rotate",
+    "cropDone": "Apply crop and rotation",
+    "cropCancel": "Cancel crop",
     "cropReset": "Reset",
-    "cropHint": "Drag each corner to the edge of the document.",
+    "cropHint": "Drag the corners, then turn or straighten the page.",
     "corners": {
       "topLeft": "Top-left corner",
       "topRight": "Top-right corner",
@@ -262,18 +262,31 @@
       "bottomLeft": "Bottom-left corner"
     },
     "crop": "Crop",
-    "retake": "Retake",
-    "deletePage": "Delete page",
+    "deletePage": "Delete Page",
     "deleteTitle": "Delete this page?",
     "deleteBody": "It will be removed from this scan.",
-    "addPage": "Add page",
-    "save": "Next",
+    "addPage": "Add Page",
+    "save": "Save Document",
     "processing": "Enhancing your scan…",
     "failed": "This page could not be processed.",
     "retry": "Try again",
     "notDetected": "No page edges found, so the whole photo is kept. Tap Crop to adjust.",
     "previewLabel": "Scanned page",
-    "saveFailed": "The scan could not be saved securely. Please try again."
+    "saveFailed": "The scan could not be saved securely. Please try again.",
+    "back": "Back to camera",
+    "subtitle": "Edit and enhance this page",
+    "pageLabel": "Page {number}",
+    "rotateLeft": "Rotate left",
+    "rotateRight": "Rotate right",
+    "straighten": "Straighten",
+    "straightenReset": "Set straightening back to 0°",
+    "zoom": "Zoom in on this page",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "zoomClose": "Close zoom",
+    "zoomHint": "Pinch to zoom · double-tap to zoom in",
+    "cropApply": "Done",
+    "retake": "Retake"
   },
   "saveDocument": {
     "title": "Save Document",
@@ -394,6 +407,106 @@
     "deleteBody": "It will be removed from this phone. This cannot be undone.",
     "deleteFailed": "The scan could not be deleted. Please try again.",
     "cancel": "Cancel"
+  },
+  "documentDetails": {
+    "back": "Back",
+    "star": "Star {title}",
+    "unstar": "Remove star from {title}",
+    "more": "More options for {title}",
+    "kind": {
+      "identity": "Identity Document",
+      "academic": "Academic Document",
+      "certificate": "Certificate",
+      "form_asset": "Form Asset",
+      "none": "Document"
+    },
+    "pageOf": "{number} / {total}",
+    "pageLabel": "Page {number} of {total}",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "pageFailed": "This page could not be opened.",
+    "actions": {
+      "share": "Share",
+      "download": "Download",
+      "print": "Print",
+      "more": "More"
+    },
+    "details": {
+      "title": "Document Details",
+      "edit": "Edit",
+      "fileName": "File Name",
+      "folder": "Folder",
+      "addedOn": "Added On",
+      "fileSize": "File Size",
+      "tags": "Tags",
+      "addTag": "Add Tag",
+      "noTags": "No tags yet",
+      "unknownSize": "Not known"
+    },
+    "addedOn": "{date}, {time}",
+    "time": "{hour}:{minute} {period}",
+    "am": "AM",
+    "pm": "PM",
+    "secure": {
+      "title": "Stored Securely",
+      "body": "Your document is encrypted and kept only in your vault on this phone."
+    },
+    "move": "Move",
+    "delete": "Delete",
+    "sheetClose": "Close",
+    "rename": {
+      "title": "Rename document",
+      "label": "Document name",
+      "save": "Save",
+      "required": "Enter a name for this document."
+    },
+    "tag": {
+      "title": "Add a tag",
+      "save": "Add",
+      "remove": "Remove tag {tag}",
+      "removeTitle": "Remove this tag?",
+      "removeBody": "“{tag}” will be removed from this document.",
+      "removeConfirm": "Remove"
+    },
+    "moveTitle": "Move to folder",
+    "menu": {
+      "rename": "Rename",
+      "addTag": "Add tag",
+      "move": "Move to folder",
+      "star": "Add star",
+      "unstar": "Remove star",
+      "delete": "Delete",
+      "cancel": "Cancel"
+    },
+    "deleteTitle": "Delete this document?",
+    "deleteBody": "{title} will be removed from this phone. This cannot be undone.",
+    "working": {
+      "share": "Preparing to share…",
+      "download": "Saving…",
+      "print": "Preparing to print…"
+    },
+    "downloaded": {
+      "title": "Saved",
+      "body": "{file} was saved to the folder you chose."
+    },
+    "format": {
+      "shareTitle": "Share as",
+      "downloadTitle": "Download as",
+      "pdf": "PDF document",
+      "image": "{format} image"
+    },
+    "errors": {
+      "share": "The document could not be shared. Please try again.",
+      "download": "The document could not be saved. Please try again.",
+      "print": "The document could not be printed. Please try again.",
+      "update": "Your change could not be saved. Please try again.",
+      "delete": "The document could not be deleted. Please try again.",
+      "notFound": "This document is no longer in your vault.",
+      "unreadable": "This document could not be opened on this phone.",
+      "sampleTitle": "Sample document",
+      "sample": "This is a sample document. Scan your own to share, download or print it.",
+      "unavailable": "Sharing, saving and printing need the latest version of the app. Please update it and try again."
+    }
   },
   "share": {
     "title": "Connect"
@@ -610,10 +723,73 @@
   },
   "profile": {
     "title": "Profile",
+    "heading": "My Profile",
+    "subtitle": "Manage your account and preferences",
+    "settings": "Settings",
+    "openAccount": "Open your account details",
+    "changePhoto": "Change profile photo",
+    "verified": "Verified Account",
+    "signIn": "Sign in with your mobile number",
     "signedOutTitle": "Not signed in",
     "signedOutBody": "Sign in with your mobile number to sync your vault.",
-    "accessTitle": "Document access",
-    "accessBody": "Choose how cyber cafe operators can access your documents."
+    "plan": {
+      "free": {
+        "title": "Free Plan",
+        "body": "Upgrade to store more documents and access premium features."
+      },
+      "upgrade": "Upgrade"
+    },
+    "menu": {
+      "personal": {
+        "title": "Personal Information",
+        "subtitle": "Manage your personal details"
+      },
+      "security": {
+        "title": "Security",
+        "subtitle": "PIN & biometric settings"
+      },
+      "notifications": {
+        "title": "Notifications",
+        "subtitle": "Manage alerts and reminders"
+      },
+      "language": {
+        "title": "Language"
+      },
+      "appearance": {
+        "title": "App Appearance"
+      },
+      "help": {
+        "title": "Help & Support",
+        "subtitle": "Get help or contact us"
+      },
+      "about": {
+        "title": "About",
+        "subtitle": "App version {version}",
+        "subtitleUnknown": "App version not available"
+      }
+    },
+    "languages": {
+      "en": "English (India)",
+      "hi": "Hindi (हिंदी)"
+    },
+    "languageSheetTitle": "Choose language",
+    "close": "Close",
+    "appearance": {
+      "light": "Light Mode",
+      "dark": "Dark Mode"
+    },
+    "logout": "Log Out",
+    "unavailable": {
+      "settings": "More settings are not live yet. Everything you can change today is on this page.",
+      "personal": "Editing your personal details is not live yet. Nothing has been changed.",
+      "photo": "Adding a profile photo is not live yet. No photo has been used.",
+      "plan": "Plans are not live yet. Nothing has been charged.",
+      "security": "App lock with a PIN or fingerprint is not live yet.",
+      "notifications": "Alert settings are not live yet.",
+      "appearance": "Dark mode is not live yet. The app stays in light mode for now.",
+      "help": "Help and support from the app is not live yet.",
+      "logout": "Signing out is not live yet. Your documents stay encrypted on this phone."
+    }
   },
   "common": {
     "retry": "Try again",

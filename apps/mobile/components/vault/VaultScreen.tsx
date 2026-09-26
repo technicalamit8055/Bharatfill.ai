@@ -55,6 +55,7 @@ export type VaultScreenProps = {
   /** The moment "Recent" is measured from. */
   readonly now: Date;
   readonly loadThumbnail: (documentId: string) => Promise<string>;
+  readonly onOpenDocument: (item: VaultItem) => void;
   readonly onToggleStar: (item: VaultItem) => void;
   readonly onDocumentActions: (item: VaultItem) => void;
   readonly onMore: () => void;
@@ -66,6 +67,7 @@ export function VaultScreen({
   state,
   now,
   loadThumbnail,
+  onOpenDocument,
   onToggleStar,
   onDocumentActions,
   onMore,
@@ -225,6 +227,7 @@ export function VaultScreen({
               item={item}
               layout={layout}
               loadThumbnail={loadThumbnail}
+              onOpen={onOpenDocument}
               onToggleStar={onToggleStar}
               onMore={onDocumentActions}
             />

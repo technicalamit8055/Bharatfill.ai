@@ -17,7 +17,7 @@
 import { DOCUMENT_TYPES } from '@assistigo/core';
 import { z } from 'zod';
 
-import { VAULT_CATEGORIES } from './categories';
+import { VAULT_CATEGORIES, type VaultCategoryKey } from './categories';
 
 export const VAULT_INDEX_VERSION = 1;
 
@@ -115,6 +115,37 @@ export function withStarred(index: VaultIndex, id: string, starred: boolean): Va
     documents: index.documents.map((document) =>
       document.id === id ? { ...document, starred } : document,
     ),
+  };
+}
+
+/**
+ * What the Document Details screen can change after saving: the name (Edit), the folder (Move;
+ * null takes the document out of every folder) and the tags. Fields left out stay as they are.
+ */
+export type DetailsChange = {
+  readonly title?: string;
+  readonly category?: VaultCategoryKey | null;
+  readonly tags?: readonly string[];
+};
+
+/**
+ * Applies a details change to one document, validated like any saved document, so a name or tag
+ * over the limits is refused. An unknown id leaves the index as it was.
+ */
+export function withDetails(index: VaultIndex, id: string, change: DetailsChange): VaultIndex {
+  return {
+    ...index,
+    documents: index.documents.map((document) => {
+      if (document.id !== id) return document;
+      const { category: previous, ...rest } = document;
+      const category = change.category === undefined ? previous : change.category;
+      return vaultDocumentSchema.parse({
+        ...rest,
+        ...(category ? { category } : {}),
+        ...(change.title !== undefined ? { title: change.title } : {}),
+        ...(change.tags !== undefined ? { tags: [...change.tags] } : {}),
+      });
+    }),
   };
 }
 
