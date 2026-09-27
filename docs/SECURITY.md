@@ -304,6 +304,20 @@ another row and still decrypt:
   audited `drop_file.previewed`). Unclaimed sessions are deleted — rows and bytes — by the sweep
   on `/api/jobs/run` two hours after they open.
 
+### Scheme logos and artwork
+
+- Bucket `scheme-logos` (0027; banners and illustrations since 0028), private, **no storage
+  policies at all**: uploads go through the
+  platform admin panel with the service role, and tenants cannot read or write the bucket directly.
+- Served to signed-in users only by `GET /scheme-logos/<slug>/<uuid>.<ext>`, which checks the path
+  shape before touching storage and answers with `nosniff` and a `default-src 'none'; sandbox` CSP.
+  Logos are reference imagery with no personal data, so any signed-in user may read any logo.
+- Upload type is decided by magic bytes (PNG, JPEG, WebP); SVG is refused. Size is capped per kind
+  in the action (logo 256 KB, illustration 512 KB, banner 1 MB) and at 1 MB on the bucket; the
+  Server Action body limit is 2 MB to fit a banner. The object path is built on the server from the
+  row's slug and a fresh uuid, and the column written is chosen from a fixed map by a validated
+  kind — the request never names a column.
+
 ## 5. Logging and redaction
 
 Never logged: full Aadhaar / PAN / bank values, raw OCR text, document contents, field values,

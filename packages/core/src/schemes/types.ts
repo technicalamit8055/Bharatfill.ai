@@ -401,7 +401,43 @@ export type SchemeDefinition = {
    * `{days}`, the number of days until the form goes live.
    */
   upcomingPitchTemplate: LocalisedText;
+  /**
+   * Object path of the scheme's logo in the private `SCHEME_LOGO_BUCKET`, or absent for the
+   * category icon. A path, never a URL — see `SCHEME_LOGO_PATH_PATTERN`.
+   */
+  logoPath?: string | null;
+  /** Wide artwork behind the detail page's hero (migration 0028). Same rules as `logoPath`. */
+  bannerPath?: string | null;
+  /** Picture beside "What the customer gets" on the detail page (0028). Same rules as `logoPath`. */
+  illustrationPath?: string | null;
 };
+
+// ---------------------------------------------------------------------------
+// Logos and artwork
+// ---------------------------------------------------------------------------
+
+/**
+ * Private bucket, served to signed-in users by the web app (migration 0027). Holds every scheme
+ * image kind — the name predates banners and illustrations (0028).
+ */
+export const SCHEME_LOGO_BUCKET = 'scheme-logos';
+
+/** The images an admin can attach to a catalogue row, each with its own column. */
+export const SCHEME_IMAGE_KINDS = ['logo', 'banner', 'illustration'] as const;
+export type SchemeImageKind = (typeof SCHEME_IMAGE_KINDS)[number];
+
+/**
+ * `<slug>/<uuid>.<ext>` — the only shape the upload action builds, and the same pattern the
+ * `schemes_catalog_{logo,banner,illustration}_path_shape` constraints enforce. Anchored and
+ * slash-free apart from the one separator, so a stored value cannot walk out of its folder or
+ * name a remote host.
+ */
+export const SCHEME_LOGO_PATH_PATTERN =
+  /^[a-z0-9]+(?:-[a-z0-9]+)*\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:png|jpg|webp)$/;
+
+export function isSchemeLogoPath(value: unknown): value is string {
+  return typeof value === 'string' && SCHEME_LOGO_PATH_PATTERN.test(value);
+}
 
 // ---------------------------------------------------------------------------
 // Match results
@@ -609,6 +645,9 @@ export const schemeDefinitionSchema = z.object({
   eligibility: schemeEligibilityCriteriaSchema,
   pitchTemplate: localisedTextSchema,
   upcomingPitchTemplate: localisedTextSchema,
+  logoPath: z.string().regex(SCHEME_LOGO_PATH_PATTERN).nullable().optional(),
+  bannerPath: z.string().regex(SCHEME_LOGO_PATH_PATTERN).nullable().optional(),
+  illustrationPath: z.string().regex(SCHEME_LOGO_PATH_PATTERN).nullable().optional(),
 });
 
 export type ParsedSchemeDefinition = z.infer<typeof schemeDefinitionSchema>;

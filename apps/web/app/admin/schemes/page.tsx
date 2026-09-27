@@ -9,6 +9,7 @@ import { requirePlatformPagePermission } from '@/lib/admin/session';
 import { builtInsWithoutGlobalRow, loadGlobalCatalog } from '@/lib/admin/catalog';
 import { getTranslations } from '@/lib/i18n/server';
 import { localised } from '@/lib/i18n';
+import { CopyBuiltInButton } from './copy-built-in-button';
 import {
   AdminBadge,
   AdminCard,
@@ -221,7 +222,10 @@ export default async function AdminSchemesPage({
                 <div className="truncate text-sm text-slate-200">
                   {localised(scheme.title, locale)}
                 </div>
-                <div className="font-mono text-xs text-slate-600">{scheme.slug}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-mono text-xs text-slate-600">{scheme.slug}</span>
+                  {canEdit ? <CopyBuiltInButton slug={scheme.slug} /> : null}
+                </div>
               </li>
             ))}
           </ul>

@@ -1,7 +1,9 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { ArrowRight, LifeBuoy } from 'lucide-react';
 import { cn } from '@assistigo/ui';
 import type { Permission } from '@assistigo/core';
 import { useTranslations } from '@/lib/i18n/client';
@@ -94,7 +96,70 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   );
 }
 
-export function Sidebar({ permissions }: { permissions: string[] }) {
+/**
+ * The foot of the rail: the Digital India mark, then the way to reach a human.
+ *
+ * Rendered only in the desktop rail — the mobile bar at the bottom of the layout renders the
+ * same `Sidebar`, and a second copy of the artwork under a phone-width nav would push the
+ * page's actual content off the screen.
+ */
+function SidebarFooter() {
+  const t = useTranslations();
+
+  return (
+    <div className="space-y-3 border-t border-slate-200 pt-4">
+      {/*
+        * The artwork already carries the words "Digital India / Empowering Citizens" inside the
+        * image, so there is no caption under it — a repeat would read as a printing error.
+        *
+        * That baked-in text is also why this one is not decorative: it cannot be translated, so
+        * the alt string is how a Hindi operator, or anyone on a screen reader, gets the same
+        * message. Per-locale artwork would be the better fix if this becomes more than a badge.
+        */}
+      <div className="flex justify-center">
+        <Image
+          src="/dashboard/sidebar-digital-india.png"
+          alt={`${t('nav.digitalIndiaTitle')} — ${t('nav.digitalIndiaTagline')}`}
+          width={1024}
+          height={1024}
+          className="h-24 w-auto select-none object-contain"
+        />
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <div className="flex items-start gap-2">
+          <LifeBuoy size={16} strokeWidth={1.8} aria-hidden className="mt-0.5 text-brand-600" />
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-800">{t('nav.supportTitle')}</p>
+            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
+              {t('nav.supportHint')}
+            </p>
+          </div>
+        </div>
+        {/*
+          * Points at settings until a support channel is configured. The master spec defines no
+          * support address, and guessing one would send an operator's question nowhere.
+          */}
+        <Link
+          href="/settings"
+          className="mt-2.5 flex items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-700"
+        >
+          {t('nav.supportCta')}
+          <ArrowRight size={13} strokeWidth={2} aria-hidden />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+export function Sidebar({
+  permissions,
+  showFooter = false,
+}: {
+  permissions: string[];
+  /** Desktop rail only. See `SidebarFooter`. */
+  showFooter?: boolean;
+}) {
   const pathname = usePathname();
   const allowed = new Set(permissions);
 
@@ -115,6 +180,8 @@ export function Sidebar({ permissions }: { permissions: string[] }) {
           <NavLink key={item.href} item={item} active={isActive(item.href)} />
         ))}
       </div>
+
+      {showFooter ? <SidebarFooter /> : null}
     </nav>
   );
 }

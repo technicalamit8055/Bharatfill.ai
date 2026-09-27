@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { Flag } from 'lucide-react';
 import { Alert, Button, Card, TextField, Textarea, Field } from '@assistigo/ui';
 import { useTranslations } from '@/lib/i18n/client';
 
@@ -47,9 +48,14 @@ export function ReportFormModal() {
 
   if (!open) {
     return (
-      <Button variant="secondary" onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex h-12 items-center gap-2 rounded-xl border border-white/80 bg-white/95 px-5 text-sm font-semibold text-brand-700 shadow-md backdrop-blur-sm transition-colors hover:bg-white hover:text-brand-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+      >
+        <Flag size={18} strokeWidth={2} aria-hidden className="fill-brand-600 text-brand-600" />
         {t('formLibrary.reportUnsupported')}
-      </Button>
+      </button>
     );
   }
 

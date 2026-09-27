@@ -4,6 +4,7 @@
   "portalName": "Staff Selection Commission (ssc.gov.in)",
   "formName": "One-Time Registration and examination applications (CGL / CHSL / GD Constable)",
   "region": "All India",
+  "category": "recruitment",
   "urlPatterns": ["https://ssc.gov.in/**", "https://*.ssc.gov.in/**"],
   "version": "1.0.0",
   "status": "testing",

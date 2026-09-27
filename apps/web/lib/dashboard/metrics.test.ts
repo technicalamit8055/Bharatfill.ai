@@ -3,6 +3,7 @@ import {
   KEYSTROKES_PER_FIELD,
   SECONDS_SAVED_PER_FIELD,
   bucketByIstDay,
+  bucketByIstMonth,
   durationParts,
   estimatedKeystrokesSaved,
   estimatedSecondsSaved,
@@ -11,6 +12,9 @@ import {
   istDayKey,
   istDayKeys,
   istHour,
+  istMonthKey,
+  istMonthKeys,
+  istMonthStart,
   sparklineHeights,
   trendFrom,
 } from './metrics';
@@ -194,5 +198,67 @@ describe('initialsOf', () => {
 
   it('falls back to a placeholder for an empty name', () => {
     expect(initialsOf('   ')).toBe('?');
+    expect(initialsOf('( )')).toBe('?');
+  });
+
+  it('ignores punctuation and prefers the Latin rendering of a bilingual name', () => {
+    expect(initialsOf('सपना कुमारी (Sapna Kumari)')).toBe('SK');
+    expect(initialsOf('Suraj Pratap Singh.')).toBe('SS');
+  });
+
+  it('keeps Devanagari letters when the name has no Latin rendering', () => {
+    expect(initialsOf('सपना कुमारी')).toBe('सक');
+  });
+});
+
+describe('istMonthKey', () => {
+  it('reads an instant as its IST calendar month', () => {
+    expect(istMonthKey('2026-09-15T06:30:00.000Z')).toBe('2026-09');
+  });
+
+  it('rolls into the next month after IST midnight on the 1st', () => {
+    // 18:40 UTC on 31 Aug is 00:10 IST on 1 Sep.
+    expect(istMonthKey('2026-08-31T18:40:00.000Z')).toBe('2026-09');
+  });
+
+  it('returns null for an unparseable instant', () => {
+    expect(istMonthKey('not a date')).toBeNull();
+  });
+});
+
+describe('istMonthStart', () => {
+  const asOf = new Date('2026-09-27T10:00:00.000Z');
+
+  it('is IST midnight on the 1st, expressed in UTC', () => {
+    expect(istMonthStart(asOf).toISOString()).toBe('2026-08-31T18:30:00.000Z');
+  });
+
+  it('steps back across a year boundary', () => {
+    expect(istMonthStart(new Date('2026-02-10T00:00:00.000Z'), 3).toISOString()).toBe(
+      '2025-10-31T18:30:00.000Z',
+    );
+  });
+});
+
+describe('istMonthKeys', () => {
+  it('lists the window oldest first, ending with the current month', () => {
+    expect(istMonthKeys(3, new Date('2026-01-05T00:00:00.000Z'))).toEqual([
+      '2025-11',
+      '2025-12',
+      '2026-01',
+    ]);
+  });
+});
+
+describe('bucketByIstMonth', () => {
+  it('counts rows per IST month and ignores rows outside the window', () => {
+    const asOf = new Date('2026-09-27T10:00:00.000Z');
+    const rows = [
+      { created_at: '2026-09-02T04:00:00.000Z' },
+      { created_at: '2026-08-31T18:40:00.000Z' }, // 1 Sep IST
+      { created_at: '2026-08-19T04:00:00.000Z' },
+      { created_at: '2026-01-01T04:00:00.000Z' }, // outside a 3-month window
+    ];
+    expect(bucketByIstMonth(rows, 3, asOf)).toEqual([0, 1, 2]);
   });
 });

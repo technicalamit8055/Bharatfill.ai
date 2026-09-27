@@ -4,9 +4,11 @@ import { formatIndianDate } from '@assistigo/core';
 import { requirePlatformPagePermission } from '@/lib/admin/session';
 import { schemeInputFromRow } from '@/lib/admin/scheme-write';
 import { getTranslations } from '@/lib/i18n/server';
+import { schemeImageSrc } from '@/lib/schemes/logo';
 import type { AdminCatalogRow } from '@/lib/admin/catalog';
 import { AdminBadge, AdminNote, AdminPageHeader } from '../../ui';
 import { SchemeForm } from '../scheme-form';
+import { SchemeImagesCard } from './scheme-images-card';
 import { SchemeRowActions } from './scheme-row-actions';
 
 export const metadata = { title: 'Edit scheme' };
@@ -87,6 +89,16 @@ export default async function AdminSchemeDetailPage({
         initial={schemeInputFromRow(row)}
         canPublish={session.permissions.has('platform.schemes.publish')}
         readOnly={!canEdit}
+      />
+
+      <SchemeImagesCard
+        schemeId={row.id}
+        images={{
+          logo: schemeImageSrc(row.logo_path),
+          banner: schemeImageSrc(row.banner_path),
+          illustration: schemeImageSrc(row.illustration_path),
+        }}
+        canEdit={canEdit}
       />
 
       <SchemeRowActions

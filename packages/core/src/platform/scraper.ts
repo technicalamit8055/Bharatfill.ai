@@ -134,7 +134,15 @@ export function canTransitionQueueItem(from: QueueItemStatus, to: QueueItemStatu
  * a scraper gets no leniency a human editor would not get.
  */
 export const scrapedCandidateSchema = z.object({
-  scheme: schemeDefinitionSchema.omit({ id: true }),
+  // No image paths either: a logo or banner is an object an admin uploaded, and a fetcher has no
+  // bytes in the bucket to point at. Zod strips the keys, so a scraped path never reaches the
+  // catalogue.
+  scheme: schemeDefinitionSchema.omit({
+    id: true,
+    logoPath: true,
+    bannerPath: true,
+    illustrationPath: true,
+  }),
   /** The exact page this claim came from, so a reviewer can check it in one click. */
   sourceUrl: z.string().url(),
   /**

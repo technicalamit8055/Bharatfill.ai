@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/lib/i18n/client';
@@ -83,6 +84,39 @@ export function DashboardHero({
 
   return (
     <section className="mesh-gradient-brand relative overflow-hidden rounded-2xl px-5 py-6 text-white shadow-lg shadow-brand-900/15 animate-fade-in-up sm:px-8 sm:py-7">
+      {/*
+        * The India Gate / tricolour artwork, anchored to the right edge behind the greeting.
+        * Decorative only — empty alt, `aria-hidden` and `pointer-events-none` keep it out of
+        * the reading order and out of the way of the search box that overlaps it.
+        *
+        * Hidden below `md`: at phone width the banner is barely wider than the text, and the
+        * artwork would sit underneath it rather than beside it. The gradient carries the panel
+        * on its own there.
+        */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 right-0 hidden w-3/4 select-none md:block"
+      >
+        <Image
+          src="/dashboard/web-banner-hero.png"
+          alt=""
+          fill
+          priority
+          sizes="75vw"
+          /*
+           * `object-bottom` as well as right: the source is a 16:9 landscape sitting in a much
+           * wider, shorter box, so a centred crop would cut the skyline off at the waist. The
+           * horizon belongs at the foot of the banner.
+           */
+          className="object-cover object-right-bottom"
+        />
+        {/*
+          * Feathers the artwork's left edge into the gradient so it reads as part of the panel
+          * rather than a photo pasted on top, and keeps the headline legible where the two meet.
+          */}
+        <div className="absolute inset-0 bg-gradient-to-r from-brand-700 via-brand-700/55 to-transparent" />
+      </div>
+
       <div className="pointer-events-none absolute -right-10 -top-12 h-48 w-48 rounded-full bg-white/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-20 left-1/3 h-40 w-40 rounded-full bg-cyan-300/10 blur-3xl" />
 

@@ -21,6 +21,9 @@ export type ApplicationCategory = (typeof APPLICATION_CATEGORIES)[number];
 
 export const APPLICATION_PAYMENT_STATUSES = ['unpaid', 'paid', 'refunded'] as const;
 
+/** Shared with the create form's character counter, so the UI cap and the API cap agree. */
+export const APPLICATION_NOTES_MAX = 2000;
+
 /** The list view's tab filter — not a raw `applications.status` value. */
 export const APPLICATION_LIST_FILTERS = [
   'all',
@@ -52,7 +55,7 @@ export const createApplicationSchema = z.object({
   amountCharged: z.coerce.number().nonnegative().optional(),
   paymentStatus: z.enum(APPLICATION_PAYMENT_STATUSES).optional(),
   assignedTo: z.string().uuid().optional(),
-  notes: trimmedString(2000).optional(),
+  notes: trimmedString(APPLICATION_NOTES_MAX).optional(),
   /**
    * The fill session that produced this application (extension "Save as an application"),
    * retroactively linked to it once the application row exists — see POST handler.
@@ -72,7 +75,7 @@ export const updateApplicationSchema = z.object({
   amountCharged: z.coerce.number().nonnegative().nullable().optional(),
   paymentStatus: z.enum(APPLICATION_PAYMENT_STATUSES).nullable().optional(),
   assignedTo: z.string().uuid().nullable().optional(),
-  notes: trimmedString(2000).nullable().optional(),
+  notes: trimmedString(APPLICATION_NOTES_MAX).nullable().optional(),
 });
 export type UpdateApplicationInput = z.infer<typeof updateApplicationSchema>;
 

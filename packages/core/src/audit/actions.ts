@@ -431,6 +431,22 @@ export const AUDIT_ACTIONS = define([
     description: 'Global scheme application window changed',
   },
   {
+    // Split from scheme_updated because the upload path is separate and a logo is the one piece
+    // of the catalogue that is an image rather than a claim — worth finding on its own.
+    action: 'platform.scheme_logo_updated',
+    entityType: 'schemes_catalog',
+    sensitivity: 'normal',
+    description: 'Global scheme logo uploaded or removed',
+  },
+  {
+    // The detail page's banner and illustration (0028). Kept apart from the logo's action so its
+    // history reads as before; `metadata.kind` says which image changed.
+    action: 'platform.scheme_artwork_updated',
+    entityType: 'schemes_catalog',
+    sensitivity: 'normal',
+    description: 'Global scheme banner or illustration uploaded or removed',
+  },
+  {
     action: 'platform.scheme_published',
     entityType: 'schemes_catalog',
     sensitivity: 'critical',

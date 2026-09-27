@@ -287,3 +287,86 @@ describe('the global scheme catalogue stays service_role only for writes', () =>
     expect(error).not.toBeNull();
   });
 });
+
+/**
+ * Migration 0027. The logo bucket is private with no storage policies at all: the admin panel
+ * uploads with the service role, and the web app streams logos to signed-in users through its own
+ * route. A tenant JWT presented straight to the storage API must be able to do neither.
+ */
+describe('the scheme-logos bucket is service_role only', () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const path = `rls-fixture/${crypto.randomUUID()}.png`;
+
+  beforeAll(async () => {
+    const { error } = await adminClient()
+      .storage.from('scheme-logos')
+      .upload(path, PNG, { contentType: 'image/png' });
+    if (error) throw error;
+  });
+
+  afterAll(async () => {
+    await adminClient().storage.from('scheme-logos').remove([path]);
+  });
+
+  it('refuses an upload from an org owner', async () => {
+    const { error } = await fixture.orgA.usersByRole.owner.client.storage
+      .from('scheme-logos')
+      .upload(`rls-fixture/${crypto.randomUUID()}.png`, PNG, { contentType: 'image/png' });
+    expect(error).not.toBeNull();
+  });
+
+  it('refuses a direct download from an org owner', async () => {
+    const { data, error } = await fixture.orgA.usersByRole.owner.client.storage
+      .from('scheme-logos')
+      .download(path);
+    expect(error).not.toBeNull();
+    expect(data).toBeNull();
+  });
+
+  it('refuses a delete from an org owner', async () => {
+    await fixture.orgA.usersByRole.owner.client.storage.from('scheme-logos').remove([path]);
+    const { data, error } = await adminClient().storage.from('scheme-logos').download(path);
+    expect(error).toBeNull();
+    expect(data).not.toBeNull();
+  });
+
+  it('is not a public bucket', async () => {
+    const { data, error } = await adminClient().storage.getBucket('scheme-logos');
+    expect(error).toBeNull();
+    expect(data?.public).toBe(false);
+  });
+
+  /** Migration 0028 added the banner and illustration under the same shape check. */
+  it.each(['logo_path', 'banner_path', 'illustration_path'])(
+    'refuses a %s that is a URL, even from the service role',
+    async (column) => {
+      const { error } = await adminClient()
+        .from('schemes_catalog')
+        .insert({
+          organization_id: null,
+          slug: `rls-image-url-${Date.now()}`,
+          category: 'welfare',
+          title: { en: 'Image URL', hi: 'चित्र यूआरएल' },
+          short_description: { en: 'x', hi: 'x' },
+          benefits_summary: { en: 'x', hi: 'x' },
+          benefit_highlight: { en: 'x', hi: 'x' },
+          portal_name: 'Fixture',
+          portal_url: 'https://example.test/',
+          is_always_open: true,
+          eligibility: {},
+          pitch_template: { en: 'x', hi: 'x' },
+          upcoming_pitch_template: { en: 'x', hi: 'x' },
+          is_published: false,
+          [column]: 'https://example.test/image.png',
+        });
+      expect(error?.code).toBe('23514');
+    },
+  );
+
+  /** Big enough for a banner (0028), and no bigger: the app's per-kind limits sit under it. */
+  it('caps uploads at 1 MB', async () => {
+    const { data, error } = await adminClient().storage.getBucket('scheme-logos');
+    expect(error).toBeNull();
+    expect(data?.file_size_limit).toBe(1048576);
+  });
+});

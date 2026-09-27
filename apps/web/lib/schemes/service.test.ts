@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { BUILT_IN_SCHEMES, type SchemeDefinition, type SchemeSchedule } from '@assistigo/core';
 import {
+  countByLifecycle,
   filterSchemes,
+  inheritPlatformArtwork,
+  isSchemeSort,
+  listingsForLifecycle,
   schemeFromRow,
   schemeStateOptions,
+  sortListings,
   type CatalogRow,
   type SchemeListing,
 } from './service';
@@ -163,6 +168,104 @@ describe('filterSchemes — lifecycle', () => {
   });
 });
 
+describe('countByLifecycle', () => {
+  const catalog = [
+    withSchedule('closing-soon', { applicationEndDate: '2026-09-06' }),
+    withSchedule('active-later', { applicationEndDate: '2026-10-30' }),
+    withSchedule('upcoming', { applicationStartDate: '2026-09-20' }),
+    withSchedule('evergreen', { isAlwaysOpen: true }),
+    withSchedule('closed', { applicationEndDate: '2026-08-30' }),
+  ];
+
+  it('counts each tab from the same pass that fills the grid', () => {
+    const all = filterSchemes(catalog, {}, TODAY);
+    const counts = countByLifecycle(all);
+
+    expect(counts).toEqual({ all: 4, open: 2, upcoming: 1, evergreen: 1 });
+    for (const lifecycle of ['all', 'open', 'upcoming', 'evergreen'] as const) {
+      expect(counts[lifecycle]).toBe(listingsForLifecycle(all, lifecycle).length);
+      expect(slugs(listingsForLifecycle(all, lifecycle))).toEqual(
+        slugs(filterSchemes(catalog, { lifecycle }, TODAY)),
+      );
+    }
+  });
+
+  it('counts nothing for an empty list', () => {
+    expect(countByLifecycle([])).toEqual({ all: 0, open: 0, upcoming: 0, evergreen: 0 });
+  });
+});
+
+describe('sortListings', () => {
+  const listing = (slug: string, en: string, fee: number): SchemeListing => ({
+    scheme: { ...withSchedule(slug, {}), title: { en, hi: en }, estimatedOperatorFee: fee },
+    status: 'active',
+    daysRemaining: null,
+    daysUntilOpen: null,
+  });
+  const input = [
+    listing('c', 'Charlie', 50),
+    listing('a', 'Alpha', 100),
+    listing('b', 'Bravo', 50),
+  ];
+
+  it('keeps the deadline order it was given', () => {
+    expect(slugs(sortListings(input, 'deadline'))).toEqual(['c', 'a', 'b']);
+  });
+
+  it('sorts by title', () => {
+    expect(slugs(sortListings(input, 'name'))).toEqual(['a', 'b', 'c']);
+  });
+
+  it('sorts by charge, keeping the deadline order between equal charges', () => {
+    expect(slugs(sortListings(input, 'fee'))).toEqual(['c', 'b', 'a']);
+  });
+
+  it('does not reorder the array it was given', () => {
+    sortListings(input, 'name');
+    expect(slugs(input)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('accepts only known sort keys from the URL', () => {
+    expect(isSchemeSort('fee')).toBe(true);
+    expect(isSchemeSort('latest')).toBe(false);
+  });
+});
+
+describe('inheritPlatformArtwork', () => {
+  const LOGO = 'ssc-cgl/0f8fad5b-d9cb-469f-a165-70867728950e.png';
+  const OWN_LOGO = 'ssc-cgl/1b4e28ba-2fa1-4d3b-a3f5-ef19b5a7633b.png';
+  const base = withSchedule('ssc-cgl', {});
+
+  it('keeps the platform logo on a scheme a centre has overridden', () => {
+    const platform = [{ ...base, logoPath: LOGO }];
+    const merged = [{ ...base, logoPath: null }];
+    expect(inheritPlatformArtwork(merged, platform)[0]?.logoPath).toBe(LOGO);
+  });
+
+  it('never replaces a logo the merged row already has', () => {
+    const platform = [{ ...base, logoPath: LOGO }];
+    const merged = [{ ...base, logoPath: OWN_LOGO }];
+    expect(inheritPlatformArtwork(merged, platform)[0]?.logoPath).toBe(OWN_LOGO);
+  });
+
+  it('leaves other schemes alone', () => {
+    const platform = [{ ...base, logoPath: LOGO }];
+    const other = withSchedule('ssc-chsl', {});
+    expect(inheritPlatformArtwork([other], platform)[0]?.logoPath).toBeUndefined();
+  });
+
+  it('keeps the platform banner and illustration too, each on its own', () => {
+    const BANNER = 'ssc-cgl/2c1b6f5e-0d6a-4b8e-9a51-3f0f4f3c9e11.jpg';
+    const ART = 'ssc-cgl/3d2c7a6f-1e7b-4c9f-8b62-4a1a5a4d0f22.webp';
+    const platform = [{ ...base, logoPath: LOGO, bannerPath: BANNER, illustrationPath: ART }];
+    const merged = [{ ...base, logoPath: OWN_LOGO, bannerPath: null }];
+    const [result] = inheritPlatformArtwork(merged, platform);
+    expect(result?.logoPath).toBe(OWN_LOGO);
+    expect(result?.bannerPath).toBe(BANNER);
+    expect(result?.illustrationPath).toBe(ART);
+  });
+});
+
 describe('schemeStateOptions', () => {
   it('lists only the states some scheme is actually restricted to, sorted', () => {
     const options = schemeStateOptions(BUILT_IN_SCHEMES);
@@ -196,7 +299,36 @@ describe('schemeFromRow', () => {
     pitch_template: { en: 'Apply for ₹{fee}.', hi: '₹{fee} में आवेदन।' },
     upcoming_pitch_template: { en: 'Opens in {days} days, ₹{fee}.', hi: '{days} दिन, ₹{fee}।' },
     is_published: true,
+    logo_path: null,
+    banner_path: null,
+    illustration_path: null,
   };
+
+  const LOGO = 'district-widow-pension/0f8fad5b-d9cb-469f-a165-70867728950e.webp';
+
+  it('carries the logo path', () => {
+    expect(schemeFromRow({ ...row, logo_path: LOGO })?.logoPath).toBe(LOGO);
+    expect(schemeFromRow(row)?.logoPath).toBeNull();
+  });
+
+  it('carries the banner and illustration paths, and drops malformed ones', () => {
+    const scheme = schemeFromRow({ ...row, banner_path: LOGO, illustration_path: LOGO });
+    expect(scheme?.bannerPath).toBe(LOGO);
+    expect(scheme?.illustrationPath).toBe(LOGO);
+
+    const bad = schemeFromRow({ ...row, banner_path: 'https://example.com/banner.jpg' });
+    expect(bad?.slug).toBe('district-widow-pension');
+    expect(bad?.bannerPath).toBeNull();
+  });
+
+  /** A logo is decoration; a bad one costs the card its picture, never the scheme. */
+  it('keeps the scheme and drops a malformed logo path', () => {
+    for (const bad of ['https://example.com/x.png', '../customer-documents/x.png', 'x.svg']) {
+      const scheme = schemeFromRow({ ...row, logo_path: bad });
+      expect(scheme?.slug).toBe('district-widow-pension');
+      expect(scheme?.logoPath).toBeNull();
+    }
+  });
 
   it('maps a stored row onto the schedule the evaluator reads', () => {
     const scheme = schemeFromRow(row);

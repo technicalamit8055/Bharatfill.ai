@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Badge, Card, Input, Spinner } from '@assistigo/ui';
 import { useTranslations } from '@/lib/i18n/client';
+import { SearchIcon } from './icons';
 
 type SearchResult = {
   id: string;
@@ -57,13 +58,15 @@ export function CustomerSearchBox() {
   }, [query]);
 
   return (
-    <div className="space-y-2">
+    <div className="relative">
       <div className="relative">
+        <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t('customers.searchPlaceholder')}
           aria-label={t('common.search')}
+          className="h-12 rounded-xl pl-12 pr-10 ring-slate-200"
         />
         {loading ? (
           <span className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -72,8 +75,12 @@ export function CustomerSearchBox() {
         ) : null}
       </div>
 
+      {/*
+        * Floats over the stat cards and table instead of pushing them down, so the list the
+        * operator was reading stays where it was while they type.
+        */}
       {results !== null ? (
-        <Card className="p-0">
+        <Card className="absolute inset-x-0 top-full z-20 mt-2 max-h-96 overflow-y-auto p-0 shadow-lg">
           {results.length === 0 ? (
             <p className="px-4 py-3 text-sm text-slate-500">{t('customers.empty')}</p>
           ) : (

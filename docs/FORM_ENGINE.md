@@ -157,6 +157,9 @@ type PortalAdapter = {
   portalName: string;
   formName: string;
   region?: string;
+  // Scheme-catalogue category, for the Form Library filter only; the mapper never reads it.
+  // No portal_adapters column yet: a database row inherits it from the built-in with its slug.
+  category?: 'recruitment' | 'welfare' | 'scholarship' | 'certificate' | 'business_loan';
   urlPatterns: string[]; // glob-ish: * within a segment, ** across; https://demo.example/*/apply
   version: string;
   status: 'draft' | 'testing' | 'active' | 'deprecated';

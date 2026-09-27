@@ -1,12 +1,21 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
-import { Badge, Button, Card, EmptyState, type Tone } from '@assistigo/ui';
+import { Badge, Button, type Tone } from '@assistigo/ui';
 import { formatInr } from '@assistigo/core';
 import { useI18n } from '@/lib/i18n/client';
 import type { SchemeMatchView, SchemeReportView } from '@/lib/schemes/view';
 import { whatsappLink } from '@/lib/schemes/view';
+import {
+  CopiedIcon,
+  CopyIcon,
+  EmptyListIcon,
+  ForwardIcon,
+  OpportunitiesIcon,
+  PitchIcon,
+} from '../icons';
 
 /**
  * The upsell widget an operator sees the moment a walk-in customer's profile opens.
@@ -247,9 +256,10 @@ export function CustomerSchemesWidget({
 
   if (opportunityCount === 0) {
     return (
-      <Card title={t('schemes.widgetTitle')}>
-        <EmptyState title={t('schemes.noneEligible')} description={t('schemes.noneEligibleHelp')} />
-      </Card>
+      <WidgetShell>
+        <WidgetHeading title={t('schemes.widgetTitle')} browseLabel={t('schemes.browseAll')} />
+        <TabEmpty title={t('schemes.noneEligible')} description={t('schemes.noneEligibleHelp')} />
+      </WidgetShell>
     );
   }
 
@@ -259,47 +269,59 @@ export function CustomerSchemesWidget({
     actionable: t('schemes.tabActionable', { count: report.actionableMissingDocs.length }),
   };
 
-  const TAB_EMPTY: Record<TabKey, string> = {
-    active: t('schemes.tabActiveEmpty'),
-    upcoming: t('schemes.tabUpcomingEmpty'),
-    actionable: t('schemes.tabActionableEmpty'),
+  const TAB_EMPTY: Record<TabKey, { title: string; description?: string }> = {
+    active: { title: t('schemes.tabActiveEmpty'), description: t('schemes.tabActiveEmptyHelp') },
+    upcoming: { title: t('schemes.tabUpcomingEmpty') },
+    actionable: { title: t('schemes.tabActionableEmpty') },
   };
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-900">
-            {t('schemes.opportunityCount', { count: opportunityCount })}
-          </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {t('schemes.feePotential', {
-              amount: formatInr(report.totalPotentialFee) ?? '—',
-            })}
-          </p>
-        </div>
-        <Link href="/schemes" className="text-xs text-brand-700 underline-offset-2 hover:underline">
-          {t('schemes.browseAll')}
-        </Link>
-      </div>
+    <WidgetShell>
+      <WidgetHeading
+        browseLabel={t('schemes.browseAll')}
+        title={t('schemes.opportunityCount', { count: opportunityCount })}
+        subtitle={t('schemes.feePotential', {
+          amount: formatInr(report.totalPotentialFee) ?? '—',
+        })}
+      />
 
       {pitchText ? (
-        <div className="mt-3 rounded-lg border border-brand-200 bg-brand-50 p-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-brand-800">
+        <div className="relative mt-4 overflow-hidden rounded-xl border border-brand-100 bg-gradient-to-r from-brand-50 via-sky-50 to-sky-100/70 p-4 md:pr-56">
+          {/*
+            * The megaphone-and-checklist artwork, right of the pitch. A JPEG on white, so
+            * `mix-blend-multiply` lets the tinted panel show through its background. Decorative,
+            * and hidden below `md` where the pitch needs the whole width.
+            */}
+          <Image
+            src="/customers/say-this-megaphone.png"
+            alt=""
+            aria-hidden
+            width={180}
+            height={134}
+            className="pointer-events-none absolute bottom-1 right-6 hidden h-20 w-auto select-none object-contain mix-blend-multiply md:block"
+          />
+
+          <div className="flex items-start justify-between gap-3">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-brand-700">
+              <PitchIcon className="h-4 w-4" />
               {t('schemes.pitchLabel')}
             </span>
-            <div className="flex items-center gap-1">
+            {/* Top right of the whole panel on wide screens, clear of the artwork. */}
+            <div
+              role="group"
+              aria-label={t('schemes.pitchLanguage')}
+              className="flex items-center gap-1 md:absolute md:right-4 md:top-3"
+            >
               {(['hi', 'en'] as const).map((option) => (
                 <button
                   key={option}
                   type="button"
                   onClick={() => setPitchLocale(option)}
                   aria-pressed={pitchLocale === option}
-                  className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
+                  className={`rounded-md px-2 py-0.5 text-xs font-semibold transition-colors ${
                     pitchLocale === option
                       ? 'bg-brand-600 text-white'
-                      : 'text-brand-800 hover:bg-brand-100'
+                      : 'text-brand-700 hover:bg-white/70'
                   }`}
                 >
                   {option === 'hi' ? 'हिंदी' : 'EN'}
@@ -307,14 +329,15 @@ export function CustomerSchemesWidget({
               ))}
             </div>
           </div>
-          <p lang={pitchLocale} className="mt-1.5 text-sm leading-relaxed text-slate-800">
+          <p lang={pitchLocale} className="mt-2 text-sm font-medium leading-relaxed text-slate-800">
             “{pitchText}”
           </p>
           <button
             type="button"
             onClick={copyPitch}
-            className="mt-2 text-xs text-brand-700 underline-offset-2 hover:underline"
+            className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 hover:text-brand-800"
           >
+            {copied ? <CopiedIcon className="h-3.5 w-3.5" /> : <CopyIcon className="h-3.5 w-3.5" />}
             {copied ? t('schemes.pitchCopied') : t('schemes.copyPitch')}
           </button>
         </div>
@@ -323,7 +346,7 @@ export function CustomerSchemesWidget({
       <div
         role="tablist"
         aria-label={t('schemes.widgetTitle')}
-        className="mt-4 flex flex-wrap gap-1 border-b border-slate-200"
+        className="mt-4 flex flex-wrap gap-2 border-b border-slate-200"
       >
         {tabs.map(({ key }) => (
           <button
@@ -332,10 +355,10 @@ export function CustomerSchemesWidget({
             role="tab"
             aria-selected={tab === key}
             onClick={() => setTab(key)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
+            className={`-mb-px border-b-2 px-4 py-2.5 text-sm transition-colors ${
               tab === key
-                ? 'border-brand-600 font-medium text-brand-800'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'border-brand-600 font-semibold text-brand-700'
+                : 'border-transparent font-medium text-slate-500 hover:text-slate-800'
             }`}
           >
             {TAB_LABELS[key]}
@@ -344,7 +367,7 @@ export function CustomerSchemesWidget({
       </div>
 
       {rows.length === 0 ? (
-        <p className="py-6 text-center text-sm text-slate-500">{TAB_EMPTY[tab]}</p>
+        <TabEmpty title={TAB_EMPTY[tab].title} description={TAB_EMPTY[tab].description} />
       ) : (
         <ul className="mt-3 space-y-2">
           {rows.map((match) => (
@@ -361,6 +384,51 @@ export function CustomerSchemesWidget({
       )}
 
       <p className="mt-3 text-xs text-slate-400">{t('schemes.verifyNotice')}</p>
-    </Card>
+    </WidgetShell>
+  );
+}
+
+function WidgetShell({ children }: { children: ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">{children}</section>
+  );
+}
+
+function WidgetHeading({
+  title,
+  subtitle,
+  browseLabel,
+}: {
+  title: string;
+  subtitle?: string;
+  browseLabel: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex min-w-0 items-start gap-3">
+        <OpportunitiesIcon className="mt-0.5 h-6 w-6 shrink-0 text-brand-600" />
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+          {subtitle ? <p className="mt-0.5 text-sm text-slate-600">{subtitle}</p> : null}
+        </div>
+      </div>
+      <Link
+        href="/schemes"
+        className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800"
+      >
+        {browseLabel}
+        <ForwardIcon className="h-3.5 w-3.5" />
+      </Link>
+    </div>
+  );
+}
+
+function TabEmpty({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className="flex flex-col items-center px-4 py-8 text-center">
+      <EmptyListIcon className="h-10 w-10 text-slate-300" />
+      <p className="mt-3 text-sm font-semibold text-slate-800">{title}</p>
+      {description ? <p className="mt-1 max-w-md text-xs text-slate-500">{description}</p> : null}
+    </div>
   );
 }

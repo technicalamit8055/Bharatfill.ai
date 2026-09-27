@@ -5,6 +5,7 @@ import {
   educationSatisfies,
   getBuiltInScheme,
   isIndianStateCode,
+  isSchemeLogoPath,
   matchCustomerToAllSchemes,
   matchSchemeToCustomers,
   mergeSchemes,
@@ -38,7 +39,7 @@ import type { CustomerRow, SchemesCatalogRow } from '../supabase/database.types'
 // ---------------------------------------------------------------------------
 
 const CATALOG_COLUMNS =
-  'id, organization_id, slug, category, title, short_description, benefits_summary, benefit_highlight, portal_name, portal_url, adapter_slug, official_notification_url, application_start_date, application_end_date, is_always_open, exam_date, estimated_operator_fee, eligibility, pitch_template, upcoming_pitch_template, is_published';
+  'id, organization_id, slug, category, title, short_description, benefits_summary, benefit_highlight, portal_name, portal_url, adapter_slug, official_notification_url, application_start_date, application_end_date, is_always_open, exam_date, estimated_operator_fee, eligibility, pitch_template, upcoming_pitch_template, is_published, logo_path, banner_path, illustration_path';
 
 export type CatalogRow = Pick<
   SchemesCatalogRow,
@@ -63,6 +64,9 @@ export type CatalogRow = Pick<
   | 'pitch_template'
   | 'upcoming_pitch_template'
   | 'is_published'
+  | 'logo_path'
+  | 'banner_path'
+  | 'illustration_path'
 >;
 
 /**
@@ -96,6 +100,12 @@ export function schemeFromRow(row: CatalogRow): SchemeDefinition | null {
     eligibility: row.eligibility,
     pitchTemplate: row.pitch_template,
     upcomingPitchTemplate: row.upcoming_pitch_template,
+    // Screened here rather than left to the schema. A logo is decoration: a bad path should cost
+    // the card its picture, not drop a scheme an operator is about to pitch. The column's check
+    // constraint makes this unreachable in practice.
+    logoPath: isSchemeLogoPath(row.logo_path) ? row.logo_path : null,
+    bannerPath: isSchemeLogoPath(row.banner_path) ? row.banner_path : null,
+    illustrationPath: isSchemeLogoPath(row.illustration_path) ? row.illustration_path : null,
   };
 
   const parsed = schemeDefinitionSchema.safeParse(candidate);
@@ -146,7 +156,42 @@ export async function loadSchemeCatalog(
     (row.organization_id === null ? platform : own).push(scheme);
   }
 
-  return mergeSchemes(own, mergeSchemes(platform, BUILT_IN_SCHEMES));
+  return inheritPlatformArtwork(
+    mergeSchemes(own, mergeSchemes(platform, BUILT_IN_SCHEMES)),
+    platform,
+  );
+}
+
+/**
+ * Keeps the platform images on a scheme a centre has overridden.
+ *
+ * A centre overrides a global scheme to correct a date or an age limit, not to change its
+ * pictures, and it has no way to upload one — the bucket is platform-only. Without this, fixing
+ * the closing date of SSC CGL would quietly swap its logo for the category icon and drop its
+ * banner. Each kind is inherited on its own: a row that somehow carries a logo still takes the
+ * platform's banner.
+ */
+const IMAGE_FIELDS = ['logoPath', 'bannerPath', 'illustrationPath'] as const;
+
+export function inheritPlatformArtwork(
+  merged: SchemeDefinition[],
+  platform: readonly SchemeDefinition[],
+): SchemeDefinition[] {
+  const bySlug = new Map<string, SchemeDefinition>();
+  for (const scheme of platform) {
+    if (IMAGE_FIELDS.some((field) => scheme[field])) bySlug.set(scheme.slug, scheme);
+  }
+  if (bySlug.size === 0) return merged;
+
+  return merged.map((scheme) => {
+    const source = bySlug.get(scheme.slug);
+    if (!source || source === scheme) return scheme;
+    let next = scheme;
+    for (const field of IMAGE_FIELDS) {
+      if (!scheme[field] && source[field]) next = { ...next, [field]: source[field] };
+    }
+    return next;
+  });
 }
 
 export async function loadScheme(
@@ -400,6 +445,61 @@ function compareListings(a: SchemeListing, b: SchemeListing): number {
     return (a.daysUntilOpen ?? 0) - (b.daysUntilOpen ?? 0);
   }
   return a.scheme.title.en.localeCompare(b.scheme.title.en);
+}
+
+/**
+ * How many listings each lifecycle tab would show, from one `all` pass.
+ *
+ * Counted from the listings already resolved by `filterSchemes` rather than by filtering the
+ * catalogue four more times, so a tab's count and the grid it opens are read from the same
+ * evaluation and cannot disagree.
+ */
+export function countByLifecycle(
+  listings: readonly SchemeListing[],
+): Record<SchemeLifecycleFilter, number> {
+  const counts = { all: 0, open: 0, upcoming: 0, evergreen: 0 };
+  for (const listing of listings) {
+    for (const filter of SCHEME_LIFECYCLE_FILTERS) {
+      if (LIFECYCLE_FILTER_MATCHES[filter](listing.status)) counts[filter] += 1;
+    }
+  }
+  return counts;
+}
+
+/** Keeps only the listings a lifecycle tab shows. The sort order from `filterSchemes` survives. */
+export function listingsForLifecycle(
+  listings: readonly SchemeListing[],
+  lifecycle: SchemeLifecycleFilter,
+): SchemeListing[] {
+  return listings.filter((listing) => LIFECYCLE_FILTER_MATCHES[lifecycle](listing.status));
+}
+
+/**
+ * The hub's sort orders. `deadline` is the default and is the order `filterSchemes` already
+ * returns; the others are for an operator scanning the list for a name or for the cheapest form.
+ */
+export const SCHEME_SORTS = ['deadline', 'name', 'fee'] as const;
+export type SchemeSort = (typeof SCHEME_SORTS)[number];
+
+export function isSchemeSort(value: string): value is SchemeSort {
+  return (SCHEME_SORTS as readonly string[]).includes(value);
+}
+
+export function sortListings(
+  listings: readonly SchemeListing[],
+  sort: SchemeSort,
+  locale: 'en' | 'hi' = 'en',
+): SchemeListing[] {
+  const sorted = [...listings];
+  if (sort === 'name') {
+    sorted.sort((a, b) =>
+      a.scheme.title[locale].localeCompare(b.scheme.title[locale], locale === 'hi' ? 'hi' : 'en'),
+    );
+  } else if (sort === 'fee') {
+    // Stable, so schemes at the same charge keep their deadline order.
+    sorted.sort((a, b) => a.scheme.estimatedOperatorFee - b.scheme.estimatedOperatorFee);
+  }
+  return sorted;
 }
 
 /** States any scheme in the catalogue is restricted to, for the hub's filter dropdown. */

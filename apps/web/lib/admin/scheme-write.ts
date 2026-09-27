@@ -6,6 +6,7 @@ import {
   schemeEligibilityCriteriaSchema,
   schemeScheduleSchema,
   type CandidateScheme,
+  type SchemeDefinition,
 } from '@assistigo/core';
 import type { Json } from '../supabase/database.types';
 
@@ -85,9 +86,14 @@ export type SchemeCatalogWrite = {
   upcoming_pitch_template: Json;
 };
 
-/** Scheme fields to database columns. Callers add `source`, `is_published` and provenance. */
+/**
+ * Scheme fields to database columns. Callers add `source`, `is_published` and provenance.
+ *
+ * `logo_path` is deliberately not among them: logos have their own upload action, and a save,
+ * a scraper publish or a built-in copy must never be able to set or clear one.
+ */
 export function toSchemeCatalogWrite(
-  scheme: AdminSchemeInput | CandidateScheme,
+  scheme: AdminSchemeInput | CandidateScheme | SchemeDefinition,
 ): SchemeCatalogWrite {
   return {
     slug: scheme.slug,

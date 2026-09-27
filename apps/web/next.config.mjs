@@ -11,6 +11,15 @@ const nextConfig = {
     '@assistigo/form-engine',
   ],
 
+  experimental: {
+    serverActions: {
+      // The default is 1 MB, and a scheme banner may itself be 1 MB (migration 0028) before the
+      // multipart envelope. The only Server Action that takes a file is the admin panel's scheme
+      // image upload, which re-checks the size per kind; customer documents go through /api.
+      bodySizeLimit: '2mb',
+    },
+  },
+
   typescript: {
     // Type errors fail the build. `npm run typecheck` is the fast local loop.
     ignoreBuildErrors: false,

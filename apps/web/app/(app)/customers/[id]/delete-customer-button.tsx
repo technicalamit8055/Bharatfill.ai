@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Alert, Button } from '@assistigo/ui';
 import { useTranslations } from '@/lib/i18n/client';
+import { DeleteIcon } from '../icons';
 
 export function DeleteCustomerButton({ customerId }: { customerId: string }) {
   const t = useTranslations();
@@ -35,6 +36,7 @@ export function DeleteCustomerButton({ customerId }: { customerId: string }) {
   if (!confirming) {
     return (
       <Button variant="danger" size="sm" onClick={() => setConfirming(true)}>
+        <DeleteIcon className="mr-1.5 h-4 w-4" />
         {t('common.delete')}
       </Button>
     );

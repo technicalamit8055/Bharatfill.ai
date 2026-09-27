@@ -1,15 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, cn } from '@assistigo/ui';
+import { cn } from '@assistigo/ui';
 import { useTranslations } from '@/lib/i18n/client';
+import { AddDetailsIcon } from '../icons';
+import { DetailCard } from './detail-card';
 import { PasteTextPanel } from './paste-text-panel';
 import { UploadDocumentPanel } from './upload-document-panel';
 
 type Mode = 'paste' | 'upload';
 
-const TAB_BASE = 'border-b-2 pb-2 text-sm font-medium';
-const TAB_ACTIVE = 'border-brand-600 text-brand-700';
+const TAB_BASE = '-mb-px border-b-2 px-3 pb-2.5 text-sm font-medium transition-colors';
+const TAB_ACTIVE = 'border-brand-600 font-semibold text-brand-700';
 const TAB_INACTIVE = 'border-transparent text-slate-500 hover:text-slate-700';
 
 /**
@@ -42,12 +44,12 @@ export function AddProfileInfo({
   const showTabs = canPaste && canUpload;
 
   return (
-    <Card title={t('customers.paste.title')}>
+    <DetailCard icon={AddDetailsIcon} tone="rose" title={t('customers.paste.title')}>
       {showTabs ? (
         <div
           role="tablist"
           aria-label={t('customers.paste.title')}
-          className="mb-4 flex gap-4 border-b border-slate-200"
+          className="mb-4 flex gap-2 border-b border-slate-200"
         >
           <button
             type="button"
@@ -74,6 +76,6 @@ export function AddProfileInfo({
       {mode === 'upload' && canUpload ? (
         <UploadDocumentPanel customerId={customerId} canReview={canReview} />
       ) : null}
-    </Card>
+    </DetailCard>
   );
 }

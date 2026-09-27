@@ -1,11 +1,59 @@
 'use client';
 
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-import { Alert, Button, Card, Field, Select, TextField, Textarea } from '@assistigo/ui';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentType,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Alert, Button, Field, Select, TextField, Textarea } from '@assistigo/ui';
 import { useTranslations } from '@/lib/i18n/client';
 import { buildEditDecisions, type EditableFieldMeta } from '@/lib/customers/edit-decisions';
+import {
+  AddressSectionIcon,
+  BankingSectionIcon,
+  CertificatesSectionIcon,
+  ContactSectionIcon,
+  EditIcon,
+  EducationSectionIcon,
+  FamilySectionIcon,
+  IdentitySectionIcon,
+  PermanentAddressSectionIcon,
+  PersonalSectionIcon,
+} from '../icons';
 import { CustomerProfileField } from './customer-profile-field';
+import {
+  DetailCard,
+  OUTLINE_BUTTON,
+  PROFILE_ANCHOR,
+  PROFILE_EDIT_PARAM,
+  type DetailTone,
+} from './detail-card';
+
+const SECTION_LOOK: Record<string, { icon: ComponentType<{ className?: string }>; tone: DetailTone }> =
+  {
+    personal: { icon: PersonalSectionIcon, tone: 'brand' },
+    family: { icon: FamilySectionIcon, tone: 'violet' },
+    contact: { icon: ContactSectionIcon, tone: 'sky' },
+    address: { icon: AddressSectionIcon, tone: 'emerald' },
+    permanent_address: { icon: PermanentAddressSectionIcon, tone: 'emerald' },
+    identity: { icon: IdentitySectionIcon, tone: 'rose' },
+    education: { icon: EducationSectionIcon, tone: 'violet' },
+    certificates: { icon: CertificatesSectionIcon, tone: 'amber' },
+    banking: { icon: BankingSectionIcon, tone: 'slate' },
+  };
+
+const DEFAULT_LOOK = { icon: PersonalSectionIcon, tone: 'slate' as const };
+
+/** Values an operator types into another form verbatim, so they get a copy button. */
+const COPYABLE_KEYS = new Set(['customer.full_name']);
+
+function sectionAnchor(section: string): string {
+  return `profile-${section.replace(/_/g, '-')}`;
+}
 
 export type ProfileFieldOption = { value: string; label: string };
 
@@ -50,20 +98,52 @@ export type ProfileSection = {
  */
 export function CustomerProfileSections({
   customerId,
+  customerCode,
   sections,
   canUpdate,
   canReveal,
 }: {
   customerId: string;
+  /** Shown read-only in the personal card; it is an identifier, not a profile field. */
+  customerCode: string;
   sections: ProfileSection[];
   canUpdate: boolean;
   canReveal: boolean;
 }) {
   const t = useTranslations();
   const router = useRouter();
-  const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const editRequested = canUpdate && searchParams.get(PROFILE_EDIT_PARAM) === '1';
+  const [mode, setMode] = useState<'view' | 'edit'>(editRequested ? 'edit' : 'view');
+  const [focusSection, setFocusSection] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The header's "Edit customer" link lands on this same page, so this instance survives the
+  // navigation — follow the flag rather than relying on the initial state alone.
+  useEffect(() => {
+    if (editRequested) setMode('edit');
+  }, [editRequested]);
+
+  // Scroll the section whose "Edit details" was pressed back into view once its form renders:
+  // the form is taller than the read-only card, so the operator would otherwise lose their place.
+  useEffect(() => {
+    if (mode !== 'edit' || !focusSection) return;
+    document.getElementById(sectionAnchor(focusSection))?.scrollIntoView({ block: 'start' });
+    setFocusSection(null);
+  }, [mode, focusSection]);
+
+  function startEdit(section: string) {
+    setFocusSection(section);
+    setMode('edit');
+  }
+
+  function leaveEdit() {
+    setMode('view');
+    setError(null);
+    if (searchParams.has(PROFILE_EDIT_PARAM)) router.replace(pathname, { scroll: false });
+  }
 
   const viewSections = useMemo(
     () =>
@@ -98,8 +178,7 @@ export function CustomerProfileSections({
 
     const decisions = buildEditDecisions(allFields, formValues);
     if (decisions.length === 0) {
-      setMode('view');
-      setError(null);
+      leaveEdit();
       return;
     }
 
@@ -121,7 +200,7 @@ export function CustomerProfileSections({
         return;
       }
 
-      setMode('view');
+      leaveEdit();
       router.refresh();
     } catch {
       setError('errors.internal');
@@ -130,62 +209,100 @@ export function CustomerProfileSections({
     }
   }
 
-  function cancelEdit() {
-    setMode('view');
-    setError(null);
-  }
-
   if (viewSections.length === 0 && !canUpdate) return null;
 
-  return (
-    <div className="space-y-6">
-      {canUpdate && mode === 'view' ? (
-        <div className="flex justify-end">
-          <Button variant="secondary" size="sm" type="button" onClick={() => setMode('edit')}>
-            {t('customers.editDetails')}
-          </Button>
-        </div>
-      ) : null}
+  const editButton = (section: string) =>
+    canUpdate ? (
+      <button type="button" onClick={() => startEdit(section)} className={OUTLINE_BUTTON}>
+        <EditIcon className="h-3.5 w-3.5" />
+        {t('customers.editDetails')}
+      </button>
+    ) : undefined;
 
+  return (
+    <div id={PROFILE_ANCHOR} className="scroll-mt-6 space-y-4">
       {mode === 'view'
-        ? viewSections.map((section) => (
-            <Card key={section.section} title={section.title}>
-              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {section.fields.map((field) => (
-                  <CustomerProfileField
-                    key={field.key}
-                    customerId={customerId}
-                    fieldKey={field.key}
-                    label={field.label}
-                    value={field.value}
-                    hasEncryptedValue={field.hasEncryptedValue}
-                    sensitive={field.sensitive}
-                    canReveal={canReveal}
-                  />
-                ))}
-              </dl>
-            </Card>
-          ))
+        ? viewSections.map((section) => {
+            const look = SECTION_LOOK[section.section] ?? DEFAULT_LOOK;
+            return (
+              <DetailCard
+                key={section.section}
+                id={sectionAnchor(section.section)}
+                icon={look.icon}
+                tone={look.tone}
+                title={section.title}
+                actions={editButton(section.section)}
+              >
+                <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {section.fields.flatMap((field) => {
+                    const entry = (
+                      <CustomerProfileField
+                        key={field.key}
+                        customerId={customerId}
+                        fieldKey={field.key}
+                        label={field.label}
+                        value={field.value}
+                        hasEncryptedValue={field.hasEncryptedValue}
+                        sensitive={field.sensitive}
+                        canReveal={canReveal}
+                        copyable={COPYABLE_KEYS.has(field.key)}
+                        className={field.dataType === 'longtext' ? 'sm:col-span-2' : undefined}
+                      />
+                    );
+                    // The customer code reads as part of who this person is, so it sits right
+                    // after their name rather than in a card of its own.
+                    return field.key === 'customer.full_name'
+                      ? [
+                          entry,
+                          <CustomerProfileField
+                            key="customer-code"
+                            customerId={customerId}
+                            fieldKey={null}
+                            label={t('customers.profile.customerCode')}
+                            value={customerCode}
+                            hasEncryptedValue={false}
+                            sensitive={false}
+                            canReveal={false}
+                            copyable
+                          />,
+                        ]
+                      : [entry];
+                  })}
+                </dl>
+              </DetailCard>
+            );
+          })
         : (
-            <form onSubmit={(event) => void handleSubmit(event)} className="space-y-6">
+            <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4">
               <Alert tone="info">{t('customers.editHelp')}</Alert>
               {error ? <Alert tone="danger">{t(error)}</Alert> : null}
 
-              {sections.map((section) => (
-                <Card key={section.section} title={section.title}>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {section.fields.map((field) => (
-                      <ProfileFieldInput key={field.key} field={field} />
-                    ))}
-                  </div>
-                </Card>
-              ))}
+              {sections.map((section) => {
+                const look = SECTION_LOOK[section.section] ?? DEFAULT_LOOK;
+                return (
+                  <DetailCard
+                    key={section.section}
+                    id={sectionAnchor(section.section)}
+                    icon={look.icon}
+                    tone={look.tone}
+                    title={section.title}
+                  >
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {section.fields.map((field) => (
+                        <ProfileFieldInput key={field.key} field={field} />
+                      ))}
+                    </div>
+                  </DetailCard>
+                );
+              })}
 
-              <div className="flex items-center gap-3">
+              {/* Pinned to the bottom of the viewport: nine sections of inputs is a long
+                  scroll, and the save button should not be at the end of it. */}
+              <div className="sticky bottom-4 z-10 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/95 px-5 py-3 shadow-lg backdrop-blur">
                 <Button type="submit" loading={pending}>
                   {t('common.save')}
                 </Button>
-                <Button type="button" variant="ghost" onClick={cancelEdit} disabled={pending}>
+                <Button type="button" variant="ghost" onClick={leaveEdit} disabled={pending}>
                   {t('common.cancel')}
                 </Button>
               </div>

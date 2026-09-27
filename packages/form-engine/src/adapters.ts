@@ -9,6 +9,7 @@
  */
 
 import { z } from 'zod';
+import { SCHEME_CATEGORIES } from '@assistigo/core';
 
 export const ADAPTER_STATUSES = ['draft', 'testing', 'active', 'deprecated'] as const;
 export type AdapterStatus = (typeof ADAPTER_STATUSES)[number];
@@ -55,6 +56,12 @@ export const portalAdapterSchema = z.object({
   portalName: z.string().min(1).max(160),
   formName: z.string().min(1).max(160),
   region: z.string().max(120).optional(),
+  /**
+   * What kind of form this is, on the same scale as the scheme catalogue, so the Form Library can
+   * be filtered the way operators already think about schemes. Display only: the mapper and the
+   * extension never read it.
+   */
+  category: z.enum(SCHEME_CATEGORIES).optional(),
   urlPatterns: z.array(z.string().max(400)).min(1).max(20),
   version: z.string().max(20),
   status: z.enum(ADAPTER_STATUSES),

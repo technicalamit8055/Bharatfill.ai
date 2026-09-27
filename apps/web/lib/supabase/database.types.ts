@@ -491,6 +491,12 @@ export type SchemesCatalogRow = Timestamps & {
   verified_at: string | null;
   verified_by: string | null;
   is_published: boolean;
+  /** Path in the private `scheme-logos` bucket (0027). Never a URL. */
+  logo_path: string | null;
+  /** Detail-page hero banner, same bucket and shape as `logo_path` (0028). */
+  banner_path: string | null;
+  /** Detail-page benefit illustration, same bucket and shape as `logo_path` (0028). */
+  illustration_path: string | null;
   created_by: string | null;
 };
 

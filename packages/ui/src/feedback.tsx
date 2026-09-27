@@ -94,11 +94,18 @@ export function EmptyState({
   title,
   description,
   action,
+  illustration,
   className,
 }: {
   title: string;
   description?: string;
   action?: ReactNode;
+  /**
+   * Optional artwork above the title. Decorative by contract: the caller passes an image with
+   * an empty alt, because the title below already says what the empty state means — a picture
+   * that repeats it would be read out twice.
+   */
+  illustration?: ReactNode;
   className?: string;
 }) {
   return (
@@ -108,6 +115,7 @@ export function EmptyState({
         className,
       )}
     >
+      {illustration ? <div className="mb-4">{illustration}</div> : null}
       <p className="text-sm font-medium text-slate-800">{title}</p>
       {description ? <p className="mt-1 max-w-md text-sm text-slate-500">{description}</p> : null}
       {action ? <div className="mt-4">{action}</div> : null}

@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { Badge, Card, EmptyState, type Tone } from '@assistigo/ui';
 import {
@@ -64,6 +65,16 @@ export function ApplicationsPipelineCard({
         <EmptyState
           title={t('dashboard.emptyApplications')}
           description={canCreate ? t('dashboard.emptyApplicationsHint') : undefined}
+          /* Decorative: the title beside it already carries the message. */
+          illustration={
+            <Image
+              src="/dashboard/empty-applications.png"
+              alt=""
+              width={1024}
+              height={1024}
+              className="h-32 w-auto select-none object-contain"
+            />
+          }
         />
       ) : (
         <ul className="space-y-2">

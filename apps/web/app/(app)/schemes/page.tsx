@@ -1,39 +1,46 @@
-import Link from 'next/link';
-import { Badge, Button, Card, EmptyState, type Tone } from '@assistigo/ui';
+import Image from 'next/image';
+import { FileText, GraduationCap, Landmark, UserRound, type LucideIcon } from 'lucide-react';
+import { EmptyState } from '@assistigo/ui';
 import {
   EDUCATION_LEVELS,
   EDUCATION_LEVEL_LABELS,
   SCHEME_CATEGORIES,
   SCHEME_CATEGORY_LABELS,
-  formatInr,
   isIndianStateCode,
   stateLabel,
 } from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
-import { localised, type Locale } from '@/lib/i18n';
+import { localised } from '@/lib/i18n';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
   SCHEME_LIFECYCLE_FILTERS,
+  SCHEME_SORTS,
+  countByLifecycle,
   filterSchemes,
   isLifecycleFilter,
+  isSchemeSort,
+  listingsForLifecycle,
   loadSchemeCatalog,
   schemeStateOptions,
-  type SchemeListing,
+  sortListings,
 } from '@/lib/schemes/service';
+import { SchemeCard } from './scheme-card';
 import { SchemesFilters } from './schemes-filters';
 
 export const metadata = { title: 'Schemes & vacancies' };
 
-const CATEGORY_TONE: Record<string, Tone> = {
-  recruitment: 'info',
-  welfare: 'success',
-  scholarship: 'warning',
-  certificate: 'neutral',
-  business_loan: 'neutral',
-};
-
-type Translate = (key: string, values?: Record<string, string | number>) => string;
+/**
+ * The banner's "what is in here" card. A legend, not a filter: "Government Schemes" and
+ * "Sarkari Yojana" are the same idea in two registers, and neither maps onto one catalogue
+ * category, so linking them would send an operator to a list that does not match the label.
+ */
+const HERO_CATEGORIES: { key: string; icon: LucideIcon; tone: string }[] = [
+  { key: 'governmentSchemes', icon: Landmark, tone: 'bg-violet-100 text-violet-700' },
+  { key: 'scholarships', icon: GraduationCap, tone: 'bg-rose-100 text-rose-600' },
+  { key: 'recruitment', icon: UserRound, tone: 'bg-brand-100 text-brand-700' },
+  { key: 'sarkariYojana', icon: FileText, tone: 'bg-emerald-100 text-emerald-700' },
+];
 
 /**
  * The Live & Upcoming Scheme Hub.
@@ -43,9 +50,9 @@ type Translate = (key: string, values?: Record<string, string | number>) => stri
  * who cannot see customers has no use for it, and giving it a laxer gate than the data it leads
  * to would be a hole.
  *
- * Lifecycle is resolved once, in `filterSchemes`, against a single `asOfDate`. Every badge and
- * the sort order read from that one evaluation, so a page rendered across midnight cannot show a
- * countdown that disagrees with the order it sorted in.
+ * Lifecycle is resolved once, in `filterSchemes`, against a single `asOfDate`. The tab counts,
+ * every badge and the grid all read from that one evaluation, so a page rendered across midnight
+ * cannot show a count or a countdown that disagrees with the list below it.
  */
 export default async function SchemesPage({
   searchParams,
@@ -61,22 +68,29 @@ export default async function SchemesPage({
     typeof value === 'string' ? value : '';
 
   const lifecycleParam = asString(params.lifecycle);
+  const sortParam = asString(params.sort);
   const query = {
     q: asString(params.q),
     category: asString(params.category),
     state: asString(params.state),
     education: asString(params.education),
     lifecycle: isLifecycleFilter(lifecycleParam) ? lifecycleParam : 'all',
-  };
+    sort: isSchemeSort(sortParam) ? sortParam : 'deadline',
+    view: asString(params.view) === 'list' ? 'list' : 'grid',
+  } as const;
 
   const catalog = await loadSchemeCatalog(supabase, session.organization.id);
-  const listings = filterSchemes(catalog, {
+  // Every other filter applies to the counts; only the lifecycle tab itself does not, so each
+  // tab can say how many schemes it would show.
+  const allOpen = filterSchemes(catalog, {
     q: query.q,
     category: query.category,
     state: query.state,
     education: query.education,
-    lifecycle: query.lifecycle,
+    lifecycle: 'all',
   });
+  const counts = countByLifecycle(allOpen);
+  const listings = sortListings(listingsForLifecycle(allOpen, query.lifecycle), query.sort, locale);
 
   const categories = SCHEME_CATEGORIES.map((value) => ({
     value,
@@ -92,14 +106,69 @@ export default async function SchemesPage({
   const lifecycleTabs = SCHEME_LIFECYCLE_FILTERS.map((value) => ({
     value,
     label: t(`schemes.lifecycleFilter.${value}`),
+    countLabel: t(counts[value] === 1 ? 'schemes.schemeCountOne' : 'schemes.schemeCount', {
+      count: counts[value],
+    }),
   }));
+  const sortOptions = SCHEME_SORTS.map((value) => ({ value, label: t(`schemes.sort.${value}`) }));
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-slate-900">{t('schemes.title')}</h1>
-        <p className="mt-1 text-sm text-slate-500">{t('schemes.subtitle')}</p>
-      </div>
+      <section className="relative overflow-hidden rounded-2xl border border-brand-100 bg-gradient-to-r from-[#e9f2fe] to-[#dbeafd]">
+        {/*
+         * The Parliament / tricolour / magnifier artwork, right-aligned behind the legend card.
+         * Decorative only, and hidden below `md`, where the banner is no wider than its heading.
+         *
+         * Drawn wider than its box and pinned to the right edge instead of `object-cover`: the
+         * left third of the source carries its own "Government Schemes" caption in English,
+         * which would clash with the translated heading, so it is cropped off and the seam is
+         * faded into the banner colour.
+         */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[560px] max-w-[62%] select-none overflow-hidden md:block"
+        >
+          <Image
+            src="/schemes/schemes-banner-hero.png"
+            alt=""
+            width={1376}
+            height={768}
+            priority
+            sizes="920px"
+            className="absolute right-0 top-1/2 h-auto w-[920px] max-w-none -translate-y-[53%]"
+          />
+          <div className="absolute inset-y-0 left-0 w-40 bg-gradient-to-r from-[#e3eefd] to-transparent" />
+        </div>
+
+        <div className="relative flex min-h-[168px] items-center justify-between gap-6 px-6 py-7 sm:px-8">
+          <div className="max-w-md xl:max-w-xl">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+              {t('schemes.title')}
+            </h1>
+            <p className="mt-2 text-sm text-slate-600 sm:text-base">{t('schemes.subtitle')}</p>
+          </div>
+
+          <ul
+            aria-label={t('schemes.heroCategoriesLabel')}
+            className="hidden w-52 shrink-0 space-y-1 rounded-xl border border-white/70 bg-white/90 p-3 shadow-sm backdrop-blur-sm xl:block"
+          >
+            {HERO_CATEGORIES.map(({ key, icon: Icon, tone }) => (
+              <li
+                key={key}
+                className="flex items-center gap-2.5 py-1 text-xs font-medium text-slate-700"
+              >
+                <span
+                  aria-hidden
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${tone}`}
+                >
+                  <Icon size={14} strokeWidth={2} />
+                </span>
+                {t(`schemes.heroCategories.${key}`)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
 
       <SchemesFilters
         query={query}
@@ -107,136 +176,37 @@ export default async function SchemesPage({
         states={states}
         educationLevels={educationLevels}
         lifecycleTabs={lifecycleTabs}
+        sortOptions={sortOptions}
       />
 
       {listings.length === 0 ? (
-        <Card>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <EmptyState
             title={t('schemes.hubEmpty')}
             description={t(
               query.lifecycle === 'upcoming' ? 'schemes.hubEmptyUpcoming' : 'schemes.hubEmptyHelp',
             )}
           />
-        </Card>
+        </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          className={
+            query.view === 'list' ? 'grid gap-4' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3'
+          }
+        >
           {listings.map((listing) => (
-            <SchemeCard key={listing.scheme.slug} listing={listing} locale={locale} t={t} />
+            <SchemeCard
+              key={listing.scheme.slug}
+              listing={listing}
+              locale={locale}
+              t={t}
+              layout={query.view}
+            />
           ))}
         </div>
       )}
 
       <p className="text-xs text-slate-400">{t('schemes.verifyNotice')}</p>
     </div>
-  );
-}
-
-/** The same honesty rule as the customer widget: no countdown until somebody entered a date. */
-function LifecycleBadge({ listing, t }: { listing: SchemeListing; t: Translate }) {
-  const closingLabel = (days: number): string =>
-    days === 0
-      ? t('schemes.closesToday')
-      : t(days === 1 ? 'schemes.closesInDay' : 'schemes.closesInDays', { days });
-
-  switch (listing.status) {
-    case 'closing_soon': {
-      const days = listing.daysRemaining ?? 0;
-      return <Badge tone={days <= 3 ? 'danger' : 'warning'}>{closingLabel(days)}</Badge>;
-    }
-    case 'upcoming': {
-      const days = listing.daysUntilOpen ?? 0;
-      return (
-        <Badge tone="info">
-          {t(days === 1 ? 'schemes.opensInDay' : 'schemes.opensInDays', { days })}
-        </Badge>
-      );
-    }
-    case 'evergreen':
-      return <Badge tone="neutral">{t('schemes.openAllYear')}</Badge>;
-    case 'active':
-      return listing.daysRemaining === null ? (
-        <Badge tone="neutral">{t('schemes.windowUnconfirmed')}</Badge>
-      ) : (
-        <Badge tone="info">{closingLabel(listing.daysRemaining)}</Badge>
-      );
-    default:
-      return null;
-  }
-}
-
-function SchemeCard({
-  listing,
-  locale,
-  t,
-}: {
-  listing: SchemeListing;
-  locale: Locale;
-  t: Translate;
-}) {
-  const { scheme } = listing;
-  const allowedStates = scheme.eligibility.allowedStates ?? [];
-  const minEducation = scheme.eligibility.minEducationLevel;
-
-  return (
-    <Card>
-      <div className="flex items-start justify-between gap-2">
-        <h2 className="min-w-0 text-sm font-semibold text-slate-900">
-          {localised(scheme.title, locale)}
-        </h2>
-        <Badge tone={CATEGORY_TONE[scheme.category] ?? 'neutral'}>
-          {localised(SCHEME_CATEGORY_LABELS[scheme.category], locale)}
-        </Badge>
-      </div>
-
-      <p className="mt-1.5 text-xs text-slate-500">{localised(scheme.shortDescription, locale)}</p>
-
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <LifecycleBadge listing={listing} t={t} />
-        <Badge tone="success">{localised(scheme.benefitHighlight, locale)}</Badge>
-        {allowedStates.length === 0 ? (
-          <Badge tone="neutral">{t('schemes.allIndia')}</Badge>
-        ) : (
-          allowedStates.map((code) => (
-            <Badge key={code} tone="neutral">
-              {localised(stateLabel(code), locale)}
-            </Badge>
-          ))
-        )}
-      </div>
-
-      <dl className="mt-3 space-y-1 text-xs text-slate-500">
-        {scheme.eligibility.minAge !== undefined || scheme.eligibility.maxAge !== undefined ? (
-          <div className="flex gap-1.5">
-            <dt className="font-medium text-slate-600">{t('schemes.criteria.age')}:</dt>
-            <dd>
-              {scheme.eligibility.minAge ?? '—'}–{scheme.eligibility.maxAge ?? '—'}
-            </dd>
-          </div>
-        ) : null}
-        {minEducation ? (
-          <div className="flex gap-1.5">
-            <dt className="font-medium text-slate-600">{t('schemes.criteria.education')}:</dt>
-            <dd>{localised(EDUCATION_LEVEL_LABELS[minEducation], locale)}</dd>
-          </div>
-        ) : null}
-        <div className="flex gap-1.5">
-          <dt className="font-medium text-slate-600">{t('schemes.criteria.fee')}:</dt>
-          <dd>{formatInr(scheme.estimatedOperatorFee) ?? '—'}</dd>
-        </div>
-      </dl>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Link href={`/schemes/${scheme.slug}`}>
-          <Button size="sm" variant="secondary">
-            {t('schemes.findCustomers')}
-          </Button>
-        </Link>
-        <a href={scheme.portalUrl} target="_blank" rel="noopener noreferrer">
-          <Button size="sm" variant="ghost">
-            {t('schemes.openPortal')}
-          </Button>
-        </a>
-      </div>
-    </Card>
   );
 }

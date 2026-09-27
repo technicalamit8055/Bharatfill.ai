@@ -1,6 +1,6 @@
 import { notFound as nextNotFound } from 'next/navigation';
 import Link from 'next/link';
-import { Badge, TBody, TD, TH, THead, TR, Table, Card } from '@assistigo/ui';
+import { Badge, TBody, TD, TH, THead, TR, Table, cn, type Tone } from '@assistigo/ui';
 import {
   CUSTOMER_FIELD_SECTIONS,
   fieldsInSection,
@@ -15,6 +15,7 @@ import { customerValuesFromRow } from '@/lib/customers/values';
 import { resolveRoamingAccess } from '@/lib/roaming/service';
 import type { AuditLogRow, CustomerRow } from '@/lib/supabase/database.types';
 import { buildCustomerSchemeReport } from '@/lib/schemes/service';
+import { activityDetail } from '@/lib/customers/activity';
 import { toReportView } from '@/lib/schemes/present';
 import { CustomerSchemesWidget } from './customer-schemes-widget';
 import { CustomerProfileSections, type ProfileSection } from './profile-sections';
@@ -25,6 +26,31 @@ import { AddProfileInfo } from './add-profile-info';
 import { DeleteCustomerButton } from './delete-customer-button';
 import { RoamingLockedCard } from './roaming-locked-card';
 import { RoamingActiveBanner } from './roaming-active-banner';
+import {
+  DetailCard,
+  DetailEmpty,
+  OUTLINE_BUTTON,
+  PROFILE_ANCHOR,
+  PROFILE_EDIT_PARAM,
+} from './detail-card';
+import { CustomerAvatar } from '../customer-avatar';
+import {
+  ActivityIcon,
+  BackIcon,
+  EditIcon,
+  NextIcon,
+  NotesIcon,
+  OperatorVerifiedIcon,
+} from '../icons';
+
+const VERIFICATION_TONE: Record<string, Tone> = {
+  unverified: 'neutral',
+  extracted: 'info',
+  operator_verified: 'success',
+  customer_confirmed: 'success',
+  expired: 'warning',
+  rejected: 'warning',
+};
 
 export const metadata = { title: 'Customer profile' };
 
@@ -132,37 +158,91 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
       })),
   }));
 
+  // Field key → label, so the activity log names a revealed field rather than echoing its key.
+  const fieldLabels = new Map(
+    sectionsData.flatMap((section) =>
+      section.fields.map((field) => [field.key, field.label] as const),
+    ),
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {isRoaming && access.session ? (
         <RoamingActiveBanner customerId={row.id} session={access.session} />
       ) : null}
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">{row.full_name}</h1>
-          <p className="mt-1 font-mono text-xs text-slate-500">{row.customer_code}</p>
+      <nav aria-label={t('customers.profile.breadcrumb')} className="flex items-center gap-3 text-sm">
+        <Link
+          href="/customers"
+          aria-label={t('common.back')}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50"
+        >
+          <BackIcon className="h-4 w-4" />
+        </Link>
+        <ol className="flex items-center gap-1.5 text-slate-500">
+          <li>
+            <Link href="/customers" className="hover:text-slate-800 hover:underline">
+              {t('customers.title')}
+            </Link>
+          </li>
+          <li aria-hidden>
+            <NextIcon className="h-3.5 w-3.5" />
+          </li>
+          <li aria-current="page" className="font-medium text-slate-700">
+            {row.customer_code}
+          </li>
+        </ol>
+      </nav>
+
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+        <div className="flex min-w-0 items-center gap-4">
+          <CustomerAvatar id={row.id} name={row.full_name} className="h-14 w-14 text-lg" />
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-bold text-slate-900">{row.full_name}</h1>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span className="font-mono">{row.customer_code}</span>
+              <span aria-hidden>•</span>
+              <Badge tone={VERIFICATION_TONE[row.verification_status] ?? 'neutral'} className="gap-1">
+                {row.verification_status === 'operator_verified' ||
+                row.verification_status === 'customer_confirmed' ? (
+                  <OperatorVerifiedIcon className="h-3 w-3" />
+                ) : null}
+                {row.verification_status in VERIFICATION_TONE
+                  ? t(`customers.verification.${row.verification_status}`)
+                  : row.verification_status}
+              </Badge>
+              {isRoaming ? <Badge tone="info">🌐 {t('customers.roaming.badge')}</Badge> : null}
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          {isRoaming ? <Badge tone="info">🌐 {t('customers.roaming.badge')}</Badge> : null}
-          <Badge tone="info">{row.verification_status}</Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          {canUpdate ? (
+            <Link
+              href={`?${PROFILE_EDIT_PARAM}=1#${PROFILE_ANCHOR}`}
+              className={cn(OUTLINE_BUTTON, 'h-9 px-3.5 text-sm')}
+            >
+              <EditIcon className="h-4 w-4" />
+              {t('customers.profile.editCustomer')}
+            </Link>
+          ) : null}
           {canDelete ? <DeleteCustomerButton customerId={row.id} /> : null}
         </div>
-      </div>
+      </section>
 
       <CustomerSchemesWidget customerId={row.id} mobile={row.mobile} report={schemeReport} />
 
       <CustomerProfileSections
         customerId={row.id}
+        customerCode={row.customer_code}
         sections={sectionsData}
         canUpdate={canUpdate}
         canReveal={canReveal}
       />
 
       {row.notes ? (
-        <Card title={t('customers.notes')}>
+        <DetailCard icon={NotesIcon} tone="amber" title={t('customers.notes')}>
           <p className="whitespace-pre-wrap text-sm text-slate-700">{row.notes}</p>
-        </Card>
+        </DetailCard>
       ) : null}
 
       {canUpdate || canUploadDocument ? (
@@ -178,7 +258,12 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
         // The customer's own organization_id, not the caller's: for a roaming session that is
         // the home centre, and `documents_select` (migration 0024) admits the read via the
         // live grant either way.
-        <CustomerDocuments customerId={row.id} organizationId={row.organization_id} />
+        <CustomerDocuments
+          customerId={row.id}
+          organizationId={row.organization_id}
+          canUpload={canUploadDocument}
+          canDownload={session.permissions.has('document.download')}
+        />
       ) : null}
 
       {/*
@@ -200,39 +285,49 @@ export default async function CustomerProfilePage({ params }: { params: Promise<
       ) : null}
 
       {session.permissions.has('audit.view') ? (
-        <Card title={t('customers.auditTrail')}>
+        <DetailCard
+          icon={ActivityIcon}
+          tone="orange"
+          title={t('customers.auditTrail')}
+          bodyClassName={auditLogs.length === 0 ? undefined : 'px-0 py-0'}
+        >
           {auditLogs.length === 0 ? (
-            <p className="text-sm text-slate-500">{t('customers.auditEmpty')}</p>
+            <DetailEmpty title={t('customers.auditEmpty')} />
           ) : (
             <Table>
               <THead>
                 <TR>
-                  <TH>{t('customers.auditAction')}</TH>
-                  <TH>{t('customers.created')}</TH>
+                  <TH className="pl-5">{t('customers.auditAction')}</TH>
+                  <TH>{t('customers.profile.auditDetails')}</TH>
+                  <TH className="pr-5">{t('customers.addedOn')}</TH>
                 </TR>
               </THead>
               <TBody>
-                {auditLogs.map((entry) => (
-                  <TR key={entry.id}>
-                    <TD>{t(`audit.actions.${entry.action}`)}</TD>
-                    <TD className="text-slate-500">
-                      {formatIndianDate(entry.created_at.slice(0, 10)) ?? '—'}
-                    </TD>
-                  </TR>
-                ))}
+                {auditLogs.map((entry) => {
+                  const detail = activityDetail(
+                    entry.action,
+                    entry.metadata,
+                    (key) => fieldLabels.get(key) ?? null,
+                  );
+                  return (
+                    <TR key={entry.id}>
+                      <TD className="pl-5 font-medium text-slate-800">
+                        {t(`audit.actions.${entry.action}`)}
+                      </TD>
+                      <TD className="text-slate-600">
+                        {detail ? t(detail.key, detail.values) : '—'}
+                      </TD>
+                      <TD className="pr-5 text-slate-500">
+                        {formatIndianDate(entry.created_at.slice(0, 10)) ?? '—'}
+                      </TD>
+                    </TR>
+                  );
+                })}
               </TBody>
             </Table>
           )}
-        </Card>
+        </DetailCard>
       ) : null}
-
-      {!canUpdate ? null : (
-        <p className="text-xs text-slate-400">
-          <Link href="/customers" className="hover:underline">
-            {t('common.back')}
-          </Link>
-        </p>
-      )}
     </div>
   );
 }

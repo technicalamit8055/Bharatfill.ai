@@ -83,6 +83,63 @@ export function bucketByIstDay<T extends { created_at: string }>(
 }
 
 /**
+ * The IST calendar month an instant falls in, as `YYYY-MM`. The month-scale sibling of
+ * `istDayKey`: a customer registered at 00:10 IST on the 1st joined in the new month.
+ */
+export function istMonthKey(instant: Date | string): string | null {
+  const date = toDate(instant);
+  if (!date) return null;
+  return shiftToIst(date).toISOString().slice(0, 7);
+}
+
+/**
+ * The instant of IST midnight on the 1st of a month, `monthsBack` months before the month `asOf`
+ * falls in. What a `created_at >= …` query needs to select "this month" in the centre's time.
+ */
+export function istMonthStart(asOf: Date = new Date(), monthsBack = 0): Date {
+  const ist = shiftToIst(asOf);
+  const back = Math.max(0, Math.trunc(monthsBack));
+  const startAsIstWallClock = Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth() - back, 1);
+  return new Date(startAsIstWallClock - IST_OFFSET_MINUTES * 60 * 1000);
+}
+
+/** The last `months` IST month keys, oldest first, ending with the month `asOf` falls in. */
+export function istMonthKeys(months: number, asOf: Date = new Date()): string[] {
+  const span = Math.max(0, Math.trunc(months));
+  const ist = shiftToIst(asOf);
+  const keys: string[] = [];
+  for (let offset = span - 1; offset >= 0; offset--) {
+    keys.push(
+      new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth() - offset, 1))
+        .toISOString()
+        .slice(0, 7),
+    );
+  }
+  return keys;
+}
+
+/** `bucketByIstDay`, one bucket per IST month. Rows outside the window are ignored. */
+export function bucketByIstMonth<T extends { created_at: string }>(
+  rows: readonly T[],
+  months: number,
+  asOf: Date = new Date(),
+): number[] {
+  const keys = istMonthKeys(months, asOf);
+  const index = new Map<string, number>();
+  keys.forEach((key, position) => index.set(key, position));
+
+  const buckets = new Array<number>(keys.length).fill(0);
+  for (const row of rows) {
+    const key = istMonthKey(row.created_at);
+    if (!key) continue;
+    const position = index.get(key);
+    if (position === undefined) continue;
+    buckets[position] = (buckets[position] ?? 0) + 1;
+  }
+  return buckets;
+}
+
+/**
  * Bar heights as percentages of the tallest bar, for the stat-card sparkline.
  *
  * A zero day still gets `minPercent` so the operator can see that the day existed and was quiet,
@@ -177,9 +234,17 @@ export function greetingKey(hour: number): string {
   return 'dashboard.greetingEvening';
 }
 
-/** Initials for the avatar chip: first and last word, so "Amit Kumar Singh" reads "AS". */
+/**
+ * Initials for the avatar chip: first and last word, so "Amit Kumar Singh" reads "AS".
+ *
+ * Punctuation is not a word, so a record typed as "सपना कुमारी (Sapna Kumari)" does not produce
+ * "सK". When a name carries a Latin rendering beside the Devanagari, the Latin words are used so
+ * the chip matches the transliteration next to it; a name in Devanagari alone keeps its letters.
+ */
 export function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const words = name.match(/[\p{L}\p{M}]+/gu) ?? [];
+  const latin = words.filter((word) => /^[A-Za-z]/.test(word));
+  const parts = latin.length > 0 ? latin : words;
   if (parts.length === 0) return '?';
   const first = parts[0]?.[0] ?? '';
   const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';

@@ -19,6 +19,12 @@ import type {
 export type PageSession = {
   userId: string;
   email: string | null;
+  /**
+   * What the header calls this person. Nothing in our schema stores a name — sign-up asks for
+   * an email only — so this is the name an identity provider supplied, else the email's local
+   * part. Display only; never used to identify anyone.
+   */
+  displayName: string;
   organization: OrganizationRow;
   membership: OrganizationMemberRow;
   role: OrgRole;
@@ -49,6 +55,16 @@ export async function getMemberships() {
   return (data ?? []) as unknown as MembershipWithOrganization[];
 }
 
+/** Provider-supplied name if there is a usable one, else the part of the email before the @. */
+function displayNameFor(metadata: unknown, email: string | undefined): string {
+  const fields = (metadata ?? {}) as Record<string, unknown>;
+  for (const key of ['full_name', 'name']) {
+    const value = fields[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return email?.split('@')[0] || 'Operator';
+}
+
 /**
  * Requires a signed-in user who belongs to an organization.
  * Redirects to sign-in or onboarding rather than throwing, because this runs during render.
@@ -67,6 +83,7 @@ export async function requireSession(): Promise<PageSession> {
   return {
     userId: user.id,
     email: user.email ?? null,
+    displayName: displayNameFor(user.user_metadata, user.email),
     organization: organizations,
     membership: membership as OrganizationMemberRow,
     role,

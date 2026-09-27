@@ -43,7 +43,18 @@
     "fillSessions": "फिल सेशन",
     "billing": "बिलिंग",
     "settings": "सेटिंग्स",
-    "admin": "एडमिन"
+    "admin": "एडमिन",
+    "digitalIndiaTitle": "डिजिटल इंडिया",
+    "digitalIndiaTagline": "नागरिकों को सशक्त बनाना",
+    "supportTitle": "मदद चाहिए?",
+    "supportHint": "हमारी सहायता टीम यहाँ है",
+    "supportCta": "सहायता से संपर्क करें"
+  },
+  "header": {
+    "accountMenu": "खाता मेनू",
+    "notifications": "सूचनाएँ",
+    "nothingWaiting": "समीक्षा के लिए कुछ बाकी नहीं",
+    "reviewsWaiting": "{count} निष्कर्षण समीक्षा की प्रतीक्षा में"
   },
   "auth": {
     "signIn": "साइन इन",
@@ -265,15 +276,15 @@
     "editKeepEncrypted": "मौजूदा मान रखने के लिए खाली छोड़ें",
     "editSetEncrypted": "कुछ न हो तो खाली छोड़ें, या सेव करने के लिए मान लिखें",
     "sections": {
-      "personal": "व्यक्तिगत",
-      "family": "परिवार",
-      "contact": "संपर्क",
-      "address": "पता",
+      "personal": "व्यक्तिगत जानकारी",
+      "family": "परिवार का विवरण",
+      "contact": "संपर्क विवरण",
+      "address": "पते की जानकारी",
       "permanent_address": "स्थायी पता",
-      "identity": "पहचान",
+      "identity": "पहचान दस्तावेज़",
       "education": "शिक्षा",
       "certificates": "प्रमाण पत्र",
-      "banking": "बैंकिंग"
+      "banking": "बैंक विवरण"
     },
     "paste": {
       "title": "ग्राहक की जानकारी जोड़ें",
@@ -348,7 +359,62 @@
       "resendCode": "कोड दोबारा भेजें",
       "verifyAndUnlock": "सत्यापित करें और अनलॉक करें",
       "activeUntil": "रोमिंग पहुँच सक्रिय: {remaining} शेष",
-      "endSession": "लॉक करें और सत्र समाप्त करें"
+      "endSession": "लॉक करें और सत्र समाप्त करें",
+      "tabRoamingCount": "रोमिंग ग्राहक ({count})"
+    },
+    "heroSubtitle": "अपने ग्राहकों को संभालें, उनका विवरण देखें और फ़ॉर्म भरने व आवेदन में उनकी मदद करें।",
+    "addedOn": "जोड़ने की तिथि",
+    "actions": "कार्रवाई",
+    "openProfile": "{name} की प्रोफ़ाइल खोलें",
+    "emptyFilter": "इस अवधि में कोई ग्राहक नहीं जोड़ा गया।",
+    "tabAllCount": "सभी ग्राहक ({count})",
+    "stats": {
+      "total": "कुल ग्राहक",
+      "totalHint": "सभी पंजीकृत ग्राहक",
+      "growth": "इस महीने +{percent}%",
+      "verified": "सत्यापित ग्राहक",
+      "verifiedHint": "ऑपरेटर या ग्राहक द्वारा जाँचे गए",
+      "newThisMonth": "इस महीने नए",
+      "joinedIn": "{month} में जुड़े",
+      "monthlyBars": "नए ग्राहक, पिछले 6 महीने",
+      "fromState": "{state} से",
+      "topStateHint": "सबसे ज़्यादा ग्राहक",
+      "topState": "शीर्ष राज्य",
+      "noState": "अभी कोई पता दर्ज नहीं"
+    },
+    "filter": {
+      "button": "फ़िल्टर",
+      "added": "जोड़ा गया",
+      "any": "कभी भी",
+      "7d": "पिछले 7 दिन",
+      "30d": "पिछले 30 दिन",
+      "90d": "पिछले 90 दिन"
+    },
+    "pagination": {
+      "label": "पेज",
+      "showing": "{total} में से {from} से {to} ग्राहक दिखाए जा रहे हैं",
+      "rowsPerPage": "प्रति पेज पंक्तियाँ",
+      "previous": "पिछला पेज",
+      "next": "अगला पेज",
+      "page": "पेज {page}"
+    },
+    "profile": {
+      "breadcrumb": "ब्रेडक्रंब",
+      "customerCode": "ग्राहक कोड",
+      "editCustomer": "ग्राहक संपादित करें",
+      "copyValue": "{label} कॉपी करें",
+      "auditDetails": "विवरण",
+      "applicationsEmptyHelp": "इस ग्राहक के सभी फ़ॉर्म आवेदन यहाँ दिखेंगे।",
+      "fillSessionsEmptyHelp": "इस ग्राहक के फ़ॉर्म कब भरे गए, यह यहाँ दिखेगा।"
+    },
+    "activity": {
+      "created": "ग्राहक प्रोफ़ाइल बनाई गई",
+      "createdFromDocument": "दस्तावेज़ से ग्राहक प्रोफ़ाइल बनाई गई",
+      "updated": "प्रोफ़ाइल विवरण अपडेट किया गया",
+      "updatedField": "1 प्रोफ़ाइल फ़ील्ड अपडेट की गई",
+      "updatedFields": "{count} प्रोफ़ाइल फ़ील्ड अपडेट की गईं",
+      "revealed": "एक छिपी फ़ील्ड देखी गई",
+      "revealedField": "{field} देखा गया"
     }
   },
   "applications": {
@@ -410,7 +476,21 @@
       "formName": "फॉर्म का नाम",
       "portalUrl": "पोर्टल यूआरएल",
       "create": "आवेदन बनाएं",
-      "creating": "बनाया जा रहा है…"
+      "creating": "बनाया जा रहा है…",
+      "customerRequired": "इस आवेदन के लिए ग्राहक चुनें।",
+      "changeCustomer": "बदलें",
+      "newCustomer": "नया ग्राहक",
+      "browseTemplates": "टेम्पलेट देखें",
+      "portalNamePlaceholder": "जैसे नेशनल स्कॉलरशिप पोर्टल",
+      "formNamePlaceholder": "जैसे प्री-मैट्रिक छात्रवृत्ति फॉर्म",
+      "portalUrlPlaceholder": "https://example.gov.in",
+      "feePlaceholder": "जैसे 0, 50, 100…",
+      "paymentStatusPlaceholder": "— स्थिति चुनें —",
+      "notesPlaceholder": "इस आवेदन के बारे में ज़रूरी टिप्पणियाँ लिखें…",
+      "notesCount": "{count}/{max}",
+      "clear": "फॉर्म साफ़ करें",
+      "saveDraft": "ड्राफ्ट सहेजें",
+      "savingDraft": "सहेजा जा रहा है…"
     },
     "detail": {
       "customerCard": "ग्राहक",
@@ -445,6 +525,12 @@
       "attached": "संलग्न",
       "missing": "गुम",
       "rejected": "अस्वीकृत"
+    },
+    "newPage": {
+      "back": "आवेदनों पर वापस जाएं",
+      "subtitle": "ग्राहक के लिए नया आवेदन बनाएं और उसे आसानी से ट्रैक करें।",
+      "tipsTitle": "सुझाव",
+      "tipsBody": "समय बचाने के लिए ग्राहक और फॉर्म टेम्पलेट चुनें — टेम्पलेट पोर्टल का विवरण और दस्तावेज़ सूची भर देता है।"
     }
   },
   "formLibrary": {
@@ -461,6 +547,19 @@
     },
     "healthLabel": "फिल सफलता दर",
     "healthUnknown": "अभी पर्याप्त डेटा नहीं है",
+    "statusLabel": "स्थिति",
+    "category": "श्रेणी",
+    "categoryAll": "सभी श्रेणियां",
+    "maintainedByPlatform": "Bharatfill द्वारा प्रबंधित",
+    "mappedFields": "{count} मैप किए गए फ़ील्ड",
+    "mappedFieldsOne": "{count} मैप किया गया फ़ील्ड",
+    "documentCount": "{count} दस्तावेज़",
+    "documentCountOne": "{count} दस्तावेज़",
+    "viewLabel": "लेआउट",
+    "view": {
+      "grid": "ग्रिड व्यू",
+      "list": "सूची व्यू"
+    },
     "viewSpecs": "विवरण देखें",
     "launchPortal": "पोर्टल खोलें",
     "createApplication": "आवेदन बनाएं",
@@ -531,7 +630,7 @@
     "tabActive": "अभी आवेदन योग्य ({count})",
     "tabUpcoming": "जल्द खुलने वाली ({count})",
     "tabActionable": "दस्तावेज़ से खुलेंगी ({count})",
-    "tabActiveEmpty": "अभी कुछ भी पूरी तरह तैयार नहीं है — दूसरे टैब देखिए।",
+    "tabActiveEmpty": "अभी कुछ भी खुला और पूरी तरह तैयार नहीं है",
     "tabUpcomingEmpty": "अभी कोई घोषित तिथि नहीं है। किसी योजना की तिथियां जोड़ें, वह यहां दिखने लगेगी।",
     "tabActionableEmpty": "किसी दस्तावेज़ का इंतज़ार नहीं है।",
     "noneEligible": "अभी कोई मिलती-जुलती योजना नहीं",
@@ -609,7 +708,60 @@
     "verifyNotice": "यहां दी गई पात्रता सहेजी गई प्रोफ़ाइल पर आधारित एक मार्गदर्शन है। शुल्क लेने से पहले आधिकारिक अधिसूचना पर वर्तमान नियम अवश्य जांचें।",
     "invalid_slug": "केवल छोटे अक्षर, अंक और हाइफ़न का प्रयोग करें।",
     "invalid_age_range": "न्यूनतम आयु अधिकतम आयु से अधिक नहीं हो सकती।",
-    "invalid_schedule_window": "प्रारंभ तिथि समापन तिथि से पहले या उसी दिन होनी चाहिए।"
+    "invalid_schedule_window": "प्रारंभ तिथि समापन तिथि से पहले या उसी दिन होनी चाहिए।",
+    "tabActiveEmptyHelp": "आने वाले और दस्तावेज़ पर निर्भर अवसरों के लिए दूसरे टैब देखिए।",
+    "pitchLanguage": "पिच की भाषा",
+    "heroCategoriesLabel": "यहाँ क्या मिलेगा",
+    "heroCategories": {
+      "governmentSchemes": "सरकारी योजनाएँ",
+      "scholarships": "छात्रवृत्तियाँ",
+      "recruitment": "भर्ती",
+      "sarkariYojana": "सरकारी योजना"
+    },
+    "schemeCountOne": "{count} योजना",
+    "schemeCount": "{count} योजनाएँ",
+    "sortLabel": "क्रम",
+    "sort": {
+      "deadline": "पहले बंद होने वाली",
+      "name": "नाम (अ–ज्ञ)",
+      "fee": "सबसे कम शुल्क"
+    },
+    "viewLabel": "लेआउट",
+    "view": {
+      "grid": "ग्रिड व्यू",
+      "list": "सूची व्यू"
+    },
+    "ageShort": "आयु: {range}",
+    "ageFrom": "{min}+",
+    "ourCharge": "हमारा शुल्क:",
+    "detail": {
+      "back": "योजनाएं एवं भर्तियां पर वापस",
+      "benefitEyebrow": "लाभ",
+      "tagsLabel": "इस योजना के बारे में",
+      "tags": {
+        "health": "स्वास्थ्य",
+        "familySupport": "परिवार सहायता",
+        "governmentScheme": "सरकारी योजना"
+      },
+      "benefitChecklist": "लाभ एक नज़र में",
+      "searchPlaceholder": "इस योजना में खोजें…",
+      "searchLabel": "पात्र ग्राहकों को नाम या कोड से खोजें",
+      "noSearchResults": "“{query}” से कोई पात्र ग्राहक नहीं मिला।",
+      "addCustomer": "ग्राहक जोड़ें",
+      "viewCustomer": "{name} खोलें",
+      "moreActions": "{name} के लिए और विकल्प",
+      "startApplication": "आवेदन शुरू करें",
+      "art": {
+        "pmjay": {
+          "coverEyebrow": "स्वास्थ्य कवर अधिकतम",
+          "coverSuffix": "प्रति परिवार प्रति वर्ष",
+          "benefitCashless": "सूचीबद्ध अस्पतालों में नकदी रहित इलाज",
+          "benefitNoPremium": "कोई प्रीमियम नहीं",
+          "benefitCare": "द्वितीयक एवं तृतीयक उपचार शामिल",
+          "benefitFamilies": "पात्र कम आय वाले परिवारों के लिए"
+        }
+      }
+    }
   },
   "fillSessions": {
     "title": "फिल सेशन",
@@ -1032,7 +1184,10 @@
       "aiNotice": "AI रीडर इस दस्तावेज़ को पढ़ने के लिए बाहरी AI प्रदाता को भेजता है। यह तभी चलता है जब आपके वर्कस्पेस मालिक ने AI प्रोसेसिंग चालू की हो।",
       "activeVendor": "अभी इससे पढ़ा जाता है: {vendor}।",
       "aiNotConfigured": "इस वर्कस्पेस के लिए AI से पढ़ना अभी सेट नहीं है। वर्कस्पेस मालिक इसे AI सेटिंग्स में सेट कर सकते हैं।"
-    }
+    },
+    "download": "डाउनलोड",
+    "viewNamed": "{name} देखें",
+    "downloadNamed": "{name} डाउनलोड करें"
   },
   "legal": {
     "privacy": "गोपनीयता नीति",
@@ -1428,7 +1583,48 @@
       "unpublish": "अप्रकाशित करें",
       "delete": "योजना हटाएँ",
       "confirmDelete": "यह वैश्विक योजना हटाएँ? हर केंद्र से यह तुरंत हट जाएगी और इसे वापस नहीं लाया जा सकता।",
-      "builtInFallbackNote": "जिस पंक्ति का स्लग किसी अंतर्निहित योजना से मेल खाता है, उसे हटाने पर वह अंतर्निहित योजना लागू हो जाती है, जिसमें कोई आवेदन तिथि नहीं होती।"
+      "builtInFallbackNote": "जिस पंक्ति का स्लग किसी अंतर्निहित योजना से मेल खाता है, उसे हटाने पर वह अंतर्निहित योजना लागू हो जाती है, जिसमें कोई आवेदन तिथि नहीं होती।",
+      "logoTitle": "लोगो",
+      "logoHelp": "योजनाएँ और भर्तियाँ हब में इस योजना के कार्ड पर दिखता है। लोगो न होने पर कार्ड पर श्रेणी का आइकन दिखता है।",
+      "logoRules": "वर्गाकार PNG, JPEG या WebP, कम से कम 128 × 128 px, अधिकतम 256 KB। केवल वही चित्र अपलोड करें जिसके उपयोग की अनुमति आपके पास है।",
+      "logoCurrent": "वर्तमान लोगो",
+      "logoNone": "कोई लोगो नहीं",
+      "logoPick": "लोगो फ़ाइल चुनें",
+      "logoUpload": "लोगो अपलोड करें",
+      "logoReplace": "लोगो बदलें",
+      "logoRemove": "लोगो हटाएँ",
+      "logoSaved": "लोगो सहेजा गया। यह योजना जहाँ प्रकाशित है, वहाँ हब में दिखेगा।",
+      "logoRemoved": "लोगो हटाया गया। कार्ड पर फिर से श्रेणी का आइकन दिखेगा।",
+      "logoMissing": "पहले एक चित्र फ़ाइल चुनें।",
+      "logoTooLarge": "यह फ़ाइल 256 KB से बड़ी है। छोटा संस्करण बनाकर फिर से प्रयास करें।",
+      "logoWrongType": "केवल PNG, JPEG और WebP चित्र स्वीकार किए जाते हैं।",
+      "copyBuiltIn": "कैटलॉग में जोड़ें",
+      "imagesTitle": "योजना चित्र",
+      "imagesHelp": "हब कार्ड पर लोगो, और इस योजना के विवरण पेज पर बैनर व चित्र। सभी वैकल्पिक हैं और दोबारा प्रकाशित किए बिना तुरंत बदलते हैं।",
+      "bannerTitle": "विवरण पेज बैनर",
+      "bannerHelp": "योजना के विवरण पेज के ऊपरी हिस्से के पीछे चौड़ा चित्र। बैनर न होने पर हेडर सादे नीले रंग में दिखता है।",
+      "bannerRules": "चौड़ा PNG, JPEG या WebP, लगभग 1376 × 768 px, अधिकतम 1 MB। बायाँ एक-तिहाई हिस्सा सादा रखें — शीर्षक उसी पर आता है — और चित्र में शब्द न रखें, उनका अनुवाद नहीं हो सकता। केवल वही चित्र अपलोड करें जिसके उपयोग की अनुमति आपके पास है।",
+      "bannerCurrent": "वर्तमान बैनर",
+      "bannerNone": "कोई बैनर नहीं",
+      "bannerPick": "बैनर फ़ाइल चुनें",
+      "bannerUpload": "बैनर अपलोड करें",
+      "bannerReplace": "बैनर बदलें",
+      "bannerRemove": "बैनर हटाएँ",
+      "bannerSaved": "बैनर सहेजा गया। यह योजना जहाँ प्रकाशित है, वहाँ विवरण पेज पर दिखेगा।",
+      "bannerRemoved": "बैनर हटाया गया। विवरण पेज का हेडर फिर से सादा दिखेगा।",
+      "bannerTooLarge": "यह फ़ाइल 1 MB से बड़ी है। छोटा संस्करण बनाकर फिर से प्रयास करें।",
+      "illustrationTitle": "लाभ चित्र",
+      "illustrationHelp": "विवरण पेज पर “ग्राहक को क्या मिलेगा” के पास दिखने वाला चित्र। छोटी स्क्रीन पर छिपा रहता है।",
+      "illustrationRules": "सफ़ेद या पारदर्शी पृष्ठभूमि पर वर्गाकार PNG, JPEG या WebP, कम से कम 512 × 512 px, अधिकतम 512 KB। केवल वही चित्र अपलोड करें जिसके उपयोग की अनुमति आपके पास है।",
+      "illustrationCurrent": "वर्तमान चित्र",
+      "illustrationNone": "कोई चित्र नहीं",
+      "illustrationPick": "चित्र फ़ाइल चुनें",
+      "illustrationUpload": "चित्र अपलोड करें",
+      "illustrationReplace": "चित्र बदलें",
+      "illustrationRemove": "चित्र हटाएँ",
+      "illustrationSaved": "चित्र सहेजा गया। यह योजना जहाँ प्रकाशित है, वहाँ विवरण पेज पर दिखेगा।",
+      "illustrationRemoved": "चित्र हटाया गया।",
+      "illustrationTooLarge": "यह फ़ाइल 512 KB से बड़ी है। छोटा संस्करण बनाकर फिर से प्रयास करें।"
     },
     "deadlines": {
       "title": "सक्रिय समय-सीमाएँ",

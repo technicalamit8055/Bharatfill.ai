@@ -53,6 +53,8 @@ only consumer, in `apps/web/lib/supabase/database.types.ts`.
 | `0024_roaming_customers_and_access_grants.sql` | `customer_roaming_links`, `customer_access_grants`, `customer_access_challenges`, grant helpers, roaming RPCs; `roaming_access` consent subject; grant clause on four tenant tables' select policies + storage read |
 | `0025_document_drop_roaming_intake.sql`        | second arm on `documents_insert` and a `storage.objects` insert policy, so a live grant holder can add a document to the customer's home org                                                                        |
 | `0026_allow_full_aadhaar.sql`                  | `reject_full_aadhaar()` reduced to the `aadhaar_last4` format check; `settings.allow_full_aadhaar` default and backfill set to `true` (key no longer read)                                                          |
+| `0027_scheme_logos.sql`                        | `schemes_catalog.logo_path` (shape-checked `<slug>/<uuid>.<png|jpg|webp>`); private `scheme-logos` bucket, 256 KB, PNG/JPEG/WebP, no storage policies                                                            |
+| `0028_scheme_artwork.sql`                      | `schemes_catalog.banner_path` and `illustration_path` (same shape check as `logo_path`) for the scheme detail page; `scheme-logos` bucket limit raised to 1 MB                                                    |
 
 Seed data is **separate from migrations** (`packages/database/src/seed/`), per spec §25.4.
 
@@ -201,6 +203,15 @@ windows, a centre's local schemes, and corrections. Precedence copies `portal_ad
 - Tenant writes are owner/manager on their own org rows only; global rows are service_role only,
   by omission. There is currently no tenant UI that writes org rows — only the `/admin` panel and
   the seed write this table.
+- `logo_path` (0027) is an object path in the private `scheme-logos` bucket, never a URL, so a row
+  cannot point browsers at a third-party host. It is set only by the admin panel's artwork card,
+  apart from the editor form, and an org override inherits the platform row's images
+  (`inheritPlatformArtwork`). A built-in gets a logo by being copied into a global draft row first
+  ("Add to catalogue" on `/admin/schemes`).
+- `banner_path` and `illustration_path` (0028) follow the same rules in the same bucket: the
+  detail page's hero banner and the picture beside "What the customer gets". Each kind is
+  inherited on its own, and an upload outranks any artwork bundled in
+  `apps/web/lib/schemes/artwork.ts` (`resolveSchemeImages`).
 
 ### Platform staff tables (0021)
 

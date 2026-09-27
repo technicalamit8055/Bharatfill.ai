@@ -6,6 +6,7 @@ import { Alert, Badge, Button, Input, Textarea } from '@assistigo/ui';
 import { useI18n, useTranslations } from '@/lib/i18n/client';
 import { formatConfidence } from '@/lib/documents/format';
 import { ExtractionWarningsAlert } from '@/components/documents/extraction-warnings';
+import { ReadDetailsIcon } from '../icons';
 
 /**
  * Add profile details by pasting them as text (§9.3).
@@ -189,6 +190,7 @@ export function PasteTextPanel({ customerId }: { customerId: string }) {
           {error ? <Alert tone="danger">{t(error)}</Alert> : null}
 
           <Button onClick={parse} loading={pending === 'parse'} disabled={text.trim() === ''}>
+            <ReadDetailsIcon className="mr-1.5 h-4 w-4" />
             {t('customers.paste.parse')}
           </Button>
         </div>

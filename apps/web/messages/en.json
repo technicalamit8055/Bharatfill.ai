@@ -43,7 +43,18 @@
     "fillSessions": "Fill sessions",
     "billing": "Billing",
     "settings": "Settings",
-    "admin": "Admin"
+    "admin": "Admin",
+    "digitalIndiaTitle": "Digital India",
+    "digitalIndiaTagline": "Empowering Citizens",
+    "supportTitle": "Need Help?",
+    "supportHint": "Our support team is here",
+    "supportCta": "Contact Support"
+  },
+  "header": {
+    "accountMenu": "Account menu",
+    "notifications": "Notifications",
+    "nothingWaiting": "Nothing waiting for review",
+    "reviewsWaiting": "{count} extraction(s) awaiting review"
   },
   "auth": {
     "signIn": "Sign in",
@@ -265,15 +276,15 @@
     "editKeepEncrypted": "Leave blank to keep the saved value",
     "editSetEncrypted": "Leave blank if none, or type a value to save",
     "sections": {
-      "personal": "Personal",
-      "family": "Family",
-      "contact": "Contact",
-      "address": "Address",
+      "personal": "Personal information",
+      "family": "Family details",
+      "contact": "Contact details",
+      "address": "Address information",
       "permanent_address": "Permanent address",
-      "identity": "Identity",
+      "identity": "Identity documents",
       "education": "Education",
       "certificates": "Certificates",
-      "banking": "Banking"
+      "banking": "Bank details"
     },
     "paste": {
       "title": "Add customer details",
@@ -348,7 +359,62 @@
       "resendCode": "Resend code",
       "verifyAndUnlock": "Verify & unlock",
       "activeUntil": "Roaming access active: {remaining} remaining",
-      "endSession": "Lock & end session"
+      "endSession": "Lock & end session",
+      "tabRoamingCount": "Roaming customers ({count})"
+    },
+    "heroSubtitle": "Manage your customers, view details, and help them with form filling and applications.",
+    "addedOn": "Added on",
+    "actions": "Actions",
+    "openProfile": "Open {name}",
+    "emptyFilter": "No customers were added in this period.",
+    "tabAllCount": "All customers ({count})",
+    "stats": {
+      "total": "Total customers",
+      "totalHint": "All registered customers",
+      "growth": "+{percent}% this month",
+      "verified": "Verified customers",
+      "verifiedHint": "Checked by an operator or the customer",
+      "newThisMonth": "New this month",
+      "joinedIn": "Joined in {month}",
+      "monthlyBars": "New customers, last 6 months",
+      "fromState": "From {state}",
+      "topStateHint": "Most customers",
+      "topState": "Top state",
+      "noState": "No addresses recorded yet"
+    },
+    "filter": {
+      "button": "Filter",
+      "added": "Added",
+      "any": "Any time",
+      "7d": "Last 7 days",
+      "30d": "Last 30 days",
+      "90d": "Last 90 days"
+    },
+    "pagination": {
+      "label": "Pages",
+      "showing": "Showing {from} to {to} of {total} customers",
+      "rowsPerPage": "Rows per page",
+      "previous": "Previous page",
+      "next": "Next page",
+      "page": "Page {page}"
+    },
+    "profile": {
+      "breadcrumb": "Breadcrumb",
+      "customerCode": "Customer code",
+      "editCustomer": "Edit customer",
+      "copyValue": "Copy {label}",
+      "auditDetails": "Details",
+      "applicationsEmptyHelp": "All form applications for this customer will appear here.",
+      "fillSessionsEmptyHelp": "Track when forms were filled for this customer."
+    },
+    "activity": {
+      "created": "Customer profile created",
+      "createdFromDocument": "Customer profile created from a document",
+      "updated": "Profile details updated",
+      "updatedField": "1 profile field updated",
+      "updatedFields": "{count} profile fields updated",
+      "revealed": "A hidden field was viewed",
+      "revealedField": "{field} was viewed"
     }
   },
   "applications": {
@@ -410,7 +476,21 @@
       "formName": "Form name",
       "portalUrl": "Portal URL",
       "create": "Create application",
-      "creating": "Creating…"
+      "creating": "Creating…",
+      "customerRequired": "Select a customer for this application.",
+      "changeCustomer": "Change",
+      "newCustomer": "New customer",
+      "browseTemplates": "Browse templates",
+      "portalNamePlaceholder": "e.g. National Scholarship Portal",
+      "formNamePlaceholder": "e.g. Pre-Matric Scholarship Form",
+      "portalUrlPlaceholder": "https://example.gov.in",
+      "feePlaceholder": "e.g. 0, 50, 100…",
+      "paymentStatusPlaceholder": "— Select status —",
+      "notesPlaceholder": "Add any important notes about this application…",
+      "notesCount": "{count}/{max}",
+      "clear": "Clear form",
+      "saveDraft": "Save as draft",
+      "savingDraft": "Saving…"
     },
     "detail": {
       "customerCard": "Customer",
@@ -445,6 +525,12 @@
       "attached": "Attached",
       "missing": "Missing",
       "rejected": "Rejected"
+    },
+    "newPage": {
+      "back": "Back to applications",
+      "subtitle": "Create a new application for a customer and track it easily.",
+      "tipsTitle": "Tips",
+      "tipsBody": "Select a customer and a form template to save time — the template fills in the portal details and the document checklist."
     }
   },
   "formLibrary": {
@@ -461,6 +547,19 @@
     },
     "healthLabel": "Fill success rate",
     "healthUnknown": "Not enough data yet",
+    "statusLabel": "Status",
+    "category": "Category",
+    "categoryAll": "All categories",
+    "maintainedByPlatform": "Maintained by Bharatfill",
+    "mappedFields": "{count} mapped fields",
+    "mappedFieldsOne": "{count} mapped field",
+    "documentCount": "{count} documents",
+    "documentCountOne": "{count} document",
+    "viewLabel": "Layout",
+    "view": {
+      "grid": "Grid view",
+      "list": "List view"
+    },
     "viewSpecs": "View specs",
     "launchPortal": "Launch portal",
     "createApplication": "Create application",
@@ -531,7 +630,7 @@
     "tabActive": "Ready to apply ({count})",
     "tabUpcoming": "Opening soon ({count})",
     "tabActionable": "Unlock with documents ({count})",
-    "tabActiveEmpty": "Nothing is open and fully ready right now — check the other tabs.",
+    "tabActiveEmpty": "Nothing is open and fully ready right now",
     "tabUpcomingEmpty": "No announced openings yet. Add the dates for a scheme and they show up here.",
     "tabActionableEmpty": "Nothing is waiting on a document.",
     "noneEligible": "No matching schemes yet",
@@ -609,7 +708,60 @@
     "verifyNotice": "Eligibility here is a guide based on the saved profile. Always confirm the current rules on the official notification before charging for an application.",
     "invalid_slug": "Use lowercase letters, numbers and hyphens only.",
     "invalid_age_range": "The minimum age cannot be higher than the maximum age.",
-    "invalid_schedule_window": "The start date must be on or before the closing date."
+    "invalid_schedule_window": "The start date must be on or before the closing date.",
+    "tabActiveEmptyHelp": "Check the other tabs for upcoming and document-dependent opportunities.",
+    "pitchLanguage": "Pitch language",
+    "heroCategoriesLabel": "What you will find here",
+    "heroCategories": {
+      "governmentSchemes": "Government Schemes",
+      "scholarships": "Scholarships",
+      "recruitment": "Recruitment",
+      "sarkariYojana": "Sarkari Yojana"
+    },
+    "schemeCountOne": "{count} scheme",
+    "schemeCount": "{count} schemes",
+    "sortLabel": "Sort by",
+    "sort": {
+      "deadline": "Closing first",
+      "name": "Name (A–Z)",
+      "fee": "Lowest charge"
+    },
+    "viewLabel": "Layout",
+    "view": {
+      "grid": "Grid view",
+      "list": "List view"
+    },
+    "ageShort": "Age: {range}",
+    "ageFrom": "{min}+",
+    "ourCharge": "Our charge:",
+    "detail": {
+      "back": "Back to Schemes & vacancies",
+      "benefitEyebrow": "Benefit",
+      "tagsLabel": "About this scheme",
+      "tags": {
+        "health": "Health",
+        "familySupport": "Family Support",
+        "governmentScheme": "Government Scheme"
+      },
+      "benefitChecklist": "Benefits at a glance",
+      "searchPlaceholder": "Search in this scheme…",
+      "searchLabel": "Search eligible customers by name or code",
+      "noSearchResults": "No eligible customer matches “{query}”.",
+      "addCustomer": "Add customer",
+      "viewCustomer": "Open {name}",
+      "moreActions": "More actions for {name}",
+      "startApplication": "Start application",
+      "art": {
+        "pmjay": {
+          "coverEyebrow": "Health cover up to",
+          "coverSuffix": "per family per year",
+          "benefitCashless": "Cashless treatment at empanelled hospitals",
+          "benefitNoPremium": "No premium to pay",
+          "benefitCare": "Covers secondary and tertiary care",
+          "benefitFamilies": "For eligible low-income families"
+        }
+      }
+    }
   },
   "fillSessions": {
     "title": "Fill sessions",
@@ -1032,7 +1184,10 @@
       "aiNotice": "The AI reader sends this document to an outside AI provider to be read. It only runs if your workspace owner has turned on AI processing.",
       "activeVendor": "Currently reads with: {vendor}.",
       "aiNotConfigured": "AI reading is not set up for this workspace yet. A workspace owner can configure it in AI settings."
-    }
+    },
+    "download": "Download",
+    "viewNamed": "View {name}",
+    "downloadNamed": "Download {name}"
   },
   "legal": {
     "privacy": "Privacy Policy",
@@ -1428,7 +1583,48 @@
       "unpublish": "Unpublish",
       "delete": "Delete scheme",
       "confirmDelete": "Delete this global scheme? Every centre loses it immediately and there is no undo.",
-      "builtInFallbackNote": "Deleting a row whose slug matches a built-in scheme falls back to the built-in, which ships with no application dates."
+      "builtInFallbackNote": "Deleting a row whose slug matches a built-in scheme falls back to the built-in, which ships with no application dates.",
+      "logoTitle": "Logo",
+      "logoHelp": "Shown on this scheme’s cards in the Schemes & vacancies hub. Without one, the cards show the category icon.",
+      "logoRules": "Square PNG, JPEG or WebP, at least 128 × 128 px, up to 256 KB. Upload only artwork you have permission to use.",
+      "logoCurrent": "Current logo",
+      "logoNone": "No logo",
+      "logoPick": "Choose a logo file",
+      "logoUpload": "Upload logo",
+      "logoReplace": "Replace logo",
+      "logoRemove": "Remove logo",
+      "logoSaved": "Logo saved. It shows on the hub wherever this scheme is published.",
+      "logoRemoved": "Logo removed. The cards show the category icon again.",
+      "logoMissing": "Choose an image file first.",
+      "logoTooLarge": "That file is larger than 256 KB. Export a smaller version and try again.",
+      "logoWrongType": "Only PNG, JPEG and WebP images are accepted.",
+      "copyBuiltIn": "Add to catalogue",
+      "imagesTitle": "Scheme artwork",
+      "imagesHelp": "The logo on the hub cards, and the banner and illustration on this scheme’s detail page. Each is optional and changes live without re-publishing.",
+      "bannerTitle": "Detail page banner",
+      "bannerHelp": "Wide picture behind the top of the scheme’s detail page. Without one, the header shows a plain blue gradient.",
+      "bannerRules": "Landscape PNG, JPEG or WebP, about 1376 × 768 px, up to 1 MB. Keep the left third plain — the title sits over it — and avoid words in the picture, which cannot be translated. Upload only artwork you have permission to use.",
+      "bannerCurrent": "Current banner",
+      "bannerNone": "No banner",
+      "bannerPick": "Choose a banner file",
+      "bannerUpload": "Upload banner",
+      "bannerReplace": "Replace banner",
+      "bannerRemove": "Remove banner",
+      "bannerSaved": "Banner saved. It shows on the detail page wherever this scheme is published.",
+      "bannerRemoved": "Banner removed. The detail page header is a plain gradient again.",
+      "bannerTooLarge": "That file is larger than 1 MB. Export a smaller version and try again.",
+      "illustrationTitle": "Benefit illustration",
+      "illustrationHelp": "Picture beside “What the customer gets” on the detail page. Hidden on small screens.",
+      "illustrationRules": "Square PNG, JPEG or WebP on a white or transparent background, at least 512 × 512 px, up to 512 KB. Upload only artwork you have permission to use.",
+      "illustrationCurrent": "Current illustration",
+      "illustrationNone": "No illustration",
+      "illustrationPick": "Choose an illustration file",
+      "illustrationUpload": "Upload illustration",
+      "illustrationReplace": "Replace illustration",
+      "illustrationRemove": "Remove illustration",
+      "illustrationSaved": "Illustration saved. It shows on the detail page wherever this scheme is published.",
+      "illustrationRemoved": "Illustration removed.",
+      "illustrationTooLarge": "That file is larger than 512 KB. Export a smaller version and try again."
     },
     "deadlines": {
       "title": "Live deadlines",

@@ -22,7 +22,7 @@ import { logger } from '../api/logger';
  */
 
 const ADMIN_COLUMNS =
-  'id, organization_id, slug, category, title, short_description, benefits_summary, benefit_highlight, portal_name, portal_url, adapter_slug, official_notification_url, application_start_date, application_end_date, is_always_open, exam_date, estimated_operator_fee, eligibility, pitch_template, upcoming_pitch_template, is_published, source, source_url, last_synced_at, verified_at, verified_by, created_by, created_at, updated_at';
+  'id, organization_id, slug, category, title, short_description, benefits_summary, benefit_highlight, portal_name, portal_url, adapter_slug, official_notification_url, application_start_date, application_end_date, is_always_open, exam_date, estimated_operator_fee, eligibility, pitch_template, upcoming_pitch_template, is_published, logo_path, banner_path, illustration_path, source, source_url, last_synced_at, verified_at, verified_by, created_by, created_at, updated_at';
 
 export type AdminCatalogRow = CatalogRow &
   Pick<

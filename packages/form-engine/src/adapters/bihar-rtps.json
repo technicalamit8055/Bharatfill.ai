@@ -4,6 +4,7 @@
   "portalName": "RTPS Bihar — ServicePlus (serviceonline.bihar.gov.in)",
   "formName": "Certificate applications (income / caste / residence)",
   "region": "Bihar",
+  "category": "certificate",
   "urlPatterns": [
     "https://serviceonline.bihar.gov.in/**",
     "https://*.serviceonline.bihar.gov.in/**"

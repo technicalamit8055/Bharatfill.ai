@@ -1,10 +1,12 @@
 import Link from 'next/link';
-import { Badge, Button, Card, EmptyState, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
+import { Badge, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
 import { APPLICATION_STATUS_LABELS, APPLICATION_STATUS_TONE, formatIndianDate } from '@assistigo/core';
 import { getTranslations } from '@/lib/i18n/server';
 import { localised } from '@/lib/i18n';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { ApplicationRow } from '@/lib/supabase/database.types';
+import { ApplicationsIcon, PlusIcon } from '../icons';
+import { DetailCard, DetailEmpty, PRIMARY_BUTTON } from './detail-card';
 
 /** The applications opened for one customer (§21.4). */
 export async function CustomerApplications({
@@ -34,25 +36,31 @@ export async function CustomerApplications({
   >[];
 
   return (
-    <Card
+    <DetailCard
+      icon={ApplicationsIcon}
+      tone="violet"
       title={t('applications.title')}
+      bodyClassName={applications.length === 0 ? undefined : 'px-0 py-0'}
       actions={
         canCreate ? (
-          <Link href={`/applications/new?customerId=${customerId}`}>
-            <Button size="sm" variant="secondary">
-              {t('applications.new')}
-            </Button>
+          <Link href={`/applications/new?customerId=${customerId}`} className={PRIMARY_BUTTON}>
+            <PlusIcon className="h-4 w-4" />
+            {t('applications.new')}
           </Link>
         ) : undefined
       }
     >
       {applications.length === 0 ? (
-        <EmptyState title={t('applications.emptyFirst')} />
+        <DetailEmpty
+          illustrated
+          title={t('applications.emptyFirst')}
+          description={t('customers.profile.applicationsEmptyHelp')}
+        />
       ) : (
         <Table>
           <THead>
             <TR>
-              <TH>{t('applications.table.title')}</TH>
+              <TH className="pl-5">{t('applications.table.title')}</TH>
               <TH>{t('settings.status')}</TH>
               <TH>{t('applications.table.deadline')}</TH>
             </TR>
@@ -60,7 +68,7 @@ export async function CustomerApplications({
           <TBody>
             {applications.map((application) => (
               <TR key={application.id}>
-                <TD>
+                <TD className="pl-5">
                   <Link
                     href={`/applications/${application.id}`}
                     className="font-medium text-brand-700 hover:underline"
@@ -83,6 +91,6 @@ export async function CustomerApplications({
           </TBody>
         </Table>
       )}
-    </Card>
+    </DetailCard>
   );
 }

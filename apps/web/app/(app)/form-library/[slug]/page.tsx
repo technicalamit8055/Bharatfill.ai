@@ -6,6 +6,7 @@ import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { loadAdapterCatalog } from '@/lib/forms/adapters';
+import { portalLaunchUrl } from '@/lib/forms/present';
 
 const STATUS_TONE: Record<string, 'neutral' | 'info' | 'success' | 'warning'> = {
   draft: 'neutral',
@@ -29,6 +30,7 @@ export default async function FormAdapterDetailPage({
   if (!adapter) nextNotFound();
 
   const canCreateApplication = session.permissions.has('application.create');
+  const launchUrl = portalLaunchUrl(adapter);
 
   return (
     <div className="space-y-6">
@@ -46,8 +48,8 @@ export default async function FormAdapterDetailPage({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {adapter.urlPatterns[0] ? (
-          <a href={adapter.urlPatterns[0]} target="_blank" rel="noopener noreferrer">
+        {launchUrl ? (
+          <a href={launchUrl} target="_blank" rel="noopener noreferrer">
             <Button variant="secondary">{t('formLibrary.launchPortal')}</Button>
           </a>
         ) : null}

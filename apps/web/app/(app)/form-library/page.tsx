@@ -1,20 +1,28 @@
-import Link from 'next/link';
-import { Badge, Button, Card, EmptyState } from '@assistigo/ui';
+import Image from 'next/image';
+import { EmptyState } from '@assistigo/ui';
+import { SCHEME_CATEGORY_LABELS, SCHEME_CATEGORIES, type SchemeCategory } from '@assistigo/core';
+import { ADAPTER_STATUSES } from '@assistigo/form-engine';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
+import { localised } from '@/lib/i18n';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { loadAdapterCatalog, type CatalogAdapter } from '@/lib/forms/adapters';
+import { loadAdapterCatalog } from '@/lib/forms/adapters';
+import {
+  adapterCategories,
+  adapterRegions,
+  filterAdapters,
+  isAdapterStatus,
+  type FormLibraryQuery,
+} from '@/lib/forms/present';
+import { FormLibraryCard } from './form-library-card';
 import { FormLibraryFilters } from './form-library-filters';
 import { ReportFormModal } from './report-form-modal';
 
 export const metadata = { title: 'Form library' };
 
-const STATUS_TONE: Record<string, 'neutral' | 'info' | 'success' | 'warning'> = {
-  draft: 'neutral',
-  testing: 'warning',
-  active: 'success',
-  deprecated: 'neutral',
-};
+function isSchemeCategory(value: string): value is SchemeCategory {
+  return (SCHEME_CATEGORIES as readonly string[]).includes(value);
+}
 
 export default async function FormLibraryPage({
   searchParams,
@@ -22,104 +30,99 @@ export default async function FormLibraryPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await requirePagePermission('fill.run');
-  const { t } = await getTranslations();
+  const { t, locale } = await getTranslations();
   const supabase = await createSupabaseServerClient();
   const params = await searchParams;
 
-  const q = typeof params.q === 'string' ? params.q.trim().toLowerCase() : '';
-  const region = typeof params.region === 'string' ? params.region : '';
-  const status = typeof params.status === 'string' ? params.status : '';
+  const asString = (value: string | string[] | undefined): string =>
+    typeof value === 'string' ? value.trim() : '';
+
+  const statusParam = asString(params.status);
+  const categoryParam = asString(params.category);
+  const query: FormLibraryQuery = {
+    q: asString(params.q),
+    region: asString(params.region),
+    // An unknown value in the URL is ignored, not treated as "matches nothing".
+    status: isAdapterStatus(statusParam) ? statusParam : '',
+    category: isSchemeCategory(categoryParam) ? categoryParam : '',
+    view: asString(params.view) === 'list' ? 'list' : 'grid',
+  };
 
   const catalog = await loadAdapterCatalog(supabase, session.organization.id);
-  const regions = Array.from(
-    new Set(catalog.map((adapter) => adapter.region).filter((value): value is string => Boolean(value))),
-  ).sort();
+  const adapters = filterAdapters(catalog, query);
 
-  const adapters: CatalogAdapter[] = catalog.filter((adapter) => {
-    if (region && adapter.region !== region) return false;
-    if (status && adapter.status !== status) return false;
-    if (q) {
-      const haystack = `${adapter.portalName} ${adapter.formName} ${adapter.region ?? ''}`.toLowerCase();
-      if (!haystack.includes(q)) return false;
-    }
-    return true;
-  });
+  const regions = adapterRegions(catalog).map((value) => ({ value, label: value }));
+  const statuses = ADAPTER_STATUSES.map((value) => ({
+    value,
+    label: t(`formLibrary.status.${value}`),
+  }));
+  const categories = adapterCategories(catalog).map((value) => ({
+    value,
+    label: localised(SCHEME_CATEGORY_LABELS[value], locale),
+  }));
 
   const canCreateApplication = session.permissions.has('application.create');
   const canReport = session.permissions.has('formreport.create');
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">{t('formLibrary.title')}</h1>
-          <p className="mt-1 text-sm text-slate-500">{t('formLibrary.subtitle')}</p>
+      <section className="relative overflow-hidden rounded-2xl border border-brand-100 bg-gradient-to-r from-[#e9f2fe] to-[#dbeafd]">
+        {/*
+         * The Parliament / tricolour artwork, right-aligned behind the report button. Decorative
+         * only, and hidden below `md`, where the banner is no wider than its heading.
+         *
+         * Drawn wider than its box and pinned to the right edge, as on the schemes hub: the left
+         * third of the source carries its own "FORM LIBRARY" caption in English, which would
+         * clash with the translated heading, so it is cropped off and the seam faded out.
+         */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[600px] max-w-[60%] select-none overflow-hidden md:block"
+        >
+          <Image
+            src="/form-library/form-library-banner-hero.png"
+            alt=""
+            width={1376}
+            height={768}
+            priority
+            sizes="980px"
+            className="absolute right-0 top-1/2 h-auto w-[980px] max-w-none -translate-y-[56%]"
+          />
+          <div className="absolute inset-y-0 left-0 w-44 bg-gradient-to-r from-[#e3eefd] to-transparent" />
         </div>
-        {canReport ? <ReportFormModal /> : null}
-      </div>
 
-      <FormLibraryFilters q={q} region={region} status={status} regions={regions} />
+        <div className="relative flex min-h-[148px] flex-wrap items-center justify-between gap-6 px-6 py-7 sm:px-8">
+          <div className="max-w-xl">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+              {t('formLibrary.title')}
+            </h1>
+            <p className="mt-2 text-sm text-slate-600 sm:text-base">{t('formLibrary.subtitle')}</p>
+          </div>
+          {canReport ? <ReportFormModal /> : null}
+        </div>
+      </section>
+
+      <FormLibraryFilters
+        query={query}
+        regions={regions}
+        statuses={statuses}
+        categories={categories}
+      />
 
       {adapters.length === 0 ? (
-        <Card>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <EmptyState title={t('formLibrary.empty')} />
-        </Card>
+        </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={query.view === 'list' ? 'grid gap-5' : 'grid gap-5 lg:grid-cols-2'}>
           {adapters.map((adapter) => (
-            <Card key={adapter.id}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <h2 className="truncate text-sm font-semibold text-slate-900">
-                    {adapter.portalName}
-                  </h2>
-                  <p className="truncate text-sm text-slate-500">{adapter.formName}</p>
-                </div>
-                <Badge tone={STATUS_TONE[adapter.status] ?? 'neutral'}>
-                  {t(`formLibrary.status.${adapter.status}`)}
-                </Badge>
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                {adapter.region ? <Badge tone="neutral">{adapter.region}</Badge> : null}
-                <span>
-                  {t('formLibrary.healthLabel')}:{' '}
-                  {adapter.health.successRate === null
-                    ? t('formLibrary.healthUnknown')
-                    : `${Math.round(adapter.health.successRate * 100)}%`}
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-slate-400">
-                {adapter.fields.length} mapped fields · {adapter.documentRequirements.length}{' '}
-                document{adapter.documentRequirements.length === 1 ? '' : 's'}
-              </p>
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <Link href={`/form-library/${adapter.slug}`}>
-                  <Button size="sm" variant="secondary">
-                    {t('formLibrary.viewSpecs')}
-                  </Button>
-                </Link>
-                {adapter.urlPatterns[0] ? (
-                  <a href={adapter.urlPatterns[0]} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="ghost">
-                      {t('formLibrary.launchPortal')}
-                    </Button>
-                  </a>
-                ) : null}
-                {canCreateApplication ? (
-                  <Link
-                    href={
-                      adapter.persisted
-                        ? `/applications/new?portalAdapterId=${adapter.id}`
-                        : `/applications/new?portalName=${encodeURIComponent(adapter.portalName)}&formName=${encodeURIComponent(adapter.formName)}`
-                    }
-                  >
-                    <Button size="sm" variant="ghost">
-                      {t('formLibrary.createApplication')}
-                    </Button>
-                  </Link>
-                ) : null}
-              </div>
-            </Card>
+            <FormLibraryCard
+              key={adapter.id}
+              adapter={adapter}
+              t={t}
+              layout={query.view}
+              canCreateApplication={canCreateApplication}
+            />
           ))}
         </div>
       )}

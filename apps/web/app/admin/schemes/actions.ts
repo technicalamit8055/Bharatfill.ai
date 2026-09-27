@@ -3,11 +3,23 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { schemeScheduleSchema } from '@assistigo/core';
+import {
+  SCHEME_IMAGE_KINDS,
+  SCHEME_LOGO_BUCKET,
+  getBuiltInScheme,
+  schemeScheduleSchema,
+  type SchemeImageKind,
+} from '@assistigo/core';
 import { requirePlatformSession } from '@/lib/admin/session';
 import { writePlatformAuditLog } from '@/lib/admin/audit';
 import { adminSchemeInputSchema, toSchemeCatalogWrite } from '@/lib/admin/scheme-write';
+import {
+  SCHEME_IMAGE_MAX_BYTES,
+  buildSchemeLogoPath,
+  checkSchemeImage,
+} from '@/lib/admin/scheme-logo';
 import { logger } from '@/lib/api/logger';
+import type { AssistigoSupabaseClient } from '@/lib/supabase/server';
 
 /**
  * Global scheme catalogue mutations.
@@ -30,6 +42,29 @@ export type SchemeActionState = {
 };
 
 const idSchema = z.string().uuid();
+
+/** Where each image kind is stored on the row. */
+const IMAGE_COLUMN = {
+  logo: 'logo_path',
+  banner: 'banner_path',
+  illustration: 'illustration_path',
+} as const satisfies Record<SchemeImageKind, string>;
+
+const imageKindSchema = z.enum(SCHEME_IMAGE_KINDS);
+
+/**
+ * The logo keeps its own audit action so its history reads as it always has; the detail-page
+ * images share one, with the kind in the metadata.
+ */
+const imageAuditAction = (kind: SchemeImageKind) =>
+  kind === 'logo' ? 'platform.scheme_logo_updated' : 'platform.scheme_artwork_updated';
+
+/** The id and image kind every image action needs, or `null` if either is not well formed. */
+function parseImageTarget(formData: FormData): { id: string; kind: SchemeImageKind } | null {
+  const id = idSchema.safeParse(formData.get('id'));
+  const kind = imageKindSchema.safeParse(formData.get('kind'));
+  return id.success && kind.success ? { id: id.data, kind: kind.data } : null;
+}
 
 /**
  * The editor posts JSON in a hidden field rather than 40 flat form inputs.
@@ -269,9 +304,10 @@ export async function deleteSchemeAction(
 
   // Read the slug before deleting: afterwards there is nothing left to name in the audit row, and
   // an audit entry that says only "a scheme was deleted" answers no question anyone will ask.
+  // The image paths too, so their objects do not outlive the row.
   const { data: existing } = await session.supabase
     .from('schemes_catalog')
-    .select('slug')
+    .select('slug, logo_path, banner_path, illustration_path')
     .eq('id', id)
     .is('organization_id', null)
     .maybeSingle();
@@ -287,14 +323,237 @@ export async function deleteSchemeAction(
     return { error: 'errors.internal' };
   }
 
+  const deleted = existing as
+    ({ slug: string } & Record<(typeof IMAGE_COLUMN)[SchemeImageKind], string | null>) | null;
+  if (deleted) {
+    for (const kind of SCHEME_IMAGE_KINDS) {
+      const path = deleted[IMAGE_COLUMN[kind]];
+      if (path) await removeLogoObject(session.supabase, path);
+    }
+  }
+
   await writePlatformAuditLog(session.supabase, {
     actorUserId: session.userId,
     action: 'platform.scheme_deleted',
     entityType: 'schemes_catalog',
     entityId: id,
-    metadata: { slug: (existing as { slug: string } | null)?.slug ?? null },
+    metadata: { slug: deleted?.slug ?? null },
   });
 
   revalidatePath('/admin/schemes');
   redirect('/admin/schemes');
+}
+
+// ---------------------------------------------------------------------------
+// Logos and artwork
+// ---------------------------------------------------------------------------
+
+/**
+ * Best-effort removal of an image object that no row points at any more.
+ *
+ * A failure is logged and swallowed: the row is already correct, and an orphaned image in a
+ * private bucket is untidy rather than harmful. Failing the admin's action over it would be worse.
+ */
+async function removeLogoObject(supabase: AssistigoSupabaseClient, path: string): Promise<void> {
+  const { error } = await supabase.storage.from(SCHEME_LOGO_BUCKET).remove([path]);
+  if (error) logger.warn('platform.scheme_logo_cleanup_failed', { path, message: error.message });
+}
+
+function revalidateImageViews(id: string): void {
+  revalidatePath('/admin/schemes');
+  revalidatePath(`/admin/schemes/${id}`);
+  revalidatePath('/schemes');
+  // Any scheme's detail page can show one of these images.
+  // The route pattern, route group included, as `revalidatePath` matches it.
+  revalidatePath('/(app)/schemes/[slug]', 'page');
+}
+
+/**
+ * Uploads or replaces one of a global scheme's images: its logo, the detail page's banner, or
+ * the illustration beside "What the customer gets".
+ *
+ * Separate from `saveSchemeAction` for the same reason the schedule is: a picture should be
+ * changeable without round-tripping the eligibility tree, and saving the form must never be able
+ * to clobber an image it does not carry. The row goes live with the new image immediately if it
+ * is already published — a picture is not a claim about a government rule, so it needs no
+ * re-publish.
+ *
+ * The file is judged by its bytes, not by the name or type the browser sent, and the object path
+ * is built here from the row's slug; nothing about where it lands comes from the request. The
+ * column written is picked from a fixed map by a validated kind, never named by the request.
+ */
+export async function uploadSchemeImageAction(
+  _prev: SchemeActionState,
+  formData: FormData,
+): Promise<SchemeActionState> {
+  const session = await requirePlatformSession();
+  if (!session.permissions.has('platform.schemes.edit')) {
+    return { error: 'errors.permission_denied' };
+  }
+
+  const target = parseImageTarget(formData);
+  if (!target) return { error: 'errors.validation_failed' };
+  const { id, kind } = target;
+  const column = IMAGE_COLUMN[kind];
+
+  const file = formData.get('image');
+  if (!(file instanceof File) || file.size === 0) return { error: 'admin.schemes.logoMissing' };
+  // Refused before reading it into memory.
+  if (file.size > SCHEME_IMAGE_MAX_BYTES[kind]) {
+    return { error: `admin.schemes.${kind}TooLarge` };
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const check = checkSchemeImage(kind, bytes);
+  if (!check.ok) return { error: check.error };
+
+  const { data } = await session.supabase
+    .from('schemes_catalog')
+    .select(`slug, ${column}`)
+    .eq('id', id)
+    .is('organization_id', null)
+    .maybeSingle();
+  const row = data as unknown as ({ slug: string } & Record<typeof column, string | null>) | null;
+  if (!row) return { error: 'errors.not_found' };
+
+  const path = buildSchemeLogoPath(row.slug, check.type.ext);
+  const upload = await session.supabase.storage.from(SCHEME_LOGO_BUCKET).upload(path, bytes, {
+    contentType: check.type.mimeType,
+    upsert: false,
+  });
+  if (upload.error) {
+    logger.error('platform.scheme_image_upload_failed', { kind, message: upload.error.message });
+    return { error: 'errors.internal' };
+  }
+
+  const { error } = await session.supabase
+    .from('schemes_catalog')
+    .update({ [column]: path })
+    .eq('id', id)
+    .is('organization_id', null);
+
+  if (error) {
+    // Nothing points at the new object, so it goes; the old image stays as it was.
+    await removeLogoObject(session.supabase, path);
+    logger.error('platform.scheme_image_save_failed', { kind, code: error.code });
+    return { error: 'errors.internal' };
+  }
+
+  const previous = row[column];
+  if (previous && previous !== path) await removeLogoObject(session.supabase, previous);
+
+  await writePlatformAuditLog(session.supabase, {
+    actorUserId: session.userId,
+    action: imageAuditAction(kind),
+    entityType: 'schemes_catalog',
+    entityId: id,
+    metadata: { slug: row.slug, kind, removed: false, bytes: bytes.length, type: check.type.ext },
+  });
+
+  revalidateImageViews(id);
+  return { notice: `admin.schemes.${kind}Saved` };
+}
+
+/** Clears one of a global scheme's images; the page falls back to its default look. */
+export async function removeSchemeImageAction(
+  _prev: SchemeActionState,
+  formData: FormData,
+): Promise<SchemeActionState> {
+  const session = await requirePlatformSession();
+  if (!session.permissions.has('platform.schemes.edit')) {
+    return { error: 'errors.permission_denied' };
+  }
+
+  const target = parseImageTarget(formData);
+  if (!target) return { error: 'errors.validation_failed' };
+  const { id, kind } = target;
+  const column = IMAGE_COLUMN[kind];
+
+  const { data } = await session.supabase
+    .from('schemes_catalog')
+    .select(`slug, ${column}`)
+    .eq('id', id)
+    .is('organization_id', null)
+    .maybeSingle();
+  const row = data as unknown as ({ slug: string } & Record<typeof column, string | null>) | null;
+  if (!row) return { error: 'errors.not_found' };
+  const previous = row[column];
+  if (!previous) return { notice: `admin.schemes.${kind}Removed` };
+
+  const { error } = await session.supabase
+    .from('schemes_catalog')
+    .update({ [column]: null })
+    .eq('id', id)
+    .is('organization_id', null);
+
+  if (error) {
+    logger.error('platform.scheme_image_save_failed', { kind, code: error.code });
+    return { error: 'errors.internal' };
+  }
+
+  await removeLogoObject(session.supabase, previous);
+
+  await writePlatformAuditLog(session.supabase, {
+    actorUserId: session.userId,
+    action: imageAuditAction(kind),
+    entityType: 'schemes_catalog',
+    entityId: id,
+    metadata: { slug: row.slug, kind, removed: true },
+  });
+
+  revalidateImageViews(id);
+  return { notice: `admin.schemes.${kind}Removed` };
+}
+
+/**
+ * Copies a built-in scheme into the global catalogue as an unpublished draft.
+ *
+ * Built-ins live in the build (packages/core/src/schemes/catalog.ts) and have no row, so there
+ * was nowhere to hang a logo — or a correction — without retyping the whole definition. The copy
+ * is a draft: tenants keep seeing the built-in until someone publishes the row, and it starts
+ * unverified because nobody has checked it against a notification yet.
+ */
+export async function copyBuiltInSchemeAction(
+  _prev: SchemeActionState,
+  formData: FormData,
+): Promise<SchemeActionState> {
+  const session = await requirePlatformSession();
+  if (!session.permissions.has('platform.schemes.edit')) {
+    return { error: 'errors.permission_denied' };
+  }
+
+  const slug = formData.get('slug');
+  const builtIn = typeof slug === 'string' ? getBuiltInScheme(slug) : undefined;
+  if (!builtIn) return { error: 'errors.validation_failed' };
+
+  const { data, error } = await session.supabase
+    .from('schemes_catalog')
+    .insert({
+      ...toSchemeCatalogWrite(builtIn),
+      organization_id: null,
+      is_published: false,
+      source: 'built_in' as const,
+      created_by: session.userId,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    if (error.code === '23505') return { error: 'admin.schemes.slugTaken' };
+    logger.error('platform.scheme_copy_failed', { code: error.code });
+    return { error: 'errors.internal' };
+  }
+
+  const schemeId = (data as { id: string }).id;
+
+  await writePlatformAuditLog(session.supabase, {
+    actorUserId: session.userId,
+    action: 'platform.scheme_created',
+    entityType: 'schemes_catalog',
+    entityId: schemeId,
+    metadata: { slug: builtIn.slug, published: false, fromBuiltIn: true },
+  });
+
+  revalidatePath('/admin/schemes');
+  redirect(`/admin/schemes/${schemeId}`);
 }

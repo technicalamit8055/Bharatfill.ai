@@ -1,9 +1,11 @@
 import Link from 'next/link';
-import { Badge, Card, EmptyState, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
+import { Badge, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
 import { formatIndianDate } from '@assistigo/core';
 import { getTranslations } from '@/lib/i18n/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { FillSessionRow } from '@/lib/supabase/database.types';
+import { FillSessionsIcon } from '../icons';
+import { DetailCard, DetailEmpty } from './detail-card';
 
 const STATUS_TONE: Record<string, 'neutral' | 'info' | 'success' | 'warning' | 'danger'> = {
   detected: 'neutral',
@@ -38,14 +40,23 @@ export async function CustomerFillHistory({
   >[];
 
   return (
-    <Card title={t('fillSessions.title')}>
+    <DetailCard
+      icon={FillSessionsIcon}
+      tone="emerald"
+      title={t('fillSessions.title')}
+      bodyClassName={sessions.length === 0 ? undefined : 'px-0 py-0'}
+    >
       {sessions.length === 0 ? (
-        <EmptyState title={t('fillSessions.emptyFirst')} />
+        <DetailEmpty
+          illustrated
+          title={t('fillSessions.emptyFirst')}
+          description={t('customers.profile.fillSessionsEmptyHelp')}
+        />
       ) : (
         <Table>
           <THead>
             <TR>
-              <TH>{t('fillSessions.table.portal')}</TH>
+              <TH className="pl-5">{t('fillSessions.table.portal')}</TH>
               <TH>{t('settings.status')}</TH>
               <TH>{t('customers.created')}</TH>
             </TR>
@@ -53,7 +64,7 @@ export async function CustomerFillHistory({
           <TBody>
             {sessions.map((fillSession) => (
               <TR key={fillSession.id}>
-                <TD>
+                <TD className="pl-5">
                   <Link
                     href={`/fill-sessions/${fillSession.id}`}
                     className="font-medium text-brand-700 hover:underline"
@@ -74,6 +85,6 @@ export async function CustomerFillHistory({
           </TBody>
         </Table>
       )}
-    </Card>
+    </DetailCard>
   );
 }

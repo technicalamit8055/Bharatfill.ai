@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { BUILT_IN_SCHEMES, getBuiltInScheme, mergeSchemes } from './catalog';
-import { SCHEME_DOCUMENTS, SCHEME_TRAIT_LABELS, schemeDefinitionSchema } from './types';
+import {
+  SCHEME_DOCUMENTS,
+  SCHEME_TRAIT_LABELS,
+  isSchemeLogoPath,
+  schemeDefinitionSchema,
+} from './types';
+import { scrapedCandidateSchema } from '../platform/scraper';
 import { INDIAN_STATE_BY_CODE } from './states';
 import { resolveSchemeLifecycle } from './evaluator';
 
@@ -161,5 +167,55 @@ describe('mergeSchemes', () => {
   it('appends a scheme with a new slug', () => {
     const extra = { ...custom, id: 'local-1', slug: 'local-scheme' };
     expect(mergeSchemes([extra])).toHaveLength(BUILT_IN_SCHEMES.length + 1);
+  });
+});
+
+describe('scheme logos', () => {
+  const LOGO = 'ssc-cgl/0f8fad5b-d9cb-469f-a165-70867728950e.png';
+
+  it('ships no built-in with a logo', () => {
+    // Logos are uploaded in the admin panel, into a bucket; nothing in the build can point there.
+    expect(BUILT_IN_SCHEMES.every((scheme) => !scheme.logoPath)).toBe(true);
+  });
+
+  it('accepts only <slug>/<uuid>.<png|jpg|webp>', () => {
+    expect(isSchemeLogoPath(LOGO)).toBe(true);
+    expect(isSchemeLogoPath('pm-kisan/0f8fad5b-d9cb-469f-a165-70867728950e.webp')).toBe(true);
+
+    for (const bad of [
+      'https://cdn.example.com/logo.png',
+      '/ssc-cgl/0f8fad5b-d9cb-469f-a165-70867728950e.png',
+      '../ssc-cgl/0f8fad5b-d9cb-469f-a165-70867728950e.png',
+      'ssc-cgl/../0f8fad5b-d9cb-469f-a165-70867728950e.png',
+      'ssc-cgl/0f8fad5b-d9cb-469f-a165-70867728950e.svg',
+      'ssc-cgl/logo.png',
+      'SSC-CGL/0f8fad5b-d9cb-469f-a165-70867728950e.png',
+      `${LOGO}
+`,
+      '',
+      null,
+      42,
+    ]) {
+      expect(isSchemeLogoPath(bad)).toBe(false);
+    }
+  });
+
+  it('validates the path on a scheme definition', () => {
+    const scheme = getBuiltInScheme('ssc-cgl')!;
+    expect(schemeDefinitionSchema.safeParse({ ...scheme, logoPath: LOGO }).success).toBe(true);
+    expect(schemeDefinitionSchema.safeParse({ ...scheme, logoPath: null }).success).toBe(true);
+    expect(
+      schemeDefinitionSchema.safeParse({ ...scheme, logoPath: 'https://example.com/x.png' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('strips a logo from a scraped candidate', () => {
+    const { id: _id, ...scheme } = getBuiltInScheme('ssc-cgl')!;
+    const parsed = scrapedCandidateSchema.parse({
+      scheme: { ...scheme, logoPath: LOGO },
+      sourceUrl: 'https://ssc.gov.in/',
+    });
+    expect('logoPath' in parsed.scheme).toBe(false);
   });
 });

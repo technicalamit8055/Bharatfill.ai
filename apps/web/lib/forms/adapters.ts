@@ -1,10 +1,20 @@
 import 'server-only';
-import { mergeAdapters, type PortalAdapter } from '@assistigo/form-engine';
+import {
+  BUILT_IN_ADAPTER_BY_SLUG,
+  mergeAdapters,
+  type PortalAdapter,
+} from '@assistigo/form-engine';
 import type { AssistigoSupabaseClient } from '../supabase/server';
 
 export type CatalogAdapter = Omit<PortalAdapter, 'lastVerifiedAt'> & {
   /** Whether this adapter has a real `portal_adapters` row — a built-in that isn't seeded yet does not. */
   persisted: boolean;
+  /**
+   * Shipped and maintained by the platform (a built-in, or a global row with no organization),
+   * as opposed to one a centre published for itself. The card's check mark says this — not
+   * "verified", which is `lastVerifiedAt` and is shown on the detail page.
+   */
+  maintainedByPlatform: boolean;
   lastVerifiedAt: string | null;
   health: { successRate: number | null; lastFailureAt: string | null };
 };
@@ -26,6 +36,9 @@ export async function loadAdapterCatalog(
 
   const adapterRows = (data ?? []) as Record<string, unknown>[];
   const persistedIds = new Set(adapterRows.map((row) => String(row.id)));
+  const organizationRowIds = new Set(
+    adapterRows.filter((row) => row.organization_id != null).map((row) => String(row.id)),
+  );
   const persistedHealth = new Map(
     adapterRows.map((row) => [
       String(row.id),
@@ -50,6 +63,9 @@ export async function loadAdapterCatalog(
           portalName: String(row.portal_name),
           formName: String(row.form_name),
           region: row.region as string | undefined,
+          // `portal_adapters` has no category column: a row publishing a fix to a built-in keeps
+          // the built-in's category, and a centre's own adapter has none.
+          category: BUILT_IN_ADAPTER_BY_SLUG.get(String(row.slug))?.category,
           urlPatterns: (row.url_patterns as string[]) ?? [],
           version: String(row.version),
           status: row.status as PortalAdapter['status'],
@@ -66,6 +82,7 @@ export async function loadAdapterCatalog(
   return merged.map((adapter) => ({
     ...adapter,
     persisted: persistedIds.has(adapter.id),
+    maintainedByPlatform: !organizationRowIds.has(adapter.id),
     lastVerifiedAt: persistedHealth.get(adapter.id)?.lastVerifiedAt ?? null,
     health: persistedHealth.get(adapter.id)?.health ?? { successRate: null, lastFailureAt: null },
   }));
