@@ -80,9 +80,10 @@ Done:
 - [x] `packages/ai` — `OcrProvider` abstraction, mock provider, document classification,
       rules-based field extraction with en/hi/Hinglish labels and negative keywords, confidence
       banding and review rules, fake fixtures with golden tests (53 unit tests)
-- [x] Aadhaar safety layer: extraction emits **only** `customer.aadhaar_last4`, and identifiers
-      are masked out of field values, source snippets and retained raw text before anything is
-      persisted (15 dedicated regression tests)
+- [x] Aadhaar safety layer — originally last-four only. **Superseded by f912372 / migration
+      0026:** the extractor now also emits the full `customer.aadhaar`, stored in
+      `identity_summary_json.aadhaar`; it stays `high_risk` (always reviewed, masked on display,
+      reveal audited) and is still never logged, searched or indexed. See `docs/SECURITY.md` §4.
 - [x] Upload flow — `POST /api/documents/upload-intent` reserves a row and a one-time signed
       upload URL; bytes go browser → storage directly
 - [x] `POST /api/documents/:id/process` — magic-byte sniff against the declared MIME type
@@ -103,22 +104,33 @@ Done:
       classification. `POST /api/customers/parse-text` proposes and stores nothing;
       `POST /api/customers/:id/values` is the human gate and re-validates every value.
       Paste panel on the customer profile, prefill on the new-customer form, 34 unit tests.
+- [x] Real readers: `local-ocr` and `ai-vision` providers in `packages/ai/src/providers`, with
+      dynamic-schema AI escalation and grid-row splitting; Gemini endpoints receive PDFs directly.
+- [x] Migration 0017 — per-organization AI vendor settings (`organization_ai_settings`, presets,
+      base-URL rules, owner-only); `GET`/`PUT`/`DELETE /api/organizations/ai-settings` and
+      `POST …/test-connection`. The org vendor takes precedence over the env config.
+- [x] Migration 0019 — `marksheet_graduation` document class with a field allow-list
+- [x] Direct document upload from the dashboard; document-type constraint fallback in
+      `apps/web/lib/jobs/handlers/ocr-extract.ts`
 
 Remaining:
 
 - [ ] Import-customer-from-document (§9.3): review currently requires the document to be
       attached to an existing customer and refuses otherwise. Needs its own endpoint.
 - [ ] Schedule `POST /api/jobs/run` (Vercel Cron or equivalent) and set `JOB_RUNNER_SECRET`
-- [ ] Real OCR providers — `tesseract` and `anthropic` are declared and fail loudly rather than
-      silently falling back to the mock
+- [ ] `.env.example` still describes `anthropic` as not implemented; update it
+- [ ] `retention.sweep` job type has no handler — raw OCR text is nulled at review, but no
+      scheduled retention runs
 - [ ] Document fixtures in the seed (needs a live Supabase to upload real bytes)
 
 ## Phase 4 — Chrome extension (basic) ◐
 
 Done:
 
-- [x] MV3 manifest — `activeTab`, `storage`, `scripting`, `sidePanel` and **no install-time
-      host permissions**; the content script is injected on demand after a user gesture
+- [x] MV3 manifest — originally `activeTab`/`storage`/`scripting`/`sidePanel` with no install-time
+      host permissions. **Changed since c8cd42d:** it now also declares `downloads`,
+      `host_permissions` for all http/https pages, and a content script on every page and frame.
+      This departs from spec §15.2 — see Remaining.
 - [x] Zod-validated message contract with sender verification; unknown messages dropped silently
 - [x] Storage split: tokens, selected customer and recent customers in `chrome.storage.session`,
       only preferences in `local`
@@ -140,8 +152,40 @@ Done:
 - [x] Disconnect button added to the side panel, next to the organization/role row, so the
       operator can end a session without reopening the popup.
 
+Done (added since):
+
+- [x] Direct dashboard access — `OPEN_DASHBOARD` opens the dashboard in a new tab from the side
+      panel header, the popup, and the Document Tools / "View application" links (plain tab, not a
+      sign-in handoff). `EXTENSION.md` §4a.
+- [x] Customer document picker and preview modal — attach either a prepared derivative or an
+      original customer document; hidden upload boxes filtered out
+      (`CustomerDocumentPickerModal.tsx`, `DocumentPreviewModal.tsx`, 10 tests).
+- [x] Roaming customers in the extension — network search by exact 10-digit mobile, link to
+      counter, consent-OTP unlock (1 h / 2 h / 4 h), countdown, Lock / End
+      (`CustomerPicker.tsx`, `RoamingAuthBanner.tsx`, 5 tests). `EXTENSION.md` §4b.
+- [x] Multi-stage / multi-page workflow — after the operator uses the portal's own Proceed button,
+      "Scan Stage N+1" maps the next page; "Save as an application" links every stage to one
+      application; "Re-fill skipped" retries fields waiting on a parent dropdown. The extension
+      never watches navigation or advances the portal. State is in memory only
+      (`background/index.ts`, `ReviewPanel.tsx`, 5 tests). `EXTENSION.md` §6b.
+- [x] Extension suite: 7 files, 144 tests passing (2026-09-27).
+
 Remaining:
 
+- [ ] **Product owner:** keep or drop the all-pages `host_permissions` + always-on content script
+      before any Web Store build (spec §15.2); the stale "on-demand injection" comment in
+      `content/index.ts` goes either way
+- [ ] `chrome.webNavigation` is called but the permission is not declared, so the sub-frame path
+      never runs — declare it or remove the code
+- [ ] **Product owner (billing):** "Re-fill skipped" re-PATCHes the same fill session, overwriting
+      its counts, duplicating `fill_session_fields` rows and recording a second `fill` usage unit
+- [ ] "Save as an application" fails silently for roaming customers (`POST /api/applications`
+      404s on a non-home customer)
+- [ ] Roaming grant expiry is only checked by the server; the panel keeps showing "granted"
+- [ ] Validate the `OPEN_DASHBOARD` `path` (require a leading `/`)
+- [ ] Move hard-coded English strings in `ReviewPanel` / `RoamingAuthBanner` / `CustomerPicker`
+      to `en` + `hi` keys
+- [ ] UI tests for the multi-stage panel
 - [ ] Manual smoke test in a real Chrome profile
 - [ ] Set `EXTENSION_ALLOWED_IDS` for staging and production (pairing fails closed until then)
 - [ ] Schedule `purge_extension_pairing_codes()` so spent rows do not accumulate
@@ -192,12 +236,24 @@ Done (added since):
       `sub_division` instead of `district` directly. Also added: `customer.bpl_card_number`
       (identity, encrypted) and `customer.certificate.caste.sub_caste` (certificates, high-risk,
       always reviewed like the category it refines).
+- [x] Second portal adapter — `ssc-portal.json` for SSC (ssc.gov.in and the OTR subdomain), status
+      `testing`, with photo/signature requirements bound to the `ssc.photo` / `ssc.signature`
+      presets. `FORM_ENGINE.md` §6a.
+- [x] Safety fix (2cb8e14): camelCase names are split before lowercasing, so `otpMobile` is
+      classed as OTP rather than a mobile field; mobile/email adapter entries now exclude OTP boxes
+      (RTPS and SSC). New regression tests in `safety.test.ts`.
+- [x] Adapter/detected-field schema: `slug`, `knownIssues`, `DocumentRequirement`, attachment
+      types, and `accept` / `disabled` / `readOnly` / `order` / `blockedFrames` on detected fields.
+      Adapters have no stage field — each page of a multi-page form is matched on its own.
+- [x] Form-engine suite: 7 files, 248 tests passing (2026-09-27).
 
 Remaining:
 
 - [ ] Promote `bihar-rtps-serviceonline` from `testing` to `active` after a manual smoke test
       against the live portal — the adapter is written from the portal's rendered labels, and
-      only a real run confirms the dependent-dropdown chain and the AJAX timings
+      only a real run confirms the dependent-dropdown chain, the AJAX timings and the main form →
+      Annexure multi-page run
+- [ ] Same for `ssc-portal`: live smoke test, then `active` + `lastVerifiedAt`
 - [ ] Seed the remaining demo adapters into `portal_adapters`
 - [ ] Adapter admin / import UI and the health dashboard
 - [ ] `POST /api/form-reports`
@@ -213,7 +269,7 @@ Done:
       number); mm/px/DPI conversion and crop geometry; a target-KB JPEG search (quality first,
       drops a resolution rung only when the overshoot is large, climbs back up if an opening
       guess gave away resolution it did not need) plus JPEG comment-segment padding to reach a
-      portal's *minimum* KB; Otsu-threshold signature cleanup with a feathered ink/paper edge;
+      portal's _minimum_ KB; Otsu-threshold signature cleanup with a feathered ink/paper edge;
       passport/stamp photo sheet layout (centred block, centred short final row, corner-only cut
       marks) and CR-80 wallet-card sheet layout; Aadhaar mask-box geometry and a
       `isMeaningfulRedaction` gate; derivative recipe/filename builder that records operations
@@ -272,20 +328,54 @@ Remaining:
       RLS-policied from Migration 0004; the built-in catalogue in `packages/document-tools`
       covers the top portals for now, the same pattern as `BUILT_IN_ADAPTERS` in the form engine).
 
-## Phase 7 — Application tracking ☐
+## Phase 7 — Application tracking ◐
 
-Applications list + detail, status transitions (machine already built and tested), document
-checklist, fill-session links, customer profile history.
+Done:
 
-## Phase 8 — Billing hooks ☐
+- [x] Applications list with filters, new-application form, detail page with edit panel, status
+      actions, document checklist and delete — `apps/web/app/(app)/applications/`
+- [x] `/api/applications`, `/api/applications/:id`, `…/:id/status`, `…/:id/documents`,
+      `…/:id/documents/:docId`
+- [x] Fill-sessions list + detail with "Create application"; form library with "Report form"
+- [x] Multi-stage fills link every stage's fill session to one application (see Phase 4)
 
-Entitlement service wiring (logic already built and tested), usage counters, plan page, checkout
-provider interface, mock provider, webhook idempotency tests.
+Remaining:
+
+- [ ] Customer profile application history, and acceptance pass against spec §9.7
+- [ ] Roaming customers cannot have applications created from the extension (see Phase 4)
+
+## Phase 8 — Billing hooks ◐
+
+Done:
+
+- [x] Billing page with plan comparison; `/api/billing/{checkout,plan,usage,webhook}`
+- [x] Checkout provider interface with a mock provider (`apps/web/lib/billing/providers`, tested)
+- [x] Migration 0018 — plan-code sync
+
+Remaining:
+
+- [ ] Real payment provider; `.env.example` lists `RAZORPAY_*` that nothing reads and omits
+      `BILLING_WEBHOOK_SECRET`, which the webhook does read
+- [ ] Webhook idempotency tests; `billing.webhook_processed` audit action is defined but never written
 
 ## Phase 9 — Security hardening ☐
 
 Full RLS review, audit coverage, consent records, export/delete workflows, sensitive reveal flow,
 log redaction verification, support access grants, backup plan, security tests.
+
+Known gaps found while updating the docs (details in `docs/SECURITY.md`):
+
+- [ ] **Product owner:** full Aadhaar is stored for every organization "with customer consent",
+      but no code checks a consent record before storing or filling it, and the value sits in
+      `identity_summary_json` without field encryption (unlike PAN and bank account)
+- [ ] `redact()` does not catch walk-in `sender_id` / `chatId` or roaming mobiles
+- [ ] No export route; customer delete is soft-delete only; data export/delete jobs not built
+- [ ] Audit actions defined but never written: `auth.session_revoked`,
+      `organization.security_updated` / `deleted`, `customer.exported`,
+      `customer.roaming_access_expired`, `extraction.completed`, `adapter.updated`, `consent.*`,
+      `data.*`, `support.*`, `platform.admin_signed_in`
+- [ ] Stale comments since 0026: `packages/ai/src/safety.ts` (`maskIdentifiersInText`), 0024
+      (`identity_summary_json` "already holds masked"), 0017 (`custom_prompt` masking gate)
 
 ## Phase 10 — Pilot beta ☐
 
@@ -326,22 +416,135 @@ Remaining:
 - [ ] Decide whether `SCRAPER_HTTP_ENABLED` is ever turned on in production, and against which
       domains — currently off, so only `manual` and `fixture` sources do anything
 - [ ] Audit log viewer (`platform.audit.view` is granted but has no screen yet)
+- [ ] The `scraper.run` job type is allowed but has no handler; the scheduler must call the route
+
+Added since: `/admin/channels` — Telegram / WhatsApp bot credentials (see Walk-in document drop).
+
+---
+
+## Schemes catalogue and eligibility ◐
+
+- [x] Migration 0020 `schemes_catalog` — global and per-org rows, en/hi copy, application window,
+      Zod-checked eligibility JSON, publish flag
+- [x] Built-in catalogue, evaluator and state codes in `packages/core/src/schemes/`; server-side
+      matching in `apps/web/lib/schemes/service.ts` (nothing sent to any vendor)
+- [x] `(app)/schemes` hub, `(app)/schemes/[slug]` with an eligible-customers table, and the
+      customer eligibility widget on the profile (server-rendered; no `/api/schemes`)
+- [x] Seed adds demo application windows
+- [ ] No tenant UI for a centre's own scheme rows (RLS already allows owner/manager writes)
+
+## Cross-operator roaming customer access ◐
+
+A centre can find a customer registered at another centre by mobile number and, with the
+customer's consent OTP, get time-boxed read access. `docs/DATABASE.md` (0024, 0025) and
+`docs/SECURITY.md` §2 have the design.
+
+- [x] Migration 0024 — links, time-boxed grants (12 h max), OTP challenges, grant-aware read
+      policies on `customers`, `customer_field_values`, `documents`, `document_derivatives`;
+      service-role-only lookup functions; `roaming_access` consent subject
+- [x] `apps/web/lib/roaming/` and routes `GET /api/customers/roaming/search`,
+      `POST /api/customers/roaming/link`, `GET /api/customers/:id/roaming`,
+      `POST …/:id/roaming/{request-otp,verify-otp,revoke}`
+- [x] Dashboard: roaming lookup, roaming customers table, auth modal, locked card with masked
+      pre-consent eligibility preview, active banner; extension support (Phase 4)
+- [x] Tests: `rls-tests/roaming_access.test.ts`, `packages/core/src/roaming/grants.test.ts`,
+      extension `roaming.test.ts`
+- [ ] **Product owner:** OTP goes over WhatsApp only; SMS vendor not chosen
+- [ ] Schedule `expire_roaming_access_grants()`
+- [ ] Run the roaming RLS suite against a live Supabase (needs Docker)
+
+## Walk-in document drop ◐
+
+Customers send documents to the counter from their phone (QR / public page, Telegram or WhatsApp);
+the operator previews them and saves them to a new, existing or roaming customer.
+`docs/ARCHITECTURE.md` §7a.
+
+- [x] Migrations 0022 (sessions + files staging, permanent `counter_drop_code`, 2 h expiry, purge
+      on `POST /api/jobs/run`), 0023 (`platform_channel_settings`, encrypted at rest, env fallback),
+      0025 (insert-only roaming save, no extraction, audited as critical)
+- [x] Public `(public)/drop/[code]` + `POST /api/document-drop/public/:code` — add-only, one file
+      per request, 15 MB, 10 files per session, 60 counter sessions per hour
+- [x] Operator routes under `/api/document-drop/sessions` — list/create, delete, 5-min audited
+      file preview, convert (new, existing, subset of files, or roaming), simulate (404 in prod)
+- [x] Bots: `POST /api/webhooks/telegram`, `GET`/`POST /api/webhooks/whatsapp`, secret/signature
+      checked, 404 when unconfigured; `/admin/channels` with test + set-webhook
+- [x] Dashboard drop modal, queue, customer picker, file preview; `/standee/print` A5 standee
+- [ ] RLS tests for the 0022 drop tables and 0023 `platform_channel_settings`
+- [ ] Per-IP rate limit on the public upload
+- [ ] Point a scheduler at `POST /api/jobs/run` (also needed by Phase 3)
+- [ ] Live Meta / Telegram round-trip
+
+## Dashboard revamp ☑
+
+- [x] `(app)/dashboard`: hero, stat cards, customer jump search, recent customers, applications
+      pipeline, productivity widget, schemes opportunity radar, power-tools launcher, onboarding
+      checklist with extension detection, plus the walk-in drop modal and queue
+- [x] `apps/web/lib/dashboard/metrics.ts` (IST days, counts only) with tests
+- [x] Public `/roadmap` and `/tasks` serve `public/tasks.html`
+
+## Citizen mobile app (`apps/mobile`) ◐
+
+Spec: `docs/CITIZEN_MOBILE_APP_SPEC.md` (§8 has the build status). Everything real runs on the
+phone; the app makes no network calls and uploads nothing. Mobile suite: 35 files, 393 tests
+passing (2026-09-27).
+
+Built:
+
+- [x] Expo Router scaffold, theme, `en` + `hi`, `@assistigo/core` wiring; five-tab shell (Home,
+      Vault, Scan, Connect, Profile) with a custom tab bar
+- [x] Camera scanner (`react-native-vision-camera`) with live page outline, auto capture, torch,
+      up to 24 pages, gallery import
+- [x] OpenCV pipeline (`react-native-fast-opencv`): straight-edge page detection, EXIF upright,
+      perspective flattening, Magic Color / Original / Grayscale / B&W with paper-only lighting,
+      sharpening and a per-page tone curve (`lib/scan/`, `docs/SCANNER_VFLAT_QUALITY_PLAN.md` §6)
+- [x] Scan review: filter cards, pinch zoom, crop editor, quarter turns and ±45° straighten dial,
+      retake, add and delete page
+- [x] Save Document (name, type, folder, tags, expiry) into an AES-256-GCM encrypted vault with a
+      keystore key and a Zod-validated encrypted index
+- [x] Vault tab (search, folders, recent, starred, sort, list/grid), Document Details (viewer,
+      rename, tags, move, delete, star), export via share / save / print as multi-page PDF
+- [x] Local expiry reminders that never name the document; session language switch and About
+
+Screens only (no backend; sample data appears only in `__DEV__` builds):
+
+- [x] Splash, onboarding, mobile-number / OTP / profile registration screens — no SMS is sent,
+      no code is checked, the profile is discarded
+- [ ] Security setup / app lock (placeholder)
+- [ ] Home dashboard from real vault data
+- [ ] Connect / nearby centres / centre details (no directory or location in release builds)
+- [ ] Profile account card (signed-out in release builds)
+
+Remaining:
+
+- [ ] **Product owner:** Supabase phone OTP sign-in and what citizen profile data is stored
+- [ ] Biometric / PIN app lock
+- [ ] Cloud sync and the `citizen_accounts` / `citizen_vault_documents` / `operator_access_logs`
+      tables (spec §5)
+- [ ] Operator bridge in `apps/web` / `apps/extension`, consent access modes, access history
+- [ ] Centre directory, location, directions; Connect & Share
+- [ ] Photo / signature / ID presets, on-device OCR
+- [ ] Dewarping, finger removal, low-contrast detection
+- [ ] Persist language and saved centres; dark mode for branded screens
+- [ ] Replace the dev-only demo mobile number in `app/(auth)/mobile-number.tsx` with an obviously
+      fake value
 
 ---
 
 ## Deferred, by decision
 
 - Physical E-card and card reader (spec §4.3) — revisit only against the criteria listed there.
-- Customer portal, public API, WhatsApp notifications (V2/V3).
-- ~~Citizen mobile app~~ — un-deferred by the product owner. Scaffolded as `apps/mobile`
-  (Expo + Expo Router); see `docs/CITIZEN_MOBILE_APP_SPEC.md` §6 Phase 1.
+- Customer portal, public API, WhatsApp notifications (V2/V3). WhatsApp is used today only for
+  walk-in document intake and the roaming consent OTP, not for notifications.
+- ~~Citizen mobile app~~ — un-deferred by the product owner. Built as `apps/mobile`
+  (Expo + Expo Router); see the Citizen mobile app section above.
 - Regional languages beyond the Hindi/English foundation.
 
 ---
 
 ## Known deviations from spec §26
 
-| Spec says                      | Built as                           | Why                                                                                     |
-| ------------------------------ | ---------------------------------- | --------------------------------------------------------------------------------------- |
-| `packages/database/migrations` | `supabase/migrations`              | CLI-native path; avoids a synced second copy that would drift                           |
-| —                              | `apps/web/app/(app)/…` route group | Keeps `/dashboard`, `/customers` at the top level while sharing one authenticated shell |
+| Spec says                      | Built as                                              | Why                                                                                       |
+| ------------------------------ | ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `packages/database/migrations` | `supabase/migrations`                                 | CLI-native path; avoids a synced second copy that would drift                             |
+| —                              | `apps/web/app/(app)/…` route group                    | Keeps `/dashboard`, `/customers` at the top level while sharing one authenticated shell   |
+| Product name Assistigo.ai      | UI says "Bharatfill"; mobile artwork says "BharatDoc" | Branding in flux (`docs/DOMAIN_STRATEGY.md`); code, packages and docs still use Assistigo |

@@ -36,17 +36,47 @@ export interface OcrProvider {
 
 There are **two provider slots**, because a document has two very different readers behind it.
 
-| Slot      | Env              | Provider    | Use                                                        | Status             |
-| --------- | ---------------- | ----------- | ---------------------------------------------------------- | ------------------ |
-| local     | `OCR_PROVIDER`   | `local`     | embedded PDF text + text uploads, in-process               | **default**        |
-| local     | `OCR_PROVIDER`   | `mock`      | tests, CI, demo seed. Deterministic output from fixtures.  | tests only         |
-| local     | `OCR_PROVIDER`   | `tesseract` | cheap local OCR for simple scans                           | not implemented    |
-| AI vision | `OCR_AI_PROVIDER`| `deepseek`  | hosted vision model for photos and difficult layouts       | **off by default** |
-| AI vision | `OCR_AI_PROVIDER`| `anthropic` | ditto                                                      | not implemented    |
+| Slot      | Env               | Provider        | Use                                                                      | Status             |
+| --------- | ----------------- | --------------- | ------------------------------------------------------------------------ | ------------------ |
+| local     | `OCR_PROVIDER`    | `local`         | embedded PDF text + text uploads, in-process                             | **default**        |
+| local     | `OCR_PROVIDER`    | `mock`          | tests, CI, demo seed. Deterministic output from fixtures.                | tests only         |
+| local     | `OCR_PROVIDER`    | `tesseract`     | cheap local OCR for simple scans                                         | not implemented    |
+| AI vision | `OCR_AI_PROVIDER` | `deepseek`      | hosted vision model for photos and difficult layouts; `DEEPSEEK_API_KEY` | **off by default** |
+| AI vision | `OCR_AI_PROVIDER` | `anthropic`     | ditto, Anthropic messages wire format; `ANTHROPIC_API_KEY`               | **off by default** |
+| AI vision | per organization  | `org_ai_vendor` | the organization's own vendor from `organization_ai_settings` (below)    | owner-configured   |
 
-The product is never hard-coded to one provider. `deepseek` speaks the OpenAI chat-completions
-shape, so `OCR_AI_BASE_URL` and `OCR_AI_MODEL` repoint it at any compatible endpoint — another
-hosted vendor, a gateway, or a self-hosted vision model — without a code change.
+The product is never hard-coded to one provider. `AiVisionOcrProvider`
+(`packages/ai/src/providers/ai-vision.ts`) speaks two wire formats — OpenAI chat-completions
+(`openai_compatible`) and Anthropic messages (`anthropic_messages`) — so `OCR_AI_BASE_URL` and
+`OCR_AI_MODEL` repoint the deployment reader at any compatible endpoint — another hosted vendor, a
+gateway, or a self-hosted vision model — without a code change. The OpenAI-shaped URL is built
+from the base URL (`…/v1/chat/completions`, or `…/chat/completions` when the base already ends in
+`/v1` or `/openai`). Requests time out after 60 s.
+
+`.env.example` still describes `anthropic` as not implemented; that comment is stale — the
+provider, the env wiring and a unit-tested `anthropic_messages` request builder all exist.
+
+### Organization vendor settings (migration 0017)
+
+An owner may bring their own vendor instead of the deployment's. When an organization has an
+`organization_ai_settings` row, `resolveAiProviderConfig` (`apps/web/lib/jobs/handlers/ocr-extract.ts`)
+uses it — provider name `org_ai_vendor` — in place of `OCR_AI_PROVIDER`; with no row, the
+environment reader is used exactly as before.
+
+| Setting         | Rule                                                                                                                                                                                      |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider`      | UI preset: `openai`, `anthropic`, `deepseek`, `gemini`, `ollama`, `openrouter`, `custom` (`apps/web/lib/ai/vendor-settings.ts`); presets supply a default base URL, model and wire format |
+| `base_url`      | `https://` only; localhost, private ranges, `.local` and the cloud metadata address refused                                                                                               |
+| `model`         | falls back to the preset's default when blank                                                                                                                                             |
+| `api_key`       | AES-256-GCM at rest; never returned — the API reports `hasApiKey` only                                                                                                                    |
+| `custom_prompt` | ≤ 8 000 chars; switches the reader into structured mode (below)                                                                                                                           |
+
+Routes: `GET/PUT/DELETE /api/organizations/ai-settings` (read: any member; write: `org.security`,
+owner only) and `POST /api/organizations/ai-settings/test-connection` (owner; sends one trivial
+prompt, never a document, 15 s timeout). Configuring a vendor does **not** turn AI reading on —
+the same route's `enabled` flag writes `organizations.settings.ai_processing_enabled`, which
+remains the gate (rule 2 below). For a `googleapis.com` endpoint the key is also appended as a
+`key=` query parameter.
 
 ### The three reading methods
 
@@ -54,11 +84,11 @@ The operator picks one per upload (`extractionMode` on `POST /api/documents/:id/
 in the job payload). It is a trade-off between speed, cost and privacy, so each option is
 labelled with what it costs rather than what it is called.
 
-| Mode     | Behaviour                                                                             |
-| -------- | ------------------------------------------------------------------------------------- |
-| `non_ai` | Local reader only. **No byte leaves this server** — a guarantee, not a preference.     |
-| `ai`     | AI vision reader, subject to the opt-in gate below.                                   |
-| `auto`   | Local first; escalates to AI **only** when the local read produced no fields at all.   |
+| Mode     | Behaviour                                                                            |
+| -------- | ------------------------------------------------------------------------------------ |
+| `non_ai` | Local reader only. **No byte leaves this server** — a guarantee, not a preference.   |
+| `ai`     | AI vision reader, subject to the opt-in gate below.                                  |
+| `auto`   | Local first; escalates to AI **only** when the local read produced no fields at all. |
 
 Three rules hold whichever method was picked, and are enforced in `packages/ai/src/pipeline.ts`:
 
@@ -90,15 +120,15 @@ anyway (§4).
 
 #### The two structured-mode exceptions
 
-Structured mode is where the model *does* emit field keys. There are two ways in, and neither
+Structured mode is where the model _does_ emit field keys. There are two ways in, and neither
 loosens anything downstream: `buildFieldsFromStructuredOutput` runs every candidate through the
 same per-kind normaliser, the same high-risk review rules and the same safety gate as the rules
 engine, and drops a key that is not in the customer field registry with a warning.
 
-| Entrance                 | Set by                                            | Asked for                              |
-| ------------------------ | ------------------------------------------------- | -------------------------------------- |
-| `customPrompt`           | an organization, in AI settings                    | whatever the organization's prompt says |
-| `dynamicSchema`          | the pipeline, for one case only (below)            | a mapping onto the field registry       |
+| Entrance        | Set by                                  | Asked for                               |
+| --------------- | --------------------------------------- | --------------------------------------- |
+| `customPrompt`  | an organization, in AI settings         | whatever the organization's prompt says |
+| `dynamicSchema` | the pipeline, for one case only (below) | a mapping onto the field registry       |
 
 **The dynamic-schema escalation.** When a document was read but matched **no printed label at
 all**, there is nothing further the rules engine can do with text it has already failed to place —
@@ -111,7 +141,7 @@ It is deliberately narrow, because it costs a second vendor request:
 - never in `non_ai` mode, and never without `ai_processing_enabled` — the same gates as any
   other AI read (rule 10),
 - only when the page yielded **zero** fields, so a document that was read is never re-read,
-- never for a class that has no fields by design — a photo or a signature *is* the value,
+- never for a class that has no fields by design — a photo or a signature _is_ the value,
 - never when an organization's own `customPrompt` already asked the model to map the document.
 
 The transcription stays the retained text and the class stays as the page decided it; only the
@@ -120,12 +150,12 @@ The operator sees `documents.warnings.aiDynamicExtractionUsed`.
 
 ### What each reader cannot do
 
-| Reader | Limitation                                                                            |
-| ------ | ------------------------------------------------------------------------------------- |
-| local  | Cannot read a photograph or a scanned PDF: there is no OCR engine on the box.          |
-| local  | Cannot resolve PDF font encodings. A subset/CID font is reported as "no text", never as nonsense — `looksLikeProse` in `pdf-text.ts` is that guard. |
-| AI     | A chat-completions endpoint takes images, not PDFs. A text-bearing PDF is read locally and its text sent instead; a **scanned** PDF is refused with `AI_NEEDS_IMAGE`, because rasterising would need a new dependency. |
-| AI     | Images over 6 MB are refused rather than turned into a request that fails slowly.      |
+| Reader | Limitation                                                                                                                                                                                                                                                                                                                                                                 |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| local  | Cannot read a photograph or a scanned PDF: there is no OCR engine on the box.                                                                                                                                                                                                                                                                                              |
+| local  | Cannot resolve PDF font encodings. A subset/CID font is reported as "no text", never as nonsense — `looksLikeProse` in `pdf-text.ts` is that guard.                                                                                                                                                                                                                        |
+| AI     | A chat-completions endpoint takes images, not PDFs. A text-bearing PDF is read locally and its text sent instead (as a plain-text message, no image part); a **scanned** PDF is refused with `AI_NEEDS_IMAGE`, because rasterising would need a new dependency. The one exception is a Gemini / `googleapis.com` endpoint, which is sent the PDF directly (same 6 MB cap). |
+| AI     | Images over 6 MB are refused rather than turned into a request that fails slowly.                                                                                                                                                                                                                                                                                          |
 
 Every one of these becomes an operator-facing warning under `documents.warnings.*`, in `en` and
 `hi`.
@@ -134,7 +164,12 @@ Every one of these becomes an operator-facing warning under `documents.warnings.
 
 `aadhaar_like` · `pan` · `voter_id` · `marksheet_10` · `marksheet_12` · `marksheet_graduation` ·
 `caste_certificate` · `income_certificate` · `residence_certificate` · `photo` · `signature` ·
-`generic` · `unknown`
+`receipt` · `application_pdf` · `generic` · `unknown`
+
+The list is `DOCUMENT_TYPES` in `packages/core/src/documents/types.ts`, mirrored by the
+`documents.document_type` check (0019 added `marksheet_graduation`) and by
+`document_drop_files.suggested_document_type`. `photo`, `signature`, `receipt` and
+`application_pdf` have empty field allow-lists by design.
 
 Classification is a scored keyword/layout match over the OCR text plus filename hints. `unknown`
 is a first-class result — the operator can still attach and label the document by hand.
@@ -152,7 +187,7 @@ yields a Class 10 board. Extracting a field the document cannot contain is how w
 into a profile.
 
 `unknown` and `generic` are the exception: they get the **whole** dictionary, exactly as pasted
-text does (§11). The narrow allow-lists are a statement about a *known* class; `unknown` makes no
+text does (§11). The narrow allow-lists are a statement about a _known_ class; `unknown` makes no
 such statement — it says we do not know what is on the page — and a four-field allow-list turned
 that admission into silently discarding a mother's name, a gender or a roll number the operator
 can see printed in front of them. Nothing is loosened downstream: every field still goes through
@@ -206,7 +241,7 @@ grid row, because a wrong split files a value under the wrong field:
    words, one starting a new whitespace column, or a row whose every cell is short enough that it
    can only be a grid.
 
-Every cell of an unpunctuated row must also read as a *value* rather than a phrase, which is what
+Every cell of an unpunctuated row must also read as a _value_ rather than a phrase, which is what
 stops a heading such as `BOARD OF HIGH SCHOOL AND INTERMEDIATE EDUCATION` from proposing
 `Board = OF HIGH`. Words that occur inside the names of institutions — "College", "Degree",
 "School", "University", "Board", "State" — may open a line but never start a column part-way
@@ -217,15 +252,15 @@ regex found nothing, and the cell is cut at the next label rather than swallowin
 
 ## 5. Normalisation (§12.5)
 
-| Value        | Rule                                                                                                           |
-| ------------ | -------------------------------------------------------------------------------------------------------------- |
-| Dates        | parsed from `dd/mm/yyyy`, `dd-mm-yyyy`, `yyyy-mm-dd`, `d MMM yyyy`; stored ISO; displayed `dd/mm/yyyy`         |
-| Mobile       | strip separators, drop `+91`/`0` prefix, must be 10 digits starting 6–9                                        |
-| PIN          | exactly 6 digits, first digit 1–8                                                                              |
-| PAN          | `^[A-Z]{5}[0-9]{4}[A-Z]$` — **format check only, never proof of authenticity**                                 |
-| Aadhaar-like | 12 digits; the labeled path keeps the full number under `customer.aadhaar` (or last four under `customer.aadhaar_last4` when that's the only key allowed); an unlabelled digit run additionally needs the Verhoeff checksum to be treated as a match at all |
-| Names        | preserved as printed. Whitespace collapsed. Never title-cased, never transliterated.                           |
-| Address      | components extracted **and** the full printed address retained verbatim                                        |
+| Value        | Rule                                                                                                                                                                                                                                                                                                                                                           |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dates        | parsed from `dd/mm/yyyy`, `dd-mm-yyyy`, `yyyy-mm-dd`, `d MMM yyyy`; stored ISO; displayed `dd/mm/yyyy`                                                                                                                                                                                                                                                         |
+| Mobile       | strip separators, drop `+91`/`0` prefix, must be 10 digits starting 6–9                                                                                                                                                                                                                                                                                        |
+| PIN          | exactly 6 digits, first digit 1–8                                                                                                                                                                                                                                                                                                                              |
+| PAN          | `^[A-Z]{5}[0-9]{4}[A-Z]$` — **format check only, never proof of authenticity**                                                                                                                                                                                                                                                                                 |
+| Aadhaar-like | 12 digits. A labelled value (`Aadhaar`, `आधार`, `VID`, …) becomes `customer.aadhaar`, full number. An unlabelled twelve-digit run must also pass the Verhoeff checksum, and becomes `customer.aadhaar` when the class allows it, else `customer.aadhaar_last4` (last four only). `aadhaar_like` allows `customer.aadhaar`; structured mode may emit either key |
+| Names        | preserved as printed. Whitespace collapsed. Never title-cased, never transliterated.                                                                                                                                                                                                                                                                           |
+| Address      | components extracted **and** the full printed address retained verbatim                                                                                                                                                                                                                                                                                        |
 
 Normalisation never discards the original: `sourceText` always carries what was actually read.
 
@@ -249,9 +284,12 @@ traceability but never surfaces it for autofill.
 
 - Documents are stored only when the operator attaches them to a customer.
 - Temporary processing artefacts are deleted at the end of the job.
-- Raw OCR text is retained only while the extraction is unreviewed, then truncated to the matched
-  snippets.
-- Org-level retention setting drives the `retention.sweep` job.
+- Raw OCR text (already Aadhaar-masked, capped at 20 000 chars) is retained only while the
+  extraction is unreviewed; `POST /api/documents/:id/review` sets `raw_text` to null. Field
+  source snippets survive in `extracted_fields`.
+- There is one `document_extractions` row per document (0013); a retry upserts over it.
+- Org-level retention setting is meant to drive the `retention.sweep` job, which has no handler
+  yet.
 - Delete controls exist at document, customer and organization level.
 
 ## 8. Fixtures and golden tests (§23.1)
@@ -272,8 +310,10 @@ No real document is ever committed, in any form, including cropped or redacted.
 `packages/ai/src/safety.ts` is the single gate. Every extracted field, every source snippet and
 the retained raw text pass through it before anything is persisted:
 
-- `customer.aadhaar` is the one deliberate exception — its value and source snippet both
-  survive untouched, since the product now stores and uses the full number,
+- `customer.aadhaar` is the one deliberate exception — its value (reduced to its last twelve
+  digits) and source snippet both survive, since the product now stores and uses the full number
+  (migration 0026; before it, structured mode refused this key and the label rule produced
+  `aadhaar_last4`),
 - `customer.aadhaar_last4` is reduced to four digits whatever the extractor produced,
 - every other field, and all raw OCR retention, still has any twelve-digit Aadhaar-like run
   masked to `XXXX XXXX 1234` — deliberately broader than the Verhoeff check, because a misread
@@ -296,15 +336,21 @@ GET  /api/documents/:id/extraction  → the review payload
 POST /api/documents/:id/review      → the human gate; the only path into a customer profile
 ```
 
+A walk-in drop saved to a local customer (`POST /api/document-drop/sessions/:id/convert`,
+`target: 'local'`) promotes each staged file into `documents` and queues `ocr.extract` for it the
+same way; the citizen's caption or tapped button is only a `suggested_document_type` hint, and
+classification still runs. A save to a roaming customer's home organization queues nothing —
+the visiting operator could not read `document_extractions` anyway.
+
 ### Who actually runs the job
 
 A queue with no worker is a document that says "Reading" forever, so there are two entry points
 into the same execution path (`apps/web/lib/jobs/runner.ts`):
 
-| Entry point       | Claims via            | Scope                                        |
-| ----------------- | --------------------- | -------------------------------------------- |
-| `runDocumentJob`  | `claim_document_job`  | only the job for the document being processed |
-| `runPendingJobs`  | `claim_jobs`          | whatever is due, across organizations         |
+| Entry point      | Claims via           | Scope                                         |
+| ---------------- | -------------------- | --------------------------------------------- |
+| `runDocumentJob` | `claim_document_job` | only the job for the document being processed |
+| `runPendingJobs` | `claim_jobs`         | whatever is due, across organizations         |
 
 `POST /api/documents/:id/process` calls the first one **in-request**, controlled by
 `JOB_INLINE_RUNNER` (`on` by default). It claims by document rather than draining the queue, so
@@ -351,13 +397,13 @@ no document class to guess, so the **whole** dictionary is in scope
 
 The splitter handles the shapes real pastes arrive in:
 
-| Shape                                       | Handling                                                          |
-| ------------------------------------------- | ----------------------------------------------------------------- |
-| `Label: Value` per line                     | as-is                                                             |
-| `Label = Value`                             | `=` accepted alongside `:`, `  `, ` - `                          |
-| `A: 1, B: 2, C: 3` on one line              | split at a separator **only** when a new `label:` follows         |
-| `Address: H.No 12, Rampur, Ghazipur`        | not split — the lookahead needs a label, so the address survives   |
-| `Father's Name` / `Ram Kumar` on two lines | paired, but only if line 1 is a known label and line 2 is not      |
+| Shape                                      | Handling                                                         |
+| ------------------------------------------ | ---------------------------------------------------------------- |
+| `Label: Value` per line                    | as-is                                                            |
+| `Label = Value`                            | `=` accepted alongside `:`, `  `, `-`                            |
+| `A: 1, B: 2, C: 3` on one line             | split at a separator **only** when a new `label:` follows        |
+| `Address: H.No 12, Rampur, Ghazipur`       | not split — the lookahead needs a label, so the address survives |
+| `Father's Name` / `Ram Kumar` on two lines | paired, but only if line 1 is a known label and line 2 is not    |
 
 Two things are deliberately different from the document path:
 

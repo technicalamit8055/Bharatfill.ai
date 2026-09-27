@@ -182,13 +182,13 @@ To keep citizens safe and build long-term trust, the app includes robust consent
 │                                                             │
 │   Web Dashboard: Next.js 15 (Current Repo: apps/web)        │
 │   Browser Extension: Chrome Manifest V3 (apps/extension)    │
-│   Shared Packages: @assistigo/types, @assistigo/database    │
+│   Shared Packages: @assistigo/core, @assistigo/database     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### 4.1 Recommended Technology Stack
 * **Mobile Framework:** **React Native with Expo**
-  * *Why:* Can be added directly into this repository as `apps/mobile` in the existing Turborepo / npm workspaces setup. Directly imports TypeScript types and DB models from `packages/types` and `packages/database`.
+  * *Why:* Can be added directly into this repository as `apps/mobile` in the existing Turborepo / npm workspaces setup. Directly imports shared TypeScript vocabularies (document types, Indian states) from `packages/core` (`@assistigo/core`); `packages/database` is not used by the app yet.
 * **Scanning Engine:** **Google Play Services ML Kit Document Scanner API**
   * *Why:* Google's official document scanner running on-device. Zero APK size increase; real-time edge detection, auto-crop, shadow removal, and cleaning built by Google.
 * **Secondary CV Engine (Dewarp & Finger Removal):** Native C++ / OpenCV bindings (`react-native-fast-opencv`) or MediaPipe Hands.
@@ -258,6 +258,8 @@ create table operator_access_logs (
 └────────────────────────┘      └────────────────────────┘      └────────────────────────┘
 ```
 
+What is built so far, and where it differs from this plan: §8.
+
 ### Phase 1: Standalone Scanner & Vault MVP
 * Scaffold `apps/mobile` using React Native (Expo).
 * Integrate Google ML Kit Document Scanner for high-speed edge detection, auto-crop, and color enhancement.
@@ -285,3 +287,55 @@ create table operator_access_logs (
 | **Operator Time Saved per Application** | 12 minutes saved per walk-in customer |
 | **Customer Retention in Vault** | ≥ 65% of citizens retain the app after initial form filling |
 | **Ecosystem Adoption** | ≥ 70% of Bharatfill-partnered cyber cafes have customers walking in with pre-scanned Bharatfill app vaults |
+
+---
+
+## 8. Build status
+
+As of commit `e655e17` (2026-09). Code: `apps/mobile`; developer notes: `apps/mobile/README.md`.
+Release builds show only what is real; development builds fill empty screens with the mockups'
+sample content (`components/*/demo.ts(x)`), which is not listed as built below.
+
+### Phase 1 — mostly built, on-device only
+* **Built:** Expo app in `apps/mobile`. In-app scanner with live page outline, auto capture,
+  manual shutter, torch, multi-page (24 pages) and gallery import; page crop with corner handles,
+  quarter turns and a straighten dial; perspective flattening; Magic Color / Original / Grayscale /
+  Black & White filters; retake, add and delete pages.
+* **Built:** categorised vault (the four §3 Feature 2 sections, mapped onto `@assistigo/core`
+  `DocumentType`), with name, type, folder, tags, star, search, sort, rename, move and delete.
+  Pages and index are AES-256-GCM encrypted on the phone; the key is in the platform keystore.
+* **Built:** multi-page PDF and single-image export through the system share sheet, a folder the
+  citizen picks, or the print dialog.
+* **Not built:** biometric / PIN app lock (registration step 3 is a placeholder).
+
+### Phase 2 — not built
+* The mobile-number, OTP and profile-setup screens exist with input validation, but no SMS is
+  sent, no code is checked and the profile is discarded. Wiring Supabase phone auth needs
+  product-owner sign-off.
+* No cloud sync: nothing leaves the phone. No `citizen_accounts` / `citizen_vault_documents` /
+  `operator_access_logs` tables (§5). The operator dashboard's cross-centre mobile-number lookup
+  (roaming customers, `apps/web/app/(app)/customers/roaming-lookup.tsx`) searches
+  operator-created customer records; it cannot see this app's vault.
+
+### Phase 3 — partly built
+* **Built:** Hindi + English for every screen, switchable in-app (not yet remembered between
+  launches).
+* **Not built:** access-alert push notifications, access modes A / B / C, portal size presets.
+
+### Other features in the spec, not built
+Passport photo, signature and ID card modes (the Home shortcuts open the ordinary scanner);
+dewarping of curled pages; finger removal; on-device OCR field extraction.
+
+### Deviations from this spec
+* **Name:** the app ships as **Bharatfill** (`app.json`, `app.name`); the splash, onboarding and
+  sign-in artwork spell the wordmark **BharatDoc**, which is also the name used in
+  `docs/SCANNER_VFLAT_QUALITY_PLAN.md`.
+* **Scanner engine:** not the ML Kit Document Scanner. The camera is `react-native-vision-camera`
+  and all detection and clean-up is in-app OpenCV (`react-native-fast-opencv`,
+  `apps/mobile/lib/scan/`); see `docs/SCANNER_VFLAT_QUALITY_PLAN.md` §6.
+* **Local storage:** encrypted files plus an encrypted, Zod-validated JSON index, not SQLite /
+  WatermelonDB. Styling uses React Native `StyleSheet` with theme tokens, not NativeWind.
+* **Added beyond §3:** local expiry reminders (an on-device notification before a document's
+  expiry date; no server) and a Connect tab with a nearby-CSC finder and centre details. The
+  finder has no centre directory or location access yet, so release builds show no centres; its
+  directions, calling and Connect & Share actions are not built.

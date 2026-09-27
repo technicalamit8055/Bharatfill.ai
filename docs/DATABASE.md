@@ -5,8 +5,9 @@ Derived from master spec §18.
 **Migrations live in `supabase/migrations/`**, not `packages/database/migrations` as sketched in
 spec §26. The Supabase CLI reads that path with no configuration, so `supabase db reset`,
 `supabase db diff` and the CI `database` job all work out of the box; a second copy synced from
-elsewhere would be a drift hazard for no benefit. `packages/database/` holds the seed data,
-the RLS test suite and generated types.
+elsewhere would be a drift hazard for no benefit. `packages/database/` holds the seed script and
+fixtures (`src/seed/`) and the RLS test suite (`rls-tests/`). Generated DB types live with their
+only consumer, in `apps/web/lib/supabase/database.types.ts`.
 
 ---
 
@@ -24,21 +25,36 @@ the RLS test suite and generated types.
 
 ## 2. Migration order
 
-| File                              | Contents                                                                                                               |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `0001_extensions_and_helpers.sql` | `pgcrypto`, `set_updated_at()`, `is_org_member()`, `has_org_role()`, `current_org_role()`                              |
-| `0002_organizations.sql`          | `organizations`, `organization_members`, `organization_invitations`                                                    |
-| `0003_customers.sql`              | `customers`, `customer_field_values`                                                                                   |
-| `0004_documents.sql`              | `documents`, `document_extractions`, `document_derivatives`, `document_requirement_presets`, storage bucket + policies |
-| `0005_applications.sql`           | `applications`, `application_status_events`, `application_documents`                                                   |
-| `0006_form_engine.sql`            | `portal_adapters`, `fill_sessions`, `fill_session_fields`, `form_reports`, `org_field_mappings`                        |
-| `0007_billing.sql`                | `plans`, `subscriptions`, `usage_events`                                                                               |
-| `0008_audit_and_privacy.sql`      | `audit_logs`, `consent_records`, `support_access_grants`, `data_requests`                                              |
-| `0009_jobs.sql`                   | `jobs` table + claim/complete functions                                                                                |
-| `0010_rls_policies.sql`           | every RLS policy in one reviewable place, plus storage policies                                                        |
-| `0011_rpc.sql`                    | `create_organization`, `accept_invitation`, `search_customers`, `dashboard_summary`                                    |
+| File                                           | Contents                                                                                                                                                                                                            |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0001_extensions_and_helpers.sql`              | `pgcrypto`, `set_updated_at()`, `is_org_member()`, `has_org_role()`, `current_org_role()`                                                                                                                           |
+| `0002_organizations.sql`                       | `organizations`, `organization_members`, `organization_invitations`                                                                                                                                                 |
+| `0003_customers.sql`                           | `customers`, `customer_field_values`                                                                                                                                                                                |
+| `0004_documents.sql`                           | `documents`, `document_extractions`, `document_derivatives`, `document_requirement_presets`, storage bucket + policies                                                                                              |
+| `0005_applications.sql`                        | `applications`, `application_status_events`, `application_documents`                                                                                                                                                |
+| `0006_form_engine.sql`                         | `portal_adapters`, `fill_sessions`, `fill_session_fields`, `form_reports`, `org_field_mappings`                                                                                                                     |
+| `0007_billing.sql`                             | `plans`, `subscriptions`, `usage_events`                                                                                                                                                                            |
+| `0008_audit_and_privacy.sql`                   | `audit_logs`, `consent_records`, `support_access_grants`, `data_requests`                                                                                                                                           |
+| `0009_jobs.sql`                                | `jobs` table + claim/complete functions                                                                                                                                                                             |
+| `0010_rls_policies.sql`                        | every RLS policy in one reviewable place, plus storage policies                                                                                                                                                     |
+| `0011_rpc.sql`                                 | `create_organization`, `accept_invitation`, `search_customers`, `dashboard_summary`                                                                                                                                 |
+| `0012_extension_pairing.sql`                   | `extension_pairing_codes` (SHA-256 code hash, encrypted session, one live code per user; no policies), `consume_extension_pairing_code()`, `purge_extension_pairing_codes()` — both service_role only               |
+| `0013_document_extraction_uniqueness.sql`      | collapses duplicate `document_extractions` and adds `unique (document_id)`; `storage_used_bytes(org)` for the storage entitlement                                                                                   |
+| `0014_enqueue_job_rpc.sql`                     | `enqueue_job()` — `security definer` entry point letting owner/manager/operator queue `ocr.extract` / `document.derivative` only, with in-flight idempotency                                                        |
+| `0015_claim_document_job.sql`                  | `claim_document_job()` — service_role claim of one document's `ocr.extract` job (optionally rewriting `extractionMode`); `jobs_ocr_document_idx`                                                                    |
+| `0016_derivative_storage_usage.sql`            | `storage_used_bytes()` now also sums `document_derivatives.size_bytes`                                                                                                                                              |
+| `0017_ai_vendor_settings.sql`                  | `organization_ai_settings` — per-org AI vendor (provider preset, wire format, base URL, model, encrypted API key, custom prompt); owner-only writes                                                                 |
+| `0018_billing_plan_sync.sql`                   | `sync_organization_plan_code()` trigger on `subscriptions` → `organizations.plan_code`                                                                                                                              |
+| `0019_graduation_marksheet_document_type.sql`  | adds `marksheet_graduation` to the `documents.document_type` check                                                                                                                                                  |
+| `0020_schemes_catalog.sql`                     | `schemes_catalog` — global (`organization_id is null`) and per-org scheme/vacancy rows, en+hi copy, application window, eligibility JSON                                                                            |
+| `0021_platform_admin_and_scrapers.sql`         | `platform_admins`, `scraper_sources`, `scraper_runs`, `scraped_schemes_queue`, `is_platform_admin()`, `platform_metrics()`, `platform_tenant_rows()`; adds `scraper.run` job type                                   |
+| `0022_document_drop_bot.sql`                   | `organizations.counter_drop_code`, `document_drop_sessions`, `document_drop_files`, `purge_expired_document_drops()`                                                                                                |
+| `0023_platform_channel_settings.sql`           | `platform_channel_settings` — deployment-wide WhatsApp/Telegram credentials, encrypted; service_role only                                                                                                           |
+| `0024_roaming_customers_and_access_grants.sql` | `customer_roaming_links`, `customer_access_grants`, `customer_access_challenges`, grant helpers, roaming RPCs; `roaming_access` consent subject; grant clause on four tenant tables' select policies + storage read |
+| `0025_document_drop_roaming_intake.sql`        | second arm on `documents_insert` and a `storage.objects` insert policy, so a live grant holder can add a document to the customer's home org                                                                        |
+| `0026_allow_full_aadhaar.sql`                  | `reject_full_aadhaar()` reduced to the `aadhaar_last4` format check; `settings.allow_full_aadhaar` default and backfill set to `true` (key no longer read)                                                          |
 
-Seed data is **separate from migrations** (`packages/database/seed/`), per spec §25.4.
+Seed data is **separate from migrations** (`packages/database/src/seed/`), per spec §25.4.
 
 ## 3. Security helper functions
 
@@ -90,14 +106,120 @@ Mobile search also matches on a normalized last-10-digit column so `98765 43210`
 
 ### Sensitive columns
 
-`customers.identity_summary_json` stores masked summaries only:
+`customers.identity_summary_json` holds identity summaries:
 
 ```json
-{ "aadhaar_last4": "1234", "pan_masked": "ABCXX1234X", "voter_id_last4": "7788" }
+{
+  "aadhaar": "<12 digits>",
+  "aadhaar_last4": "1234",
+  "pan_masked": "ABCXX1234X",
+  "voter_id_last4": "7788"
+}
 ```
 
 Full PAN / bank account live encrypted in `customer_field_values.value_encrypted`.
-There is no column anywhere for a full Aadhaar number in the MVP.
+
+**Full Aadhaar is stored since 0026.** `customer.aadhaar` maps to `identity_summary_json.aadhaar`
+(field registry: `high_risk`, `storage.kind = 'json'`), and its accepted value is also written to
+`customer_field_values.value_text` with a masked `display_value`. It is **not** field-encrypted —
+only `storage.kind = 'encrypted'` keys (PAN, bank account) go to `value_encrypted` — so it is
+protected by RLS, masking on every display path, and whatever at-rest encryption the database host
+provides — not by `FIELD_ENCRYPTION_KEY`. The `customers_reject_full_aadhaar` trigger from 0003 still exists
+but, after 0026, only rejects a malformed `aadhaar_last4`. `organizations.settings.allow_full_aadhaar`
+is defaulted and backfilled to `true` and is read by nothing; storage is unconditional.
+
+Consequence for 0024: `roaming_customer_search()` / `roaming_customer_card()` return
+`identity_summary_json` raw, which now can carry the full number. Their service-role-only grant is
+what keeps that out of a browser — `apps/web/lib/roaming/card.ts` derives "which documents are on
+file" from it and forwards nothing else. The 0024 comment saying that column "already holds
+masked" values predates 0026.
+
+### `extension_pairing_codes` (0012)
+
+The one table that holds an operator's session. Only `code_hash` (SHA-256) is stored, never the
+code; `session_payload` is AES-256-GCM ciphertext with the code hash as AAD, so a row cannot be
+moved onto another code. A partial unique index allows one unconsumed code per user, and
+redemption is a single `update … returning` inside `consume_extension_pairing_code()` so two
+redemptions cannot interleave. RLS is on with no policies; only the pairing routes reach it.
+
+### One extraction per document (0013)
+
+`document_extractions` is the _current proposal_, not a history: `unique (document_id)` lets the
+`ocr.extract` handler `upsert` on retry instead of stacking a second copy into review. Accepted
+values keep their provenance in `customer_field_values`, and the decision is in `audit_logs`.
+
+### Queueing and claiming jobs (0014, 0015)
+
+`jobs` stays policy-less. `enqueue_job()` is the narrow `security definer` door for a signed-in
+operator: two job types only, a membership re-check in SQL, and a `null` return (not an error)
+when the same idempotency key is already in flight. `claim_document_job()` is service_role only
+and claims by `payload->>'documentId'`, which is what lets the inline runner finish one upload
+without draining another tenant's queue (docs/ARCHITECTURE.md §7).
+
+### `storage_used_bytes` (0013, 0016)
+
+`security definer` because it sums rows the caller could read anyway into a plan number; the
+whole total is gated on `is_org_member(org)` and returns 0 otherwise. 0016 adds
+`document_derivatives` — prepared files cost the same bytes, and derivatives are hard-deleted, so
+there is no soft-delete to exclude.
+
+### `organization_ai_settings` — a third-party key at rest (0017)
+
+A table of its own, not a key in `organizations.settings`, because it holds a secret.
+`api_key_encrypted` is AES-256-GCM ciphertext (AAD `<org id>:ai_vendor_api_key`); the settings
+API reports only whether a key is set. Any member may select the row (to show "read by"), only an
+owner may write it — stricter than ordinary org settings. Writing a row does **not** enable AI
+reading: `organizations.settings.ai_processing_enabled` is still the gate the pipeline checks.
+`provider` is a UI preset (`openai`, `anthropic`, `deepseek`, `gemini`, `ollama`, `openrouter`,
+`custom`); what is actually spoken is `wire_format` (`openai_compatible` | `anthropic_messages`).
+
+### `plan_code` sync (0018)
+
+A `billing_admin` may write `subscriptions` but not `organizations`, so the trigger (definer)
+copies the plan's code onto `organizations.plan_code` for `active` / `trialing` / `past_due`
+rows. Other statuses leave `plan_code` alone — failed billing degrades access, it never rewrites
+data (§22.4).
+
+### `marksheet_graduation` (0019)
+
+A check-constraint change, not an enum, matching `DOCUMENT_TYPES` in
+`packages/core/src/documents/types.ts`. The `ocr-extract` handler falls back to a status-only
+update on `23514` so a database that has not run 0019 does not fail extraction.
+
+### `schemes_catalog` — reference data, tenant-scoped (0020)
+
+Eligibility rules for the high-volume schemes ship in the build
+(`packages/core/src/schemes/catalog.ts`); this table holds what a build cannot — real application
+windows, a centre's local schemes, and corrections. Precedence copies `portal_adapters`: a null
+`organization_id` is the platform catalogue, and an org row with the same slug overrides it
+(`mergeSchemes`). No personal data, so none of the retention/export/erasure paths apply.
+
+- `eligibility` is re-validated with Zod on every read; a row that fails is skipped, because a
+  malformed rule that tells a citizen they qualify is worse than a missing scheme.
+- `is_published = false` hides a **global** row from every tenant; members still see their own
+  org's drafts.
+- Tenant writes are owner/manager on their own org rows only; global rows are service_role only,
+  by omission. There is currently no tenant UI that writes org rows — only the `/admin` panel and
+  the seed write this table.
+
+### Platform staff tables (0021)
+
+`platform_admins`, `scraper_sources`, `scraper_runs` and `scraped_schemes_queue` carry no
+`organization_id` and no personal data, and have RLS on with no write policy for anyone but
+service_role; the only policy is a self-read on `platform_admins`. The panel authorises in
+`apps/web/lib/admin/context.ts` and then uses the service role (docs/SECURITY.md §2).
+
+- `scraped_schemes_queue` is the whole safety argument for scraping: nothing a fetcher produces is
+  live until a human approves it. `confidence` orders the inbox and decides nothing; the partial
+  unique index on `content_hash where status = 'pending'` stops a re-poll re-queuing the same
+  notification.
+- `scraper_sources.source_url` must be `https://`, `config` must never hold credentials, and
+  `scraper_runs.error_text` is sanitised and capped at 2 000 chars before it is written.
+- `platform_metrics()` / `platform_tenant_rows()` are the only tenant data the panel reads, and
+  return counts and organization metadata only; both are revoked from `authenticated`.
+- `is_platform_admin()` exists but no policy uses it yet.
+- `scraper.run` was added to the `jobs.type` check, but no job handler exists for it; scheduled
+  scraping runs through `POST /api/admin/scrapers/run` instead.
 
 ### `document_drop_sessions` — staging, not storage (0022)
 
@@ -110,7 +232,9 @@ Three things about this schema are load-bearing:
 
 - **`sender_id` is personal data held deliberately.** It is the number the citizen messaged from,
   and pre-filling it is the whole time saving. It must never reach a log, an error report or audit
-  metadata (§19.6); `redact()` strips it, and nothing should offer it in the first place.
+  metadata (§19.6). No call site passes it today, but note that `redact()` would **not** catch
+  it: `sender_id` / `senderId` / `chatId` match none of its sensitive-key patterns, so the rule
+  rests on call sites not offering it.
 - **`expires_at` defaults to two hours.** An unclaimed session holds identity documents that
   nobody has yet taken responsibility for, so the window is the length of a counter queue, not a
   working day (§12.7).
@@ -200,6 +324,16 @@ Two more RPCs mask in SQL and so remain safe for `authenticated`:
 mobile) and the boolean checks `has_customer_roaming_link()` / `has_active_customer_grant()`,
 which back the RLS policies themselves.
 
+Limits held in the schema rather than in code: a challenge lives at most 15 minutes (default 5),
+carries 5 attempts, and stores an HMAC-SHA256 of the code under a per-row salt; the grant it mints
+may not exceed the `duration_minutes` (15–720) the citizen was told. Grant consent is recorded in
+`consent_records` under its own subject, `roaming_access`, added to the check constraint here.
+
+`expire_roaming_access_grants()` (service_role) marks lapsed grants `expired` and deletes spent
+challenges. It is housekeeping only — every policy compares `expires_at` to `now()` — and nothing
+in the application calls it yet, so spent challenge rows (hashes, not codes) currently linger
+until it is scheduled.
+
 ### Writing to a roaming customer (0025)
 
 0024 opened reading only. 0025 opens **one** write, because a walk-in drop handed over at a
@@ -235,31 +369,45 @@ applications         (organization_id, status), (organization_id, customer_id), 
 fill_sessions        (organization_id, created_at desc), (organization_id, customer_id)
 audit_logs           (organization_id, created_at desc), (organization_id, entity_type, entity_id)
 usage_events         (organization_id, event_type, created_at)
-jobs                 (status, run_after) where status in ('pending','retry')
+jobs                 (status, run_after) where status in ('pending','retry'), ((payload->>'documentId')) where type = 'ocr.extract'
+schemes_catalog      unique (slug) where organization_id is null, unique (organization_id, slug) where organization_id is not null,
+                     (application_end_date, application_start_date) where is_published
+scraped_schemes_queue unique (content_hash) where status = 'pending', (status, created_at desc)
+document_drop_sessions unique (session_code) where status in ('active','ready'), (organization_id, status, created_at desc),
+                     (expires_at) where status in ('active','ready')
+customer_access_grants (granted_to_user_id, customer_id, expires_at) where status = 'active' and revoked_at is null
 ```
+
+A drop `session_code` is unique only while live, so the short format is not exhausted over months.
 
 ## 7. Seed data rules (spec §32)
 
 Fake only. Specifically:
 
-| Field             | Rule                                                                                         |
-| ----------------- | -------------------------------------------------------------------------------------------- |
-| Mobile            | starts `99000` — a range reserved for testing, never allocated to real subscribers           |
-| Aadhaar last four | always `0000`                                                                                |
-| PAN               | pattern-valid but with `ZZZ` issuer block, e.g. `ZZZPD1234Q`                                 |
-| Names             | common Indian names, but paired with fake DOB/address so no real identity is reconstructable |
-| Documents         | generated PDFs/PNGs stamped **DEMO ONLY — NOT A VALID DOCUMENT**                             |
+| Field             | Rule                                                                                           |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| Mobile            | starts `99000` — a range reserved for testing, never allocated to real subscribers             |
+| Aadhaar last four | always `0000`; the seed writes no full Aadhaar (`identity_summary_json.aadhaar` is left unset) |
+| PAN               | pattern-valid but with `ZZZ` issuer block, e.g. `ZZZPD1234Q`                                   |
+| Names             | common Indian names, but paired with fake DOB/address so no real identity is reconstructable   |
+| Documents         | generated PDFs/PNGs stamped **DEMO ONLY — NOT A VALID DOCUMENT**                               |
 
 `npm run db:seed` creates one demo organization, four members (one per role), ~30 customers,
 document fixtures, applications across every status, and the demo portal adapters.
 
 ## 8. RLS test coverage
 
-`packages/database/rls-tests` asserts, for each tenant table:
+`packages/database/rls-tests` runs against a real local Supabase only (`harness.ts` refuses any
+non-loopback URL) with two organizations, one member per role in each. `npm run test:rls`.
 
-1. a member of org A can read their own rows,
-2. a member of org B **cannot** read org A's rows,
-3. a `viewer` cannot insert or update,
-4. a `billing_admin` cannot read documents or customer field values,
-5. `audit_logs` cannot be updated or deleted by anyone,
-6. anonymous access returns zero rows.
+| File                     | Asserts                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `harness.ts`             | fixtures: orgs A/B, a user per role, service-role and anon clients                                                                                                                                                                                                                                                                                                     |
+| `tenancy.test.ts`        | org B reads zero org A `customers`, `customer_field_values`, `applications`, `fill_sessions`, `consent_records`, `organization_ai_settings`, `schemes_catalog`, `organizations`; no cross-org insert/update; published global schemes visible to all, unpublished hidden, no tenant write to the global catalogue                                                      |
+| `roles.test.ts`          | `viewer` read-only and no `customer_field_values`; `billing_admin` sees no customers/documents/field values/applications but writes `subscriptions`; 0018 `plan_code` sync; operator cannot delete customers/applications or remove members; `organization_ai_settings` owner-only writes; anonymous reads return zero rows                                            |
+| `audit.test.ts`          | `audit_logs` cannot be updated or deleted by anyone, service role included; owner/manager read, operator cannot; no cross-org read or insert                                                                                                                                                                                                                           |
+| `platform.test.ts`       | 0021 tables invisible and unwritable to tenant sessions and anon; `platform_admins` self-read only, no self-grant or self-promotion; `platform_metrics()` / `platform_tenant_rows()` refused to tenant sessions; no tenant write to global schemes                                                                                                                     |
+| `roaming_access.test.ts` | 0024/0025: no access before a grant; a link grants nothing; pre-auth card only via the service-role RPC; a grant opens the four tables to the grant holder only, never `document_extractions` or writes to the customer row; expiry and revocation deny on their own; 12-hour ceiling and self-link rejection; the single 0025 document insert and all of its refusals |
+
+Not yet covered: `document_drop_sessions` / `document_drop_files` (0022) and
+`platform_channel_settings` (0023). The suite needs Docker for `supabase start`.

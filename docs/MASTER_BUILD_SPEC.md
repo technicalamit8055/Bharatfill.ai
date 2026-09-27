@@ -1,7 +1,7 @@
 # Assistigo.ai Master Build Specification
 
-Version: 1.0  
-Date: 2026-08-16  
+Version: 1.1  
+Date: 2026-09-27  
 Audience: Claude Code, Antigravity, product owner, future engineers  
 Primary artifact type: Implementation source of truth
 
@@ -140,7 +140,7 @@ Do not build these in V1:
 - Physical E-card.
 - Card reader hardware.
 - Offline physical card sync.
-- Citizen mobile app.
+- ~~Citizen mobile app~~ — **un-deferred by the product owner; built as `apps/mobile` (see §7.5 and the Citizen Mobile App section in `docs/ROADMAP.md`).** The remaining non-goals below still apply to V1.
 - Full autonomous government application agent.
 - CAPTCHA bypass.
 - OTP automation.
@@ -153,6 +153,15 @@ Do not build these in V1:
 - Government partnership dependency.
 - DigiLocker replacement.
 - Long-term permanent storage of every uploaded raw document by default.
+
+**Features still in scope as non-goals for the mobile app's V1 (cloud-connected) release:**
+
+- Cloud sync between the citizen vault and the operator dashboard (backend wiring not built yet).
+- Biometric/PIN app lock.
+- Operator bridge and consent access modes.
+- Centre directory and location services.
+- On-device OCR.
+- Supabase phone OTP sign-in (auth shell exists; SMS not wired).
 
 ### 4.3 Explicit E-Card Deferral
 
@@ -210,7 +219,18 @@ Owner/manager:
 
 - Needs billing, staff permissions, usage analytics, application volume, and subscription controls.
 
-### 5.3 Future Users
+### 5.3 Citizen App User (un-deferred)
+
+End citizen / individual:
+
+- Visits a CSC, cyber cafe, or VLE to fill government, scholarship, or recruitment forms.
+- Scans and stores their own documents (Aadhaar, PAN, marksheets, certificates, photos, signature) in a secure, local-first mobile vault.
+- Uses the Bharatfill Citizen App (`apps/mobile`) on their Android or iOS phone.
+- Shares documents with an operator via the walk-in drop flow (QR, WhatsApp, Telegram) or, in a future cloud-connected release, by authorizing the operator to access the vault by mobile number.
+
+In V1 the citizen vault is entirely local (AES-256-GCM, on-device keystore). No data is uploaded, no user account is wired to a real backend, and no network call is made outside of the demo OTP registration shell. Cloud sync is the primary pending item before citizens can benefit from the operator bridge.
+
+### 5.4 Future Users
 
 - Schools and colleges.
 - Education consultants.
@@ -509,6 +529,36 @@ Future customer portal may allow:
    - Generic fill attempt available.
    - Report portal/form to Assistigo.
    - Create adapter request.
+
+### 7.5 Citizen Mobile App (`apps/mobile`) — un-deferred
+
+Working title: **BharatDoc / Bharatfill Vault**. Full spec: `docs/CITIZEN_MOBILE_APP_SPEC.md`.
+
+The app targets the end citizen who arrives at a CSC or cyber cafe to fill a government form.
+It is a standalone Expo (React Native) app that lives in `apps/mobile` inside the monorepo.
+It imports `@assistigo/core` for shared types but makes no network calls in its current local-only release.
+
+Built surfaces (as of 2026-09-27):
+
+1. Splash, onboarding, and registration screens (mobile number + OTP shell; SMS not live).
+2. Home tab — recent vault items, quick actions (cloud dashboard pending).
+3. **Scanner tab** — `react-native-vision-camera` live camera, real-time page-outline via OpenCV (`react-native-fast-opencv`), auto-capture, torch, gallery import; up to 24 pages per scan.
+4. **Scan review** — filter cards (Magic Color / Original / Grayscale / B&W), pinch zoom, crop editor, quarter turns, ±45° straighten dial, retake, add/delete page.
+5. **Vault tab** — search, folders, recent, starred, sort, list/grid view; AES-256-GCM encrypted index (device keystore).
+6. **Document Detail** — viewer, rename, tags, move, delete, star; export as multi-page PDF via share / save / print.
+7. **Save Document** — name, type, folder, tags, expiry date before committing to the vault.
+8. **Connect tab** — nearby-centre and QR screens (UI only; no directory in release builds).
+9. **Profile tab** — account card and language switch; local expiry reminders.
+
+Pending before cloud-connected release:
+
+- Biometric / PIN app lock.
+- Supabase phone OTP sign-in.
+- Cloud sync: `citizen_accounts`, `citizen_vault_documents`, `operator_access_logs` tables.
+- Operator bridge in `apps/web` and `apps/extension`; consent access modes (A / B / C); access history.
+- Centre directory, location, directions.
+- On-device OCR, dewarping, finger removal.
+- Persist language selection and saved centres; dark mode for branded screens.
 
 ---
 
@@ -2926,6 +2976,34 @@ Acceptance criteria:
 - Operators can explain value in their own words.
 - Product owner decides whether to continue, pivot, or narrow.
 
+### Phase 11: Citizen Mobile App — Cloud Bridge (parallel track)
+
+Goal:
+
+- Connect the locally-working citizen vault (`apps/mobile`) to the Supabase backend so operators can retrieve citizen-uploaded documents in the dashboard and extension.
+
+Tasks:
+
+- Wire Supabase phone OTP sign-in (SMS vendor decision required).
+- Create `citizen_accounts`, `citizen_vault_documents`, and `operator_access_logs` tables with RLS.
+- Build cloud sync: encrypted vault documents uploaded on demand with citizen consent.
+- Implement operator bridge: mobile-number search returns citizen-synced documents.
+- Implement consent access modes A / B / C per `docs/CITIZEN_MOBILE_APP_SPEC.md` §4.
+- Push notifications to citizen on each operator access event.
+- Biometric/PIN app lock.
+- On-device OCR for automatic field extraction on scan.
+- Dewarping, finger removal, low-contrast detection (replacing current OpenCV mocks).
+- Centre directory and location features.
+- Replace dev-only demo mobile number in registration screen with an obviously fake value.
+
+Acceptance criteria:
+
+- A citizen scans a document on their phone and it appears (with consent) in the operator's dashboard within 30 seconds.
+- Operator cannot access vault without a live citizen-approved consent grant.
+- All access events appear in `operator_access_logs` with a push notification sent to the citizen.
+- App lock prevents cold-start vault access without biometrics/PIN.
+- No citizen PII is transmitted without consent.
+
 ---
 
 ## 32. Seed and Demo Data Strategy
@@ -3002,6 +3080,19 @@ Acceptance criteria:
 - Branches.
 - Bulk import.
 
+### V1.x: Citizen App Cloud Bridge (next major milestone for `apps/mobile`)
+
+- Supabase phone OTP sign-in and real citizen accounts.
+- Cloud sync of vault documents (encrypted, operator-readable only with consent).
+- Operator bridge: mobile-number search in dashboard/extension shows citizen-synced documents.
+- Consent access modes (Open / Approval / PIN) per `docs/CITIZEN_MOBILE_APP_SPEC.md` §4.
+- Push notifications to citizen when operator accesses their vault.
+- `citizen_accounts`, `citizen_vault_documents`, `operator_access_logs` database tables.
+- Biometric/PIN app lock.
+- On-device OCR (extracted fields visible without scanner session).
+- Dewarping, finger removal, low-contrast detection.
+- Centre directory, location, directions; Connect & Share flow.
+
 ### V2: Portal Intelligence
 
 - Larger adapter library.
@@ -3060,6 +3151,18 @@ Competition:
 
 - Mitigation: Indian customer CRM, document tools, application tracking, operator distribution.
 
+Citizen app privacy risk (vault documents on device):
+
+- Mitigation: AES-256-GCM local encryption, keystore key, biometric/PIN app lock, no background upload without explicit consent, access log notifications.
+
+Two-sided cold-start problem (mobile app useless without operator adoption; operator dashboard useful without mobile app):
+
+- Mitigation: Walk-in document drop (QR/WhatsApp/Telegram) provides value to operators before any citizen installs the app. Mobile app functions as a standalone scanner/vault regardless of operator integration.
+
+App store review risk (mobile app):
+
+- Mitigation: no remote code execution, no hidden data transmission, clear privacy disclosures, offline-first design.
+
 ---
 
 ## 35. Definition of Done
@@ -3096,6 +3199,8 @@ Build in this order:
 11. Security hardening.
 12. Pilot workflows.
 
+13. Citizen mobile app cloud bridge (Phase 11 — parallel track after Phase 8).
+
 Do not start with:
 
 - E-card.
@@ -3106,7 +3211,23 @@ Do not start with:
 
 ---
 
-## 37. External Reference Notes
+## 37. Known Deviations from Spec (Implementation Record)
+
+These are intentional decisions made during implementation. They are not bugs.
+
+| Spec says | Built as | Why |
+|---|---|---|
+| `packages/database/migrations` | `supabase/migrations` | CLI-native path; avoids a synced second copy that would drift |
+| — | `apps/web/app/(app)/…` route group | Keeps `/dashboard`, `/customers` at the top level while sharing one authenticated shell |
+| Product name Assistigo.ai | UI says "Bharatfill"; mobile artwork says "BharatDoc" | Branding in flux (`docs/DOMAIN_STRATEGY.md`); code, packages and docs still use Assistigo |
+| §4.2: Citizen mobile app is a non-goal | `apps/mobile` built as a local-first Expo app | Un-deferred by product owner; cloud bridge still pending |
+| — | Walk-in document drop via QR, WhatsApp, and Telegram (migrations 0022–0023, 0025) | Needed for operators to receive citizen documents before cloud vault bridge is live |
+| — | Cross-operator roaming access (migrations 0024–0025) | Needed for operators at different centres to share customer records with consent OTP |
+| — | Super Admin panel at `/admin` | Internal platform tooling built alongside operator phases, not as a separate phase |
+
+---
+
+## 38. External Reference Notes
 
 These references informed the build constraints and product principles:
 

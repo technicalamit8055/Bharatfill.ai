@@ -10,7 +10,7 @@ Derived from master spec §30 and §23.3. Intended for Antigravity or a human QA
 
 - [ ] Target is local or staging, never production
 - [ ] `npm run db:reset && npm run db:seed` completed
-- [ ] Extension built from the same commit as the web app
+- [ ] Extension (and mobile dev build, for Scenario 12) built from the same commit as the web app
 - [ ] Browser console and network tab open for the whole pass
 
 ---
@@ -98,6 +98,76 @@ Derived from master spec §30 and §23.3. Intended for Antigravity or a human QA
 - [ ] Generic mapping offered with visible low confidence
 - [ ] Form report can be filed
 - [ ] Report body contains **no customer values** (verify in the network tab)
+
+## Scenario 8 — Multi-stage form
+
+1. Select a customer and fill page 1 of a multi-page demo form
+2. Click "Save as an application"
+3. Use the form's own Proceed button to reach page 2
+4. Click "Scan Stage 2", review, fill; use "Re-fill skipped" for a dependent dropdown
+
+- [ ] The extension never presses Proceed/Next/Submit or advances the page by itself
+- [ ] Both stages' fill sessions link to the same application in the dashboard
+- [ ] Only one application is created per tab
+- [ ] Known issue check: after "Re-fill skipped", note the fill session counts and usage units
+      (currently double-reported — see `docs/ROADMAP.md` Phase 4)
+
+## Scenario 9 — Walk-in document drop
+
+1. Print or open the counter standee (`/standee/print`) and open its drop link on a phone
+2. Upload two fake documents
+3. In the dashboard queue, preview each file
+4. Save one to a new customer and one to an existing customer
+
+- [ ] Public page only adds files; it cannot list, read or delete anything
+- [ ] Oversized files (> 15 MB) and an 11th file are refused
+- [ ] Preview URLs are signed and expire (~5 min); each preview is audited
+- [ ] Saving to a home customer queues extraction
+- [ ] Unsaved sessions expire after 2 h
+- [ ] With bot credentials unset, `/api/webhooks/telegram` and `/api/webhooks/whatsapp` return 404
+
+## Scenario 10 — Roaming customer
+
+Needs two demo organizations with a fake customer registered at org A.
+
+1. As an operator at org B, search the customer by their 10-digit (fake) mobile
+2. Link them to the counter and view the locked card
+3. Request the consent OTP, enter it, choose a duration
+4. Open the profile, then Lock / End access; repeat steps 1–3 from the extension
+
+- [ ] Before consent, only a masked card and eligibility preview are shown
+- [ ] Wrong OTP is rejected; repeated requests hit the rate limit
+- [ ] After consent, fields and documents are readable, and nothing at org A is editable
+- [ ] After End / expiry, org B's reads are refused (UI **and** API)
+- [ ] Grant, OTP and revoke appear in the audit trail
+- [ ] Walk-in drop "save to roaming customer" inserts files only and queues no extraction
+
+## Scenario 11 — Aadhaar handling
+
+Use a synthetic 12-digit test value only.
+
+1. Save a full Aadhaar value on a fake customer
+2. View the profile, then reveal the value
+3. Fill a demo form field labelled Aadhaar
+
+- [ ] Displayed masked by default; reveal is one field per call and audited
+- [ ] Mapped Aadhaar field is always in the review band, never pre-accepted
+- [ ] The value never appears in console logs, error reports, form reports or search results
+
+## Scenario 12 — Citizen mobile app
+
+On a dev build with fake documents only.
+
+1. Scan a two-page document, try each filter, crop, straighten, delete and re-add a page
+2. Save it with a type, folder, tags and an expiry date
+3. Find it in the Vault, open Document Details, rename it, export as PDF
+4. Switch to Hindi
+
+- [ ] The app makes no network requests during scan, save or export
+- [ ] Vault files on disk are encrypted; no plaintext scan copies are left behind
+- [ ] The exported PDF has one page per scan at the chosen filter
+- [ ] The expiry reminder text does not name the document
+- [ ] Release build shows no demo centres, profile or dashboard content
 
 ---
 

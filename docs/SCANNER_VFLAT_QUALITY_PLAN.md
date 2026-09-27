@@ -293,14 +293,25 @@ against vFlat. Where the plan's numbers lost detail, the measured design replace
 - **Page detection** (`page-lines.ts`): captured photos are searched for the page's straight
   edges, not only closed outlines. A side must be a brightness step with the paper brighter
   inside, which rejects tables printed on the page. The frame border may stand in for one side,
-  so pages that fill or run off the frame are found. Found at 320px, then each side is snapped to
-  the matching edge at 1080px. Inset is 0.5%. Live detection is unchanged.
+  so pages that fill or run off the frame are found; when no side set qualifies, closed outlines
+  are tried, and kept only if their sides pass the same step test. Found at 320px, then each side
+  is snapped to the matching edge at 1080px. Inset is 0.5%. The photo is turned upright from its
+  EXIF orientation first (`exif.ts`). Live detection is unchanged: closed outlines only
+  (`detectDocument`), on 640×480 preview frames shrunk to ~200px wide (`luma.ts`), about 8 times a
+  second.
 - **Lighting** (`paper-light.ts`): estimated from paper only, with dark areas (banners, photos)
-  filled from surrounding paper. The plan's 96px closing still washed out large ID-card photos.
-- **Tone curve** (`tone-curve.ts`): fitted per page from its histogram, not fixed at 85/195. The
-  fixed curve crushed passport photos to black and erased faint signatures.
-- **Magic Color**: the curve and sharpening run on brightness (YCrCb) only, and faint tints snap
-  to grey. This removes the colour speckle on text.
+  filled from surrounding paper. A cell is paper when it is at least 0.62 × the brightest paper
+  within 20% of the page around it. Estimated on a ~256px grid (a 512px copy, 2× max-pooled), and
+  divided so paper lands at 220, not 255, leaving its grain for the tone curve to measure. The
+  plan's 96px closing still washed out large ID-card photos.
+- **Tone curve** (`tone-curve.ts`): fitted per page from its histogram, not fixed at 85/195. White
+  point: 3 half-widths below the paper's histogram peak, clamped to 160–250. Black point: the
+  darkest 0.5% of pixels, at most 0.45 × the white point. Gamma 1.3 between them deepens thin
+  strokes. The fixed curve crushed passport photos to black and erased faint signatures.
+- **Magic Color** (the default filter): lighting is evened per BGR channel, which also
+  white-balances the paper; the curve and sharpening then run on brightness (YCrCb) only, and
+  faint tints (within 6 of neutral on Cr / Cb) snap to grey while real colour gets 1.2× chroma.
+  This removes the colour speckle on text.
 - **Black & White**: thresholded after the tone curve, so paper cannot speckle. The threshold
   window is 1.3% of the page's longest side.
 - **Resolution** (replaces the 2400px cap): pages are saved at 3508px on the long side (A4 at
@@ -316,7 +327,14 @@ against vFlat. Where the plan's numbers lost detail, the measured design replace
 - **Sharpening**: band-pass (σ 0.6 to 1.6 photo pixels, amount 2), run before the tone curve.
   The curve clips the overshoot to pure white and solid black, giving hard-edged text without
   halos. The band skips pixel-sized sensor noise, so photos stay clean.
+- **Filter previews**: the review screen's four filter cards are 240px renders of the same
+  flattened page. Lighting is sampled in proportion to the page, so a card looks like the saved
+  page.
+- **Tests**: the pure parts (`page-lines.ts`, `paper-light.ts`, `tone-curve.ts`, `geometry.ts`,
+  `exif.ts`, `luma.ts`) are unit tested in `apps/mobile/tests/scan-*.test.ts`; the OpenCV calls in
+  `document-vision.ts` run only on a device.
 - **Not solved**: a page on a light, low-contrast desk may not be detected (falls back to the
-  full frame for manual cropping), and curled pages are not dewarped. Large light-grey printed
+  full frame for manual cropping), curled pages are not dewarped, and fingers holding the page
+  are not removed. Large light-grey printed
   areas (a faint seal) are whitened along with shadows: raising the paper threshold from 0.62
   to 0.72 keeps them grey, but leaves half the paper in a shadow grey.

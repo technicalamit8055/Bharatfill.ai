@@ -19,8 +19,9 @@ These are non-negotiable and enforced across code review, tests and CI:
 2. **No CAPTCHA bypass.** CAPTCHA fields are detected and skipped, never read or solved.
 3. **No OTP automation.** OTP fields are detected and skipped.
 4. **No payment autofill** in the MVP.
-5. **No full Aadhaar storage** unless a legal review approves it and the org explicitly enables it.
-   The default is last-four only.
+5. **Full Aadhaar is high-risk.** It may be stored (with customer consent) and used for filling,
+   but it is always reviewed, masked on display, revealed only through an audited action, and
+   never logged, searched or indexed (migration `0026`).
 6. **No real citizen data in development, tests, seeds or fixtures.**
 7. **No customer PII in logs, error reports or adapter reports.**
 
@@ -32,8 +33,10 @@ See [`docs/DEVELOPMENT_RULES.md`](docs/DEVELOPMENT_RULES.md).
 
 ```text
 apps/
-  web/                Next.js dashboard + API (App Router, TypeScript)
+  web/                Next.js dashboard + API (App Router, TypeScript), `/admin` staff panel,
+                      public walk-in drop page, bot webhooks, demo forms under public/
   extension/          Chrome Manifest V3 extension
+  mobile/             Expo citizen app — scanner + on-device encrypted vault (see its README)
 packages/
   core/               Domain logic: customers, documents, applications, billing, audit
   ai/                 OCR provider abstraction, extraction, normalisation, fixtures
@@ -43,8 +46,7 @@ packages/
   ui/                 Shared React primitives
 supabase/             config.toml + SQL migrations (CLI-native location)
 docs/                 Specification and derived engineering docs
-tests/                E2E specs, fixtures, local demo forms
-scripts/              Seeding, env verification, SQL checks, extension packaging
+scripts/              Seeding (demo data, adapters), SQL checks, icon + tasks-dashboard generators
 ```
 
 ---
@@ -96,10 +98,20 @@ npm run build:extension
 
 Then load `apps/extension/dist` in `chrome://extensions` with **Developer mode → Load unpacked**.
 
+### Run the citizen mobile app
+
+```bash
+npm run android --workspace @assistigo/mobile   # first time: builds and installs a dev build
+npm run dev:mobile                              # starts Metro for the installed dev build
+```
+
+The scanner is a native module, so this needs a development build (Android Studio + SDK), not
+Expo Go. See [`apps/mobile/README.md`](apps/mobile/README.md).
+
 ### Demo forms
 
-Local practice forms live in [`tests/demo-forms/`](tests/demo-forms/) and are also served by the
-dashboard at `/demo-forms`. They contain **no real portal branding and no real PII**.
+Local practice forms live in [`apps/web/public/demo-forms/`](apps/web/public/demo-forms/) and are
+served by the dashboard at `/demo-forms`. They contain **no real portal branding and no real PII**.
 
 ---
 
@@ -110,8 +122,9 @@ npm run typecheck
 npm run lint
 npm run format:check
 npm run check:sql   # parse-checks every migration, no Docker needed
-npm test            # unit + extension
-npm run test:rls    # requires a running local Supabase
+npm test            # every Vitest project: unit, extension, mobile, rls
+npm run test:mobile # mobile only
+npm run test:rls    # rls only — requires a running local Supabase
 ```
 
 ---

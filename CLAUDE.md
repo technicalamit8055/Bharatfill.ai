@@ -5,7 +5,7 @@
 1. `docs/MASTER_BUILD_SPEC.md` — the single source of truth for product scope.
 2. `docs/DEVELOPMENT_RULES.md` — coding standards and the non-negotiable product rules.
 3. The doc for the area you are touching: `ARCHITECTURE`, `DATABASE`, `SECURITY`,
-   `AI_PIPELINE`, `EXTENSION`, `FORM_ENGINE`.
+   `AI_PIPELINE`, `EXTENSION`, `FORM_ENGINE`, and `CITIZEN_MOBILE_APP_SPEC` for `apps/mobile`.
 4. `docs/ROADMAP.md` — current phase and status.
 
 ## Never do these
@@ -31,9 +31,11 @@ and any privacy/security risk. After coding, run the checks and report the real 
 ```bash
 npm run dev            # dashboard on :3000
 npm run build:extension
+npm run dev:mobile     # Metro for the Expo citizen app (needs a dev build)
 npm run typecheck
 npm run lint
-npm test               # unit + extension
+npm test               # every Vitest project: unit, extension, mobile, rls
+npm run test:mobile
 npm run test:rls       # needs a local Supabase running
 npm run db:reset       # migrations
 npm run db:seed        # fake demo data
