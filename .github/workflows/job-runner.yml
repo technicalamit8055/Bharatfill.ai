@@ -1,0 +1,38 @@
+name: Job runner
+
+# Drains the job queue (retries/backoff) and purges expired walk-in drop sessions by calling
+# POST /api/jobs/run — docs/ARCHITECTURE.md §7. This replaces Vercel Cron, which on the Hobby
+# plan only allows daily schedules and sends GET, while the route is POST-only.
+#
+# Needs two repository secrets: APP_URL (e.g. https://your-app.vercel.app) and
+# JOB_RUNNER_SECRET (same value as the Vercel env var). Until both are set, runs are skipped.
+# GitHub may delay scheduled runs by a few minutes; that is fine for a retry sweep.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: job-runner
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST /api/jobs/run
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          JOB_RUNNER_SECRET: ${{ secrets.JOB_RUNNER_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$JOB_RUNNER_SECRET" ]; then
+            echo "APP_URL or JOB_RUNNER_SECRET is not set; skipping."
+            exit 0
+          fi
+          status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 240 \
+            -X POST "${APP_URL%/}/api/jobs/run" \
+            -H "Authorization: Bearer $JOB_RUNNER_SECRET")
+          echo "HTTP $status"
+          test "$status" -ge 200 -a "$status" -lt 300
