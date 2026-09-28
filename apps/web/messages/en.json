@@ -577,7 +577,7 @@
       "cancel": "Cancel"
     },
     "detail": {
-      "back": "Form library",
+      "back": "Back to Form library",
       "urlPatterns": "Supported URL patterns",
       "fieldMappings": "Field mapping",
       "fieldLabel": "Field",
@@ -589,7 +589,30 @@
       "lastVerified": "Last verified",
       "neverVerified": "Not verified yet",
       "version": "Version",
-      "openDocumentTools": "Open in document tools"
+      "openDocumentTools": "Open in document tools",
+      "urlPatternsHelp": "These URL patterns are used to detect this portal automatically.",
+      "copyUrlPatterns": "Copy URL patterns",
+      "fieldsMapped": "{count} fields mapped",
+      "fieldsMappedOne": "{count} field mapped",
+      "searchFields": "Search field name or profile field…",
+      "searchFieldsLabel": "Search field mappings",
+      "fieldPortalLabel": "Field (portal label)",
+      "actions": "Actions",
+      "copyFieldKey": "Copy {field}",
+      "showRules": "Show matching rules for {field}",
+      "hideRules": "Hide matching rules for {field}",
+      "showMoreFields": "Show more fields ({count})",
+      "showFewerFields": "Show fewer fields",
+      "noFieldMatch": "No field matches this search.",
+      "adapterKey": "Adapter key",
+      "labelPatterns": "Label patterns",
+      "negativePatterns": "Never matches labels with",
+      "inputType": "Input type",
+      "selector": "Selector",
+      "dependsOn": "Filled after",
+      "alwaysReviewed": "Always reviewed before filling",
+      "documentsHelp": "Documents that must be collected from the customer for this form.",
+      "documentNotes": "Notes"
     }
   },
   "schemes": {
@@ -770,7 +793,30 @@
       "totalSessions": "Total sessions",
       "fieldsFilled": "Fields autofilled",
       "reviewAccuracy": "Review accuracy",
-      "timeSaved": "Est. time saved"
+      "timeSaved": "Est. time saved",
+      "changeUp": "+{percent}%",
+      "changeDown": "−{percent}%",
+      "changeVs": "Compared with the previous {days} days",
+      "activityBars": "Activity across the selected period",
+      "accuracyRing": "{percent}% of reviewed sessions were filled",
+      "noAccuracy": "No session has been reviewed in this period yet"
+    },
+    "hero": {
+      "stepsLabel": "How a fill session works",
+      "detect": "Form Detection",
+      "fill": "Auto Fill",
+      "review": "Review & Submit"
+    },
+    "filters": {
+      "status": "Status",
+      "clear": "Clear filters",
+      "range": "Date range"
+    },
+    "range": {
+      "7d": "Last 7 days",
+      "30d": "Last 30 days",
+      "90d": "Last 90 days",
+      "all": "All time"
     },
     "searchPlaceholder": "Search by portal, page title or customer",
     "status": {
@@ -787,14 +833,31 @@
       "portal": "Portal / page",
       "fields": "Fields",
       "safety": "Safety",
-      "application": "Application"
+      "application": "Application",
+      "actions": "Actions",
+      "showOldestFirst": "Show oldest first",
+      "showNewestFirst": "Show newest first"
     },
+    "fieldsFilledLabel": "fields filled",
     "fieldsRatio": "{filled} / {total} fields filled",
     "fieldsSkipped": "{count} skipped",
     "safety": {
       "captcha": "CAPTCHA skipped",
       "otp": "OTP skipped",
-      "payment": "Payment skipped"
+      "payment": "Payment skipped",
+      "none": "None detected"
+    },
+    "rowActions": {
+      "menu": "More actions",
+      "openSession": "Open session details",
+      "openCustomer": "Open customer profile"
+    },
+    "pagination": {
+      "label": "Pages",
+      "showing": "Showing {count} of {total} sessions",
+      "rowsPerPage": "Rows per page",
+      "previous": "Previous page",
+      "next": "Next page"
     },
     "empty": "No fill sessions match this search.",
     "emptyFirst": "No fill sessions recorded yet.",
@@ -982,7 +1045,15 @@
       "fillsIncluded": "{count} fills / month",
       "aiExtractionsIncluded": "{count} AI extractions / month",
       "customersIncluded": "Up to {count} customers",
-      "storageIncluded": "{amount} storage"
+      "storageIncluded": "{amount} storage",
+      "subtitle": "Choose the plan that fits your usage. You can upgrade or downgrade anytime.",
+      "billingCycle": "Billing cycle",
+      "cycleMonthly": "Monthly",
+      "cycleYearly": "Yearly",
+      "yearlyComingSoon": "Yearly billing is coming soon",
+      "unlimitedFills": "Unlimited fills",
+      "unlimitedAiExtractions": "Unlimited AI extractions",
+      "unlimitedCustomers": "Unlimited customers"
     },
     "upgradeModal": {
       "title": "Change plan",
@@ -999,13 +1070,25 @@
       "plan": "Plan",
       "status": "Status",
       "amount": "Amount",
-      "download": "Download (coming soon)"
+      "download": "Download (coming soon)",
+      "invoice": "Invoice"
     },
     "indiaNote": {
       "title": "Billing in India",
-      "body": "GST invoices are issued for every paid plan. UPI, card and net banking are supported through our payment partner at checkout."
+      "body": "GST invoices are issued for every paid plan. UPI, card and net banking are supported through our payment partner at checkout.",
+      "methodsAlt": "Accepted: UPI, Visa, Mastercard, RuPay and net banking"
     },
-    "usageWarning": "You are close to your plan's limit for {item}."
+    "usageWarning": "You are close to your plan's limit for {item}.",
+    "subtitle": "Manage your plan, usage, and invoices. Upgrade anytime to serve more customers.",
+    "storageMb": "Storage (MB)",
+    "viewInvoices": "View invoices",
+    "managePlan": "Manage plan",
+    "usagePeriod": "Usage period",
+    "usedPercent": "{item}: {percent}% used",
+    "securePayments": {
+      "title": "Secure payments",
+      "body": "Through our payment partner"
+    }
   },
   "validation": {
     "name_required": "Please enter the full name.",
@@ -1215,7 +1298,45 @@
         "description": "Merge, split, reorder, rotate and compress to a portal’s size limit."
       },
       "privacyTitle": "Where these files go",
-      "privacyBody": "Every crop, adjustment and page edit happens on this computer. Nothing is sent anywhere until you choose to download the result or save it to a customer’s profile."
+      "privacyBody": "Every crop, adjustment and page edit happens on this computer. Nothing is sent anywhere until you choose to download the result or save it to a customer’s profile.",
+      "headlineLead": "All tools you need",
+      "headlineJoin": "for",
+      "headlineHighlight": "perfect documents",
+      "benefits": {
+        "portalReady": "Portal-ready files",
+        "sizeFormat": "Correct size & format",
+        "clean": "Clean & professional",
+        "printReady": "Print-ready sheets"
+      },
+      "openTool": "Open {tool}",
+      "photoSignatureTags": {
+        "resize": "Resize",
+        "background": "Background clean",
+        "portal": "Portal ready"
+      },
+      "passportGridTags": {
+        "counts": "4 / 8 / 12 / 16",
+        "paper": "A4 / 4×6",
+        "print": "Print ready"
+      },
+      "pvcCardTags": {
+        "faces": "Front / Back",
+        "mask": "Mask data",
+        "print": "Print template"
+      },
+      "pdfStudioTags": {
+        "mergeSplit": "Merge / Split",
+        "compress": "Compress",
+        "rotate": "Rotate"
+      },
+      "pdfActions": {
+        "merge": "Merge PDFs",
+        "split": "Split PDF",
+        "rotate": "Rotate pages",
+        "compress": "Compress"
+      },
+      "privacyBadgeTitle": "Private by design",
+      "privacyBadgeBody": "Edits stay on this computer"
     },
     "drop": {
       "choose": "Choose a file",
@@ -1253,6 +1374,39 @@
       "mode": "What is this?",
       "modePhoto": "Photo",
       "modeSignature": "Signature"
+    },
+    "studio": {
+      "beta": "Beta",
+      "chooseTitle": "Choose a photo",
+      "chooseSignatureTitle": "Choose a signature",
+      "uploadPhoto": "Upload photo",
+      "uploadSignature": "Upload signature",
+      "optional": "optional",
+      "downloadPhoto": "Download photo",
+      "downloadSignature": "Download signature",
+      "features": {
+        "autoCrop": "Auto crop",
+        "removeBackground": "Remove background",
+        "removeBackgroundHint": "For signatures: turns the paper white or transparent and keeps the ink.",
+        "enhance": "Enhance quality",
+        "exactSize": "Exact size (KB)"
+      },
+      "checklist": {
+        "resize": "Resize to exact size",
+        "clean": "Clean & enhance",
+        "format": "Portal-ready format",
+        "custom": "Custom size for any portal"
+      },
+      "examples": {
+        "title": "Examples",
+        "tabPhoto": "Passport photo",
+        "tabSignature": "Signature",
+        "original": "Original",
+        "backgroundRemoved": "Background removed",
+        "passport": "Passport (3.5 × 4.5 cm)",
+        "signaturePortal": "Portal size (3.5 × 1.5 cm)",
+        "customSize": "Custom size"
+      }
     },
     "transform": {
       "rotateLeft": "Rotate left",
@@ -1421,7 +1575,9 @@
       "scrapers": "Scrapers",
       "queue": "Review queue",
       "team": "Team",
-      "channels": "Channels & Bots"
+      "channels": "Channels & Bots",
+      "groupBilling": "Billing",
+      "plans": "Plans"
     },
     "lifecycle": {
       "active": "Open",
@@ -1893,6 +2049,60 @@
         "webhookRegistered": "Webhook registered with Telegram.",
         "webhookFailed": "Telegram rejected the webhook registration. Check the bot token and try again."
       }
+    },
+    "plans": {
+      "title": "Plans",
+      "subtitle": "The plan catalogue centres choose from, and the limits the entitlement checks enforce.",
+      "rulesNote": "A plan’s price is locked once any organization is on it — to reprice, create a new plan and retire the old one; its subscribers keep it. Limit and feature changes apply to every subscriber as soon as they are saved.",
+      "new": "New plan",
+      "newTitle": "New plan",
+      "newSubtitle": "Saved as retired. It reaches centres only once you mark it available.",
+      "editSubtitle": "Changes to limits and features apply to every organization on this plan immediately.",
+      "backToPlans": "All plans",
+      "plan": "Plan",
+      "organizations": "Organizations",
+      "status": "Status",
+      "active": "Available",
+      "retired": "Retired",
+      "edit": "Edit",
+      "view": "View",
+      "empty": "No plans yet.",
+      "notFound": "That plan no longer exists.",
+      "readOnly": "Read-only. Only a super admin can change plans.",
+      "liveWarning": "{count} organization(s) are on this plan. Limit and feature changes apply to all of them as soon as you save.",
+      "sectionIdentity": "Identity",
+      "sectionPrice": "Price",
+      "sectionLimits": "Monthly limits",
+      "sectionFeatures": "Features",
+      "sectionAvailability": "Availability",
+      "code": "Code",
+      "codeHint": "Lowercase letters, digits and underscores, starting with a letter (2–40 characters). Cannot be changed later.",
+      "codeImmutable": "The code cannot be changed after the plan is created.",
+      "codeTaken": "Another plan already uses this code.",
+      "sortOrder": "Display order",
+      "sortOrderHint": "Lower numbers appear first on the billing page. Upgrade and downgrade follow this order.",
+      "nameEn": "Name (English)",
+      "nameHi": "Name (Hindi)",
+      "nameHiHint": "Optional. The English name is shown when blank.",
+      "priceMonthly": "Price (₹ / month)",
+      "priceHint": "Whole rupees.",
+      "priceLocked": "Locked: organizations are on this plan. Create a new plan to change the price.",
+      "limitsHint": "Counted per calendar month. Tick “Unlimited” to remove a limit.",
+      "includedFills": "Form fills",
+      "includedAiExtractions": "AI extractions",
+      "maxCustomers": "Customers",
+      "includedSeats": "Seats",
+      "storageMb": "Storage (MB)",
+      "featureApiAccess": "API access",
+      "activeLabel": "Available to centres",
+      "activeHint": "Unticking retires the plan: it leaves the billing page, and organizations already on it keep it.",
+      "defaultPlanRequired": "The free plan is every new organization’s default and cannot be retired.",
+      "invalidValue": "Enter a valid value.",
+      "create": "Create plan",
+      "save": "Save changes",
+      "saving": "Saving…",
+      "saved": "Plan saved.",
+      "noChanges": "Nothing changed."
     }
   },
   "documentDrop": {

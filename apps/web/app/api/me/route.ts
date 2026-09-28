@@ -1,6 +1,7 @@
-import { getPlan } from '@assistigo/core';
+import { resolvePlan } from '@assistigo/core';
 import { resolveContext } from '@/lib/api/context';
 import { handler, ok } from '@/lib/api/response';
+import { loadPlanByCode } from '@/lib/billing/plans';
 
 /**
  * GET /api/me
@@ -10,7 +11,8 @@ import { handler, ok } from '@/lib/api/response';
  */
 export const GET = handler('api.me', async (request) => {
   const context = await resolveContext(request);
-  const plan = getPlan(context.organization.plan_code);
+  const planCode = context.organization.plan_code;
+  const plan = resolvePlan({ planCode, plan: await loadPlanByCode(context.supabase, planCode) });
 
   return ok({
     user: {

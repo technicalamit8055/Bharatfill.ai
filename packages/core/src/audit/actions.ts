@@ -498,6 +498,20 @@ export const AUDIT_ACTIONS = define([
     description: 'WhatsApp/Telegram channel settings changed',
   },
   {
+    action: 'platform.plan_created',
+    entityType: 'plans',
+    sensitivity: 'critical',
+    description: 'Billing plan created',
+  },
+  {
+    // Critical: a limit changed here applies to every organization on the plan at once, and a
+    // retired plan disappears from every centre's catalogue.
+    action: 'platform.plan_updated',
+    entityType: 'plans',
+    sensitivity: 'critical',
+    description: 'Billing plan changed, retired or reactivated',
+  },
+  {
     action: 'platform.channel_webhook_registered',
     entityType: 'platform_channel_settings',
     sensitivity: 'sensitive',

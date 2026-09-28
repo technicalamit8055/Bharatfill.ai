@@ -108,6 +108,13 @@ describe('platform permissions', () => {
     }
   });
 
+  it('reserves plan management for super_admin, and lets every role view plans', () => {
+    for (const role of PLATFORM_ROLES) {
+      expect(canPlatform(role, 'platform.plans.manage')).toBe(role === 'super_admin');
+      expect(canPlatform(role, 'platform.plans.view')).toBe(true);
+    }
+  });
+
   it('reserves scheme deletion for super_admin', () => {
     for (const role of PLATFORM_ROLES) {
       expect(canPlatform(role, 'platform.schemes.delete')).toBe(role === 'super_admin');

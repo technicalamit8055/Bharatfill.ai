@@ -1,12 +1,13 @@
-import { ALL_PLANS } from '@assistigo/core';
 import { requirePermission, resolveContext } from '@/lib/api/context';
 import { handler, ok } from '@/lib/api/response';
+import { loadPlanCatalogue } from '@/lib/billing/plans';
 
 /** GET /api/billing/plan — the plan catalogue plus this organization's active subscription. */
 export const GET = handler('api.billing.plan', async (request) => {
   const context = await resolveContext(request);
   requirePermission(context, 'billing.view');
 
+  const plansPromise = loadPlanCatalogue(context.supabase);
   const { data: subscription, error } = await context.supabase
     .from('subscriptions')
     .select('*, plans(code, name, name_hi)')
@@ -18,7 +19,7 @@ export const GET = handler('api.billing.plan', async (request) => {
   if (error) throw error;
 
   return ok({
-    plans: ALL_PLANS,
+    plans: await plansPromise,
     activePlanCode: context.organization.plan_code,
     subscription: subscription ?? null,
   });

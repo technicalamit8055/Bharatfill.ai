@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { ImageIcon } from 'lucide-react';
 import { Alert, Badge, Button, Select, SizeMeter, Spinner, cn } from '@assistigo/ui';
 import {
   formatKb,
@@ -52,6 +53,8 @@ export function OutputPanel({
   /** Blocks saving to the CRM until a condition is met — the Aadhaar mask gate uses this. */
   saveBlockedReason,
   printable = false,
+  step,
+  showDownload = true,
   className,
 }: {
   output: ToolOutput | null;
@@ -61,6 +64,10 @@ export function OutputPanel({
   sourceDocumentId?: string | null;
   saveBlockedReason?: string | null;
   printable?: boolean;
+  /** Renders the panel as a numbered step card (see `ToolSection`). */
+  step?: number;
+  /** Off when the page puts its own download button elsewhere. */
+  showDownload?: boolean;
   className?: string;
 }) {
   const t = useTranslations();
@@ -121,16 +128,24 @@ export function OutputPanel({
   return (
     <ToolSection
       title={t('documentTools.output.title')}
-      className={cn('border-slate-300', className)}
+      step={step}
+      className={cn(step === undefined && 'border-slate-300', className)}
     >
       {busy ? (
         <div className="flex items-center justify-center py-6">
           <Spinner label={t('documentTools.output.working')} />
         </div>
       ) : !output ? (
-        <p className="py-4 text-center text-xs text-slate-500">
-          {t('documentTools.output.empty')}
-        </p>
+        step !== undefined ? (
+          <div className="flex min-h-[110px] flex-col items-center justify-center gap-2 rounded-xl bg-slate-50 px-3 py-5 text-center">
+            <ImageIcon className="h-7 w-7 text-slate-400" strokeWidth={1.6} aria-hidden />
+            <p className="text-xs text-slate-500">{t('documentTools.output.empty')}</p>
+          </div>
+        ) : (
+          <p className="py-4 text-center text-xs text-slate-500">
+            {t('documentTools.output.empty')}
+          </p>
+        )
       ) : (
         <div className="space-y-3">
           <div className="flex items-start gap-3">
@@ -185,23 +200,27 @@ export function OutputPanel({
             </Alert>
           ) : null}
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              onClick={() => downloadBytes(output.bytes, output.filename, output.mimeType)}
-            >
-              {t('documentTools.output.download')}
-            </Button>
-            {printable && output.mimeType !== 'application/pdf' ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => printImage(output.bytes, output.mimeType, output.filename)}
-              >
-                {t('documentTools.output.print')}
-              </Button>
-            ) : null}
-          </div>
+          {showDownload || (printable && output.mimeType !== 'application/pdf') ? (
+            <div className="flex flex-wrap gap-2">
+              {showDownload ? (
+                <Button
+                  size="sm"
+                  onClick={() => downloadBytes(output.bytes, output.filename, output.mimeType)}
+                >
+                  {t('documentTools.output.download')}
+                </Button>
+              ) : null}
+              {printable && output.mimeType !== 'application/pdf' ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => printImage(output.bytes, output.mimeType, output.filename)}
+                >
+                  {t('documentTools.output.print')}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="space-y-2 border-t border-slate-100 pt-3">
             <label className="block text-xs font-medium text-slate-700">

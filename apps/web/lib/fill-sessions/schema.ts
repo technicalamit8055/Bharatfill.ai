@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { APPLICATION_CATEGORIES } from '@/lib/applications/schema';
+import { APPLICATION_CATEGORIES } from '../applications/schema';
 
 export const FILL_SESSION_STATUSES = [
   'detected',

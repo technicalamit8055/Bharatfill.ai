@@ -1,15 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import Image from 'next/image';
 import {
-  Alert,
-  Button,
-  NumberField,
-  SegmentedControl,
-  Slider,
-  Switch,
-  cn,
-} from '@assistigo/ui';
+  CircleCheck,
+  Crop,
+  FileDigit,
+  FileImage,
+  FlipHorizontal2,
+  ImageDown,
+  LayoutGrid,
+  MoveDiagonal,
+  MoveDiagonal2,
+  RotateCcw,
+  RotateCw,
+  Sun,
+  type LucideIcon,
+} from 'lucide-react';
+import { Alert, Button, NumberField, Slider, Switch, cn } from '@assistigo/ui';
 import {
   DEFAULT_DPI,
   MAX_DERIVATIVE_BYTES,
@@ -37,12 +45,22 @@ import {
   renderImage,
   type DecodedImage,
 } from '@assistigo/document-tools/browser/image';
+import { downloadBytes } from '@/lib/document-tools/save';
+import {
+  EXAMPLE_TAB_KEYS,
+  STUDIO_CHECKLIST_KEYS,
+  STUDIO_EXAMPLES,
+  STUDIO_FEATURES,
+  type ExampleKind,
+  type ExampleStage,
+  type StudioFeatureId,
+} from '@/lib/document-tools/studio';
 import { useTranslations } from '@/lib/i18n/client';
 import { CropStage } from './crop-stage';
 import { FileDrop } from './file-drop';
 import { OutputPanel, type CustomerOption, type ToolOutput } from './output-panel';
 import { PresetNotes, PresetPicker } from './preset-picker';
-import { ToolSection } from './tool-shell';
+import { StageBackdrop, ToolSection } from './tool-shell';
 
 /**
  * Photo and signature preparation.
@@ -88,6 +106,7 @@ export function PhotoSignatureEditor({
   defaultMode = 'photo',
   sourceDocumentId,
   today,
+  header,
 }: {
   customers: readonly CustomerOption[];
   defaultCustomerId?: string | null;
@@ -96,10 +115,16 @@ export function PhotoSignatureEditor({
   sourceDocumentId?: string | null;
   /** ISO date, resolved on the server so the filename and the stamp agree with the audit row. */
   today: string;
+  /**
+   * The page's title block. Rendered inside the editor's grid so the settings rail can start
+   * level with the title on a wide screen, instead of below it.
+   */
+  header?: ReactNode;
 }) {
   const t = useTranslations();
 
   const [mode, setMode] = useState<Mode>(defaultMode);
+  const [exampleKind, setExampleKind] = useState<ExampleKind>(defaultMode);
   const [decoded, setDecoded] = useState<DecodedImage | null>(null);
   const [decodeError, setDecodeError] = useState<string | null>(null);
 
@@ -160,8 +185,10 @@ export function PhotoSignatureEditor({
         setTargetHeightMm(Number(pxToMm(size.height, resolution).toFixed(2)));
       }
       setLockAspect(true);
-      if (next.category === 'signature') setMode('signature');
-      if (next.category === 'photo') setMode('photo');
+      if (next.category === 'signature' || next.category === 'photo') {
+        setMode(next.category);
+        setExampleKind(next.category);
+      }
     },
     [],
   );
@@ -426,73 +453,136 @@ export function PhotoSignatureEditor({
 
   const presetWindowLabel = formatSizeWindow(sizeWindow);
 
+  /** Switching the kind of file also switches the worked examples to match. */
+  const chooseMode = (next: Mode) => {
+    setMode(next);
+    setExampleKind(next);
+  };
+
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="min-w-0 space-y-3">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px] xl:grid-rows-[auto_auto_1fr]">
+      {header ? <div className="min-w-0 xl:col-start-1 xl:row-start-1">{header}</div> : null}
+
+      <section className="min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:col-start-1 xl:row-start-2">
         {decoded ? (
-          <CropStage
-            canvas={working}
-            crop={crop}
-            onCropChange={setCrop}
-            aspect={aspect}
-            transparent={mode === 'signature' && transparentBackground}
-          />
+          <>
+            <CropStage
+              canvas={working}
+              crop={crop}
+              onCropChange={setCrop}
+              aspect={aspect}
+              transparent={mode === 'signature' && transparentBackground}
+              // A passport photo only needs to be big enough to frame a face; anything larger
+              // pushes the stamp, result and download below the fold.
+              maxHeight={420}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="secondary" onClick={() => setQuarterTurns((n) => n - 1)}>
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                {t('documentTools.transform.rotateLeft')}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setQuarterTurns((n) => n + 1)}>
+                <RotateCw className="h-3.5 w-3.5" aria-hidden />
+                {t('documentTools.transform.rotateRight')}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setFlip((value) => !value)}>
+                <FlipHorizontal2 className="h-3.5 w-3.5" aria-hidden />
+                {t('documentTools.transform.flip')}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={autoTrim}>
+                <Crop className="h-3.5 w-3.5" aria-hidden />
+                {t('documentTools.transform.autoTrim')}
+              </Button>
+              <span className="flex-1" />
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  decoded.release();
+                  setDecoded(null);
+                  setOutput(null);
+                }}
+              >
+                {t('documentTools.transform.changeFile')}
+              </Button>
+            </div>
+          </>
         ) : (
           <FileDrop
+            variant="hero"
             onFiles={onFiles}
             accept={['image/jpeg', 'image/png', 'image/webp']}
-            label={t('documentTools.photo.choose')}
+            label={
+              mode === 'signature'
+                ? t('documentTools.studio.chooseSignatureTitle')
+                : t('documentTools.studio.chooseTitle')
+            }
             hint={t('documentTools.photo.chooseHint')}
+            buttonLabel={
+              mode === 'signature'
+                ? t('documentTools.studio.uploadSignature')
+                : t('documentTools.studio.uploadPhoto')
+            }
+            footer={<FeaturePills />}
           />
         )}
 
         {decodeError ? <Alert tone="danger">{t(decodeError)}</Alert> : null}
 
-        {decoded ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setQuarterTurns((n) => n - 1)}>
-              {t('documentTools.transform.rotateLeft')}
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => setQuarterTurns((n) => n + 1)}>
-              {t('documentTools.transform.rotateRight')}
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => setFlip((value) => !value)}>
-              {t('documentTools.transform.flip')}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={autoTrim}>
-              {t('documentTools.transform.autoTrim')}
-            </Button>
-            <span className="flex-1" />
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                decoded.release();
-                setDecoded(null);
-                setOutput(null);
-              }}
-            >
-              {t('documentTools.transform.changeFile')}
-            </Button>
-          </div>
-        ) : null}
-      </div>
+        {/* Worked examples are for the empty state; once a file is in, the stage is the example. */}
+        {decoded ? null : <Examples kind={exampleKind} onKindChange={setExampleKind} />}
+      </section>
 
-      <div className="min-w-0 space-y-3">
-        <ToolSection title={t('documentTools.photo.mode')}>
-          <SegmentedControl
-            ariaLabel={t('documentTools.photo.mode')}
-            value={mode}
-            onValueChange={setMode}
-            options={[
-              { value: 'photo', label: t('documentTools.photo.modePhoto') },
-              { value: 'signature', label: t('documentTools.photo.modeSignature') },
-            ]}
-            className="w-full"
-          />
+      <div className="min-w-0 space-y-4 xl:col-start-2 xl:row-span-3 xl:row-start-1">
+        <ToolSection step={1} title={t('documentTools.photo.mode')}>
+          <div className="flex gap-4">
+            <div
+              role="radiogroup"
+              aria-label={t('documentTools.photo.mode')}
+              className="flex w-32 shrink-0 flex-col gap-2"
+            >
+              {(['photo', 'signature'] as const).map((option) => {
+                const active = mode === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => chooseMode(option)}
+                    className={cn(
+                      'rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                      'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
+                      'focus-visible:outline-brand-600',
+                      active
+                        ? 'bg-brand-100/80 text-brand-700 ring-1 ring-brand-200'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200/70',
+                    )}
+                  >
+                    {option === 'photo'
+                      ? t('documentTools.photo.modePhoto')
+                      : t('documentTools.photo.modeSignature')}
+                  </button>
+                );
+              })}
+            </div>
+            <ul className="min-w-0 space-y-2 self-center">
+              {STUDIO_CHECKLIST_KEYS.map((key) => (
+                <li key={key} className="flex items-center gap-2 text-xs text-slate-700">
+                  <CircleCheck
+                    className="h-4 w-4 shrink-0 fill-emerald-500 text-white"
+                    strokeWidth={2.2}
+                    aria-hidden
+                  />
+                  {t(key)}
+                </li>
+              ))}
+            </ul>
+          </div>
         </ToolSection>
 
         <ToolSection
+          step={2}
           title={t('documentTools.preset.title')}
           hint={t('documentTools.preset.hint')}
         >
@@ -504,11 +594,8 @@ export function PhotoSignatureEditor({
           <PresetNotes preset={preset} />
         </ToolSection>
 
-        <ToolSection
-          title={t('documentTools.rule.title')}
-          hint={t('documentTools.rule.hint')}
-        >
-          <div className="grid grid-cols-2 gap-2">
+        <ToolSection step={3} title={t('documentTools.rule.title')} hint={t('documentTools.rule.hint')}>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
             <NumberField
               label={t('documentTools.rule.width')}
               unit="mm"
@@ -534,8 +621,8 @@ export function PhotoSignatureEditor({
               value={dpi}
               onValueChange={setDpi}
             />
-            <div className="flex items-end pb-1">
-              <p className="text-[11px] tabular-nums text-slate-500">
+            <div className="flex items-end pb-2">
+              <p className="text-xs tabular-nums text-slate-500">
                 {targetSize
                   ? `${targetSize.width} × ${targetSize.height} px`
                   : t('documentTools.rule.noSize')}
@@ -559,90 +646,110 @@ export function PhotoSignatureEditor({
             />
           </div>
 
-          <Switch
-            label={t('documentTools.rule.lockAspect')}
-            hint={t('documentTools.rule.lockAspectHint')}
-            checked={lockAspect}
-            onCheckedChange={setLockAspect}
-          />
-
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <p className="text-xs font-medium text-slate-700">{t('documentTools.rule.format')}</p>
-            <SegmentedControl
-              ariaLabel={t('documentTools.rule.format')}
-              size="sm"
-              value={outputMime === 'image/png' ? 'image/png' : 'image/jpeg'}
-              onValueChange={(value) => setOutputMime(value as OutputMimeType)}
-              options={[
-                { value: 'image/jpeg', label: 'JPG' },
-                {
-                  value: 'image/png',
-                  label: 'PNG',
-                  title: t('documentTools.rule.pngHint'),
-                },
-              ]}
-            />
+            <div
+              role="radiogroup"
+              aria-label={t('documentTools.rule.format')}
+              className="flex gap-2"
+            >
+              {(
+                [
+                  { value: 'image/jpeg', label: 'JPG' },
+                  { value: 'image/png', label: 'PNG', title: t('documentTools.rule.pngHint') },
+                ] as const
+              ).map((option) => {
+                const active =
+                  (outputMime === 'image/png' ? 'image/png' : 'image/jpeg') === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    title={'title' in option ? option.title : undefined}
+                    onClick={() => setOutputMime(option.value)}
+                    className={cn(
+                      'inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors',
+                      'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
+                      'focus-visible:outline-brand-600',
+                      active
+                        ? 'border-brand-500 bg-brand-50 text-brand-700 ring-1 ring-brand-500'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+                    )}
+                  >
+                    <FileImage
+                      className={cn('h-4 w-4', active ? 'text-brand-600' : 'text-slate-400')}
+                      aria-hidden
+                    />
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
             {outputMime === 'image/png' && presetWindowLabel ? (
               <p className="text-[11px] leading-tight text-amber-700">
                 {t('documentTools.rule.pngNoCompression')}
               </p>
             ) : null}
           </div>
+
+          <Switch
+            label={t('documentTools.rule.lockAspect')}
+            hint={t('documentTools.rule.lockAspectHint')}
+            checked={lockAspect}
+            onCheckedChange={setLockAspect}
+          />
         </ToolSection>
 
-        {mode === 'signature' ? (
-          <ToolSection
-            title={t('documentTools.signature.title')}
-            hint={t('documentTools.signature.hint')}
-          >
-            <Switch
-              label={t('documentTools.signature.clean')}
-              hint={t('documentTools.signature.cleanHint')}
-              checked={cleanBackground}
-              onCheckedChange={setCleanBackground}
-            />
-            {cleanBackground ? (
-              <>
-                <Slider
-                  label={t('documentTools.signature.strength')}
-                  min={-80}
-                  max={80}
-                  step={5}
-                  defaultValue={0}
-                  value={cleanStrength}
-                  valueLabel={cleanStrength > 0 ? `+${cleanStrength}` : `${cleanStrength}`}
-                  hint={t('documentTools.signature.strengthHint')}
-                  onValueChange={setCleanStrength}
-                />
-                <Switch
-                  label={t('documentTools.signature.transparent')}
-                  hint={t('documentTools.signature.transparentHint')}
-                  checked={transparentBackground}
-                  onCheckedChange={setTransparentBackground}
-                />
-                <Switch
-                  label={t('documentTools.signature.keepInk')}
-                  hint={t('documentTools.signature.keepInkHint')}
-                  checked={keepInkColour}
-                  onCheckedChange={setKeepInkColour}
-                />
-              </>
-            ) : null}
-          </ToolSection>
-        ) : null}
+        <ToolSection
+          step={4}
+          title={t('documentTools.adjust.title')}
+          hint={mode === 'signature' ? t('documentTools.signature.hint') : undefined}
+        >
+          {mode === 'signature' ? (
+            <div className="space-y-3 rounded-xl bg-slate-50 p-3">
+              <p className="text-xs font-semibold text-slate-700">
+                {t('documentTools.signature.title')}
+              </p>
+              <Switch
+                label={t('documentTools.signature.clean')}
+                hint={t('documentTools.signature.cleanHint')}
+                checked={cleanBackground}
+                onCheckedChange={setCleanBackground}
+              />
+              {cleanBackground ? (
+                <>
+                  <Slider
+                    label={t('documentTools.signature.strength')}
+                    min={-80}
+                    max={80}
+                    step={5}
+                    defaultValue={0}
+                    value={cleanStrength}
+                    valueLabel={cleanStrength > 0 ? `+${cleanStrength}` : `${cleanStrength}`}
+                    hint={t('documentTools.signature.strengthHint')}
+                    onValueChange={setCleanStrength}
+                  />
+                  <Switch
+                    label={t('documentTools.signature.transparent')}
+                    hint={t('documentTools.signature.transparentHint')}
+                    checked={transparentBackground}
+                    onCheckedChange={setTransparentBackground}
+                  />
+                  <Switch
+                    label={t('documentTools.signature.keepInk')}
+                    hint={t('documentTools.signature.keepInkHint')}
+                    checked={keepInkColour}
+                    onCheckedChange={setKeepInkColour}
+                  />
+                </>
+              ) : null}
+            </div>
+          ) : null}
 
-        <ToolSection title={t('documentTools.adjust.title')}>
           <Slider
-            label={t('documentTools.adjust.straighten')}
-            min={-12}
-            max={12}
-            step={0.2}
-            defaultValue={0}
-            value={straighten}
-            valueLabel={`${straighten > 0 ? '+' : ''}${straighten.toFixed(1)}°`}
-            onValueChange={setStraighten}
-          />
-          <Slider
+            inline
             label={t('documentTools.adjust.brightness')}
             min={-60}
             max={60}
@@ -652,6 +759,7 @@ export function PhotoSignatureEditor({
             onValueChange={(brightness) => setAdjust((a) => ({ ...a, brightness }))}
           />
           <Slider
+            inline
             label={t('documentTools.adjust.contrast')}
             min={-60}
             max={60}
@@ -661,6 +769,7 @@ export function PhotoSignatureEditor({
             onValueChange={(contrast) => setAdjust((a) => ({ ...a, contrast }))}
           />
           <Slider
+            inline
             label={t('documentTools.adjust.clarity')}
             min={0}
             max={100}
@@ -670,81 +779,302 @@ export function PhotoSignatureEditor({
             hint={t('documentTools.adjust.clarityHint')}
             onValueChange={(clarity) => setAdjust((a) => ({ ...a, clarity }))}
           />
+          <Slider
+            inline
+            label={t('documentTools.adjust.straighten')}
+            min={-12}
+            max={12}
+            step={0.2}
+            defaultValue={0}
+            value={straighten}
+            valueLabel={`${straighten > 0 ? '+' : ''}${straighten.toFixed(1)}°`}
+            onValueChange={setStraighten}
+          />
           <Switch
             label={t('documentTools.adjust.grayscale')}
             checked={adjust.grayscale}
             onCheckedChange={(grayscale) => setAdjust((a) => ({ ...a, grayscale }))}
           />
-          <Button
-            size="sm"
-            variant="ghost"
-            className="w-full"
-            onClick={() => {
-              setAdjust(NEUTRAL);
-              setStraighten(0);
-            }}
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setAdjust(NEUTRAL);
+                setStraighten(0);
+              }}
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+              {t('documentTools.adjust.reset')}
+            </Button>
+          </div>
+        </ToolSection>
+      </div>
+
+      <div className="min-w-0 space-y-4 self-start xl:col-start-1 xl:row-start-3">
+        <div className="grid gap-4 md:grid-cols-2">
+          <ToolSection
+            step={5}
+            title={t('documentTools.stamp.title')}
+            titleAdornment={
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                {t('documentTools.studio.optional')}
+              </span>
+            }
           >
-            {t('documentTools.adjust.reset')}
-          </Button>
-        </ToolSection>
+            <Switch
+              label={t('documentTools.stamp.enable')}
+              hint={t('documentTools.stamp.hint')}
+              checked={stampEnabled}
+              onCheckedChange={setStampEnabled}
+            />
+            {stampEnabled ? (
+              <div className="space-y-2">
+                <label className="block space-y-1">
+                  <span className="block text-xs font-medium text-slate-700">
+                    {t('documentTools.stamp.name')}
+                  </span>
+                  <input
+                    value={stampName}
+                    onChange={(event) => setStampName(event.target.value)}
+                    maxLength={60}
+                    className={cn(
+                      'block w-full rounded-md border-0 bg-white px-2.5 py-1.5 text-sm',
+                      'text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300',
+                      'focus:ring-2 focus:ring-inset focus:ring-brand-600',
+                    )}
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="block text-xs font-medium text-slate-700">
+                    {t('documentTools.stamp.date')}
+                  </span>
+                  <input
+                    type="date"
+                    value={stampDate}
+                    onChange={(event) => setStampDate(event.target.value)}
+                    className={cn(
+                      'block w-full rounded-md border-0 bg-white px-2.5 py-1.5 text-sm',
+                      'text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300',
+                      'focus:ring-2 focus:ring-inset focus:ring-brand-600',
+                    )}
+                  />
+                </label>
+                <p className="text-[11px] leading-tight text-slate-500">
+                  {t('documentTools.stamp.privacy')}
+                </p>
+              </div>
+            ) : null}
+          </ToolSection>
 
-        <ToolSection
-          title={t('documentTools.stamp.title')}
-          hint={t('documentTools.stamp.hint')}
-        >
-          <Switch
-            label={t('documentTools.stamp.enable')}
-            checked={stampEnabled}
-            onCheckedChange={setStampEnabled}
+          <OutputPanel
+            step={6}
+            output={output}
+            busy={rendering && output === null}
+            customers={customers}
+            defaultCustomerId={defaultCustomerId}
+            sourceDocumentId={sourceDocumentId}
+            showDownload={false}
+            printable
           />
-          {stampEnabled ? (
-            <div className="space-y-2">
-              <label className="block space-y-1">
-                <span className="block text-xs font-medium text-slate-700">
-                  {t('documentTools.stamp.name')}
-                </span>
-                <input
-                  value={stampName}
-                  onChange={(event) => setStampName(event.target.value)}
-                  maxLength={60}
-                  className={cn(
-                    'block w-full rounded-md border-0 bg-white px-2.5 py-1.5 text-sm',
-                    'text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300',
-                    'focus:ring-2 focus:ring-inset focus:ring-brand-600',
-                  )}
-                />
-              </label>
-              <label className="block space-y-1">
-                <span className="block text-xs font-medium text-slate-700">
-                  {t('documentTools.stamp.date')}
-                </span>
-                <input
-                  type="date"
-                  value={stampDate}
-                  onChange={(event) => setStampDate(event.target.value)}
-                  className={cn(
-                    'block w-full rounded-md border-0 bg-white px-2.5 py-1.5 text-sm',
-                    'text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300',
-                    'focus:ring-2 focus:ring-inset focus:ring-brand-600',
-                  )}
-                />
-              </label>
-              <p className="text-[11px] leading-tight text-slate-500">
-                {t('documentTools.stamp.privacy')}
-              </p>
-            </div>
-          ) : null}
-        </ToolSection>
+        </div>
 
-        <OutputPanel
-          output={output}
-          busy={rendering && output === null}
-          customers={customers}
-          defaultCustomerId={defaultCustomerId}
-          sourceDocumentId={sourceDocumentId}
-          printable
-        />
+        <button
+          type="button"
+          disabled={!output}
+          onClick={() => {
+            if (output) downloadBytes(output.bytes, output.filename, output.mimeType);
+          }}
+          className={cn(
+            'flex w-full items-center justify-center gap-2.5 rounded-xl bg-brand-600 px-4 py-3.5',
+            'text-base font-semibold text-white shadow-sm transition-colors hover:bg-brand-700',
+            'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
+            'focus-visible:outline-brand-600',
+            'disabled:cursor-not-allowed disabled:bg-brand-600/50',
+          )}
+        >
+          <ImageDown className="h-5 w-5" strokeWidth={2} aria-hidden />
+          {mode === 'signature'
+            ? t('documentTools.studio.downloadSignature')
+            : t('documentTools.studio.downloadPhoto')}
+        </button>
       </div>
     </div>
   );
+}
+
+const FEATURE_ICONS: Record<StudioFeatureId, LucideIcon> = {
+  autoCrop: Crop,
+  removeBackground: LayoutGrid,
+  enhance: Sun,
+  exactSize: FileDigit,
+};
+
+/** What the tool can do, shown in the empty dropzone. Not buttons — every one is a control in the rail. */
+function FeaturePills() {
+  const t = useTranslations();
+  return (
+    <ul className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      {STUDIO_FEATURES.map((feature) => {
+        const Icon = FEATURE_ICONS[feature.id];
+        return (
+          <li
+            key={feature.id}
+            title={
+              feature.id === 'removeBackground'
+                ? t('documentTools.studio.features.removeBackgroundHint')
+                : undefined
+            }
+            className="flex flex-col items-center gap-2 text-center text-xs text-slate-600"
+          >
+            <span
+              aria-hidden
+              className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600"
+            >
+              <Icon className="h-5 w-5" strokeWidth={1.9} />
+            </span>
+            {t(feature.labelKey)}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/**
+ * Before-and-after examples of the stages a file goes through. Stock artwork only — see
+ * `lib/document-tools/studio.ts`.
+ */
+function Examples({
+  kind,
+  onKindChange,
+}: {
+  kind: ExampleKind;
+  onKindChange: (kind: ExampleKind) => void;
+}) {
+  const t = useTranslations();
+  const stages = STUDIO_EXAMPLES[kind];
+
+  return (
+    <div className="space-y-3 pt-1">
+      <h2 className="text-sm font-semibold text-slate-900">
+        {t('documentTools.studio.examples.title')}
+      </h2>
+      <div
+        role="tablist"
+        aria-label={t('documentTools.studio.examples.title')}
+        className="flex flex-wrap gap-2"
+      >
+        {(Object.keys(EXAMPLE_TAB_KEYS) as ExampleKind[]).map((option) => {
+          const active = option === kind;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onKindChange(option)}
+              className={cn(
+                'rounded-lg border px-4 py-1.5 text-xs font-medium transition-colors',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
+                'focus-visible:outline-brand-600',
+                active
+                  ? 'border-brand-500 bg-brand-50 text-brand-700'
+                  : 'border-transparent bg-slate-100 text-slate-600 hover:text-slate-900',
+              )}
+            >
+              {t(EXAMPLE_TAB_KEYS[option])}
+            </button>
+          );
+        })}
+      </div>
+
+      <ul role="tabpanel" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {stages.map((stage) => (
+          <li
+            key={stage.labelKey}
+            className="flex flex-col items-center gap-2 rounded-xl bg-brand-50/60 p-2.5"
+          >
+            <ExampleArtwork stage={stage} kind={kind} />
+            <span className="text-center text-[11px] font-medium text-slate-700">
+              {t(stage.labelKey)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ExampleArtwork({ stage, kind }: { stage: ExampleStage; kind: ExampleKind }) {
+  const landscape = stage.width > stage.height;
+  const image = (
+    <Image
+      src={stage.src}
+      alt=""
+      width={stage.width}
+      height={stage.height}
+      sizes="160px"
+      className={cn(
+        'h-full w-full',
+        landscape ? 'object-contain' : 'object-cover',
+        stage.multiply && 'mix-blend-multiply',
+      )}
+    />
+  );
+
+  switch (stage.style) {
+    case 'plain':
+      return (
+        <div className="aspect-[4/5] w-full overflow-hidden rounded-md bg-white">{image}</div>
+      );
+
+    case 'cutout':
+      return (
+        <StageBackdrop transparent className="aspect-[4/5] w-full rounded-md">
+          {image}
+        </StageBackdrop>
+      );
+
+    case 'portal':
+      return (
+        <div className="flex aspect-[4/5] w-full items-center justify-center rounded-md bg-white p-2">
+          <div
+            className={cn(
+              'overflow-hidden border border-slate-400 bg-white shadow-sm',
+              // The shapes the captions name: 3.5 × 4.5 cm and 3.5 × 1.5 cm.
+              kind === 'photo' ? 'aspect-[35/45] h-full' : 'aspect-[35/15] w-full',
+            )}
+          >
+            {image}
+          </div>
+        </div>
+      );
+
+    case 'custom':
+      return (
+        <div className="relative aspect-[4/5] w-full rounded-md bg-white p-2.5">
+          <div className="relative h-full w-full overflow-hidden border border-slate-700">
+            {image}
+          </div>
+          {/* Resize arrows on the four corners: "any size you set". */}
+          <MoveDiagonal2
+            aria-hidden
+            className="absolute left-0.5 top-0.5 h-3.5 w-3.5 text-slate-700"
+          />
+          <MoveDiagonal2
+            aria-hidden
+            className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 text-slate-700"
+          />
+          <MoveDiagonal
+            aria-hidden
+            className="absolute right-0.5 top-0.5 h-3.5 w-3.5 text-slate-700"
+          />
+          <MoveDiagonal
+            aria-hidden
+            className="absolute bottom-0.5 left-0.5 h-3.5 w-3.5 text-slate-700"
+          />
+        </div>
+      );
+  }
 }

@@ -18,6 +18,12 @@ import {
 
 export type EntitlementContext = {
   planCode: string | null | undefined;
+  /**
+   * The organization's plan as read from the `plans` table — the runtime source of truth, which
+   * super admins edit. Absent or null only when that read failed; `resolvePlan` then falls back
+   * to the built-in definition, or to the free plan for a code it does not know.
+   */
+  plan?: PlanDefinition | null;
   subscriptionStatus: SubscriptionStatus | null | undefined;
   /** Usage already recorded in the current billing period. */
   usage: Partial<Record<UsageEventType, number>>;
@@ -54,6 +60,16 @@ function deny(
   return { allowed: false, remaining: 0, plan, reason };
 }
 
+/**
+ * The plan every check measures against. A loaded row wins only when it is the row for the
+ * organization's own code — a mismatched row is a caller bug, and trusting it would apply
+ * somebody else's limits.
+ */
+export function resolvePlan(context: Pick<EntitlementContext, 'planCode' | 'plan'>): PlanDefinition {
+  if (context.plan && context.plan.code === context.planCode) return context.plan;
+  return getPlan(context.planCode);
+}
+
 /** Metered actions require a paid-up subscription; the free plan is always "paid up". */
 function hasMeteredAccess(
   plan: PlanDefinition,
@@ -68,7 +84,7 @@ export function checkUsageEntitlement(
   eventType: UsageEventType,
   quantity = 1,
 ): EntitlementDecision {
-  const plan = getPlan(context.planCode);
+  const plan = resolvePlan(context);
 
   if (!hasMeteredAccess(plan, context.subscriptionStatus)) {
     return deny(plan, 'billing.limit.payment_required');
@@ -112,7 +128,7 @@ export function checkUsageEntitlement(
 }
 
 export function checkCustomerLimit(context: EntitlementContext): EntitlementDecision {
-  const plan = getPlan(context.planCode);
+  const plan = resolvePlan(context);
   if (plan.maxCustomers === null) return allow(plan, null);
   const remaining = plan.maxCustomers - context.customerCount;
   return remaining > 0 ? allow(plan, remaining) : deny(plan, 'billing.limit.customers');
@@ -122,7 +138,7 @@ export function checkFeature(
   context: EntitlementContext,
   feature: keyof PlanDefinition['features'],
 ): EntitlementDecision {
-  const plan = getPlan(context.planCode);
+  const plan = resolvePlan(context);
   const value = plan.features[feature];
   const enabled = typeof value === 'boolean' ? value : true;
   return enabled ? allow(plan, null) : deny(plan, 'billing.limit.feature_not_in_plan');
@@ -142,7 +158,7 @@ export type UsageSummary = {
 };
 
 export function buildUsageSummary(context: EntitlementContext): UsageSummary {
-  const plan = getPlan(context.planCode);
+  const plan = resolvePlan(context);
   const item = (
     key: UsageSummary['items'][number]['key'],
     used: number,

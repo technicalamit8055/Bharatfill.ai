@@ -50,20 +50,61 @@ export function ToolPageHeader({
   );
 }
 
-/** A titled group of controls in the rail. */
+/**
+ * A titled group of controls in the rail.
+ *
+ * With `step`, the section becomes a numbered card — the Photo & Signature Studio reads as an
+ * ordered walk from "what is this" to "download", and the number is what tells an operator new
+ * to the counter which box to fill next.
+ */
 export function ToolSection({
   title,
   hint,
+  step,
+  titleAdornment,
   actions,
   children,
   className,
 }: {
   title: string;
   hint?: string;
+  step?: number;
+  /** Rendered after the title in a numbered card — used for the "optional" tag. */
+  titleAdornment?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
+  if (step !== undefined) {
+    return (
+      <section
+        className={cn('rounded-2xl border border-slate-200 bg-white p-4 shadow-sm', className)}
+      >
+        <header className="mb-3 flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-start gap-2.5">
+            <span
+              aria-hidden
+              className="mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white"
+            >
+              {step}
+            </span>
+            <div className="min-w-0">
+              <h2 className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-slate-900">
+                {title}
+                {titleAdornment}
+              </h2>
+              {hint ? (
+                <p className="mt-0.5 text-[11px] leading-tight text-slate-500">{hint}</p>
+              ) : null}
+            </div>
+          </div>
+          {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
+        </header>
+        <div className="space-y-3">{children}</div>
+      </section>
+    );
+  }
+
   return (
     <section
       className={cn('rounded-lg border border-slate-200 bg-white', className)}

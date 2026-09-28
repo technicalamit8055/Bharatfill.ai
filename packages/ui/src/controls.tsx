@@ -34,6 +34,8 @@ export type SliderProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | '
   hint?: string;
   /** Resets to this value when the label's value badge is double-clicked. */
   defaultValue?: number;
+  /** Label, track and value on one row — for a rail of several sliders. */
+  inline?: boolean;
   onValueChange: (value: number) => void;
 };
 
@@ -49,6 +51,7 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(function Slider(
     className,
     onValueChange,
     defaultValue,
+    inline = false,
     disabled,
     ...props
   },
@@ -58,55 +61,89 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(function Slider(
   const handleChange = (event: ChangeEvent<HTMLInputElement>) =>
     onValueChange(Number(event.target.value));
 
+  const labelNode = (
+    <label
+      htmlFor={id}
+      className={cn('text-xs font-medium text-slate-700', inline && 'w-20 shrink-0')}
+    >
+      {label}
+    </label>
+  );
+
+  // Double-click to reset is the convention every image editor uses, and it is a shortcut
+  // rather than the only way back — the slider still works.
+  const valueNode = valueLabel ? (
+    <button
+      type="button"
+      onDoubleClick={defaultValue === undefined ? undefined : () => onValueChange(defaultValue)}
+      className={cn(
+        'cursor-default rounded px-1 text-xs font-semibold tabular-nums text-slate-900',
+        inline && 'w-12 shrink-0 text-right',
+      )}
+      tabIndex={-1}
+      aria-hidden
+    >
+      {valueLabel}
+    </button>
+  ) : null;
+
+  const hintNode = hint ? (
+    <p className="text-[11px] leading-tight text-slate-500">{hint}</p>
+  ) : null;
+
+  const input = (
+    <input
+      ref={ref}
+      id={id}
+      type="range"
+      value={value}
+      min={min}
+      max={max}
+      step={step}
+      disabled={disabled}
+      onChange={handleChange}
+      className={cn(
+        'h-4 w-full cursor-pointer appearance-none bg-transparent',
+        '[&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full',
+        '[&::-webkit-slider-runnable-track]:bg-slate-200',
+        '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4',
+        '[&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:-mt-[5px]',
+        '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-brand-600',
+        '[&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:ring-2',
+        '[&::-webkit-slider-thumb]:ring-white',
+        '[&::-moz-range-track]:h-1.5 [&::-moz-range-track]:rounded-full',
+        '[&::-moz-range-track]:bg-slate-200',
+        '[&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:border-0',
+        '[&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-brand-600',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
+        'focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-50',
+        inline && 'min-w-0 flex-1',
+      )}
+      {...props}
+    />
+  );
+
+  if (inline) {
+    return (
+      <div className={cn('space-y-0.5', className)}>
+        <div className="flex items-center gap-3">
+          {labelNode}
+          {input}
+          {valueNode}
+        </div>
+        {hintNode}
+      </div>
+    );
+  }
+
   return (
     <div className={cn('space-y-1', className)}>
       <div className="flex items-baseline justify-between gap-2">
-        <label htmlFor={id} className="text-xs font-medium text-slate-700">
-          {label}
-        </label>
-        {valueLabel ? (
-          // Double-click to reset is the convention every image editor uses, and it is a
-          // shortcut rather than the only way back — the slider still works.
-          <button
-            type="button"
-            onDoubleClick={defaultValue === undefined ? undefined : () => onValueChange(defaultValue)}
-            className="cursor-default rounded px-1 text-xs font-semibold tabular-nums text-slate-900"
-            tabIndex={-1}
-            aria-hidden
-          >
-            {valueLabel}
-          </button>
-        ) : null}
+        {labelNode}
+        {valueNode}
       </div>
-      <input
-        ref={ref}
-        id={id}
-        type="range"
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        disabled={disabled}
-        onChange={handleChange}
-        className={cn(
-          'h-4 w-full cursor-pointer appearance-none bg-transparent',
-          '[&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full',
-          '[&::-webkit-slider-runnable-track]:bg-slate-200',
-          '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4',
-          '[&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:-mt-[5px]',
-          '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-brand-600',
-          '[&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:ring-2',
-          '[&::-webkit-slider-thumb]:ring-white',
-          '[&::-moz-range-track]:h-1.5 [&::-moz-range-track]:rounded-full',
-          '[&::-moz-range-track]:bg-slate-200',
-          '[&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:border-0',
-          '[&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-brand-600',
-          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
-          'focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-50',
-        )}
-        {...props}
-      />
-      {hint ? <p className="text-[11px] leading-tight text-slate-500">{hint}</p> : null}
+      {input}
+      {hintNode}
     </div>
   );
 });

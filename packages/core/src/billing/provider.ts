@@ -6,11 +6,12 @@
  * swapping or adding a provider never touches a route or a page.
  */
 
-import type { PlanCode, SubscriptionStatus } from './plans';
+import type { SubscriptionStatus } from './plans';
 
 export type CheckoutInput = {
   organizationId: string;
-  planCode: PlanCode;
+  /** Any code in the plan catalogue — built in, or created in the admin panel. */
+  planCode: string;
   /** Where the operator lands after a successful (redirect-based) checkout. */
   successUrl: string;
   /** Where the operator lands if they abandon checkout. */
@@ -24,7 +25,7 @@ export type CheckoutInput = {
  * operator must be redirected to, with the plan change arriving later via `handleWebhook`.
  */
 export type CheckoutResult =
-  | { mode: 'instant'; planCode: PlanCode; status: SubscriptionStatus }
+  | { mode: 'instant'; planCode: string; status: SubscriptionStatus }
   | { mode: 'redirect'; checkoutUrl: string };
 
 export type WebhookInput = {

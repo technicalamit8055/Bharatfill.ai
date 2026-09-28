@@ -48,6 +48,15 @@ export const PLATFORM_PERMISSIONS = [
   'platform.jobs.view',
   'platform.audit.view',
 
+  // --- billing -------------------------------------------------------------
+  /** The plan catalogue: prices, limits and how many organizations are on each plan. */
+  'platform.plans.view',
+  /**
+   * Create, edit, retire and reactivate plans. Super admin only: a limit changed here changes
+   * what every centre on that plan can do, the moment it is saved.
+   */
+  'platform.plans.manage',
+
   // --- team ----------------------------------------------------------------
   'platform.team.view',
   'platform.team.manage',
@@ -68,6 +77,7 @@ const SUPPORT_ADMIN_PERMISSIONS: readonly PlatformPermission[] = [
   'platform.scrapers.view',
   'platform.queue.view',
   'platform.jobs.view',
+  'platform.plans.view',
   'platform.audit.view',
 ];
 
@@ -88,6 +98,7 @@ const CONTENT_MANAGER_PERMISSIONS: readonly PlatformPermission[] = [
   'platform.queue.view',
   'platform.queue.review',
   'platform.jobs.view',
+  'platform.plans.view',
 ];
 
 /**
@@ -104,6 +115,7 @@ const SCRAPER_OPERATOR_PERMISSIONS: readonly PlatformPermission[] = [
   'platform.scrapers.run',
   'platform.queue.view',
   'platform.jobs.view',
+  'platform.plans.view',
 ];
 
 const SUPER_ADMIN_PERMISSIONS: readonly PlatformPermission[] = PLATFORM_PERMISSIONS;

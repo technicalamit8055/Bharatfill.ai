@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, type PointerEvent } from 'react';
 import { cn } from '@assistigo/ui';
 import { clampRectToBounds, type Rect, type Size } from '@assistigo/document-tools';
 import { StageBackdrop } from './tool-shell';
@@ -38,6 +38,11 @@ const HANDLE_CURSOR: Record<HandleId, string> = {
 /** Smallest crop the operator can drag to, in working pixels. Below this the preview is useless. */
 const MIN_CROP_PX = 24;
 
+const DEFAULT_MAX_HEIGHT_PX = 560;
+
+/** Share of the viewport height the picture may take, so the controls below stay in reach. */
+const MAX_VIEWPORT_SHARE = 0.6;
+
 export function CropStage({
   canvas,
   crop,
@@ -48,6 +53,7 @@ export function CropStage({
   /** Draws the rule-of-thirds grid inside the box while dragging. */
   guides = true,
   transparent = false,
+  maxHeight = DEFAULT_MAX_HEIGHT_PX,
   className,
   children,
 }: {
@@ -58,6 +64,8 @@ export function CropStage({
   disabled?: boolean;
   guides?: boolean;
   transparent?: boolean;
+  /** Tallest the picture is drawn, in CSS pixels. It is also held under 60% of the viewport. */
+  maxHeight?: number;
   className?: string;
   /** Extra overlay content, positioned against the image — the redaction layer uses this. */
   children?: (view: { scale: number; bounds: Size }) => React.ReactNode;
@@ -76,9 +84,9 @@ export function CropStage({
     ? { width: canvas.width, height: canvas.height }
     : { width: 1, height: 1 };
 
-  // Mount the parent's canvas into the DOM and letterbox it to the holder. `useLayoutEffect`
-  // because the measurement below has to happen before paint, or the crop box flashes at the
-  // wrong size on first render.
+  // Mount the parent's canvas into the DOM. It fills the image box, and the box is sized
+  // explicitly below. `useLayoutEffect` because the measurement has to happen before paint, or
+  // the crop box flashes at the wrong size on first render.
   useLayoutEffect(() => {
     const holder = imageRef.current;
     if (!holder) return;
@@ -86,27 +94,49 @@ export function CropStage({
     if (!canvas) return;
     canvas.style.display = 'block';
     canvas.style.width = '100%';
-    canvas.style.height = 'auto';
-    canvas.style.maxHeight = '100%';
-    canvas.style.objectFit = 'contain';
+    canvas.style.height = '100%';
     holder.appendChild(canvas);
   }, [canvas]);
 
-  // Track the on-screen size of the image so pointer positions can be mapped back to working
-  // pixels. A ResizeObserver rather than a window listener: the rail collapsing at the xl
-  // breakpoint changes the stage width without the window changing at all.
-  useEffect(() => {
-    const holder = imageRef.current;
-    if (!holder) return;
-    const observer = new ResizeObserver(() => {
-      const rect = holder.getBoundingClientRect();
-      setDisplaySize({ width: rect.width, height: rect.height });
-    });
+  // Fit the picture inside the available width *and* a height cap, keeping its shape. This is
+  // computed rather than left to CSS: `max-height: 100%` has nothing to resolve against inside
+  // an auto-height box, so a portrait photo would otherwise draw at full column width and run
+  // far below the fold. The result is also the scale pointer positions are mapped back through.
+  //
+  // A ResizeObserver on the holder rather than only a window listener: the rail collapsing at
+  // the xl breakpoint changes the stage width without the window changing at all. The window
+  // listener catches height-only changes, which move the viewport cap.
+  const canvasWidth = canvas?.width ?? 0;
+  const canvasHeight = canvas?.height ?? 0;
+  useLayoutEffect(() => {
+    const holder = holderRef.current;
+    if (!holder || canvasWidth === 0 || canvasHeight === 0) {
+      setDisplaySize({ width: 0, height: 0 });
+      return;
+    }
+
+    const fit = () => {
+      const availableWidth = holder.clientWidth;
+      const availableHeight = Math.min(maxHeight, window.innerHeight * MAX_VIEWPORT_SHARE);
+      const ratio = Math.min(availableWidth / canvasWidth, availableHeight / canvasHeight);
+      const next = {
+        width: Math.max(0, Math.floor(canvasWidth * ratio)),
+        height: Math.max(0, Math.floor(canvasHeight * ratio)),
+      };
+      setDisplaySize((previous) =>
+        previous.width === next.width && previous.height === next.height ? previous : next,
+      );
+    };
+
+    fit();
+    const observer = new ResizeObserver(fit);
     observer.observe(holder);
-    const rect = holder.getBoundingClientRect();
-    setDisplaySize({ width: rect.width, height: rect.height });
-    return () => observer.disconnect();
-  }, [canvas]);
+    window.addEventListener('resize', fit);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', fit);
+    };
+  }, [canvasWidth, canvasHeight, maxHeight]);
 
   const scale = displaySize.width > 0 ? displaySize.width / bounds.width : 0;
 
@@ -220,16 +250,20 @@ export function CropStage({
   return (
     <StageBackdrop
       transparent={transparent}
-      className={cn('min-h-[280px] p-3 sm:p-5', className)}
+      className={cn('min-h-[240px] p-3 sm:p-5', className)}
     >
       <div
         ref={holderRef}
-        className="relative flex max-h-[62dvh] w-full items-center justify-center"
+        className="relative flex w-full items-center justify-center"
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
-        <div ref={imageRef} className="relative max-h-full w-full max-w-full" />
+        <div
+          ref={imageRef}
+          className="relative shrink-0"
+          style={{ width: displaySize.width, height: displaySize.height }}
+        />
 
         {canvas && scale > 0 ? (
           <div

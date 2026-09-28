@@ -43,6 +43,10 @@ const PIPELINE: Omit<AdminNavItem, 'badge'>[] = [
   { href: '/admin/queue', labelKey: 'admin.nav.queue', permission: 'platform.queue.view' },
 ];
 
+const BILLING: Omit<AdminNavItem, 'badge'>[] = [
+  { href: '/admin/plans', labelKey: 'admin.nav.plans', permission: 'platform.plans.view' },
+];
+
 const SYSTEM: Omit<AdminNavItem, 'badge'>[] = [
   { href: '/admin/team', labelKey: 'admin.nav.team', permission: 'platform.team.view' },
   { href: '/admin/channels', labelKey: 'admin.nav.channels', permission: 'platform.team.manage' },
@@ -133,6 +137,7 @@ export function AdminNav({
       <Group labelKey="admin.nav.groupOverview" items={OVERVIEW} {...shared} />
       <Group labelKey="admin.nav.groupCatalogue" items={CATALOGUE} {...shared} />
       <Group labelKey="admin.nav.groupPipeline" items={PIPELINE} {...shared} />
+      <Group labelKey="admin.nav.groupBilling" items={BILLING} {...shared} />
       <Group labelKey="admin.nav.groupSystem" items={SYSTEM} {...shared} />
     </nav>
   );

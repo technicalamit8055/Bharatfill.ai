@@ -3,12 +3,23 @@
  * Master spec §22.
  *
  * The prices here are the *implementation placeholder* from §22.1, not a business commitment.
- * The database `plans` table is the runtime source of truth; this file seeds it and gives the
- * app a typed fallback so the product runs with no payment provider configured at all.
+ * The database `plans` table is the runtime source of truth — super admins add and edit plans
+ * there from /admin/plans. This file seeds it and gives the app a typed fallback for when a plan
+ * row cannot be read, so the product runs with no payment provider configured at all.
  */
 
+import { z } from 'zod';
+
+/** The plans every database is seeded with. Admin-created plans add codes beyond these. */
 export const PLAN_CODES = ['free', 'starter', 'professional', 'business'] as const;
 export type PlanCode = (typeof PLAN_CODES)[number];
+
+/**
+ * Shape of any plan code, built in or admin-created. Mirrors the `plans_code_format` check in
+ * migration 0029: a stable machine key, never shown to operators.
+ */
+export const PLAN_CODE_PATTERN = /^[a-z][a-z0-9_]{1,39}$/;
+export const planCodeSchema = z.string().regex(PLAN_CODE_PATTERN);
 
 export const USAGE_EVENT_TYPES = [
   'fill',
@@ -29,8 +40,23 @@ export type PlanFeatures = {
   support: 'community' | 'email' | 'priority';
 };
 
+export const SUPPORT_LEVELS = ['community', 'email', 'priority'] as const;
+
+/**
+ * Validates the `plans.features` jsonb column. Missing flags default to *off*: a feature a row
+ * does not mention is a feature the plan does not include, never one it gets by accident.
+ */
+export const planFeaturesSchema = z.object({
+  adapterLibrary: z.boolean().default(false),
+  advancedDocumentTools: z.boolean().default(false),
+  bulkImport: z.boolean().default(false),
+  apiAccess: z.boolean().default(false),
+  support: z.enum(SUPPORT_LEVELS).default('community'),
+});
+
 export type PlanDefinition = {
-  code: PlanCode;
+  /** A built-in `PlanCode` or an admin-created one matching `PLAN_CODE_PATTERN`. */
+  code: string;
   name: { en: string; hi: string };
   priceMonthlyInr: number;
   /** null means unlimited. */

@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { PLAN_CODES } from '@assistigo/core';
+import { planCodeSchema } from '@assistigo/core';
 
 export const checkoutSchema = z.object({
-  planCode: z.enum(PLAN_CODES),
+  // Any well-formed code; whether it is a live plan is the provider's check against the table.
+  planCode: planCodeSchema,
 });
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 

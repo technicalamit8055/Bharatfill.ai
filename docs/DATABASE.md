@@ -55,6 +55,7 @@ only consumer, in `apps/web/lib/supabase/database.types.ts`.
 | `0026_allow_full_aadhaar.sql`                  | `reject_full_aadhaar()` reduced to the `aadhaar_last4` format check; `settings.allow_full_aadhaar` default and backfill set to `true` (key no longer read)                                                          |
 | `0027_scheme_logos.sql`                        | `schemes_catalog.logo_path` (shape-checked `<slug>/<uuid>.<png|jpg|webp>`); private `scheme-logos` bucket, 256 KB, PNG/JPEG/WebP, no storage policies                                                            |
 | `0028_scheme_artwork.sql`                      | `schemes_catalog.banner_path` and `illustration_path` (same shape check as `logo_path`) for the scheme detail page; `scheme-logos` bucket limit raised to 1 MB                                                    |
+| `0029_admin_managed_plans.sql`                 | Admin-managed plans: code whitelist → format check, limit checks, `guard_plan_update()` trigger (code immutable, price locked while in use, free never retired), `plans_read` also shows a retired plan to its own members |
 
 Seed data is **separate from migrations** (`packages/database/src/seed/`), per spec §25.4.
 
@@ -181,6 +182,16 @@ A `billing_admin` may write `subscriptions` but not `organizations`, so the trig
 copies the plan's code onto `organizations.plan_code` for `active` / `trialing` / `past_due`
 rows. Other statuses leave `plan_code` alone — failed billing degrades access, it never rewrites
 data (§22.4).
+
+### Admin-managed plans (0029)
+
+Super admins edit `plans` from `/admin/plans` (service role, `platform.plans.manage`), and the
+entitlement service resolves limits from the row for `organizations.plan_code` — the constants in
+`packages/core/src/billing/plans.ts` are only the seed and a fallback when that read fails. The
+`plans_guard_update` trigger holds the product-owner rules whatever the caller: `code` never
+changes; `price_monthly_inr` cannot change while `plan_in_use()` (an organization on the code, or a
+live subscription) — reprice by creating a new plan and retiring the old; `free` cannot be
+retired. Limit and feature edits apply to every subscriber immediately.
 
 ### `marksheet_graduation` (0019)
 
@@ -418,6 +429,7 @@ non-loopback URL) with two organizations, one member per role in each. `npm run 
 | `roles.test.ts`          | `viewer` read-only and no `customer_field_values`; `billing_admin` sees no customers/documents/field values/applications but writes `subscriptions`; 0018 `plan_code` sync; operator cannot delete customers/applications or remove members; `organization_ai_settings` owner-only writes; anonymous reads return zero rows                                            |
 | `audit.test.ts`          | `audit_logs` cannot be updated or deleted by anyone, service role included; owner/manager read, operator cannot; no cross-org read or insert                                                                                                                                                                                                                           |
 | `platform.test.ts`       | 0021 tables invisible and unwritable to tenant sessions and anon; `platform_admins` self-read only, no self-grant or self-promotion; `platform_metrics()` / `platform_tenant_rows()` refused to tenant sessions; no tenant write to global schemes                                                                                                                     |
+| `plans.test.ts`          | 0029: code format and limit checks; code immutable; price locked once in use; free never retired; a retired plan readable only by its own organizations; tenants cannot write plans                                                                                                                                                                                     |
 | `roaming_access.test.ts` | 0024/0025: no access before a grant; a link grants nothing; pre-auth card only via the service-role RPC; a grant opens the four tables to the grant holder only, never `document_extractions` or writes to the customer row; expiry and revocation deny on their own; 12-hour ceiling and self-link rejection; the single 0025 document insert and all of its refusals |
 
 Not yet covered: `document_drop_sessions` / `document_drop_files` (0022) and

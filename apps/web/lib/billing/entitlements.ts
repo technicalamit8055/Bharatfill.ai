@@ -4,6 +4,7 @@ import type { EntitlementContext, UsageEventType } from '@assistigo/core';
 import type { AssistigoSupabaseClient } from '../supabase/server';
 import type { RequestContext } from '../api/context';
 import { logger } from '../api/logger';
+import { loadPlanByCode } from './plans';
 
 /**
  * The slice of a request/page's context this needs — narrower than `RequestContext` so a
@@ -25,8 +26,10 @@ export async function loadEntitlementContext(
   periodStart.setUTCDate(1);
   periodStart.setUTCHours(0, 0, 0, 0);
 
-  const [usageResult, subscriptionResult, seatsResult, customersResult, storageResult] =
+  const [plan, usageResult, subscriptionResult, seatsResult, customersResult, storageResult] =
     await Promise.all([
+      // The limits themselves, from the table super admins edit — not the built-in constants.
+      loadPlanByCode(context.supabase, context.organization.plan_code),
       context.supabase.rpc('usage_since', {
         org: context.organization.id,
         since: periodStart.toISOString(),
@@ -67,6 +70,7 @@ export async function loadEntitlementContext(
 
   return {
     planCode: context.organization.plan_code,
+    plan,
     subscriptionStatus:
       (subscriptionResult.data?.status as EntitlementContext['subscriptionStatus']) ?? null,
     usage,
