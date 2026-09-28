@@ -25,7 +25,9 @@ export function Header() {
       <div className="mx-auto flex h-20 sm:h-24 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand Logo */}
         <Link href="/" className="group flex items-center shrink-0 py-1">
-          <BharatfillLogo height={72} className="sm:hidden" />
+          {/* Below 360px the full-height logo leaves no room for the Hindi install button. */}
+          <BharatfillLogo height={56} className="min-[360px]:hidden" />
+          <BharatfillLogo height={72} className="hidden min-[360px]:flex sm:hidden" />
           <BharatfillLogo height={96} className="hidden sm:flex" />
         </Link>
 
@@ -57,7 +59,7 @@ export function Header() {
             href="https://chromewebstore.google.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative inline-flex items-center justify-center gap-2 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#0055EE] via-[#0066FF] to-sky-500 py-1.5 pl-1.5 pr-3 sm:py-2 sm:pl-2 sm:pr-5 text-xs font-bold text-white shadow-lg shadow-blue-500/30 transition-all duration-300 hover:scale-[1.02] hover:shadow-blue-500/45 sm:text-sm whitespace-nowrap shrink-0"
+            className="group relative inline-flex items-center justify-center gap-2 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#0055EE] via-[#0066FF] to-sky-500 py-1.5 pl-1.5 pr-1.5 min-[320px]:pr-3 sm:py-2 sm:pl-2 sm:pr-5 text-xs font-bold text-white shadow-lg shadow-blue-500/30 transition-all duration-300 hover:scale-[1.02] hover:shadow-blue-500/45 sm:text-sm whitespace-nowrap shrink-0"
           >
             <span className="flex h-6 w-6 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-white">
               <Image
@@ -70,7 +72,8 @@ export function Header() {
               />
             </span>
             <span className="hidden sm:inline">{t('landing.header.addToChrome')}</span>
-            <span className="sm:hidden">{t('landing.header.install')}</span>
+            {/* Icon-only under 320px (e.g. fold cover screens); the label stays for screen readers. */}
+            <span className="sr-only min-[320px]:not-sr-only sm:hidden">{t('landing.header.install')}</span>
             <ArrowRight aria-hidden size={16} className="hidden sm:block transition-transform group-hover:translate-x-0.5" />
           </a>
 
@@ -81,7 +84,7 @@ export function Header() {
             aria-expanded={isMenuOpen}
             aria-controls="mobile-nav-menu"
             aria-label={isMenuOpen ? t('landing.header.closeMenu') : t('landing.header.openMenu')}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-700 xl:hidden shrink-0"
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-700 xl:hidden shrink-0"
           >
             {isMenuOpen ? (
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

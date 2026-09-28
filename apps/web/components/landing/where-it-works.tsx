@@ -267,10 +267,15 @@ export function WhereItWorks() {
             {t('landing.whereItWorks.subtitle')}
           </p>
 
+          {/*
+           * On phones the chips are one swipeable row running to the screen edges (a wrapped row
+           * stacked them four deep); the vertical padding keeps the focus ring and active shadow
+           * clear of the scroller's clip. From sm they wrap and centre.
+           */}
           <div
             role="group"
             aria-label={t('landing.whereItWorks.filterLabel')}
-            className="hiw-rise mt-8 flex flex-wrap items-center justify-center gap-2.5 sm:gap-3"
+            className="hiw-rise -mx-4 mt-6 flex snap-x items-center gap-2.5 overflow-x-auto px-4 pb-4 pt-2 [scrollbar-width:none] sm:mx-0 sm:mt-8 sm:flex-wrap sm:justify-center sm:gap-3 sm:overflow-visible sm:p-0 [&::-webkit-scrollbar]:hidden"
             style={delay(300)}
           >
             {PORTAL_CATEGORIES.map((id) => {
@@ -282,7 +287,7 @@ export function WhereItWorks() {
                   aria-pressed={active}
                   aria-controls={LIST_ID}
                   onClick={() => select(id)}
-                  className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066FF] focus-visible:ring-offset-2 sm:px-5 sm:text-[15px] ${
+                  className={`shrink-0 snap-start scroll-ml-4 whitespace-nowrap rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066FF] focus-visible:ring-offset-2 sm:px-5 sm:text-[15px] ${
                     active
                       ? 'border-[#0066FF] bg-[#0066FF] text-white shadow-lg shadow-blue-500/30'
                       : 'border-slate-200 bg-white/80 text-slate-700 shadow-sm hover:-translate-y-0.5 hover:border-blue-200 hover:text-[#0066FF] hover:shadow-md'
@@ -312,8 +317,9 @@ export function WhereItWorks() {
                   style={delay(hasFiltered ? index * 60 : index * 80)}
                 >
                   <div className="group flex h-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm shadow-slate-200/60 transition-all duration-300 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-100/70 lg:gap-4 lg:p-5">
+                    {/* Dropped under 320px, where it would leave the title a word per line. */}
                     <span
-                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br transition-transform duration-300 group-hover:scale-110 lg:h-14 lg:w-14 ${tile}`}
+                      className={`hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br transition-transform duration-300 group-hover:scale-110 min-[320px]:flex lg:h-14 lg:w-14 ${tile}`}
                     >
                       <Icon aria-hidden size={26} strokeWidth={2} />
                     </span>

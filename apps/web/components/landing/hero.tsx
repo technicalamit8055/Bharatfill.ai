@@ -200,8 +200,8 @@ export async function Hero() {
             aria-label={t('landing.hero.mockup.label')}
             className="hero-slide-in relative mx-auto flex w-full min-w-0 max-w-xl items-center justify-center gap-4 [--hero-delay:200ms] [perspective:1800px]"
           >
-            {/* Document badges */}
-            <div className="hidden shrink-0 flex-col gap-2 sm:flex">
+            {/* Document badges — dropped at lg, where the half-width column cannot fit them and the form */}
+            <div className="hidden shrink-0 flex-col gap-2 sm:flex lg:hidden xl:flex">
               {BADGES.map((badge, index) => (
                 <Image
                   key={badge.key}
@@ -230,7 +230,8 @@ export async function Hero() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-[1fr_auto] gap-4 p-5">
+              {/* On narrow phones the extension panel sits under the form, so the fields keep their values readable. */}
+              <div className="grid grid-cols-1 gap-4 p-4 min-[400px]:grid-cols-[1fr_auto] min-[400px]:p-5">
                 {/* Government form */}
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -269,7 +270,7 @@ export async function Hero() {
                 </div>
 
                 {/* Bharatfill extension panel */}
-                <div className="flex w-36 flex-col gap-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-3 sm:w-40">
+                <div className="flex w-full flex-col gap-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-3 min-[400px]:w-36 sm:w-40">
                   <span className="inline-flex items-center justify-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200 sm:text-xs">
                     <Zap aria-hidden size={12} className="fill-amber-400 text-amber-400" />
                     {t('landing.hero.mockup.autoFillAi')}
@@ -303,15 +304,19 @@ export async function Hero() {
         </div>
 
         {/* ── Stats bar ─────────────────────────────────────────────── */}
-        <dl className="hero-rise mx-auto mt-14 grid [--hero-delay:450ms] max-w-5xl grid-cols-2 gap-y-6 rounded-3xl border border-white bg-white/85 px-4 py-6 shadow-lg shadow-slate-200/50 ring-1 ring-slate-100 backdrop-blur-md sm:px-6 md:grid-cols-4 md:divide-x md:divide-slate-200 lg:mt-16 lg:max-w-6xl">
+        {/* Four across only from lg: below it the values ("1,00,000+" in Hindi) collide with the dividers. */}
+        <dl className="hero-rise mx-auto mt-14 grid [--hero-delay:450ms] max-w-5xl grid-cols-2 gap-y-6 rounded-3xl border border-white bg-white/85 px-4 py-6 shadow-lg shadow-slate-200/50 ring-1 ring-slate-100 backdrop-blur-md sm:px-6 lg:mt-16 lg:max-w-6xl lg:grid-cols-4 lg:divide-x lg:divide-slate-200">
           {STATS.map(({ key, icon: Icon, tone, value }) => (
-            <div key={key} className="flex items-center justify-center gap-3 px-2 md:px-4">
+            <div
+              key={key}
+              className="flex flex-col items-center justify-center gap-2 px-2 text-center min-[400px]:flex-row min-[400px]:gap-3 min-[400px]:text-left md:px-4"
+            >
               <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full sm:h-12 sm:w-12 ${tone}`}>
                 <Icon aria-hidden size={22} strokeWidth={2.1} />
               </span>
               <div className="flex min-w-0 flex-col-reverse">
                 <dt className="text-xs font-medium text-slate-600 sm:text-sm">{t(`landing.hero.stats.${key}Label`)}</dt>
-                <dd className={`font-heading text-xl font-extrabold tabular-nums sm:text-2xl ${value}`}>
+                <dd className={`font-heading whitespace-nowrap text-xl font-extrabold tabular-nums sm:text-2xl ${value}`}>
                   {t(`landing.hero.stats.${key}Value`)}
                 </dd>
               </div>

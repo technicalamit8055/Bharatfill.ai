@@ -151,14 +151,14 @@ export function InteractiveDemo() {
 
               {/* Profile Picker Control */}
               <div className="flex items-center gap-2">
-                <span className="hidden text-xs text-slate-500 sm:inline font-medium">Active Profile:</span>
+                <span className="hidden whitespace-nowrap text-xs text-slate-500 sm:inline font-medium">Active Profile:</span>
                 <select
                   value={selectedProfileId}
                   onChange={(e) => {
                     setSelectedProfileId(e.target.value);
                     handleTriggerFill();
                   }}
-                  className="w-full rounded-lg bg-white border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm sm:w-auto"
+                  className="w-full rounded-lg bg-white border border-slate-300 px-3 py-2 xl:py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm sm:w-auto"
                 >
                   {PROFILES.map((p) => (
                     <option key={p.id} value={p.id} className="text-slate-900">
@@ -206,10 +206,10 @@ export function InteractiveDemo() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Candidate Name */}
                   <div className="relative">
-                    <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                       Candidate Full Name
                       {isFilled && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded border border-emerald-200">
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded border shrink-0 whitespace-nowrap border-emerald-200">
                           ✓ 99.9% Match
                         </span>
                       )}
@@ -226,10 +226,10 @@ export function InteractiveDemo() {
 
                   {/* Father's Name */}
                   <div className="relative">
-                    <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                       Father / Guardian Name
                       {isFilled && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded border border-emerald-200">
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded border shrink-0 whitespace-nowrap border-emerald-200">
                           ✓ 99.8% Match
                         </span>
                       )}
@@ -246,10 +246,10 @@ export function InteractiveDemo() {
 
                   {/* Aadhaar Number */}
                   <div className="relative">
-                    <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                       Aadhaar ID (Masked Privacy)
                       {isFilled && (
-                        <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.2 rounded border border-blue-200">
+                        <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.2 rounded border shrink-0 whitespace-nowrap border-blue-200">
                           🔒 Masked
                         </span>
                       )}
@@ -266,10 +266,10 @@ export function InteractiveDemo() {
 
                   {/* Date of Birth */}
                   <div className="relative">
-                    <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                       Date of Birth (DD-MM-YYYY)
                       {isFilled && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded border border-emerald-200">
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded border shrink-0 whitespace-nowrap border-emerald-200">
                           ✓ 100% Match
                         </span>
                       )}
@@ -286,10 +286,10 @@ export function InteractiveDemo() {
 
                   {/* Email Address */}
                   <div className="relative sm:col-span-2">
-                    <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                       Email Address
                       {isFilled && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded border border-emerald-200">
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded border shrink-0 whitespace-nowrap border-emerald-200">
                           ✓ Verified Profile Email
                         </span>
                       )}
@@ -306,10 +306,10 @@ export function InteractiveDemo() {
 
                   {/* Address */}
                   <div className="relative sm:col-span-2">
-                    <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                       Permanent Address
                       {isFilled && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded border border-emerald-200">
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded border shrink-0 whitespace-nowrap border-emerald-200">
                           ✓ Auto-Mapped Address
                         </span>
                       )}
@@ -339,12 +339,13 @@ export function InteractiveDemo() {
                 </div>
               </div>
 
-              {/* Right Column: Extension Panel */}
-              <div className="lg:col-span-4 p-6 bg-slate-50 flex flex-col justify-between">
+              {/* Right Column: Extension Panel — on tablets, profile and button beside the detected fields */}
+              <div className="lg:col-span-4 p-6 bg-slate-50 flex flex-col md:grid md:grid-cols-2 md:gap-x-8 lg:flex">
                 <div>
                   {/* Extension Header with Official Bharatfill Logo */}
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                    <BharatfillLogo height={80} />
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                    <BharatfillLogo height={64} className="min-[360px]:hidden" />
+                    <BharatfillLogo height={80} className="hidden min-[360px]:flex" />
                     <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
                       ON
                     </span>
@@ -358,37 +359,37 @@ export function InteractiveDemo() {
                     <p className="text-sm font-bold text-slate-900 mt-1">{activeProfile.name}</p>
                     <p className="text-xs text-slate-600 font-medium">{activeProfile.category}</p>
                   </div>
+                </div>
 
-                  {/* Field Mapping Summary */}
-                  <div className="mt-4 space-y-2">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Detected Fields (6/6)</span>
-                    <div className="space-y-1.5 text-xs">
-                      <div className="flex justify-between rounded bg-white p-2 border border-slate-200 shadow-sm">
-                        <span className="text-slate-700 font-medium">Full Name</span>
-                        <span className="font-bold text-emerald-700">Matched</span>
-                      </div>
-                      <div className="flex justify-between rounded bg-white p-2 border border-slate-200 shadow-sm">
-                        <span className="text-slate-700 font-medium">Father Name</span>
-                        <span className="font-bold text-emerald-700">Matched</span>
-                      </div>
-                      <div className="flex justify-between rounded bg-white p-2 border border-slate-200 shadow-sm">
-                        <span className="text-slate-700 font-medium">Aadhaar (Masked)</span>
-                        <span className="font-bold text-blue-700">Protected</span>
-                      </div>
-                      <div className="flex justify-between rounded bg-white p-2 border border-slate-200 shadow-sm">
-                        <span className="text-slate-700 font-medium">Date of Birth</span>
-                        <span className="font-bold text-emerald-700">Matched</span>
-                      </div>
-                      <div className="flex justify-between rounded bg-white p-2 border border-slate-200 shadow-sm">
-                        <span className="text-slate-700 font-medium">Email & Address</span>
-                        <span className="font-bold text-emerald-700">Matched</span>
-                      </div>
+                {/* Field Mapping Summary */}
+                <div className="mt-4 space-y-2 md:col-start-2 md:row-span-2 md:row-start-1 md:mt-0 lg:mt-4">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Detected Fields (6/6)</span>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between rounded bg-white p-2 border border-slate-200 shadow-sm">
+                      <span className="text-slate-700 font-medium">Full Name</span>
+                      <span className="font-bold text-emerald-700">Matched</span>
+                    </div>
+                    <div className="flex justify-between rounded bg-white p-2 border border-slate-200 shadow-sm">
+                      <span className="text-slate-700 font-medium">Father Name</span>
+                      <span className="font-bold text-emerald-700">Matched</span>
+                    </div>
+                    <div className="flex justify-between rounded bg-white p-2 border border-slate-200 shadow-sm">
+                      <span className="text-slate-700 font-medium">Aadhaar (Masked)</span>
+                      <span className="font-bold text-blue-700">Protected</span>
+                    </div>
+                    <div className="flex justify-between rounded bg-white p-2 border border-slate-200 shadow-sm">
+                      <span className="text-slate-700 font-medium">Date of Birth</span>
+                      <span className="font-bold text-emerald-700">Matched</span>
+                    </div>
+                    <div className="flex justify-between rounded bg-white p-2 border border-slate-200 shadow-sm">
+                      <span className="text-slate-700 font-medium">Email & Address</span>
+                      <span className="font-bold text-emerald-700">Matched</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Primary Action Button */}
-                <div className="mt-6">
+                {/* Primary Action Button — pinned to the bottom of the column */}
+                <div className="mt-6 md:self-end lg:mt-auto lg:pt-6">
                   <button
                     onClick={handleTriggerFill}
                     className="w-full rounded-xl bg-gradient-to-r from-[#0066FF] via-blue-600 to-cyan-500 py-3 text-xs font-bold text-white shadow-md shadow-blue-500/25 transition-all hover:opacity-95"

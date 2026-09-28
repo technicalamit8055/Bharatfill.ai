@@ -124,7 +124,8 @@ export async function HowItWorks() {
                   className={`hiw-rise group relative flex h-full flex-col rounded-3xl border border-white bg-gradient-to-b to-white/80 p-6 shadow-lg shadow-slate-200/60 ring-1 ring-slate-100 backdrop-blur-sm transition duration-300 hover:-translate-y-1.5 hover:shadow-xl lg:p-7 ${card}`}
                   style={delay(base)}
                 >
-                  <div className="flex items-center gap-3">
+                  {/* Three narrow columns on tablets: the pill drops under the number rather than wrapping beside it. */}
+                  <div className="flex items-center gap-3 md:flex-col md:items-start lg:flex-row lg:items-center">
                     <span className="hiw-pop relative shrink-0" style={delay(base + 250)}>
                       <span
                         aria-hidden
@@ -192,11 +193,12 @@ export async function HowItWorks() {
 
         {/* ── Signal bar ───────────────────────────────────────────── */}
         <Reveal className="mx-auto mt-12 max-w-6xl">
-          <ul className="grid grid-cols-2 gap-y-6 rounded-3xl border border-white bg-white/85 px-4 py-6 shadow-lg shadow-slate-200/50 ring-1 ring-slate-100 backdrop-blur-md sm:px-6 md:grid-cols-4 md:divide-x md:divide-slate-200 lg:rounded-full">
+          {/* Four across only from lg, as in the hero stats bar. */}
+          <ul className="grid grid-cols-2 gap-y-6 rounded-3xl border border-white bg-white/85 px-4 py-6 shadow-lg shadow-slate-200/50 ring-1 ring-slate-100 backdrop-blur-md sm:px-6 lg:grid-cols-4 lg:divide-x lg:divide-slate-200 lg:rounded-full">
             {SIGNALS.map(({ key, icon: Icon, tone }, index) => (
               <li
                 key={key}
-                className="hiw-rise flex items-center justify-center gap-3 px-2 md:px-4"
+                className="hiw-rise flex flex-col items-center justify-center gap-2 px-2 text-center min-[400px]:flex-row min-[400px]:gap-3 min-[400px]:text-left md:px-4"
                 style={delay(index * 110)}
               >
                 <span
