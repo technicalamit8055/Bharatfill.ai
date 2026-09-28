@@ -196,6 +196,7 @@ const config: Config = {
         inter: ['var(--font-jakarta)', 'sans-serif'],
         jakarta: ['var(--font-jakarta)', 'var(--font-devanagari)', 'sans-serif'],
         devanagari: ['var(--font-devanagari)', 'sans-serif'],
+        hand: ['var(--font-hand)', 'cursive'],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
     },

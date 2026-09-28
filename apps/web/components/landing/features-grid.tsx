@@ -1,121 +1,252 @@
-export function FeaturesGrid() {
-  const features = [
-    {
-      title: 'Smart AI Field Recognition',
-      description:
-        'Detects Hindi & English input fields, select dropdowns, radio buttons, and multi-step forms on 100+ portals automatically.',
-      badge: '99.8% Accuracy',
-      icon: (
-        <svg className="h-6 w-6 text-[#0066FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-        </svg>
-      ),
-      colSpan: 'lg:col-span-8',
-    },
-    {
-      title: 'Document OCR & Parsing',
-      description:
-        'Upload Aadhaar, PAN, marksheets, or caste/income certificates. AI reads and extracts details in seconds.',
-      badge: 'PDF & Images',
-      icon: (
-        <svg className="h-6 w-6 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-        </svg>
-      ),
-      colSpan: 'lg:col-span-4',
-    },
-    {
-      title: 'Multi-Candidate Customer Vault',
-      description:
-        'Designed for CSCs & Cyber Cafes. Search and manage thousands of customer profiles easily.',
-      badge: 'Service Centre Ready',
-      icon: (
-        <svg className="h-6 w-6 text-cyan-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      ),
-      colSpan: 'lg:col-span-4',
-    },
-    {
-      title: 'Bank-Grade Privacy & Aadhaar Masking',
-      description:
-        'Only last 4 digits of Aadhaar stored. Document links are short-lived, sensitive fields masked, zero training on your data.',
-      badge: 'Privacy First',
-      icon: (
-        <svg className="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-        </svg>
-      ),
-      colSpan: 'lg:col-span-8',
-    },
-    {
-      title: 'Photo & Document Resizer Tool',
-      description:
-        'Crop, resize, and compress candidate photos to exact KB/pixel dimensions demanded by government portals.',
-      badge: 'Instant Utility',
-      icon: (
-        <svg className="h-6 w-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-        </svg>
-      ),
-      colSpan: 'lg:col-span-6',
-    },
-    {
-      title: 'Custom Field Overrides & Presets',
-      description:
-        'Save reusable preset rules for specific portals, ensuring 100% precision even on custom local forms.',
-      badge: 'Full Control',
-      icon: (
-        <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-        </svg>
-      ),
-      colSpan: 'lg:col-span-6',
-    },
-  ];
+import type { CSSProperties } from 'react';
+import Image from 'next/image';
+import { FileUp, Scan, ShieldCheck, Users } from 'lucide-react';
+import { getTranslations } from '@/lib/i18n/server';
+import { Reveal } from '@/components/landing/reveal';
+
+/**
+ * `scan`      — a glowing ring pulses around the detected field on hover.
+ * `float`     — the whole graphic bobs gently (its badge is baked into the PNG).
+ * `highlight` — the verified profile row lights up on hover.
+ * `halo`      — a blue halo breathes behind the shield.
+ */
+type Effect = 'scan' | 'float' | 'highlight' | 'halo';
+
+const FEATURES = [
+  {
+    key: 'fieldRecognition',
+    image: '/home/feature-field-recognition.png',
+    icon: Scan,
+    effect: 'scan',
+    fadeEdges: false,
+    card: 'from-blue-50 via-white to-blue-50/80 hover:border-blue-200 hover:shadow-blue-200/50',
+    tile: 'from-blue-400 to-[#0066FF] shadow-blue-500/30',
+    pill: 'bg-blue-100/70 text-blue-700 ring-blue-200/70',
+  },
+  {
+    key: 'ocrParsing',
+    image: '/home/feature-ocr-parsing.png',
+    icon: FileUp,
+    effect: 'float',
+    // This PNG's background is off-white, which multiply cannot hide, so its edges are feathered.
+    fadeEdges: true,
+    card: 'from-emerald-50 via-white to-emerald-50/80 hover:border-emerald-200 hover:shadow-emerald-200/50',
+    tile: 'from-emerald-400 to-emerald-600 shadow-emerald-500/30',
+    pill: 'bg-emerald-100/70 text-emerald-700 ring-emerald-200/70',
+  },
+  {
+    key: 'customerVault',
+    image: '/home/feature-customer-vault.png',
+    icon: Users,
+    effect: 'highlight',
+    fadeEdges: false,
+    card: 'from-violet-50 via-white to-violet-50/80 hover:border-violet-200 hover:shadow-violet-200/50',
+    tile: 'from-violet-400 to-violet-600 shadow-violet-500/30',
+    pill: 'bg-violet-100/70 text-violet-700 ring-violet-200/70',
+  },
+  {
+    key: 'privacyMasking',
+    image: '/home/feature-privacy-masking.png',
+    icon: ShieldCheck,
+    effect: 'halo',
+    fadeEdges: false,
+    card: 'from-amber-50 via-white to-orange-50/80 hover:border-amber-200 hover:shadow-amber-200/50',
+    tile: 'from-amber-400 to-orange-500 shadow-amber-500/30',
+    pill: 'bg-amber-100/70 text-amber-700 ring-amber-200/70',
+  },
+] as const;
+
+/** Stagger for the "How it works" motion block in globals.css, shared by this section. */
+function delay(ms: number): CSSProperties {
+  return { '--hiw-delay': `${ms}ms` } as CSSProperties;
+}
+
+/** The three blue strokes either side of the title; the artwork points right, so the left one is mirrored. */
+function TitleAccent({ side, ms }: { side: 'left' | 'right'; ms: number }) {
+  return (
+    <span aria-hidden className="hiw-pop hidden shrink-0 sm:block" style={delay(ms)}>
+      <span className={side === 'left' ? 'block -scale-x-100' : 'block'}>
+        <Image
+          src="/home/heading-accents.svg"
+          alt=""
+          width={32}
+          height={32}
+          unoptimized
+          className="hero-twinkle h-10 w-10 lg:h-12 lg:w-12"
+        />
+      </span>
+    </span>
+  );
+}
+
+/** Same zoom as the image, so an overlay positioned in image percentages stays on its target. */
+const TRACK_IMAGE = 'pointer-events-none absolute inset-0 transition-transform duration-500 group-hover:scale-105';
+
+const FADE_EDGES =
+  '[mask-composite:intersect] [mask-image:linear-gradient(to_right,transparent,#000_6%,#000_94%,transparent),linear-gradient(to_bottom,transparent,#000_6%,#000_94%,transparent)]';
+
+/**
+ * The card graphic. The PNGs are opaque white, so they sit in the card with `mix-blend-multiply`
+ * rather than a frame. That blend is isolated by any transformed ancestor, so the image carries
+ * its own motion (see "Landing features motion" in globals.css) and effects are siblings of it.
+ */
+function FeatureArt({
+  image,
+  effect,
+  fadeEdges,
+  ms,
+}: {
+  image: string;
+  effect: Effect;
+  fadeEdges: boolean;
+  ms: number;
+}) {
+  return (
+    <div className="relative mx-auto w-full max-w-sm lg:max-w-none">
+      {effect === 'halo' && (
+        // A `drop-shadow` would trace the PNG's rectangle, not the shield; this halo sits behind
+        // the image and shows through the white around the shield instead.
+        <div aria-hidden className={`hiw-zoom ${TRACK_IMAGE}`} style={delay(ms)}>
+          <div className="feat-halo absolute left-[47.5%] top-[11.7%] h-[70%] w-[43%] rounded-full bg-[radial-gradient(closest-side,rgba(37,99,235,0.12),rgba(37,99,235,0.45)_70%,transparent)] blur-xl" />
+        </div>
+      )}
+
+      <Image
+        src={image}
+        alt=""
+        width={1200}
+        height={896}
+        sizes="(min-width: 1280px) 260px, (min-width: 1024px) 21vw, 384px"
+        className={`hiw-zoom relative block h-auto w-full mix-blend-multiply transition-transform duration-500 group-hover:scale-105 ${
+          effect === 'float' ? 'feat-float' : ''
+        } ${fadeEdges ? FADE_EDGES : ''}`}
+        style={delay(ms)}
+      />
+
+      {effect === 'scan' && (
+        <div aria-hidden className={TRACK_IMAGE}>
+          <div className="absolute left-[21%] top-[43%] h-[16%] w-[57%] opacity-0 transition-opacity delay-150 duration-300 group-hover:opacity-100">
+            <div className="absolute inset-0 rounded-xl shadow-[0_0_24px_6px] shadow-cyan-400/30 ring-2 ring-cyan-400/70 motion-safe:animate-pulse" />
+            <div className="absolute inset-0 overflow-hidden rounded-xl">
+              <div className="feat-sweep h-full w-1/3 -translate-x-full bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {effect === 'highlight' && (
+        <div aria-hidden className={TRACK_IMAGE}>
+          <div className="absolute left-[29.5%] top-[39.5%] h-[13%] w-[43%] rounded-lg bg-violet-500/[0.06] opacity-0 shadow-lg shadow-violet-500/20 ring-2 ring-violet-400/70 transition-opacity delay-150 duration-300 group-hover:opacity-100" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export async function FeaturesGrid() {
+  const { t } = await getTranslations();
+  const titleBefore = t('landing.features.titleBefore');
+  const titleAfter = t('landing.features.titleAfter');
 
   return (
-    <section id="features" className="relative py-20 bg-slate-50/70">
+    <section
+      id="features"
+      className="relative isolate overflow-hidden bg-gradient-to-b from-blue-50/40 via-slate-50 to-white py-20 lg:py-24"
+    >
+      {/* Soft background washes */}
+      <div
+        aria-hidden
+        className="hero-glow pointer-events-none absolute -right-32 top-16 -z-10 h-[26rem] w-[26rem] rounded-full bg-blue-100/60 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="hero-glow pointer-events-none absolute -left-24 bottom-10 -z-10 h-[24rem] w-[24rem] rounded-full bg-amber-100/50 blur-3xl [animation-delay:-4s]"
+      />
+
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        
-        {/* Section Title */}
-        <div className="text-center max-w-3xl mx-auto">
-          <span className="text-xs font-bold tracking-widest text-[#0066FF] uppercase">
-            Built for Power Users
+        {/* ── Header ───────────────────────────────────────────────── */}
+        <Reveal className="mx-auto max-w-6xl text-center">
+          <span className="hiw-rise inline-block rounded-full border border-blue-100 bg-blue-50/80 px-5 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0066FF] shadow-sm sm:text-sm">
+            {t('landing.features.pill')}
           </span>
-          <h2 className="mt-2 text-3xl font-extrabold text-slate-900 sm:text-5xl">
-            Everything You Need to Fill Forms 10x Faster
-          </h2>
-          <p className="mt-4 text-base text-slate-600 sm:text-lg">
-            Engineered specifically for service centers, cyber cafes, job applicants & digital operators.
-          </p>
-        </div>
-
-        {/* Bento Grid */}
-        <div className="mt-14 grid grid-cols-1 gap-6 lg:grid-cols-12">
-          {features.map((feat) => (
-            <div
-              key={feat.title}
-              className={`${feat.colSpan} group rounded-2xl border border-slate-200/80 bg-white p-8 shadow-sm transition-all duration-300 hover:border-blue-400/60 hover:shadow-md`}
+          <div className="mt-5 flex items-center justify-center gap-3 lg:gap-5">
+            <TitleAccent side="left" ms={500} />
+            <h2
+              className="hiw-rise font-heading text-balance text-3xl font-extrabold leading-tight tracking-tight text-slate-950 sm:text-5xl lg:text-[3.5rem]"
+              style={delay(100)}
             >
-              <div className="flex items-center justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 border border-blue-100 shadow-sm">
-                  {feat.icon}
-                </div>
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700 border border-blue-200">
-                  {feat.badge}
+              {titleBefore && <>{titleBefore} </>}
+              {/* The highlight always takes its own line, before or after the rest of the title. */}
+              <span className="relative mx-auto block w-fit">
+                <span className="bg-gradient-to-r from-[#0066FF] via-[#0088FF] to-cyan-500 bg-clip-text text-transparent">
+                  {t('landing.features.titleHighlight')}
                 </span>
-              </div>
-              <h3 className="mt-6 text-xl font-bold text-slate-900 group-hover:text-[#0066FF] transition-colors">
-                {feat.title}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600 font-medium">
-                {feat.description}
-              </p>
-            </div>
-          ))}
-        </div>
+                <Image
+                  src="/home/brush-underline-10x.svg"
+                  alt=""
+                  aria-hidden
+                  width={240}
+                  height={20}
+                  unoptimized
+                  className="hiw-draw pointer-events-none absolute -bottom-2 left-0 h-auto w-full sm:-bottom-3"
+                  style={delay(650)}
+                />
+              </span>
+              {titleAfter && <> {titleAfter}</>}
+            </h2>
+            <TitleAccent side="right" ms={580} />
+          </div>
+          <p className="hiw-rise mt-6 text-base text-slate-600 sm:text-lg" style={delay(200)}>
+            {t('landing.features.subtitle')}
+          </p>
+        </Reveal>
 
+        {/* ── Bento cards ──────────────────────────────────────────── */}
+        <ul className="mt-14 grid grid-cols-1 gap-6 md:grid-cols-2">
+          {FEATURES.map(({ key, image, icon: Icon, effect, fadeEdges, card, tile, pill }, index) => {
+            const base = index * 120;
+            return (
+              <li key={key}>
+                <Reveal
+                  className={`hiw-rise group relative flex h-full flex-col gap-6 overflow-hidden rounded-3xl border border-white bg-gradient-to-br p-6 shadow-lg shadow-slate-200/60 ring-1 ring-slate-100 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl lg:flex-row lg:items-center lg:gap-4 lg:p-8 ${card}`}
+                  style={delay(base)}
+                >
+                  <div className="min-w-0 lg:flex-1">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span
+                        className={`hiw-pop flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg ${tile}`}
+                        style={delay(base + 250)}
+                      >
+                        <Icon aria-hidden size={26} strokeWidth={2.1} />
+                      </span>
+                      <span
+                        className={`hiw-rise rounded-full px-3.5 py-1.5 text-xs font-bold ring-1 sm:text-sm ${pill}`}
+                        style={delay(base + 350)}
+                      >
+                        {t(`landing.features.cards.${key}.badge`)}
+                      </span>
+                    </div>
+                    <h3 className="font-heading mt-5 text-xl font-bold text-slate-950 lg:text-2xl">
+                      {t(`landing.features.cards.${key}.title`)}
+                    </h3>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600 lg:text-[15px]">
+                      {t(`landing.features.cards.${key}.description`)}
+                    </p>
+                  </div>
+
+                  <div className="lg:w-[46%] lg:shrink-0">
+                    <FeatureArt
+                      image={image}
+                      effect={effect}
+                      fadeEdges={fadeEdges}
+                      ms={base + 300}
+                    />
+                  </div>
+                </Reveal>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </section>
   );

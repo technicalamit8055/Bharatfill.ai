@@ -1,0 +1,50 @@
+<svg width="240" height="110" viewBox="0 0 240 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Soft premium card drop shadow -->
+    <filter id="badge-card-shadow" x="0" y="0" width="240" height="110" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0066FF" flood-opacity="0.12" />
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0F172A" flood-opacity="0.06" />
+    </filter>
+
+    <linearGradient id="card-border-grad" x1="0" y1="0" x2="200" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#BFDBFE" />
+      <stop offset="100%" stop-color="#E2E8F0" />
+    </linearGradient>
+
+    <linearGradient id="doc-blue-grad" x1="20" y1="20" x2="60" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#1D4ED8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Floating Badge Card Container (angled ~ 2 deg) -->
+  <g transform="rotate(2 110 45)" filter="url(#badge-card-shadow)">
+    <rect x="10" y="10" width="200" height="66" rx="14" fill="#FFFFFF" stroke="url(#card-border-grad)" stroke-width="1.5" />
+
+    <!-- Blue Document Icon -->
+    <g transform="translate(24, 20)">
+      <rect x="0" y="0" width="34" height="44" rx="6" fill="url(#doc-blue-grad)" />
+      <!-- Fold corner indication -->
+      <path d="M22 0 L34 12 L22 12 Z" fill="#93C5FD" opacity="0.6" />
+      <!-- Content lines -->
+      <rect x="7" y="15" width="20" height="3" rx="1.5" fill="#FFFFFF" />
+      <rect x="7" y="22" width="16" height="3" rx="1.5" fill="#FFFFFF" />
+      <rect x="7" y="29" width="12" height="3" rx="1.5" fill="#FFFFFF" />
+    </g>
+
+    <!-- Text: Fill Forms in Seconds -->
+    <text x="70" y="37" fill="#0066FF" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="800">Fill Forms</text>
+    <text x="70" y="55" fill="#0F172A" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="700">in Seconds</text>
+
+    <!-- Blue Mouse Click Pointer Cursor -->
+    <g transform="translate(180, 52)">
+      <!-- Sparkle/radiance lines -->
+      <path d="M24 0 L30 -4" stroke="#0066FF" stroke-width="2" stroke-linecap="round" />
+      <path d="M28 8 L35 9" stroke="#0066FF" stroke-width="2" stroke-linecap="round" />
+      <path d="M25 18 L32 22" stroke="#0066FF" stroke-width="2" stroke-linecap="round" />
+
+      <!-- Pointer cursor arrow -->
+      <path d="M0 0 L18 12 L10 14 L15 24 L10 26 L5 16 L0 20 Z" fill="#0066FF" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round" />
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,23 @@
+<svg width="240" height="150" viewBox="0 0 240 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="doodle-glow" x="-10%" y="-10%" width="120%" height="120%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0066FF" flood-opacity="0.15" />
+    </filter>
+  </defs>
+
+  <g filter="url(#doodle-glow)">
+    <!-- Hand-drawn style text -->
+    <g fill="#0066FF" font-family="'Caveat', 'Patrick Hand', 'Comic Sans MS', cursive, sans-serif" font-weight="700">
+      <text x="35" y="32" font-size="21" transform="rotate(-6 35 32)">AI Form</text>
+      <text x="45" y="58" font-size="21" transform="rotate(-4 45 58)">Filling for</text>
+      <text x="55" y="85" font-size="22" transform="rotate(-2 55 85)">Every Indian</text>
+    </g>
+
+    <!-- Hand-drawn curved swoop arrow pointing towards the cards -->
+    <path d="M165 62 C185 70 195 90 190 115 C186 128 178 138 170 144" 
+          stroke="#0066FF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Arrowhead -->
+    <path d="M162 135 L170 144 L179 137" 
+          stroke="#0066FF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

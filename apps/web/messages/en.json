@@ -2689,6 +2689,273 @@
         "fasterTitle": "10× Faster",
         "fasterLabel": "Serve more people every day"
       }
+    },
+    "features": {
+      "pill": "Built for Power Users",
+      "titleBefore": "Everything You Need to Fill Forms",
+      "titleHighlight": "10x Faster",
+      "titleAfter": "",
+      "subtitle": "Engineered specifically for service centers, cyber cafes, job applicants & digital operators.",
+      "cards": {
+        "fieldRecognition": {
+          "badge": "99.8% Accuracy",
+          "title": "Smart AI Field Recognition",
+          "description": "Detects Hindi & English input fields, select dropdowns, radio buttons, and multi-step forms on 100+ portals automatically."
+        },
+        "ocrParsing": {
+          "badge": "PDF & Images",
+          "title": "Document OCR & Parsing",
+          "description": "Upload Aadhaar, PAN, marksheets, or caste/income certificates. AI reads and extracts details in seconds."
+        },
+        "customerVault": {
+          "badge": "Service Centre Ready",
+          "title": "Multi-Candidate Customer Vault",
+          "description": "Designed for CSCs & Cyber Cafes. Search and manage thousands of customer profiles easily."
+        },
+        "privacyMasking": {
+          "badge": "Privacy First",
+          "title": "Bank-Grade Privacy & Aadhaar Masking",
+          "description": "Aadhaar stays masked on screen and every reveal is audited. Document links are short-lived, sensitive fields masked, zero training on your data."
+        }
+      }
+    },
+    "whereItWorks": {
+      "pill": "Universal Compatibility",
+      "titleBefore": "Where",
+      "titleHighlight": "Bharatfill AI",
+      "titleAfter": "Works",
+      "subtitle": "Works out-of-the-box across major Indian government services, global career portals, and custom web applications.",
+      "filterLabel": "Filter portals by category",
+      "categories": {
+        "all": "All Portals",
+        "government": "Government & CSC",
+        "jobs": "Job Applications",
+        "education": "Scholarships & Admissions",
+        "crm": "CRMs & Custom Web Apps"
+      },
+      "portals": {
+        "sscRailway": {
+          "title": "SSC & Railway Portals",
+          "subtitle": "CGL, CHSL, Railway, and more",
+          "badge": "99.8%",
+          "badgeCaption": "Match"
+        },
+        "nsp": {
+          "title": "National Scholarship Portal (NSP)",
+          "subtitle": "All central & state scholarships",
+          "badge": "100%",
+          "badgeCaption": "Verified"
+        },
+        "stateRecruitment": {
+          "title": "State Recruitment & e-District",
+          "subtitle": "State jobs, certificates, e-services",
+          "badge": "99.5%",
+          "badgeCaption": "Match"
+        },
+        "workdayGreenhouse": {
+          "title": "Workday & Greenhouse Jobs",
+          "subtitle": "Global job portals",
+          "badge": "Instant Fill",
+          "badgeCaption": ""
+        },
+        "linkedinIndeed": {
+          "title": "LinkedIn & Indeed Applications",
+          "subtitle": "Professional job applications",
+          "badge": "1-Click",
+          "badgeCaption": ""
+        },
+        "naukriShine": {
+          "title": "Naukri & Shine Candidate Forms",
+          "subtitle": "Profile creation & job forms",
+          "badge": "1-Click",
+          "badgeCaption": ""
+        },
+        "admissions": {
+          "title": "College & University Admissions",
+          "subtitle": "CUET, state universities & more",
+          "badge": "99.9%",
+          "badgeCaption": "Match"
+        },
+        "salesforceZoho": {
+          "title": "Salesforce & Zoho CRM Fields",
+          "subtitle": "Automate repetitive data entry",
+          "badge": "Supported",
+          "badgeCaption": ""
+        },
+        "customForms": {
+          "title": "Custom HTML Web Forms",
+          "subtitle": "Works on any custom website",
+          "badge": "Universal AI",
+          "badgeCaption": ""
+        }
+      },
+      "callout": {
+        "title": "Have a custom internal web portal or unique form?",
+        "body": "Bharatfill AI smart detection adapts dynamically to custom field IDs and labels.",
+        "action": "Request Support"
+      }
+    },
+    "pricing": {
+      "pill": "Transparent Pricing",
+      "titleBefore": "Simple Plans for",
+      "titleHighlight": "Everyone",
+      "titleAfter": "",
+      "subtitle": "Start for free today. Upgrade anytime as your volume grows.",
+      "doodle": "AI Form Filling for Every Indian",
+      "stickyNote": {
+        "line1": "Save Time",
+        "line2": "Serve More",
+        "line3": "Go Digital"
+      },
+      "fillCard": {
+        "title": "Fill Forms",
+        "caption": "in Seconds"
+      },
+      "badges": {
+        "label": "Why operators choose Bharatfill",
+        "secure": "100% Secure",
+        "faster": "10x Faster",
+        "trusted": "Trusted by 1000+ Users"
+      },
+      "mostPopular": "Most Popular",
+      "period": {
+        "forever": "forever free",
+        "month": "/ month"
+      },
+      "plans": {
+        "starter": {
+          "name": "Starter Free",
+          "audience": "For Individuals",
+          "tag": "Ideal to Get Started",
+          "description": "Perfect for trying out AI form autofill on personal applications.",
+          "features": {
+            "autofills": "50 AI Autofills per month",
+            "profile": "1 Saved Candidate Profile",
+            "extension": "Basic Chrome Extension access",
+            "masking": "Aadhaar Masking Privacy",
+            "matching": "Standard field matching"
+          },
+          "cta": "Start Free",
+          "note": ""
+        },
+        "pro": {
+          "name": "Pro Unlimited",
+          "audience": "For Job Seekers & Freelancers",
+          "tag": "",
+          "description": "Perfect for active job seekers, freelancers, and small digital operators.",
+          "features": {
+            "autofills": "Unlimited AI Form Autofills",
+            "vault": "Unlimited Candidate Vault Profiles",
+            "ocr": "Document OCR (Aadhaar, PAN, Marksheets)",
+            "resizer": "Built-in Photo & PDF Resizer Tool",
+            "presets": "Custom Field Presets & Overrides",
+            "support": "Priority Field AI Support"
+          },
+          "cta": "Get Started with Pro",
+          "note": "Most users save 10+ hours every week"
+        },
+        "csc": {
+          "name": "Service Centre / CSC",
+          "audience": "For Teams & Cyber Cafes",
+          "tag": "Teams & Cyber Cafes",
+          "description": "Built for high-volume CSC VLEs, cyber cafes, and service agency teams.",
+          "features": {
+            "staff": "Up to 5 Operator Staff Logins",
+            "everythingPro": "Everything in Pro Unlimited",
+            "bulkSearch": "Multi-candidate Bulk Search",
+            "auditLogs": "Audit Access Logs & CSV Export",
+            "support": "Dedicated WhatsApp & Phone Support",
+            "sla": "Custom Portal Integration SLA"
+          },
+          "cta": "Start Team Trial",
+          "note": ""
+        }
+      },
+      "assurances": {
+        "lockIn": {
+          "title": "No long-term lock-in",
+          "body": "Cancel anytime"
+        },
+        "privacy": {
+          "title": "Secure & Private",
+          "body": "Your data stays yours"
+        },
+        "support": {
+          "title": "Dedicated Support",
+          "body": "Chat & call support"
+        },
+        "india": {
+          "title": "Built for India",
+          "body": "Supporting Digital Bharat"
+        }
+      }
+    },
+    "faq": {
+      "pill": "Got Questions?",
+      "titleBefore": "Frequently Asked",
+      "titleHighlight": "Questions",
+      "titleAfter": "",
+      "subtitle": "Everything you need to know about Bharatfill AI form autofill extension.",
+      "bubble": {
+        "line1": "Have a question?",
+        "line2": "We're here to help!"
+      },
+      "items": {
+        "safety": {
+          "question": "Is Bharatfill safe to use on government and personal form portals?",
+          "answer": "Yes, 100%. Bharatfill is a guided autofill extension. It populates input fields for your review. It NEVER submits forms automatically, NEVER bypasses CAPTCHAs, and NEVER handles OTPs. You inspect the form and press submit yourself."
+        },
+        "privacy": {
+          "question": "How is candidate data and Aadhaar information kept private?",
+          "answer": "Privacy is built into how Bharatfill works. Aadhaar and other sensitive numbers are masked on screen by default, and revealing one is recorded in an audit log. Documents are kept in private storage and open only through links that expire within minutes. Customer data is never sold or used to train AI models."
+        },
+        "languages": {
+          "question": "Does Bharatfill work on forms in Hindi or regional Indian languages?",
+          "answer": "Yes! Our AI smart detection recognizes both English and Hindi field labels, as well as complex bilingual input forms common across state e-district portals."
+        },
+        "install": {
+          "question": "How do I install the Chrome extension?",
+          "answer": "Simply click the “{button}” button to install directly from the Google Chrome Web Store. Pin the extension to your browser bar and sign in to access your profile vault."
+        },
+        "teams": {
+          "question": "Can I use Bharatfill for my Cyber Cafe or CSC Service Centre with multiple staff?",
+          "answer": "Absolutely! Our Service Centre plan supports up to 5 operator logins, a shared searchable candidate vault, and complete audit access logs so you can manage your team seamlessly."
+        },
+        "layoutChanges": {
+          "question": "What happens if a web portal changes its form layout?",
+          "answer": "Our AI model uses contextual field semantics rather than rigid CSS selectors, allowing it to adapt dynamically when web forms update. You can also save custom field presets anytime."
+        }
+      },
+      "assurances": {
+        "label": "Why operators trust Bharatfill",
+        "support": {
+          "title": "Quick Support",
+          "body": "Get answers faster"
+        },
+        "secure": {
+          "title": "100% Secure",
+          "body": "Your data stays private"
+        },
+        "india": {
+          "title": "Built for India",
+          "body": "Supporting Digital Bharat"
+        }
+      },
+      "stats": {
+        "label": "Bharatfill at a glance",
+        "portals": {
+          "title": "1000+",
+          "body": "Portals Supported"
+        },
+        "faster": {
+          "title": "10x Faster",
+          "body": "Form Filling"
+        },
+        "trusted": {
+          "title": "Trusted by",
+          "body": "Service Centres"
+        }
+      }
     }
   },
   "suspended": {

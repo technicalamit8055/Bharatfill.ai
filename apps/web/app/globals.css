@@ -570,6 +570,209 @@
   }
 }
 
+/*
+ * Landing features grid motion (components/landing/features-grid.tsx).
+ *
+ * The card art is an opaque PNG blended into its card with `mix-blend-multiply`. A transformed
+ * ancestor would isolate that blend and flash a white rectangle, so the image moves itself: the
+ * float uses the standalone `translate` property, leaving `transform` to the hover zoom and the
+ * `.hiw-zoom` entrance. Loop: the OCR art floats, the shield halo breathes. Hover: a scan line
+ * sweeps the detected field.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes featFloat {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    50% {
+      translate: 0 -8px;
+    }
+  }
+
+  @keyframes featHalo {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: scale(0.94);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.06);
+    }
+  }
+
+  @keyframes featSweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(300%);
+    }
+  }
+
+  .feat-float {
+    animation: featFloat 3s ease-in-out infinite;
+  }
+
+  /* Outranks the entrance rule above, so both run: they animate different properties. */
+  [data-motion='play'] .hiw-zoom.feat-float {
+    animation:
+      hiwZoom 0.9s cubic-bezier(0.22, 1, 0.36, 1) var(--hiw-delay, 0ms) backwards,
+      featFloat 3s ease-in-out infinite;
+  }
+
+  .feat-halo {
+    animation: featHalo 3.2s ease-in-out infinite;
+  }
+
+  .group:hover .feat-sweep {
+    animation: featSweep 1.6s ease-in-out infinite;
+  }
+}
+
+/*
+ * Landing "Where it works" motion (components/landing/where-it-works.tsx).
+ *
+ * The side graphics are opaque PNGs blended into the section with `mix-blend-multiply`. The blend
+ * sits on the same element as their motion, never on an ancestor, so nothing isolates it: the
+ * float uses the standalone `translate` property, leaving `transform` to the `.hiw-zoom` entrance.
+ * Loop: the graphics float, the laptop's click point pulses and ripples, the dashed arrows flow
+ * towards the grid. Filter change: the cards remount and fade/scale back in on a stagger.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes wiwFloat {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    50% {
+      translate: 0 -12px;
+    }
+  }
+
+  @keyframes wiwFlow {
+    to {
+      stroke-dashoffset: -16;
+    }
+  }
+
+  @keyframes wiwSparkle {
+    0%,
+    100% {
+      opacity: 0.35;
+      transform: scale(0.8);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.15);
+    }
+  }
+
+  @keyframes wiwRipple {
+    0% {
+      opacity: 0.8;
+      transform: scale(0.35);
+    }
+    75%,
+    100% {
+      opacity: 0;
+      transform: scale(1.5);
+    }
+  }
+
+  @keyframes wiwCardIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .wiw-float {
+    animation: wiwFloat 5s ease-in-out var(--wiw-float-delay, 0s) infinite;
+  }
+
+  /* Outranks the entrance rule above, so both run: they animate different properties. */
+  [data-motion='play'] .hiw-zoom.wiw-float {
+    animation:
+      hiwZoom 0.9s cubic-bezier(0.22, 1, 0.36, 1) var(--hiw-delay, 0ms) backwards,
+      wiwFloat 5s ease-in-out var(--wiw-float-delay, 0s) infinite;
+  }
+
+  .wiw-flow {
+    animation: wiwFlow 1.2s linear infinite;
+  }
+
+  .wiw-sparkle {
+    animation: wiwSparkle 1.8s ease-in-out infinite;
+  }
+
+  .wiw-ripple {
+    animation: wiwRipple 1.8s ease-out infinite;
+  }
+
+  .wiw-card-in {
+    animation: wiwCardIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) var(--hiw-delay, 0ms) backwards;
+  }
+}
+
+/*
+ * Landing pricing motion (components/landing/pricing.tsx).
+ *
+ * Loop: the sticky note and the "fill forms in seconds" card float on the features float
+ * (`featFloat`), the card's cursor sparkles and ripples (`.wiw-sparkle`, `.wiw-ripple`), and a
+ * glow breathes around the featured plan. Each floater's entrance sits on its wrapper and its
+ * float and tilt on the element inside, so the `.hiw-zoom` transform, the float's standalone
+ * `translate` and the tilt never overwrite each other. The glow fades a fixed shadow in and out
+ * rather than animating `box-shadow`, which keeps it cheap and leaves the card's hover shadow alone.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes prcGlow {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .prc-float {
+    animation: featFloat 3.6s ease-in-out var(--prc-float-delay, 0s) infinite;
+  }
+
+  .prc-glow {
+    animation: prcGlow 3.2s ease-in-out infinite;
+  }
+}
+
+/*
+ * Landing FAQ motion (components/landing/faq.tsx).
+ *
+ * The mascot and the building are opaque art blended into the section with `mix-blend-multiply`,
+ * so as in "Where it works" each one's entrance, float and blend sit on the one element.
+ * Loop: the mascot bobs on the features float (`featFloat`) while its lightbulb glows
+ * (`.wiw-sparkle`); the speech bubble, building and badges drift on `.wiw-float` at their own
+ * delays; the dashed arrows flow (`.wiw-flow`). The accordion's open and close is a Tailwind
+ * transition on the panel, stopped by `motion-reduce:` there.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .faq-float {
+    animation: featFloat 3.5s ease-in-out var(--faq-float-delay, 0s) infinite;
+  }
+
+  /* Outranks the entrance rule above, so both run: they animate different properties. */
+  [data-motion='play'] .hiw-zoom.faq-float {
+    animation:
+      hiwZoom 0.9s cubic-bezier(0.22, 1, 0.36, 1) var(--hiw-delay, 0ms) backwards,
+      featFloat 3.5s ease-in-out var(--faq-float-delay, 0s) infinite;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sparkline-bar,
   .animate-live-pulse,

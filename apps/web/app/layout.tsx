@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Outfit, Plus_Jakarta_Sans, Noto_Sans_Devanagari } from 'next/font/google';
+import { Kalam, Outfit, Plus_Jakarta_Sans, Noto_Sans_Devanagari } from 'next/font/google';
 import './globals.css';
 import { I18nProvider } from '@/lib/i18n/client';
 import { getLocale } from '@/lib/i18n/server';
@@ -20,6 +20,18 @@ const devanagari = Noto_Sans_Devanagari({
   subsets: ['devanagari', 'latin'],
   variable: '--font-devanagari',
   display: 'swap',
+});
+
+/**
+ * Handwriting for the landing page's doodles. It covers Latin and Devanagari, so the Hindi notes
+ * are hand-lettered too. Not preloaded: only the pricing section uses it, and only on wide screens.
+ */
+const hand = Kalam({
+  subsets: ['latin', 'devanagari'],
+  weight: ['700'],
+  variable: '--font-hand',
+  display: 'swap',
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -44,7 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html
       lang={locale}
-      className={`${outfit.variable} ${jakarta.variable} ${devanagari.variable}`}
+      className={`${outfit.variable} ${jakarta.variable} ${devanagari.variable} ${hand.variable}`}
       suppressHydrationWarning
     >
       <body className="min-h-dvh font-sans antialiased">
