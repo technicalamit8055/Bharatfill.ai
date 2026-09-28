@@ -39,6 +39,18 @@ describe('planPhotoSheet', () => {
     expect(layout.cells).toHaveLength(8);
   });
 
+  it('gets those eight by turning the grid, and says so', () => {
+    // Upright, 35 mm columns fit two across and three down: six. On their side, eight.
+    const layout = planPhotoSheet({ sheet: photo4x6!, ...PASSPORT, count: 8 });
+    expect(layout.turned).toBe(true);
+    // The cell is the photo on its side, so the compositor has to rotate rather than stretch.
+    expect(layout.cells[0]).toMatchObject({ width: mmToPx(45, 300), height: mmToPx(35, 300) });
+  });
+
+  it('keeps the grid upright when turning it gains nothing', () => {
+    expect(planPhotoSheet({ sheet: a4!, ...PASSPORT, count: null }).turned).toBe(false);
+  });
+
   it('fits far more on A4 than on a photo sheet', () => {
     const onA4 = planPhotoSheet({ sheet: a4!, ...PASSPORT, count: null });
     const on4x6 = planPhotoSheet({ sheet: photo4x6!, ...PASSPORT, count: null });

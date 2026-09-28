@@ -20,3 +20,4 @@ export * from './pixels';
 export * from './sheets';
 export * from './cards';
 export * from './recipe';
+export * from './preferences';

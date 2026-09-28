@@ -18,6 +18,8 @@ export const PRINT_SHEETS: readonly SheetSpec[] = [
     code: '4x6',
     label: '4 × 6 in photo paper',
     labelHi: '4 × 6 इंच फोटो पेपर',
+    shortLabel: '4 × 6 in',
+    shortLabelHi: '4 × 6 इंच',
     widthMm: 101.6,
     heightMm: 152.4,
   },
@@ -25,6 +27,8 @@ export const PRINT_SHEETS: readonly SheetSpec[] = [
     code: '5x7',
     label: '5 × 7 in photo paper',
     labelHi: '5 × 7 इंच फोटो पेपर',
+    shortLabel: '5 × 7 in',
+    shortLabelHi: '5 × 7 इंच',
     widthMm: 127,
     heightMm: 177.8,
   },
@@ -34,6 +38,8 @@ export const PRINT_SHEETS: readonly SheetSpec[] = [
     code: '4x6_landscape',
     label: '6 × 4 in photo paper (landscape)',
     labelHi: '6 × 4 इंच फोटो पेपर (आड़ा)',
+    shortLabel: '6 × 4 in (landscape)',
+    shortLabelHi: '6 × 4 इंच (आड़ा)',
     widthMm: 152.4,
     heightMm: 101.6,
   },
@@ -69,6 +75,11 @@ export type SheetLayout = {
   /** How many the caller asked for but the sheet could not hold. */
   dropped: number;
   capacity: number;
+  /**
+   * The whole grid was turned to fit more, so every cell is the photo on its side (the cell's
+   * width is the photo's height). The compositor rotates the photo into the cell.
+   */
+  turned: boolean;
   dpi: number;
 };
 
@@ -165,6 +176,7 @@ export function planPhotoSheet(input: SheetLayoutInput): SheetLayout {
     placed,
     dropped: Math.max(0, wanted - placed),
     capacity,
+    turned: orientation === 'turned',
     dpi,
   };
 }

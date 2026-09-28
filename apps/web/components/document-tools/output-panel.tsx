@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { ImageIcon } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Download, Eye, FileText, ImageIcon, UserPlus, type LucideIcon } from 'lucide-react';
 import { Alert, Badge, Button, Select, SizeMeter, Spinner, cn } from '@assistigo/ui';
 import {
   formatKb,
@@ -14,7 +14,12 @@ import {
 } from '@assistigo/document-tools';
 import { useTranslations } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/documents/format';
-import { downloadBytes, printImage, saveDerivative } from '@/lib/document-tools/save';
+import {
+  downloadBytes,
+  previewBytes,
+  printImage,
+  saveDerivative,
+} from '@/lib/document-tools/save';
 import { ToolSection } from './tool-shell';
 
 export type ToolOutput = {
@@ -53,8 +58,12 @@ export function OutputPanel({
   /** Blocks saving to the CRM until a condition is met — the Aadhaar mask gate uses this. */
   saveBlockedReason,
   printable = false,
+  previewable = false,
   step,
+  hint,
+  icon,
   showDownload = true,
+  footer,
   className,
 }: {
   output: ToolOutput | null;
@@ -64,10 +73,19 @@ export function OutputPanel({
   sourceDocumentId?: string | null;
   saveBlockedReason?: string | null;
   printable?: boolean;
+  /**
+   * Adds a Preview button that opens a PDF result in the browser's viewer. Images need none —
+   * the thumbnail beside the filename already is the preview.
+   */
+  previewable?: boolean;
   /** Renders the panel as a numbered step card (see `ToolSection`). */
   step?: number;
+  hint?: string;
+  icon?: LucideIcon;
   /** Off when the page puts its own download button elsewhere. */
   showDownload?: boolean;
+  /** Always rendered at the bottom of the card, result or not — the grid's primary buttons. */
+  footer?: ReactNode;
   className?: string;
 }) {
   const t = useTranslations();
@@ -99,6 +117,7 @@ export function OutputPanel({
   }, [output]);
 
   const verdict = output ? judgeSize(output.bytes.byteLength, output.window) : 'unknown';
+  const canPreview = previewable && output?.mimeType === 'application/pdf';
   const windowLabel = output ? formatSizeWindow(output.window) : null;
 
   const recipeSteps = useMemo(
@@ -128,7 +147,9 @@ export function OutputPanel({
   return (
     <ToolSection
       title={t('documentTools.output.title')}
+      hint={hint}
       step={step}
+      icon={icon}
       className={cn(step === undefined && 'border-slate-300', className)}
     >
       {busy ? (
@@ -149,20 +170,35 @@ export function OutputPanel({
       ) : (
         <div className="space-y-3">
           <div className="flex items-start gap-3">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded border border-slate-200 bg-slate-50">
-              {previewUrl ? (
-                // operator's own machine; next/image would try to optimise it on the server.
+            {previewUrl ? (
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded border border-slate-200 bg-slate-50">
+                {/* operator's own machine; next/image would try to optimise it on the server. */}
                 <img
                   src={previewUrl}
                   alt=""
                   className="max-h-full max-w-full object-contain"
                 />
-              ) : (
-                <span className="text-[10px] font-semibold uppercase text-slate-400">PDF</span>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div
+                aria-hidden
+                className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-rose-100 bg-rose-50 text-rose-600"
+              >
+                <FileText className="h-6 w-6" strokeWidth={1.8} />
+                <span className="text-[9px] font-bold uppercase tracking-wide">PDF</span>
+              </div>
+            )}
             <div className="min-w-0 flex-1 space-y-1.5">
-              <p className="truncate font-mono text-[11px] text-slate-600">{output.filename}</p>
+              <p
+                className={cn(
+                  'truncate',
+                  step !== undefined
+                    ? 'text-sm font-medium text-slate-900'
+                    : 'font-mono text-[11px] text-slate-600',
+                )}
+              >
+                {output.filename}
+              </p>
               <SizeMeter
                 position={sizeWindowPosition(output.bytes.byteLength, output.window)}
                 verdict={verdict}
@@ -200,13 +236,33 @@ export function OutputPanel({
             </Alert>
           ) : null}
 
-          {showDownload || (printable && output.mimeType !== 'application/pdf') ? (
+          {canPreview ? (
+            <div className="grid grid-cols-2 gap-2">
+              {showDownload ? (
+                <Button
+                  onClick={() => downloadBytes(output.bytes, output.filename, output.mimeType)}
+                >
+                  <Download className="h-4 w-4" aria-hidden />
+                  {t('documentTools.output.download')}
+                </Button>
+              ) : null}
+              <Button
+                variant="secondary"
+                onClick={() => previewBytes(output.bytes, output.mimeType)}
+                className={cn(!showDownload && 'col-span-2')}
+              >
+                <Eye className="h-4 w-4" aria-hidden />
+                {t('documentTools.output.preview')}
+              </Button>
+            </div>
+          ) : showDownload || (printable && output.mimeType !== 'application/pdf') ? (
             <div className="flex flex-wrap gap-2">
               {showDownload ? (
                 <Button
                   size="sm"
                   onClick={() => downloadBytes(output.bytes, output.filename, output.mimeType)}
                 >
+                  <Download className="h-3.5 w-3.5" aria-hidden />
                   {t('documentTools.output.download')}
                 </Button>
               ) : null}
@@ -250,6 +306,7 @@ export function OutputPanel({
                 onClick={save}
                 className="w-full"
               >
+                {saving ? null : <UserPlus className="h-3.5 w-3.5" aria-hidden />}
                 {t('documentTools.output.save')}
               </Button>
             )}
@@ -276,6 +333,7 @@ export function OutputPanel({
           ) : null}
         </div>
       )}
+      {footer}
     </ToolSection>
   );
 }

@@ -135,6 +135,17 @@ export function downloadBytes(bytes: Uint8Array, filename: string, mimeType: str
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+/**
+ * Opens the file in a new tab with the browser's own viewer — how an operator checks page order
+ * in an assembled PDF before it goes to a portal. A local blob URL: nothing leaves the machine.
+ */
+export function previewBytes(bytes: Uint8Array, mimeType: string): void {
+  const url = URL.createObjectURL(new Blob([bytes.slice()], { type: mimeType }));
+  window.open(url, '_blank', 'noopener');
+  // There is no load event to wait for across tabs; a minute is ample for a local blob.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 /** Opens the print dialog on a single image, for a sheet going straight to the shop printer. */
 export function printImage(bytes: Uint8Array, mimeType: string, title: string): void {
   const url = URL.createObjectURL(new Blob([bytes.slice()], { type: mimeType }));

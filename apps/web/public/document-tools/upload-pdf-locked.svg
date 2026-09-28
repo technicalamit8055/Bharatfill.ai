@@ -1,0 +1,23 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="pdf-shadow" x="12" y="10" width="96" height="100" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#0F172A" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+  <!-- Document Sheet -->
+  <g filter="url(#pdf-shadow)">
+    <rect x="28" y="18" width="64" height="76" rx="14" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.8"/>
+    <!-- Top-right Dog Ear / Fold -->
+    <path d="M74 18V30C74 31.1 74.9 32 76 32H92" fill="none" stroke="#E2E8F0" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M74 18L92 32H76C74.9 32 74 31.1 74 30V18Z" fill="#F1F5F9"/>
+    <!-- Red PDF Tag -->
+    <rect x="37" y="46" width="46" height="24" rx="6" fill="#EF4444"/>
+    <text x="60" y="62.5" fill="#FFFFFF" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="0.8">PDF</text>
+  </g>
+  <!-- Lock Action Badge -->
+  <circle cx="88" cy="88" r="15" fill="#2563EB" stroke="#FFFFFF" stroke-width="3"/>
+  <!-- Padlock Icon -->
+  <rect x="82" y="86" width="12" height="9" rx="2.2" fill="#FFFFFF"/>
+  <path d="M84.5 86V82.5C84.5 80.5 86 79 88 79C90 79 91.5 80.5 91.5 82.5V86" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="88" cy="90" r="1.2" fill="#2563EB"/>
+</svg>

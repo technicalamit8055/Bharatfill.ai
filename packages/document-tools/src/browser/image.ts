@@ -371,20 +371,20 @@ export function composePhotoSheet(
   context.imageSmoothingQuality = 'high';
 
   for (const cell of layout.cells) {
-    const scale = Math.max(cell.width / photo.width, cell.height / photo.height);
+    // On a turned grid the cell is the photo on its side: fill the upright slot, then rotate it a
+    // quarter turn into place. Filling the cell directly would stretch the face sideways.
+    const slotWidth = layout.turned ? cell.height : cell.width;
+    const slotHeight = layout.turned ? cell.width : cell.height;
+    const scale = Math.max(slotWidth / photo.width, slotHeight / photo.height);
     const drawWidth = photo.width * scale;
     const drawHeight = photo.height * scale;
     context.save();
     context.beginPath();
     context.rect(cell.x, cell.y, cell.width, cell.height);
     context.clip();
-    context.drawImage(
-      photo,
-      cell.x + (cell.width - drawWidth) / 2,
-      cell.y + (cell.height - drawHeight) / 2,
-      drawWidth,
-      drawHeight,
-    );
+    context.translate(cell.x + cell.width / 2, cell.y + cell.height / 2);
+    if (layout.turned) context.rotate(Math.PI / 2);
+    context.drawImage(photo, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
     context.restore();
   }
 

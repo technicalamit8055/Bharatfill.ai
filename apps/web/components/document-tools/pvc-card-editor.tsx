@@ -1,12 +1,26 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Select, Slider, cn } from '@assistigo/ui';
+import Image from 'next/image';
 import {
+  Check,
+  Crop,
+  Fingerprint,
+  ImageIcon,
+  LayoutGrid,
+  Printer,
+  ShieldCheck,
+  type LucideIcon,
+} from 'lucide-react';
+import { Alert, Button, Select, Slider, cn } from '@assistigo/ui';
+import {
+  CARD_COPIES_MAX,
+  CARD_COPIES_MIN,
   CARD_PRINT_DPI,
   CR80_ASPECT,
   CR80_HEIGHT_MM,
   CR80_WIDTH_MM,
+  DEFAULT_TOOL_PREFERENCES,
   RecipeBuilder,
   aadhaarMaskDefault,
   centredCropForAspect,
@@ -32,6 +46,8 @@ import {
   renderPdfPage,
 } from '@assistigo/document-tools/browser/pdf';
 import { useTranslations } from '@/lib/i18n/client';
+import { readToolPreferences } from '@/lib/document-tools/preferences';
+import { CARD_ARTWORK, CARD_FEATURES, type CardFeatureId } from '@/lib/document-tools/pvc-card';
 import { CropStage } from './crop-stage';
 import { FileDrop } from './file-drop';
 import { OutputPanel, type CustomerOption, type ToolOutput } from './output-panel';
@@ -53,6 +69,19 @@ import { ToolSection } from './tool-shell';
 
 const MAX_WORKING_EDGE = 2000;
 const RENDER_DEBOUNCE_MS = 220;
+const MIN_COPIES = CARD_COPIES_MIN;
+const MAX_COPIES = CARD_COPIES_MAX;
+const DEFAULT_COPIES = DEFAULT_TOOL_PREFERENCES.card.copies;
+
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const;
+const PDF_TYPES = ['application/pdf'] as const;
+
+const FEATURE_ICONS: Record<CardFeatureId, { icon: LucideIcon; tone: string }> = {
+  autoCrop: { icon: Crop, tone: 'bg-violet-100 text-violet-600' },
+  privacy: { icon: ShieldCheck, tone: 'bg-emerald-100 text-emerald-600' },
+  quality: { icon: ImageIcon, tone: 'bg-orange-100 text-orange-500' },
+  pvc: { icon: Printer, tone: 'bg-brand-100 text-brand-600' },
+};
 
 type Face = 'front' | 'back';
 type SourceKind = 'unknown' | 'aadhaar_like';
@@ -95,10 +124,16 @@ export function PvcCardEditor({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
 
-  const [sheetCount, setSheetCount] = useState(2);
+  const [sheetCount, setSheetCount] = useState(DEFAULT_COPIES);
   const [output, setOutput] = useState<ToolOutput | null>(null);
   const [rendering, setRendering] = useState(false);
   const renderToken = useRef(0);
+
+  // The operator's own starting value (Settings → My preferences). Read after mount: it lives in
+  // this browser, and the server-rendered first paint has to match the built-in default.
+  useEffect(() => {
+    setSheetCount(readToolPreferences().card.copies);
+  }, []);
 
   const decoded = sources[face];
   const canvas = working[face];
@@ -153,6 +188,16 @@ export function PvcCardEditor({
       setDecodeError('documentTools.errors.decodeFailed');
     }
   }, [face, setSourceFor]);
+
+  // The photo zone also takes a PDF — a scan saved as PDF is common — and hands it to the same
+  // path as the e-Aadhaar zone, so a locked PDF dropped here still reaches the unlock step.
+  const onPhotoZoneFiles = useCallback(
+    (files: File[]) => {
+      if (files[0]?.type === 'application/pdf') void onPdfFile(files);
+      else void onImageFiles(files);
+    },
+    [onImageFiles, onPdfFile],
+  );
 
   async function unlock() {
     if (!pdfBytes) return;
@@ -333,9 +378,11 @@ export function PvcCardEditor({
     return () => clearTimeout(timer);
   }, [working.front, working.back, crop, redaction, sheetCount, needsRedaction, frontMasked, today]);
 
+  const faceLabel = face === 'front' ? t('documentTools.card.front') : t('documentTools.card.back');
+
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="min-w-0 space-y-3">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex items-center gap-2">
           {(['front', 'back'] as const).map((side) => (
             <button
@@ -344,17 +391,19 @@ export function PvcCardEditor({
               onClick={() => setFace(side)}
               aria-pressed={face === side}
               className={cn(
-                'rounded-md border px-3 py-1.5 text-sm font-medium transition-colors',
+                'inline-flex min-w-[96px] items-center justify-center gap-1.5 rounded-lg border px-5 py-2 text-sm font-medium transition-colors',
                 face === side
-                  ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500'
+                  ? 'border-brand-600 bg-brand-600 text-white shadow-sm'
                   : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
               )}
             >
               {side === 'front' ? t('documentTools.card.front') : t('documentTools.card.back')}
               {working[side] ? (
-                <Badge tone="success" className="ml-1.5 text-[9px]">
-                  ✓
-                </Badge>
+                <Check
+                  className={cn('h-3.5 w-3.5', face === side ? 'text-white' : 'text-emerald-600')}
+                  strokeWidth={2.6}
+                  aria-hidden
+                />
               ) : null}
             </button>
           ))}
@@ -402,21 +451,32 @@ export function PvcCardEditor({
             {passwordError ? <Alert tone="danger">{t(passwordError)}</Alert> : null}
           </ToolSection>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <FileDrop
-              onFiles={onImageFiles}
-              accept={['image/jpeg', 'image/png', 'image/webp']}
-              label={t('documentTools.card.chooseImage', {
-                face: face === 'front' ? t('documentTools.card.front') : t('documentTools.card.back'),
-              })}
-              compact
+              variant="tile"
+              onFiles={onPhotoZoneFiles}
+              accept={PHOTO_TYPES}
+              label={t('documentTools.card.chooseImage', { face: faceLabel })}
+              buttonLabel={t('documentTools.card.chooseFile')}
+              artwork={<ZoneArtwork src={CARD_ARTWORK.uploadPhoto} />}
             />
+            <div className="flex items-center gap-3">
+              <span aria-hidden className="h-px flex-1 bg-slate-200" />
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                {t('documentTools.card.or')}
+              </span>
+              <span aria-hidden className="h-px flex-1 bg-slate-200" />
+            </div>
+            {/* Not pasteable: the photo zone above already takes a pasted PDF down the same path. */}
             <FileDrop
+              variant="tile"
               onFiles={onPdfFile}
-              accept={['application/pdf']}
+              accept={PDF_TYPES}
+              pasteable={false}
               label={t('documentTools.card.chooseEAadhaar')}
               hint={t('documentTools.card.chooseEAadhaarHint')}
-              compact
+              buttonLabel={t('documentTools.card.chooseFile')}
+              artwork={<ZoneArtwork src={CARD_ARTWORK.uploadPdf} />}
             />
           </div>
         )}
@@ -435,10 +495,32 @@ export function PvcCardEditor({
             {t('documentTools.transform.changeFile')}
           </Button>
         ) : null}
+
+        <ul className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 2xl:grid-cols-4">
+          {CARD_FEATURES.map((feature) => {
+            const { icon: Icon, tone } = FEATURE_ICONS[feature.id];
+            return (
+              <li key={feature.id} className="flex items-center gap-2.5">
+                <span
+                  aria-hidden
+                  className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl', tone)}
+                >
+                  <Icon className="h-5 w-5" strokeWidth={2} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-slate-900">{t(feature.titleKey)}</p>
+                  <p className="text-[11px] text-slate-500">{t(feature.hintKey)}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </div>
 
-      <div className="min-w-0 space-y-3">
+      <div className="min-w-0 space-y-4">
         <ToolSection
+          step={1}
+          icon={Fingerprint}
           title={t('documentTools.card.documentKind')}
           hint={t('documentTools.card.documentKindHint')}
         >
@@ -459,21 +541,45 @@ export function PvcCardEditor({
           ) : null}
         </ToolSection>
 
-        <ToolSection title={t('documentTools.card.sheet')}>
-          <Slider
-            label={t('documentTools.card.copies')}
-            min={1}
-            max={4}
-            step={1}
-            defaultValue={2}
-            value={sheetCount}
-            valueLabel={`${sheetCount}`}
-            hint={t('documentTools.card.copiesHint')}
-            onValueChange={setSheetCount}
-          />
+        <ToolSection step={2} icon={LayoutGrid} title={t('documentTools.card.sheet')}>
+          <div className="flex items-end gap-3">
+            <div className="min-w-0 flex-1">
+              <Slider
+                label={t('documentTools.card.copies')}
+                min={MIN_COPIES}
+                max={MAX_COPIES}
+                step={1}
+                defaultValue={DEFAULT_COPIES}
+                value={sheetCount}
+                onValueChange={setSheetCount}
+              />
+            </div>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={MIN_COPIES}
+              max={MAX_COPIES}
+              step={1}
+              value={sheetCount}
+              aria-label={t('documentTools.card.copies')}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                // Ignore the empty and out-of-range states a keyboard passes through mid-edit.
+                if (Number.isInteger(next) && next >= MIN_COPIES && next <= MAX_COPIES) {
+                  setSheetCount(next);
+                }
+              }}
+              className="block w-16 shrink-0 rounded-md border-0 bg-white py-1.5 text-center text-sm tabular-nums text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-brand-600"
+            />
+          </div>
+          <p className="text-[11px] leading-tight text-slate-500">
+            {t('documentTools.card.copiesHint')}
+          </p>
         </ToolSection>
 
         <OutputPanel
+          step={3}
+          icon={ImageIcon}
           output={output}
           busy={rendering && output === null}
           customers={customers}
@@ -483,6 +589,13 @@ export function PvcCardEditor({
         />
       </div>
     </div>
+  );
+}
+
+/** Drop-zone illustration. SVGs from `public/` skip the optimiser, which would reject them. */
+function ZoneArtwork({ src }: { src: string }) {
+  return (
+    <Image src={src} alt="" width={112} height={112} unoptimized className="h-28 w-28 select-none" />
   );
 }
 

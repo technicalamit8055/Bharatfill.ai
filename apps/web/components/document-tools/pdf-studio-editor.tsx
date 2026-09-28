@@ -1,8 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, NumberField, Spinner, cn } from '@assistigo/ui';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { CircleCheck, FolderOpen, Grip, Info, Plus, RotateCw, Shrink, Trash2 } from 'lucide-react';
+import { MAX_UPLOAD_BYTES } from '@assistigo/core';
+import { Alert, Button, NumberField, Spinner, cn } from '@assistigo/ui';
 import {
+  DEFAULT_TOOL_PREFERENCES,
   MAX_DERIVATIVE_BYTES,
   RecipeBuilder,
   derivativeFilename,
@@ -18,8 +21,10 @@ import {
   renderPdfThumbnails,
   type PageRef,
 } from '@assistigo/document-tools/browser/pdf';
+import { formatBytes } from '@/lib/documents/format';
+import { readToolPreferences } from '@/lib/document-tools/preferences';
 import { useTranslations } from '@/lib/i18n/client';
-import { FileDrop } from './file-drop';
+import { FileDrop, type FileDropHandle } from './file-drop';
 import { OutputPanel, type CustomerOption, type ToolOutput } from './output-panel';
 import { PresetNotes, PresetPicker } from './preset-picker';
 import { ToolSection } from './tool-shell';
@@ -49,12 +54,18 @@ type SourceEntry = { bytes: Uint8Array; label: string };
 
 const RENDER_DEBOUNCE_MS = 250;
 
+const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'] as const;
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+
 export function PdfStudioEditor({
+  header,
   customers,
   defaultCustomerId,
   defaultPresetCode,
   today,
 }: {
+  /** Rendered above the upload card, so the settings rail can start at the top of the page. */
+  header?: ReactNode;
   customers: readonly CustomerOption[];
   defaultCustomerId?: string | null;
   defaultPresetCode?: string | null;
@@ -80,12 +91,21 @@ export function PdfStudioEditor({
     const initial = defaultPresetCode ? findPreset(defaultPresetCode) : null;
     return initial?.maxBytes ? Math.round(initial.maxBytes / 1024) : '';
   });
-  const [allowRasterise, setAllowRasterise] = useState(true);
+  const [allowRasterise, setAllowRasterise] = useState(
+    DEFAULT_TOOL_PREFERENCES.pdf.allowRasterise,
+  );
+
+  // The operator's own starting value (Settings → My preferences), read after mount so the
+  // server-rendered first paint matches the built-in default.
+  useEffect(() => {
+    setAllowRasterise(readToolPreferences().pdf.allowRasterise);
+  }, []);
 
   const [output, setOutput] = useState<ToolOutput | null>(null);
   const [rendering, setRendering] = useState(false);
   const renderToken = useRef(0);
   const dragIndex = useRef<number | null>(null);
+  const dropRef = useRef<FileDropHandle>(null);
 
   const applyPreset = useCallback((next: RequirementPreset | null) => {
     setPreset(next);
@@ -184,11 +204,18 @@ export function PdfStudioEditor({
   }
 
   function deletePage(id: string) {
+    // Removing the last page drops the source bytes too — nothing references them any more, and
+    // a fresh start should not carry a stranger's file forward as source 0.
+    if (pages.length === 1 && pages[0]?.id === id) {
+      reset();
+      return;
+    }
     setPages((previous) => previous.filter((page) => page.id !== id));
   }
 
   function moveTo(fromIndex: number, toIndex: number) {
     setPages((previous) => {
+      if (toIndex < 0 || toIndex >= previous.length) return previous;
       const next = [...previous];
       const [moved] = next.splice(fromIndex, 1);
       if (!moved) return previous;
@@ -286,14 +313,25 @@ export function PdfStudioEditor({
   }, [pages, sources, maxKb, allowRasterise, preset, today]);
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="min-w-0 space-y-3">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px] xl:grid-rows-[auto_auto_1fr]">
+      {header ? <div className="min-w-0 xl:col-start-1 xl:row-start-1">{header}</div> : null}
+
+      <section className="min-w-0 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:col-start-1 xl:row-start-2">
         <FileDrop
+          variant="hero"
+          handleRef={dropRef}
           onFiles={onFiles}
           multiple
-          accept={['application/pdf', 'image/jpeg', 'image/png', 'image/webp']}
+          accept={ACCEPTED_TYPES}
           label={t('documentTools.pdf.choose')}
           hint={t('documentTools.pdf.chooseHint')}
+          buttonLabel={t('documentTools.pdf.chooseFiles')}
+          buttonIcon={FolderOpen}
+          choices={[
+            { label: t('documentTools.pdf.choosePdfs'), accept: ['application/pdf'] },
+            { label: t('documentTools.pdf.choosePhotos'), accept: PHOTO_TYPES },
+          ]}
+          caption={t('documentTools.pdf.supports', { size: formatBytes(MAX_UPLOAD_BYTES) })}
         />
 
         {loading ? (
@@ -328,47 +366,87 @@ export function PdfStudioEditor({
             {passwordError ? <Alert tone="danger">{t(passwordError)}</Alert> : null}
           </ToolSection>
         ) : null}
+      </section>
 
-        {pages.length > 0 ? (
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {t('documentTools.pdf.pages', { count: pages.length })}
-              </p>
+      {pages.length > 0 ? (
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:col-start-1 xl:row-start-3 xl:self-start">
+          <header className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-800">
+              {t('documentTools.pdf.pages', { count: pages.length })}
+            </h2>
+            <div className="flex items-center gap-1.5">
               <Button size="sm" variant="ghost" onClick={reset}>
-                {t('documentTools.transform.changeFile')}
+                {t('documentTools.pdf.clearAll')}
               </Button>
+              <button
+                type="button"
+                onClick={() => dropRef.current?.open()}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-600 bg-white px-3.5 py-1.5 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              >
+                <Plus className="h-4 w-4" strokeWidth={2.2} aria-hidden />
+                {t('documentTools.pdf.addMore')}
+              </button>
             </div>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
-              {pages.map((page, index) => (
-                <PageTileView
-                  key={page.id}
-                  page={page}
-                  index={index}
-                  onRotate={() => rotatePage(page.id)}
-                  onDelete={() => deletePage(page.id)}
-                  onDragStart={() => (dragIndex.current = index)}
-                  onDropOn={() => {
-                    if (dragIndex.current !== null && dragIndex.current !== index) {
-                      moveTo(dragIndex.current, index);
-                    }
-                    dragIndex.current = null;
-                  }}
-                />
-              ))}
-            </div>
-            <p className="mt-2 text-[11px] text-slate-400">{t('documentTools.pdf.dragHint')}</p>
-          </div>
-        ) : null}
-      </div>
+          </header>
 
-      <div className="min-w-0 space-y-3">
-        <ToolSection title={t('documentTools.preset.title')} hint={t('documentTools.preset.hint')}>
-          <PresetPicker categories={['pdf']} value={preset?.code ?? null} onChange={applyPreset} />
+          <ol className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+            {pages.map((page, index) => (
+              <PageCard
+                key={page.id}
+                thumbnail={page.thumbnail}
+                rotate={page.rotate}
+                index={index}
+                onRotate={() => rotatePage(page.id)}
+                onDelete={() => deletePage(page.id)}
+                onMove={(delta) => moveTo(index, index + delta)}
+                onDragStart={() => (dragIndex.current = index)}
+                onDropOn={() => {
+                  if (dragIndex.current !== null && dragIndex.current !== index) {
+                    moveTo(dragIndex.current, index);
+                  }
+                  dragIndex.current = null;
+                }}
+              />
+            ))}
+          </ol>
+
+          <p className="mt-4 flex items-start gap-2 text-xs text-slate-500">
+            <Info className="mt-px h-4 w-4 shrink-0 fill-slate-400 text-white" aria-hidden />
+            {t('documentTools.pdf.dragHint')}
+          </p>
+        </section>
+      ) : null}
+
+      <div className="min-w-0 space-y-4 xl:col-start-2 xl:row-span-3 xl:row-start-1">
+        <ToolSection
+          step={1}
+          title={t('documentTools.preset.title')}
+          hint={t('documentTools.preset.hint')}
+        >
+          <PresetPicker
+            variant="cards"
+            categories={['pdf']}
+            value={preset?.code ?? null}
+            onChange={applyPreset}
+          />
           <PresetNotes preset={preset} />
         </ToolSection>
 
-        <ToolSection title={t('documentTools.pdf.compress')}>
+        <ToolSection
+          step={2}
+          icon={Shrink}
+          title={t('documentTools.pdf.compress')}
+          titleAdornment={
+            <span className="text-xs font-normal text-slate-500">
+              ({t('documentTools.studio.optional')})
+            </span>
+          }
+          actions={
+            <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+              {t('documentTools.pdf.recommended')}
+            </span>
+          }
+        >
           <NumberField
             label={t('documentTools.rule.maxKb')}
             unit="KB"
@@ -382,7 +460,7 @@ export function PdfStudioEditor({
               type="checkbox"
               checked={allowRasterise}
               onChange={(event) => setAllowRasterise(event.target.checked)}
-              className="mt-0.5"
+              className="mt-px h-4 w-4 shrink-0 accent-brand-600"
             />
             <span>{t('documentTools.pdf.allowRasterise')}</span>
           </label>
@@ -394,6 +472,9 @@ export function PdfStudioEditor({
         </ToolSection>
 
         <OutputPanel
+          step={3}
+          icon={CircleCheck}
+          previewable
           output={output}
           busy={rendering && output === null}
           customers={customers}
@@ -404,26 +485,36 @@ export function PdfStudioEditor({
   );
 }
 
-function PageTileView({
-  page,
+/** One page in the list: drag it, or reorder from the grip with the arrow keys. */
+function PageCard({
+  thumbnail,
+  rotate,
   index,
   onRotate,
   onDelete,
+  onMove,
   onDragStart,
   onDropOn,
 }: {
-  page: PageTile;
+  thumbnail: string;
+  rotate: number;
   index: number;
   onRotate: () => void;
   onDelete: () => void;
+  /** Keyboard reordering from the grip: -1 is one place earlier, +1 one place later. */
+  onMove: (delta: -1 | 1) => void;
   onDragStart: () => void;
   onDropOn: () => void;
 }) {
   const t = useTranslations();
   const [over, setOver] = useState(false);
 
+  const actionButton =
+    'flex flex-1 items-center justify-center py-2 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900';
+
   return (
-    <div
+    <li
+      aria-label={t('documentTools.pdf.pageLabel', { number: index + 1 })}
       draggable
       onDragStart={onDragStart}
       onDragOver={(event) => {
@@ -437,41 +528,68 @@ function PageTileView({
         onDropOn();
       }}
       className={cn(
-        'group relative cursor-grab overflow-hidden rounded border bg-white',
+        'relative flex cursor-grab flex-col overflow-hidden rounded-xl border bg-white shadow-sm transition-shadow active:cursor-grabbing',
         over ? 'border-brand-500 ring-2 ring-brand-400' : 'border-slate-200',
       )}
     >
-      <div className="flex aspect-[3/4] items-center justify-center bg-slate-50 p-1">
-        {page.thumbnail ? (
-          <img
-            src={page.thumbnail}
-            alt=""
-            style={{ transform: `rotate(${page.rotate}deg)` }}
-            className="max-h-full max-w-full object-contain transition-transform"
-          />
-        ) : null}
+      <div className="p-2 pb-0">
+        <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-md border border-slate-100 bg-white">
+          {thumbnail ? (
+            // A data URL rendered in the browser; next/image would try to optimise it on the server.
+            <img
+              src={thumbnail}
+              alt=""
+              draggable={false}
+              style={{ transform: `rotate(${rotate}deg)` }}
+              className="max-h-full max-w-full object-contain transition-transform"
+            />
+          ) : null}
+        </div>
       </div>
-      <Badge tone="neutral" className="absolute left-1 top-1 text-[9px]">
+      <span
+        aria-hidden
+        className="absolute left-3.5 top-3.5 flex h-6 min-w-6 items-center justify-center rounded-md bg-slate-100 px-1.5 text-xs font-semibold text-slate-800 shadow-sm"
+      >
         {index + 1}
-      </Badge>
-      <div className="absolute right-1 top-1 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+      </span>
+
+      <div className="mt-2 flex border-t border-slate-100">
         <button
           type="button"
           onClick={onRotate}
           title={t('documentTools.pdf.rotatePage')}
-          className="rounded bg-white/90 p-1 text-slate-700 shadow hover:bg-white"
+          aria-label={t('documentTools.pdf.rotatePage')}
+          className={actionButton}
         >
-          ↻
+          <RotateCw className="h-4 w-4" aria-hidden />
         </button>
         <button
           type="button"
           onClick={onDelete}
           title={t('documentTools.pdf.deletePage')}
-          className="rounded bg-white/90 p-1 text-red-600 shadow hover:bg-white"
+          aria-label={t('documentTools.pdf.deletePage')}
+          className={cn(actionButton, 'hover:text-red-600')}
         >
-          ×
+          <Trash2 className="h-4 w-4" aria-hidden />
+        </button>
+        <button
+          type="button"
+          title={t('documentTools.pdf.reorderPage')}
+          aria-label={t('documentTools.pdf.reorderPage')}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              onMove(-1);
+            } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+              event.preventDefault();
+              onMove(1);
+            }
+          }}
+          className={cn(actionButton, 'cursor-grab')}
+        >
+          <Grip className="h-4 w-4" aria-hidden />
         </button>
       </div>
-    </div>
+    </li>
   );
 }

@@ -10,6 +10,8 @@ export default async function SettingsPage() {
   const { t } = await getTranslations();
 
   const links = [
+    // Every member's own settings — `null` because there is nothing on it to guard.
+    { href: '/settings/preferences', labelKey: 'settings.preferences.navLabel', permission: null },
     { href: '/settings/members', labelKey: 'settings.members', permission: 'member.view' },
     {
       href: '/settings/organization',
@@ -22,7 +24,9 @@ export default async function SettingsPage() {
     { href: '/billing', labelKey: 'nav.billing', permission: 'billing.view' },
   ] as const;
 
-  const visible = links.filter((link) => session.permissions.has(link.permission));
+  const visible = links.filter(
+    (link) => link.permission === null || session.permissions.has(link.permission),
+  );
 
   return (
     <div className="space-y-6">

@@ -4,12 +4,14 @@ import {
   useCallback,
   useEffect,
   useId,
+  useImperativeHandle,
   useRef,
   useState,
   type DragEvent,
   type ReactNode,
+  type Ref,
 } from 'react';
-import { ArrowUp, CloudUpload } from 'lucide-react';
+import { ArrowUp, ChevronDown, CloudUpload, Upload, type LucideIcon } from 'lucide-react';
 import { Alert, cn } from '@assistigo/ui';
 import { MAX_UPLOAD_BYTES, isAllowedUploadMimeType } from '@assistigo/core';
 import { useTranslations } from '@/lib/i18n/client';
@@ -29,6 +31,12 @@ import { formatBytes } from '@/lib/documents/format';
  * Format and size are checked here so the operator finds out before they wait. Nothing is
  * uploaded: these files are read into the browser and stay there.
  */
+
+/** Lets a page open the file picker from its own button — "Add more files" under a page list. */
+export type FileDropHandle = { open: () => void };
+
+const DEFAULT_ACCEPT = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const;
+
 export function FileDrop({
   onFiles,
   accept,
@@ -38,7 +46,13 @@ export function FileDrop({
   compact = false,
   variant = 'default',
   buttonLabel,
+  buttonIcon: ButtonIcon = ArrowUp,
+  choices,
+  caption,
   footer,
+  artwork,
+  pasteable = true,
+  handleRef,
   className,
 }: {
   onFiles: (files: File[]) => void;
@@ -50,23 +64,76 @@ export function FileDrop({
   compact?: boolean;
   /**
    * `hero` is the large, icon-led zone a tool shows when it opens empty — the whole card is the
-   * call to action. `default` is the quiet inline zone.
+   * call to action. `tile` is a smaller zone with artwork beside the text, for pages that offer
+   * two ways in stacked one above the other. `default` is the quiet inline zone.
    */
-  variant?: 'default' | 'hero';
-  /** The hero variant's button text. */
+  variant?: 'default' | 'hero' | 'tile';
+  /** The hero and tile variants' button text. */
   buttonLabel?: string;
+  /** The hero variant's button pictogram. */
+  buttonIcon?: LucideIcon;
+  /**
+   * The hero variant's narrower pickers, offered from a menu beside the button. The OS file
+   * dialog filters to the chosen types, which saves scrolling past every PDF to find a photo.
+   * Each list must be a subset of `accept`.
+   */
+  choices?: readonly { label: string; accept: readonly string[] }[];
+  /** A short line directly under the hero button — the supported formats. */
+  caption?: string;
   /** Rendered inside the hero zone, under the button. */
   footer?: ReactNode;
+  /** The tile variant's picture, shown to the left of the text. */
+  artwork?: ReactNode;
+  /**
+   * Off for the second of two zones on one page. The paste listener is document-wide, so two
+   * mounted zones would both receive the same pasted file.
+   */
+  pasteable?: boolean;
+  handleRef?: Ref<FileDropHandle>;
   className?: string;
 }) {
   const t = useTranslations();
   const inputId = useId();
+  const menuId = useId();
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const zoneRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const accepted = accept ?? null;
+
+  // The accept attribute is written on every open, not left to React: a narrowed choice has to
+  // write it imperatively (the dialog must open inside the click), and React would never undo
+  // that write because the prop did not change.
+  const openPicker = useCallback(
+    (narrowTo?: readonly string[]) => {
+      const input = inputRef.current;
+      if (!input) return;
+      input.accept = (narrowTo ?? accepted ?? DEFAULT_ACCEPT).join(',');
+      input.click();
+    },
+    [accepted],
+  );
+
+  useImperativeHandle(handleRef, () => ({ open: () => openPicker() }), [openPicker]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuOpen]);
 
   const check = useCallback(
     (files: File[]): File[] => {
@@ -104,6 +171,7 @@ export function FileDrop({
   // than the element because a drop zone is not focusable, and requiring a click before Ctrl+V
   // would defeat the point.
   useEffect(() => {
+    if (!pasteable) return;
     const onPaste = (event: ClipboardEvent) => {
       const files = [...(event.clipboardData?.files ?? [])];
       if (files.length === 0) return;
@@ -112,7 +180,7 @@ export function FileDrop({
     };
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
-  }, [handle]);
+  }, [handle, pasteable]);
 
   const dragProps = {
     onDragOver: (event: DragEvent<HTMLDivElement>) => {
@@ -133,11 +201,11 @@ export function FileDrop({
       id={inputId}
       type="file"
       multiple={multiple}
-      accept={(accepted ?? ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']).join(',')}
+      accept={(accepted ?? DEFAULT_ACCEPT).join(',')}
       className="sr-only"
-      // The hero variant's visible button is the keyboard entry point; a second tab stop on the
-      // hidden input would announce the same action twice.
-      tabIndex={variant === 'hero' ? -1 : undefined}
+      // The hero and tile variants' visible button is the keyboard entry point; a second tab
+      // stop on the hidden input would announce the same action twice.
+      tabIndex={variant === 'default' ? undefined : -1}
       onChange={(event) => {
         handle([...(event.target.files ?? [])]);
         // Reset so choosing the same file twice still fires a change event.
@@ -180,15 +248,104 @@ export function FileDrop({
             {fileInput}
             <p className="mt-1 text-sm text-slate-600">{t('documentTools.drop.orDragPaste')}</p>
             <p className="mt-1 text-xs text-slate-500">{hintText}</p>
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
-              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-8 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-            >
-              <ArrowUp className="h-4 w-4" strokeWidth={2.2} aria-hidden />
-              {buttonLabel ?? label ?? t('documentTools.drop.choose')}
-            </button>
+            <div ref={menuRef} className="relative mt-5 inline-flex rounded-lg shadow-sm">
+              <button
+                type="button"
+                onClick={() => openPicker()}
+                className={cn(
+                  'inline-flex items-center gap-2 bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
+                  choices?.length ? 'rounded-l-lg pl-8 pr-6' : 'rounded-lg px-8',
+                )}
+              >
+                <ButtonIcon className="h-4 w-4" strokeWidth={2.2} aria-hidden />
+                {buttonLabel ?? label ?? t('documentTools.drop.choose')}
+              </button>
+              {choices?.length ? (
+                <>
+                  <button
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                    aria-controls={menuOpen ? menuId : undefined}
+                    aria-label={t('documentTools.drop.moreChoices')}
+                    onClick={() => setMenuOpen((open) => !open)}
+                    className="inline-flex items-center rounded-r-lg border-l border-brand-500 bg-brand-600 px-3 text-white transition-colors hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                  >
+                    <ChevronDown
+                      className={cn('h-4 w-4 transition-transform', menuOpen && 'rotate-180')}
+                      strokeWidth={2.2}
+                      aria-hidden
+                    />
+                  </button>
+                  {menuOpen ? (
+                    <div
+                      id={menuId}
+                      role="menu"
+                      className="absolute right-0 top-full z-20 mt-1.5 min-w-full whitespace-nowrap rounded-lg border border-slate-200 bg-white p-1 text-left shadow-lg"
+                    >
+                      {choices.map((choice) => (
+                        <button
+                          key={choice.label}
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            openPicker(choice.accept);
+                          }}
+                          className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none"
+                        >
+                          {choice.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+            {caption ? <p className="mt-4 text-xs text-slate-500">{caption}</p> : null}
             {footer ? <div className="mt-8 w-full">{footer}</div> : null}
+          </div>
+        </div>
+        {errorNode}
+      </div>
+    );
+  }
+
+  if (variant === 'tile') {
+    return (
+      <div className={className}>
+        <div
+          ref={zoneRef}
+          {...dragProps}
+          className={cn(
+            'rounded-xl border-2 border-dashed px-4 py-5 transition-colors sm:px-6',
+            dragging
+              ? 'border-brand-500 bg-brand-50'
+              : 'border-brand-200 bg-white hover:border-brand-300',
+          )}
+        >
+          <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:gap-6 sm:text-left">
+            {artwork ? (
+              <div aria-hidden className="flex shrink-0 justify-center sm:w-2/5 sm:justify-end">
+                {artwork}
+              </div>
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <label htmlFor={inputId} className="text-base font-semibold text-slate-900">
+                {label ?? t('documentTools.drop.choose')}
+              </label>
+              {fileInput}
+              <p className="mt-1 text-sm text-slate-600">{t('documentTools.drop.orDragPaste')}</p>
+              <p className="mt-1 text-xs text-slate-500">{hintText}</p>
+              <button
+                type="button"
+                onClick={() => openPicker()}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              >
+                <Upload className="h-4 w-4" strokeWidth={2.2} aria-hidden />
+                {buttonLabel ?? t('documentTools.drop.choose')}
+              </button>
+            </div>
           </div>
         </div>
         {errorNode}

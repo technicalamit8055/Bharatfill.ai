@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { cn } from '@assistigo/ui';
 import { useTranslations } from '@/lib/i18n/client';
 
@@ -61,6 +62,7 @@ export function ToolSection({
   title,
   hint,
   step,
+  icon: Icon,
   titleAdornment,
   actions,
   children,
@@ -69,6 +71,8 @@ export function ToolSection({
   title: string;
   hint?: string;
   step?: number;
+  /** A pictogram beside the step number, for rails where the steps are visually alike. */
+  icon?: LucideIcon;
   /** Rendered after the title in a numbered card — used for the "optional" tag. */
   titleAdornment?: ReactNode;
   actions?: ReactNode;
@@ -88,6 +92,14 @@ export function ToolSection({
             >
               {step}
             </span>
+            {Icon ? (
+              <span
+                aria-hidden
+                className="-my-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600"
+              >
+                <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
+              </span>
+            ) : null}
             <div className="min-w-0">
               <h2 className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-slate-900">
                 {title}

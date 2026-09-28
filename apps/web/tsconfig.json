@@ -1,27 +1,63 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "preserve",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "allowJs": true,
     "incremental": true,
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "@assistigo/core": ["../../packages/core/src/index.ts"],
-      "@assistigo/core/*": ["../../packages/core/src/*"],
-      "@assistigo/ai": ["../../packages/ai/src/index.ts"],
-      "@assistigo/ai/*": ["../../packages/ai/src/*"],
-      "@assistigo/document-tools": ["../../packages/document-tools/src/index.ts"],
-      "@assistigo/document-tools/*": ["../../packages/document-tools/src/*"],
-      "@assistigo/form-engine": ["../../packages/form-engine/src/index.ts"],
-      "@assistigo/form-engine/*": ["../../packages/form-engine/src/*"],
-      "@assistigo/ui": ["../../packages/ui/src/index.ts"]
+      "@/*": [
+        "./*"
+      ],
+      "@assistigo/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@assistigo/core/*": [
+        "../../packages/core/src/*"
+      ],
+      "@assistigo/ai": [
+        "../../packages/ai/src/index.ts"
+      ],
+      "@assistigo/ai/*": [
+        "../../packages/ai/src/*"
+      ],
+      "@assistigo/document-tools": [
+        "../../packages/document-tools/src/index.ts"
+      ],
+      "@assistigo/document-tools/*": [
+        "../../packages/document-tools/src/*"
+      ],
+      "@assistigo/form-engine": [
+        "../../packages/form-engine/src/index.ts"
+      ],
+      "@assistigo/form-engine/*": [
+        "../../packages/form-engine/src/*"
+      ],
+      "@assistigo/ui": [
+        "../../packages/ui/src/index.ts"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "next-env.d.ts",
+    ".next-build /types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

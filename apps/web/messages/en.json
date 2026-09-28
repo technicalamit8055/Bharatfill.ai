@@ -954,6 +954,21 @@
     "removeMember": "Remove",
     "youBadge": "You",
     "lastOwner": "An organization must keep at least one owner.",
+    "preferences": {
+      "navLabel": "My preferences",
+      "title": "My preferences",
+      "subtitle": "Your language and the settings each document tool starts with. You can still change any of them inside a tool for a single job.",
+      "languageHint": "The dashboard language on this computer. The page reloads when you change it.",
+      "gridTitle": "Passport photo sheet",
+      "gridHint": "The paper, size and number of photos the photo sheet tool starts with.",
+      "gridCountHint": "If the paper cannot hold this many at this size, the tool shows how many fit.",
+      "cardTitle": "PVC card",
+      "pdfTitle": "PDF Studio",
+      "storageNote": "These settings are saved in this browser on this computer only. They hold no customer information.",
+      "saved": "Saved. The document tools will start with these settings.",
+      "saveFailed": "This browser did not save your settings. Check that site data is allowed for this site, then try again.",
+      "reset": "Reset to defaults"
+    },
     "ai": {
       "navLabel": "AI settings",
       "title": "AI settings",
@@ -1340,7 +1355,8 @@
     },
     "drop": {
       "choose": "Choose a file",
-      "orDragPaste": "or drag it here, or paste with Ctrl+V"
+      "orDragPaste": "or drag it here, or paste with Ctrl+V",
+      "moreChoices": "More ways to choose files"
     },
     "preset": {
       "title": "Portal preset",
@@ -1459,7 +1475,8 @@
       "noCustomer": "Don’t save a copy",
       "save": "Save to customer",
       "saved": "Saved to the customer’s documents.",
-      "recipe": "What was done to this file"
+      "recipe": "What was done to this file",
+      "preview": "Preview"
     },
     "warnings": {
       "overLimit": "Could not get under the maximum size without a bigger quality loss. Check the result before using it.",
@@ -1481,21 +1498,61 @@
       "howManyHint": "Up to {capacity} fit on this sheet at this size.",
       "tooBig": "This photo size does not fit on this sheet. Choose a smaller size or a bigger sheet.",
       "fill": "Fill sheet",
-      "printing": "Printing",
+      "printing": "Printing settings",
       "gap": "Gap between photos",
       "gapHint": "Leaves room to cut between photos.",
       "margin": "Paper margin",
       "marginHint": "Matches your printer’s unprintable edge.",
       "cutMarks": "Cut marks",
       "cutMarksHint": "Small corner ticks to guide the cut.",
-      "preview": "Layout",
-      "placed": "{placed} of {capacity} slots used"
+      "preview": "Preview",
+      "placed": "{placed} of {capacity} slots used",
+      "previewHint": "This is how your photo will look on the selected paper size.",
+      "sample": "Sample",
+      "uploadHint": "A clear, well-lit photo works best. JPG, PNG or WEBP.",
+      "changePhoto": "Change photo",
+      "paperHint": "Select the sheet size for printing.",
+      "photoSizeHint": "Select the size of each photo in the grid.",
+      "sizePassportShort": "Passport",
+      "sizeStampShort": "Stamp",
+      "sizeCustomHint": "Set size",
+      "dimensions": "Dimensions",
+      "cm": "{width} × {height} cm",
+      "countTooMany": "Only {capacity} fit on this sheet at this size.",
+      "resultHint": "Generate and download your photo sheet.",
+      "downloadSheet": "Download photo sheet",
+      "features": {
+        "autoCrop": "Auto crop & resize",
+        "printReady": "Print ready format",
+        "multipleSizes": "Multiple sizes",
+        "highQuality": "High quality output"
+      }
     },
     "card": {
       "front": "Front",
       "back": "Back",
-      "chooseImage": "Choose the {face} photo",
-      "chooseEAadhaar": "Or unlock an e-Aadhaar PDF",
+      "chooseImage": "Upload Aadhaar {face} Photo",
+      "chooseEAadhaar": "Use e-Aadhaar PDF",
+      "chooseFile": "Choose File",
+      "or": "or",
+      "features": {
+        "autoCrop": {
+          "title": "Auto crop & align",
+          "hint": "Frames to PVC card size"
+        },
+        "privacy": {
+          "title": "Privacy protected",
+          "hint": "Processed in your browser"
+        },
+        "quality": {
+          "title": "High quality output",
+          "hint": "Print ready format"
+        },
+        "pvc": {
+          "title": "Works for PVC card",
+          "hint": "Front & back layout"
+        }
+      },
       "chooseEAadhaarHint": "The password-protected PDF downloaded from the UIDAI website.",
       "unlockTitle": "This PDF is password-protected",
       "unlockHint": "The password is usually the first four letters of the name in capitals, followed by the year of birth (e.g. SURE1990).",
@@ -1520,13 +1577,30 @@
       "loading": "Reading pages…",
       "protectedFile": "\"{name}\" needs a password to open.",
       "pages": "{count} pages",
-      "dragHint": "Drag a page to reorder it. Hover a page to rotate or remove it.",
+      "dragHint": "Drag a page to reorder it. Use the buttons under a page to rotate or remove it.",
       "compress": "Compress",
       "allowRasterise": "If needed, redraw pages as images to reach the size limit",
       "rasteriseOffHint": "Without this, a scanned PDF may not be able to reach a very small size limit.",
       "rasterisedWarning": "Pages were redrawn as images to reach the size limit. Text in the PDF is no longer selectable.",
       "rotatePage": "Rotate page",
-      "deletePage": "Remove page"
+      "deletePage": "Remove page",
+      "features": {
+        "merge": "Merge PDFs",
+        "split": "Split pages",
+        "reorder": "Reorder",
+        "rotate": "Rotate",
+        "compress": "Compress",
+        "portalReady": "Portal ready"
+      },
+      "chooseFiles": "Choose files",
+      "choosePdfs": "PDF files only",
+      "choosePhotos": "Photos only (JPG, PNG, WEBP)",
+      "supports": "Supports JPG, PNG, WEBP or PDF · Up to {size} each",
+      "addMore": "Add more files",
+      "clearAll": "Clear all",
+      "pageLabel": "Page {number}",
+      "reorderPage": "Drag to reorder, or use the arrow keys",
+      "recommended": "Recommended"
     },
     "errors": {
       "decodeFailed": "That file could not be opened. Try a different file.",

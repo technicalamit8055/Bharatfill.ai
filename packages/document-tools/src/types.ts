@@ -173,6 +173,9 @@ export type SheetSpec = {
   code: string;
   label: string;
   labelHi?: string;
+  /** For a compact picker tile, where "photo paper" goes without saying. Falls back to `label`. */
+  shortLabel?: string;
+  shortLabelHi?: string;
   widthMm: number;
   heightMm: number;
 };
