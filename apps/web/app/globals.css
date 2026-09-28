@@ -467,6 +467,109 @@
   animation: heroTick 7s ease-out calc(var(--hero-step, 0) * 250ms) infinite both;
 }
 
+/*
+ * Landing "How it works" motion.
+ *
+ * Entrance: each <Reveal> block (components/landing/reveal.tsx) flips `data-motion` from `idle`
+ * to `play` the first time it scrolls into view; its `.hiw-*` pieces then rise, pop, zoom and
+ * draw in a stagger (`--hiw-delay`). Fill mode is `backwards`, not `both`, so once a piece has
+ * landed its own classes take over again and hover transforms still work.
+ * Loop: the step badges ring, the connector arrows nudge towards the next step.
+ * Everything sits behind `no-preference`, so reduced motion (and no JS) shows the static layout.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes hiwRise {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes hiwPop {
+    0% {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+    60% {
+      opacity: 1;
+      transform: scale(1.12);
+    }
+    100% {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes hiwZoom {
+    from {
+      opacity: 0;
+      transform: translateY(16px) scale(0.94);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes hiwNudge {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(5px);
+    }
+  }
+
+  @keyframes hiwRing {
+    0% {
+      box-shadow: 0 0 0 0 rgb(var(--hiw-ring) / 0.45);
+    }
+    70%,
+    100% {
+      box-shadow: 0 0 0 14px rgb(var(--hiw-ring) / 0);
+    }
+  }
+
+  [data-motion='idle'].hiw-rise,
+  [data-motion='idle'] :is(.hiw-rise, .hiw-pop, .hiw-zoom) {
+    opacity: 0;
+  }
+
+  [data-motion='idle'] .hiw-draw {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  [data-motion='play'].hiw-rise,
+  [data-motion='play'] .hiw-rise {
+    animation: hiwRise 0.8s cubic-bezier(0.22, 1, 0.36, 1) var(--hiw-delay, 0ms) backwards;
+  }
+
+  [data-motion='play'] .hiw-pop {
+    animation: hiwPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) var(--hiw-delay, 0ms) backwards;
+  }
+
+  [data-motion='play'] .hiw-zoom {
+    animation: hiwZoom 0.9s cubic-bezier(0.22, 1, 0.36, 1) var(--hiw-delay, 0ms) backwards;
+  }
+
+  [data-motion='play'] .hiw-draw {
+    animation: heroDraw 0.8s cubic-bezier(0.65, 0, 0.35, 1) var(--hiw-delay, 0ms) backwards;
+  }
+
+  .hiw-nudge {
+    animation: hiwNudge 2.2s ease-in-out infinite;
+  }
+
+  .hiw-ring {
+    animation: hiwRing 2.8s ease-out var(--hiw-delay, 0ms) infinite;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sparkline-bar,
   .animate-live-pulse,

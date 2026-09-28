@@ -1,7 +1,26 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
+import { ArrowRight, Check, X } from 'lucide-react';
 import { BharatfillLogo } from './bharatfill-logo';
+
+/** Fictional demo address (Rohini, North West Delhi, Delhi); also baked into ai-autofill-preview.png. */
+const DEMO_DELHI_ADDRESS = 'B-42, Sector 14, Rohini, New Delhi 110085';
+
+const OLD_WAY_POINTS = [
+  'Manually copy-pasting details from documents or notes.',
+  'Frequent typing errors in Aadhaar, PAN or spelling mistakes.',
+  'Long waiting queues at Cyber Cafes & CSC Service Centres.',
+  'Form timeouts causing lost data and frustrating re-entries.',
+];
+
+const NEW_WAY_POINTS = [
+  'Profile stored once, re-used across 100+ government & web portals.',
+  '99.8% field recognition accuracy using smart AI mapping.',
+  'Zero data entry errors & bank-grade Aadhaar masking privacy.',
+  'Serve 10× more customers per day with zero stress.',
+];
 
 interface Profile {
   id: string;
@@ -26,7 +45,7 @@ const PROFILES: Profile[] = [
     dob: '15-08-2001',
     fatherName: 'Rajesh Sharma',
     email: 'rahul.sharma@gmail.com',
-    address: 'Flat 402, Civil Lines, Jaipur, Rajasthan 302006',
+    address: DEMO_DELHI_ADDRESS,
     education: 'B.Tech Computer Science (78.5%)',
   },
   {
@@ -38,7 +57,7 @@ const PROFILES: Profile[] = [
     dob: '22-03-1998',
     fatherName: 'Suresh Verma',
     email: 'priya.verma@outlook.com',
-    address: 'Plot 12, Sector 4, Gandhinagar, Gujarat 382010',
+    address: 'C-17, Sector 8, Rohini, New Delhi 110085',
     education: 'M.Sc Biotechnology (82.1%)',
   },
   {
@@ -50,7 +69,7 @@ const PROFILES: Profile[] = [
     dob: '10-11-2002',
     fatherName: 'Ramesh Kumar',
     email: 'amit.kumar@yahoo.com',
-    address: 'House 88, Subhash Nagar, Patna, Bihar 800001',
+    address: 'D-9, Sector 16, Rohini, New Delhi 110089',
     education: 'Senior Secondary 12th (85.0%)',
   },
 ];
@@ -79,18 +98,18 @@ export function InteractiveDemo() {
 
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto">
-          <h2 className="text-xs font-bold tracking-widest text-[#0066FF] uppercase">
+          <h2 className="inline-flex rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-xs font-bold tracking-widest text-[#0066FF] uppercase">
             Interactive Experience
           </h2>
-          <p className="mt-2 text-3xl font-extrabold text-slate-900 sm:text-5xl">
-            See Bharatfill AI in Action
+          <p className="mt-4 text-3xl font-extrabold text-slate-900 sm:text-5xl">
+            See <span className="text-[#0066FF]">Bharatfill AI</span> in Action
           </p>
           <p className="mt-4 text-base text-slate-600 sm:text-lg">
             Experience how the extension detects form fields and fills them automatically with complete customer profile mapping.
           </p>
 
           {/* Toggle View Buttons */}
-          <div className="mt-6 inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+          <div className="mt-6 inline-flex rounded-xl bg-white p-1 border border-slate-200 shadow-sm">
             <button
               onClick={() => setActiveTab('demo')}
               className={`rounded-lg px-4 py-2 text-xs font-semibold transition-all sm:text-sm ${activeTab === 'demo'
@@ -386,57 +405,78 @@ export function InteractiveDemo() {
           </div>
         ) : (
           /* Manual vs AI Comparison Grid */
-          <div className="mt-10 grid grid-cols-1 gap-8 md:grid-cols-2 max-w-5xl mx-auto">
+          <div className="mt-10 grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[1fr_auto_1fr] lg:gap-0">
             {/* The Old Way */}
-            <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 sm:p-8 relative shadow-sm">
-              <div className="inline-flex rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-800 mb-4 border border-rose-200">
-                ❌ THE OLD WAY (Manual Typing)
+            <div className="relative overflow-hidden rounded-3xl border border-rose-200 bg-gradient-to-br from-rose-50 via-rose-50/60 to-white p-6 shadow-sm sm:p-8">
+              <div className="grid grid-cols-1 items-center gap-6 sm:grid-cols-[1.05fr_1fr]">
+                <div className="min-w-0">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-100 px-3 py-1 text-xs font-bold text-rose-700">
+                    <X aria-hidden size={14} strokeWidth={3} />
+                    THE OLD WAY (Manual Typing)
+                  </span>
+                  <h3 className="mt-4 text-xl font-extrabold text-slate-900 sm:text-2xl">
+                    15+ Minutes Per Application
+                  </h3>
+                  <ul className="mt-5 space-y-4 text-sm font-medium text-slate-700">
+                    {OLD_WAY_POINTS.map((point) => (
+                      <li key={point} className="flex items-start gap-3">
+                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                          <X aria-hidden size={14} strokeWidth={3} />
+                        </span>
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <Image
+                  src="/home/manual-typing-stress.png"
+                  alt="Stressed operator surrounded by Aadhaar, PAN and certificate files while typing a form manually"
+                  width={1200}
+                  height={896}
+                  sizes="(min-width: 1024px) 22vw, (min-width: 640px) 45vw, 90vw"
+                  className="h-auto w-full rounded-2xl mix-blend-multiply"
+                />
               </div>
-              <h3 className="text-xl font-bold text-slate-900">15+ Minutes Per Application</h3>
-              <ul className="mt-6 space-y-4 text-sm text-slate-700 font-medium">
-                <li className="flex items-start gap-3">
-                  <span className="text-rose-600 font-bold">✕</span>
-                  <span>Constantly copy-pasting details from physical documents or notes.</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-rose-600 font-bold">✕</span>
-                  <span>Frequent typing errors in Aadhaar, PAN, or spelling mistakes.</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-rose-600 font-bold">✕</span>
-                  <span>Long waiting queues at Cyber Cafes & CSC Service Centres.</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-rose-600 font-bold">✕</span>
-                  <span>Form timeouts causing lost data and frustrating re-entries.</span>
-                </li>
-              </ul>
+            </div>
+
+            {/* Center transition badge */}
+            <div className="relative z-10 flex items-center justify-center lg:-mx-7">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-[#0066FF] shadow-lg shadow-blue-500/15 lg:h-16 lg:w-16">
+                <ArrowRight aria-hidden size={28} strokeWidth={2.5} className="rotate-90 lg:rotate-0" />
+              </span>
             </div>
 
             {/* The New Way */}
-            <div className="rounded-2xl border-2 border-blue-400 bg-gradient-to-b from-blue-50/70 to-white p-6 sm:p-8 relative shadow-lg shadow-blue-500/10">
-              <div className="inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800 mb-4 border border-blue-200">
-                ⚡ THE NEW WAY (Bharatfill AI)
+            <div className="relative overflow-hidden rounded-3xl border-2 border-blue-400 bg-gradient-to-br from-blue-50 via-blue-50/50 to-white p-6 shadow-lg shadow-blue-500/10 sm:p-8">
+              <div className="grid grid-cols-1 items-center gap-6 sm:grid-cols-[1.05fr_1fr]">
+                <div className="min-w-0">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">
+                    <Check aria-hidden size={14} strokeWidth={3} />
+                    THE NEW WAY (Bharatfill AI)
+                  </span>
+                  <h3 className="mt-4 text-xl font-extrabold text-slate-900 sm:text-2xl">
+                    3 Seconds 1-Click Autofill
+                  </h3>
+                  <ul className="mt-5 space-y-4 text-sm font-medium text-slate-800">
+                    {NEW_WAY_POINTS.map((point) => (
+                      <li key={point} className="flex items-start gap-3">
+                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
+                          <Check aria-hidden size={14} strokeWidth={3} />
+                        </span>
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <Image
+                  src="/home/ai-autofill-preview.png"
+                  alt={`Government form autofilled by Bharatfill AI with the address ${DEMO_DELHI_ADDRESS}, marked "Form filled in 3 seconds!"`}
+                  width={1200}
+                  height={896}
+                  sizes="(min-width: 1024px) 22vw, (min-width: 640px) 45vw, 90vw"
+                  className="h-auto w-full mix-blend-multiply"
+                />
               </div>
-              <h3 className="text-xl font-bold text-slate-900">3 Seconds 1-Click Autofill</h3>
-              <ul className="mt-6 space-y-4 text-sm text-slate-800 font-medium">
-                <li className="flex items-start gap-3">
-                  <span className="text-emerald-600 font-bold">✓</span>
-                  <span>Profile stored once, re-used across 100+ government & web portals.</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-emerald-600 font-bold">✓</span>
-                  <span>99.8% field recognition accuracy using smart AI mapping.</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-emerald-600 font-bold">✓</span>
-                  <span>Zero data entry errors & bank-grade Aadhaar masking privacy.</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-emerald-600 font-bold">✓</span>
-                  <span>Serve 10x more customers per day with zero stress.</span>
-                </li>
-              </ul>
             </div>
           </div>
         )}

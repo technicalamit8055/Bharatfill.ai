@@ -2655,6 +2655,40 @@
         "job": "Job form",
         "csc": "CSC services"
       }
+    },
+    "howItWorks": {
+      "pill": "Simple 3-Step Process",
+      "titleBefore": "How",
+      "titleHighlight": "Bharatfill AI",
+      "titleAfter": "Works",
+      "subtitle": "No complex setup or training needed. Fill any application form in seconds with total confidence.",
+      "steps": {
+        "profile": {
+          "badge": "Document OCR & Parsing",
+          "title": "Save Customer Profile Once",
+          "description": "Type details manually or upload an Aadhaar card, PAN, or Marksheet. Our AI parses and extracts structured data into your encrypted vault."
+        },
+        "detect": {
+          "badge": "Smart Field Detection",
+          "title": "Open Web Portal & Pick Candidate",
+          "description": "Navigate to any government, job, or recruitment portal. The Bharatfill Chrome Extension automatically highlights input fields and maps them to your profile."
+        },
+        "fill": {
+          "badge": "Human Controlled & Safe",
+          "title": "Review, 1-Click Fill & Submit",
+          "description": "Review mapped values with AI confidence indicators. One click populates all fields. Complete CAPTCHA or OTP manually, then press submit."
+        }
+      },
+      "signals": {
+        "setupTitle": "0 Setup Time",
+        "setupLabel": "Start in minutes",
+        "secureTitle": "100% Secure",
+        "secureLabel": "Your data stays private",
+        "portalsTitle": "Works on 1000+ Portals",
+        "portalsLabel": "Government, Jobs, Scholarships",
+        "fasterTitle": "10× Faster",
+        "fasterLabel": "Serve more people every day"
+      }
     }
   },
   "suspended": {

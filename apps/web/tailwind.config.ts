@@ -1,6 +1,8 @@
 import type { Config } from 'tailwindcss';
-import defaultColors from 'tailwindcss/colors';
-import plugin from 'tailwindcss/plugin';
+// Explicit .js: on Node 22+ Tailwind loads this file with Node's own TypeScript support first,
+// and Node's ESM resolver needs the extension (tailwindcss has no exports map).
+import defaultColors from 'tailwindcss/colors.js';
+import plugin from 'tailwindcss/plugin.js';
 
 /*
  * Theme-aware colour scales for the staff console (`/admin`, `/staff`).
