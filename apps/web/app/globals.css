@@ -219,12 +219,276 @@
   animation: livePulse 2.4s ease-in-out infinite;
 }
 
+/*
+ * Landing hero motion.
+ *
+ * Entrance: copy rises in a stagger (`--hero-delay`), the underline draws, the mockup slides in.
+ * Loop: a 7s autofill demo inside the mockup — the cursor clicks "Fill This Form", fields fill
+ * one after another (`--hero-step`), the panel's checks tick, then it all resets. Every piece
+ * shares the 7s cycle, so a step's delay only shifts it within the loop and they never drift.
+ * With reduced motion all of it is off, and the static end state is what renders.
+ */
+@keyframes heroRise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes heroSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes heroDraw {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes heroBob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes heroGlow {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes heroTwinkle {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.18) rotate(14deg);
+  }
+}
+
+@keyframes heroShine {
+  0% {
+    transform: translateX(-120%) skewX(-20deg);
+  }
+  35%,
+  100% {
+    transform: translateX(320%) skewX(-20deg);
+  }
+}
+
+@keyframes heroCursor {
+  0% {
+    opacity: 0;
+    transform: translate(36px, 44px);
+  }
+  4% {
+    opacity: 1;
+  }
+  12% {
+    transform: translate(0, 0);
+  }
+  14% {
+    transform: translate(0, 0) scale(0.82);
+  }
+  17%,
+  78% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  88%,
+  100% {
+    opacity: 0;
+    transform: translate(36px, 44px);
+  }
+}
+
+@keyframes heroPress {
+  0%,
+  13% {
+    transform: scale(1);
+  }
+  15% {
+    transform: scale(0.95);
+  }
+  18%,
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes heroRipple {
+  0%,
+  14% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  16% {
+    opacity: 0.55;
+  }
+  32%,
+  100% {
+    opacity: 0;
+    transform: scale(1.3, 1.6);
+  }
+}
+
+@keyframes heroFill {
+  0%,
+  18% {
+    opacity: 1;
+    clip-path: inset(0 100% 0 0);
+  }
+  26%,
+  86% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+  93%,
+  100% {
+    opacity: 0;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes heroField {
+  0%,
+  18% {
+    border-color: #e2e8f0;
+    background-color: #ffffff;
+  }
+  24% {
+    border-color: #60a5fa;
+    background-color: #eff6ff;
+  }
+  34%,
+  86% {
+    border-color: #bfdbfe;
+    background-color: #f5f9ff;
+  }
+  93%,
+  100% {
+    border-color: #e2e8f0;
+    background-color: #ffffff;
+  }
+}
+
+@keyframes heroTick {
+  0%,
+  30% {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  36%,
+  86% {
+    opacity: 1;
+    transform: none;
+  }
+  93%,
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+.hero-rise {
+  animation: heroRise 0.8s cubic-bezier(0.22, 1, 0.36, 1) var(--hero-delay, 0ms) both;
+}
+
+.hero-slide-in {
+  animation: heroSlideIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) var(--hero-delay, 0ms) both;
+}
+
+.hero-draw {
+  animation: heroDraw 0.9s cubic-bezier(0.65, 0, 0.35, 1) var(--hero-delay, 0ms) both;
+}
+
+.hero-bob {
+  animation: heroBob 4.5s ease-in-out var(--hero-delay, 0ms) infinite;
+}
+
+.hero-glow {
+  animation: heroGlow 8s ease-in-out infinite;
+}
+
+.hero-twinkle {
+  animation: heroTwinkle 3s ease-in-out infinite;
+}
+
+.hero-shine {
+  animation: heroShine 4s ease-in-out 1.6s infinite both;
+}
+
+.hero-cursor {
+  animation: heroCursor 7s ease-in-out infinite both;
+}
+
+.hero-press {
+  animation: heroPress 7s ease-out infinite;
+}
+
+.hero-ripple {
+  animation: heroRipple 7s ease-out infinite both;
+}
+
+.hero-fill {
+  animation: heroFill 7s ease-out calc(var(--hero-step, 0) * 300ms) infinite both;
+}
+
+.hero-field {
+  animation: heroField 7s ease-out calc(var(--hero-step, 0) * 300ms) infinite both;
+}
+
+.hero-tick {
+  animation: heroTick 7s ease-out calc(var(--hero-step, 0) * 250ms) infinite both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sparkline-bar,
   .animate-live-pulse,
   .animate-float,
-  .animate-pulse-glow {
+  .animate-pulse-glow,
+  .hero-rise,
+  .hero-slide-in,
+  .hero-draw,
+  .hero-bob,
+  .hero-glow,
+  .hero-twinkle,
+  .hero-cursor,
+  .hero-press,
+  .hero-fill,
+  .hero-field,
+  .hero-tick {
     animation: none;
+  }
+
+  .hero-shine,
+  .hero-ripple {
+    display: none;
   }
 
   .command-tile {

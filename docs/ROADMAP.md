@@ -415,10 +415,34 @@ Remaining:
 - [ ] Point a scheduler at `POST /api/admin/scrapers/run` in the deployment config
 - [ ] Decide whether `SCRAPER_HTTP_ENABLED` is ever turned on in production, and against which
       domains — currently off, so only `manual` and `fixture` sources do anything
-- [ ] Audit log viewer (`platform.audit.view` is granted but has no screen yet)
 - [ ] The `scraper.run` job type is allowed but has no handler; the scheduler must call the route
+- [ ] Apply migration 0030 to the hosted database; run `rls-tests/tenant_management.test.ts`
+- [ ] MFA on console sign-in (Supabase TOTP), and a lockout beyond Supabase Auth's rate limits
+- [ ] Suspension check on the public walk-in drop endpoints (`/drop/<code>`, the bot webhooks)
+- [ ] Jobs monitor screen (`platform.jobs.view` is granted; the overview shows counts only)
 
 Added since: `/admin/channels` — Telegram / WhatsApp bot credentials (see Walk-in document drop).
+
+Console v2 (separate staff sign-in, redesign, tenant management):
+
+- [x] Two portals: `/admin/login` (Super Admin only) and `/staff/login` (the other platform
+      roles), one shared server action, `platform.console_access_denied` on refusals and
+      `platform.admin_signed_in` on success
+- [x] Console session — signed, 12-hour, user- and portal-bound cookie required by every console
+      page, action and `/api/admin/*` handler; "continue as" re-auth, lock and sign-out
+- [x] Console shell: collapsible icon sidebar, breadcrumbs, ⌘K command palette, account menu with
+      session expiry, environment badge; refreshed primitives across every existing screen
+- [x] Overview rebuilt around a "needs attention" list, KPI tiles and recent platform activity
+- [x] Tenants: status filter, totals and pagination, a detail page (`platform_tenant_detail()`),
+      suspend / reactivate and manual plan override (`platform.tenants.manage`,
+      `platform.billing.override`, Super Admin only; migration 0030)
+- [x] Audit log viewer at `/admin/audit` — platform rows only, filters by event, staff member,
+      sensitivity, date and target
+- [x] Team page role guide: permissions and sign-in page per role
+- [x] Light and dark themes for the console and both sign-in pages (System / Light / Dark,
+      cookie-backed so there is no flash). Console code stays dark-first; the slate and accent
+      scales are theme-aware CSS variables inside `data-console-theme` (tailwind.config.ts), and
+      the operator dashboard keeps Tailwind's own palette
 
 ---
 

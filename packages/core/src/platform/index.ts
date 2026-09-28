@@ -4,3 +4,5 @@ export * from './permissions';
 export * from './scraper';
 export * from './dates';
 export * from './channels';
+export * from './portals';
+export * from './tenants';

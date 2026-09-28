@@ -517,6 +517,37 @@ export const AUDIT_ACTIONS = define([
     sensitivity: 'sensitive',
     description: 'Telegram webhook registered with Telegram',
   },
+  {
+    // A real account presented valid credentials at a console sign-in page and was turned away:
+    // not staff, revoked, or at the wrong portal for its role. Wrong passwords never reach this —
+    // there is no account to attribute them to — so a run of these is somebody who *can* sign in
+    // probing a door they were not given.
+    action: 'platform.console_access_denied',
+    entityType: 'user',
+    sensitivity: 'sensitive',
+    description: 'Console sign-in refused for a signed-in account',
+  },
+  {
+    // Critical: every member of the centre loses the dashboard and the extension at once.
+    action: 'platform.tenant_suspended',
+    entityType: 'organization',
+    sensitivity: 'critical',
+    description: 'Organization suspended by platform staff',
+  },
+  {
+    action: 'platform.tenant_reactivated',
+    entityType: 'organization',
+    sensitivity: 'critical',
+    description: 'Suspended organization reactivated by platform staff',
+  },
+  {
+    // A billing override (spec §6.1): the plan a centre is on changed without the centre paying
+    // for it or asking. `metadata` carries the from/to plan codes and the stated reason.
+    action: 'platform.tenant_plan_overridden',
+    entityType: 'organization',
+    sensitivity: 'critical',
+    description: 'Organization plan set manually by platform staff',
+  },
 ] as const);
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]['action'];

@@ -31,6 +31,14 @@ const PUBLIC_PATHS = [
    * anybody's documents.
    */
   '/drop',
+  /*
+   * The two console sign-in pages (lib/admin/session.ts). Public routing only: the pages render a
+   * form and nothing else, and the console behind them re-checks the roster and a console
+   * session on every request. `/admin` itself stays private — `/admin/login` is matched exactly
+   * or as a prefix of its own subpaths, never as a prefix of `/admin`.
+   */
+  '/admin/login',
+  '/staff',
   '/tasks',
   '/tasks.html',
   '/roadmap',
@@ -131,7 +139,9 @@ export async function middleware(request: NextRequest) {
 
   if (!user && !isPublic(pathname)) {
     const signIn = request.nextUrl.clone();
-    signIn.pathname = '/sign-in';
+    // The console has its own front door; staff are not sent through the centre sign-in.
+    const isConsole = pathname === '/admin' || pathname.startsWith('/admin/');
+    signIn.pathname = isConsole ? '/admin/login' : '/sign-in';
     signIn.search = '';
     // Only same-origin paths are echoed back, so this cannot be used as an open redirect.
     signIn.searchParams.set('next', `${pathname}${search}`);

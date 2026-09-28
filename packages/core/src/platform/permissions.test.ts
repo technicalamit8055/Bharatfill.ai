@@ -62,7 +62,7 @@ describe('platform permissions', () => {
 
     it('can write nothing', () => {
       const writes = PLATFORM_PERMISSIONS.filter((permission) =>
-        /\.(edit|publish|delete|configure|run|review|manage)$/.test(permission),
+        /\.(edit|publish|delete|configure|run|review|manage|override)$/.test(permission),
       );
       expect(writes.length).toBeGreaterThan(0);
       for (const permission of writes) {
@@ -112,6 +112,13 @@ describe('platform permissions', () => {
     for (const role of PLATFORM_ROLES) {
       expect(canPlatform(role, 'platform.plans.manage')).toBe(role === 'super_admin');
       expect(canPlatform(role, 'platform.plans.view')).toBe(true);
+    }
+  });
+
+  it('reserves tenant suspension and billing overrides for super_admin', () => {
+    for (const role of PLATFORM_ROLES) {
+      expect(canPlatform(role, 'platform.tenants.manage')).toBe(role === 'super_admin');
+      expect(canPlatform(role, 'platform.billing.override')).toBe(role === 'super_admin');
     }
   });
 

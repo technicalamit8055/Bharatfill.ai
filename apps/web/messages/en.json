@@ -1171,7 +1171,9 @@
     "roaming_no_challenge": "No code has been requested for this customer yet.",
     "roaming_otp_expired": "That code has expired or was already used. Request a new one.",
     "roaming_otp_incorrect": "That code is not correct. Please check and try again.",
-    "roaming_no_active_session": "There is no active roaming session to end."
+    "roaming_no_active_session": "There is no active roaming session to end.",
+    "console_session_required": "Sign in to the console to continue.",
+    "organization_suspended": "This centre’s access has been paused by Bharatfill. Contact support to restore it."
   },
   "privacy": {
     "sensitiveNotice": "Sensitive value. Revealing it is recorded in the audit log.",
@@ -1651,7 +1653,8 @@
       "team": "Team",
       "channels": "Channels & Bots",
       "groupBilling": "Billing",
-      "plans": "Plans"
+      "plans": "Plans",
+      "audit": "Audit log"
     },
     "lifecycle": {
       "active": "Open",
@@ -1709,7 +1712,38 @@
       "byRoleTitle": "Staff by role",
       "noData": "No data yet.",
       "generatedAt": "Generated {at}",
-      "privacyFooter": "Counts only — no customer name, contact, document or field value is reachable from this panel."
+      "privacyFooter": "Counts only — no customer name, contact, document or field value is reachable from this panel.",
+      "welcome": "Welcome back, {name}",
+      "reviewQueue": "Review queue",
+      "activeShare": "{percent}% of centres filled a form in the last {days} days",
+      "attentionTitle": "Needs attention",
+      "attentionSubtitle": "What should be looked at today, most damaging first.",
+      "allClearTitle": "All clear",
+      "allClearDetail": "No expired schemes, failed jobs, stuck sources or waiting reviews.",
+      "attention": {
+        "metricsTitle": "Platform metrics are unavailable",
+        "expiredTitle": "{count} published scheme(s) have an expired window",
+        "expiredDetail": "Centres are being shown a countdown for a form nobody can submit.",
+        "jobsTitle": "{count} background job(s) failed",
+        "jobsDetail": "In the last {days} days. Check the job runner logs by job id.",
+        "queueTitle": "{count} scraped scheme(s) waiting for review",
+        "queueDetail": "Nothing reaches the live catalogue until a person approves it.",
+        "scrapersTitle": "{count} scraper source(s) keep failing",
+        "closingTitle": "{count} scheme(s) close within 7 days",
+        "bootstrapTitle": "You are signed in through ADMIN_EMAILS",
+        "bootstrapDetail": "Give yourself a roster row and clear the environment variable once the team is set up."
+      },
+      "usageTitle": "Platform volume",
+      "usageSubtitle": "Totals across every centre.",
+      "usage": {
+        "customers": "Customers",
+        "applications": "Applications",
+        "documents": "Documents",
+        "fillSessions": "Fill sessions"
+      },
+      "usageNote": "Fill sessions cover the last {days} days; the rest are all-time totals.",
+      "viewAll": "View all",
+      "activityTitle": "Recent activity"
     },
     "tenants": {
       "title": "Centres",
@@ -1727,7 +1761,100 @@
       "never": "Never",
       "empty": "No centres found.",
       "emptySearch": "Try a different name.",
-      "showing": "Showing {count} on page {page}"
+      "showing": "Showing {count} on page {page}",
+      "totalCount": "{count} centres",
+      "migrationTitle": "Database migration 0030 is not applied",
+      "migrationRequired": "Status filters, suspension and plan overrides need migration 0030. The list below still works.",
+      "statusFilter": "Filter by status",
+      "filterAll": "All",
+      "filterActive": "Active",
+      "filterSuspended": "Suspended",
+      "status": "Status",
+      "statusActive": "Active",
+      "statusSuspended": "Suspended",
+      "openCentre": "Open {name}",
+      "noResults": "No results",
+      "showingRange": "{from}–{to} of {total}",
+      "backToList": "All centres",
+      "detailTitle": "Centre",
+      "detailUnavailable": "The centre detail view needs migration 0030 (platform_tenant_detail). Apply it and reload.",
+      "since": "Joined {date}",
+      "suspendedBanner": "Suspended since {date}",
+      "suspendedReason": "Internal reason: {reason}",
+      "notFound": "That centre no longer exists.",
+      "detail": {
+        "staff": "Staff",
+        "invited": "{count} invitation(s) pending",
+        "documents": "Documents",
+        "fieldsFilled": "{count} fields filled",
+        "storage": "Storage used",
+        "profileTitle": "Organization",
+        "businessType": "Business type",
+        "language": "Language",
+        "created": "Created",
+        "organizationId": "Organization ID",
+        "applicationsTitle": "Applications by status",
+        "historyTitle": "Admin history",
+        "historySubtitle": "Platform actions taken on this centre.",
+        "historyEmpty": "No platform actions on this centre yet.",
+        "subscriptionTitle": "Subscription",
+        "provider": "Billed through",
+        "providers": {
+          "mock": "Test billing",
+          "razorpay": "Razorpay",
+          "stripe": "Stripe",
+          "manual": "Set by Bharatfill staff"
+        },
+        "periodEnd": "Period ends",
+        "noEnd": "No end date",
+        "noSubscription": "No subscription — on the {plan} plan by default.",
+        "usageTitle": "Usage this month",
+        "usageEmpty": "No metered usage this month.",
+        "usage": {
+          "fill": "Form fills",
+          "ai_extraction": "AI extractions",
+          "document_tool": "Document tools",
+          "storage": "Storage events",
+          "seat": "Seats"
+        },
+        "teamTitle": "Team composition"
+      },
+      "manage": {
+        "title": "Manage centre",
+        "subtitle": "Super Admin only. Every action needs a reason and is audited as critical.",
+        "readOnly": "Suspending a centre and changing its plan are Super Admin actions. Your role can view this centre only.",
+        "reasonTooShort": "Give a reason of at least 10 characters.",
+        "reasonTooLong": "Keep the reason under 200 characters.",
+        "reasonHint": "At least {min} characters. Do not include personal details — phone numbers and IDs are removed.",
+        "reasonPlaceholder": "Why is this being done?",
+        "reason": "Reason",
+        "confirmMismatch": "Type the centre’s name exactly to confirm.",
+        "alreadySuspended": "This centre is already suspended.",
+        "notSuspended": "This centre is not suspended.",
+        "deleted": "This centre has been deleted and cannot be changed.",
+        "suspendedNotice": "Centre suspended. Its members are signed out of the dashboard.",
+        "reactivatedNotice": "Centre reactivated. Its members can use the dashboard again.",
+        "samePlan": "The centre is already on that plan.",
+        "planRetired": "That plan is retired and takes no new centres.",
+        "paidSubscription": "This centre pays through a billing provider. Change the plan in the provider’s dashboard instead.",
+        "planOverriddenNotice": "Plan updated. New limits apply immediately.",
+        "planTitle": "Change plan",
+        "planSubtitle": "Moves the centre onto another plan without payment — for pilots, comps and support fixes. The centre can still buy a plan of its own later.",
+        "paidSubscriptionHint": "This centre has a live {provider} subscription. Change its plan in the provider’s dashboard so billing and limits stay in step.",
+        "noOtherPlans": "There is no other active plan to move this centre to.",
+        "newPlan": "New plan",
+        "choosePlan": "Choose a plan",
+        "perMonth": "month",
+        "applyPlan": "Apply plan",
+        "suspendTitle": "Suspend centre",
+        "suspendSubtitle": "Every member loses the dashboard and the extension at once. Nothing is deleted, and you can reactivate at any time.",
+        "suspendStart": "Suspend this centre…",
+        "confirmLabel": "Type “{name}” to confirm",
+        "suspendConfirm": "Suspend centre",
+        "reactivateTitle": "Reactivate centre",
+        "reactivateSubtitle": "Restores the dashboard and the extension for every member.",
+        "reactivateConfirm": "Reactivate centre"
+      }
     },
     "schemes": {
       "title": "Scheme catalogue",
@@ -2079,7 +2206,19 @@
       "emptyHelp": "Grant access to an existing account above.",
       "userNotFound": "No Bharatfill account uses that email address.",
       "notFound": "That roster entry no longer exists.",
-      "lastSuperAdmin": "This is the last active Super Admin. Promote somebody else before changing this one."
+      "lastSuperAdmin": "This is the last active Super Admin. Promote somebody else before changing this one.",
+      "signsInAt": "Signs in at",
+      "activeCount": "{count} active",
+      "totalCount": "{count} on the roster",
+      "roleGuideTitle": "Roles and sign-in",
+      "roleGuideSubtitle": "What each role can do, and which login page it uses.",
+      "roleGuide": {
+        "super_admin": "Everything, including team access, channels, centre suspension, plan management and billing overrides.",
+        "content_manager": "Edits and publishes schemes, deadlines and portal forms, and reviews the scraper queue.",
+        "scraper_operator": "Configures and runs scraper sources. Cannot publish what they bring back.",
+        "support_admin": "Read-only across analytics, centres, the catalogue, pipeline and audit log."
+      },
+      "permissionCount": "{count} permissions"
     },
     "channels": {
       "title": "Channels & Bots",
@@ -2177,6 +2316,124 @@
       "saving": "Saving…",
       "saved": "Plan saved.",
       "noChanges": "Nothing changed."
+    },
+    "shell": {
+      "brand": "Bharatfill",
+      "superConsole": "Super Admin console",
+      "teamConsole": "Team console",
+      "collapseSidebar": "Collapse sidebar",
+      "expandSidebar": "Expand sidebar",
+      "openMenu": "Open navigation",
+      "searchPlaceholder": "Search or jump to…",
+      "navLabel": "Console",
+      "privacyFooter": "Counts and metadata only. Customer records are never shown here.",
+      "breadcrumbs": "Breadcrumb",
+      "new": "New",
+      "details": "Details",
+      "accountMenu": "Account menu",
+      "staff": "Staff",
+      "sessionEnds": "Console session ends at {time}",
+      "lock": "Lock console",
+      "commandPalette": "Command palette",
+      "paletteHint": "Type a page, an action or a centre name…",
+      "paletteEmpty": "Nothing matches.",
+      "quickAction": "Action",
+      "searchCentres": "Search centres for “{query}”",
+      "actionNewScheme": "New scheme",
+      "actionNewPlan": "New plan",
+      "actionNewSource": "New scraper source",
+      "actionGrantAccess": "Grant team access",
+      "actionSuspendedCentres": "Suspended centres",
+      "env": {
+        "local": "Local",
+        "development": "Development",
+        "staging": "Staging",
+        "production": "Production"
+      }
+    },
+    "login": {
+      "internalOnly": "Internal staff only",
+      "legalNote": "Authorised Bharatfill staff only. Access is monitored and every sign-in is recorded.",
+      "switchToTeam": "Team member? Use the team sign-in",
+      "switchToSuper": "Super Admin? Use the Super Admin sign-in",
+      "operatorLink": "Centre operator? Sign in to your dashboard",
+      "pointSession": "Console sessions end after 12 hours, separately from the dashboard.",
+      "pointPrivacy": "Customer records are never visible in the console — counts and metadata only.",
+      "email": "Work email",
+      "emailPlaceholder": "name@bharatfill.in",
+      "password": "Password",
+      "signingIn": "Signing in…",
+      "auditNotice": "Every console sign-in — successful or refused — is written to the audit log.",
+      "continueAs": "Signed in as {email}. Enter your password to open the console.",
+      "invalidCredentials": "That email and password do not match.",
+      "noAccess": "This account does not have access to the Bharatfill console.",
+      "useSuperAdminPortal": "Super Admin accounts must sign in through the Super Admin portal.",
+      "useTeamPortal": "This account signs in through the team portal.",
+      "reason": {
+        "reauth": "Sign in to the console to continue. Console sessions are separate from the dashboard and last 12 hours.",
+        "locked": "The console is locked. Enter your password to unlock it.",
+        "signed_out": "You have been signed out."
+      },
+      "super": {
+        "eyebrow": "Restricted access",
+        "headline": "Super Admin console",
+        "subtitle": "Platform-wide configuration, team access, centre suspension and billing overrides. Changes here reach every centre at once.",
+        "pointAudit": "Every sign-in and every change is written to the audit log.",
+        "formTitle": "Super Admin sign-in",
+        "formSubtitle": "For platform super administrators only.",
+        "submit": "Sign in to the console"
+      },
+      "team": {
+        "eyebrow": "Bharatfill team",
+        "headline": "Team workspace",
+        "subtitle": "The scheme catalogue, portal forms, the scraper pipeline and support tools for the Bharatfill team.",
+        "pointRoles": "Your role decides which sections you can open and change.",
+        "formTitle": "Team sign-in",
+        "formSubtitle": "Support, content and pipeline staff.",
+        "submit": "Sign in"
+      }
+    },
+    "audit": {
+      "title": "Audit log",
+      "subtitle": "Every sign-in, access change, publish, suspension and override made by platform staff. Append-only.",
+      "totalCount": "{count} events",
+      "loadFailed": "The audit log could not be loaded. Try again shortly.",
+      "filtersTitle": "Filters",
+      "action": "Event",
+      "allActions": "All events",
+      "actor": "Staff member",
+      "anyone": "Anyone",
+      "sensitivityLabel": "Sensitivity",
+      "anySensitivity": "Any",
+      "sensitivity": {
+        "normal": "Normal",
+        "sensitive": "Sensitive",
+        "critical": "Critical"
+      },
+      "from": "From",
+      "to": "To",
+      "apply": "Apply filters",
+      "clear": "Clear",
+      "entityFilter": "Target {id}…",
+      "timezoneNote": "Times are shown in IST.",
+      "when": "When",
+      "event": "Event",
+      "target": "Target",
+      "details": "Details",
+      "emptyFiltered": "No events match these filters.",
+      "empty": "No platform events yet.",
+      "nonStaff": "Non-staff account",
+      "system": "System",
+      "unknownActor": "Unknown",
+      "showMetadata": "Show details",
+      "privacyNote": "Platform events only. A centre’s own activity log — what its operators did with its customers — is not readable from the console."
+    },
+    "theme": {
+      "label": "Theme",
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark",
+      "toggle": "Change theme (now: {theme})"
     }
   },
   "documentDrop": {
@@ -2338,5 +2595,71 @@
       "confirm": "Save documents",
       "cancel": "Cancel"
     }
+  },
+  "landing": {
+    "header": {
+      "nav": {
+        "features": "Features",
+        "howItWorks": "How It Works",
+        "whereItWorks": "Where It Works",
+        "pricing": "Pricing",
+        "faq": "FAQ"
+      },
+      "signIn": "Sign In",
+      "addToChrome": "Add to Chrome — Free",
+      "install": "Install",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu"
+    },
+    "hero": {
+      "pill": "AI-Powered Form Autofill Chrome Extension",
+      "rating": "5.0 Chrome Rating",
+      "ratingLabel": "Rated 5 out of 5 on the Chrome Web Store",
+      "titleBefore": "Fill Any Web Form in",
+      "titleHighlight": "One Click",
+      "titleAfter": "with AI",
+      "subtitleLead": "Save customer profiles once, then auto-fill government portals, CSC services, scholarships and job forms with",
+      "subtitleHighlight": "99.8% AI accuracy",
+      "subtitleTail": ".",
+      "ctaPrimary": "Add to Chrome — It's Free",
+      "ctaDemo": "Try Live Interactive Demo",
+      "checks": {
+        "secure": "100% Secure",
+        "madeForIndia": "Made for India"
+      },
+      "stats": {
+        "formsValue": "100,000+",
+        "formsLabel": "Forms Filled Fast",
+        "accuracyValue": "99.8%",
+        "accuracyLabel": "Field Accuracy",
+        "clickValue": "1-Click",
+        "clickLabel": "Instant Autofill",
+        "aadhaarValue": "100%",
+        "aadhaarLabel": "Aadhaar Safe & Masked"
+      },
+      "mockup": {
+        "label": "Preview of the Bharatfill extension auto-filling a government application form",
+        "formTitle": "Government Form",
+        "fullName": "Full Name",
+        "dob": "Date of Birth",
+        "state": "State",
+        "district": "District",
+        "autoFillAi": "Auto Fill with AI",
+        "personalDetails": "Fill Personal Details",
+        "uploadDocs": "Auto Upload Documents",
+        "smartMapping": "Smart Field Mapping",
+        "fillButton": "Fill This Form",
+        "aadhaar": "Aadhaar",
+        "pan": "PAN card",
+        "scholarship": "Scholarship",
+        "job": "Job form",
+        "csc": "CSC services"
+      }
+    }
+  },
+  "suspended": {
+    "title": "Access paused",
+    "body": "Bharatfill has paused access for {name}. The dashboard and the browser extension are unavailable until it is restored.",
+    "dataSafe": "Nothing has been deleted. Your customers, documents and applications are kept exactly as they were. Contact Bharatfill support to restore access."
   }
 }

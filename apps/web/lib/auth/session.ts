@@ -77,6 +77,10 @@ export async function requireSession(): Promise<PageSession> {
   const active = memberships[0];
   if (!active?.organizations) redirect('/onboarding');
 
+  // Suspended by platform staff (0030). Not a redirect to onboarding — the membership is real and
+  // the data is intact — but the dashboard does not act for the centre until it is reactivated.
+  if (active.organizations.suspended_at) redirect('/suspended');
+
   const { organizations, ...membership } = active;
   const role = membership.role as OrgRole;
 

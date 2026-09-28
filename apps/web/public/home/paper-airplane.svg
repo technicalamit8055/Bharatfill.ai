@@ -1,0 +1,9 @@
+<svg width="80" height="50" viewBox="0 0 80 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Dashed flight arc trail -->
+  <path d="M4 42C18 34 32 18 52 14" stroke="#0088FF" stroke-width="1.8" stroke-dasharray="3 3" stroke-linecap="round"/>
+  <!-- Paper airplane -->
+  <g transform="translate(50, 4) rotate(15)">
+    <path d="M22 0L0 12L8 14L10 20L13 15L18 18L22 0Z" fill="#0066FF"/>
+    <path d="M22 0L8 14V17L11 14.5L22 0Z" fill="#0052CC"/>
+  </g>
+</svg>

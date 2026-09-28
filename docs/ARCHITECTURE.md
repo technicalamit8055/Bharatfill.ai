@@ -66,8 +66,8 @@ in the network tab during QA (spec §30 expects Antigravity to read network erro
 | ----------------- | ------------------------------ | -------------------------------------- | -------------------------------------------------------------- |
 | Session transport | HTTP-only Supabase cookies     | `Authorization: Bearer <access_token>` | HTTP-only Supabase cookies                                     |
 | Token storage     | browser cookie jar             | `chrome.storage.session` (spec §15.1)  | browser cookie jar                                             |
-| Entry point       | `apps/web/app/(app)`           | `apps/extension/src`                   | `apps/web/app/admin`                                           |
-| Gate              | org role (`requirePermission`) | org role — same routes, same checks    | platform role (`requirePlatformPermission`), then service role |
+| Entry point       | `apps/web/app/(app)`           | `apps/extension/src`                   | `apps/web/app/admin/(console)`; sign-in at `/admin/login` (Super Admin) and `/staff/login` (team) |
+| Gate              | org role (`requirePermission`) | org role — same routes, same checks    | roster, console session, platform role (`requirePlatformPermission`), then service role |
 
 `apps/web/lib/api/context.ts` resolves both tenant transports into one `RequestContext`
 (`{ supabase, userId, organization, membership, role, permissions, actorType }`). There is no
@@ -76,9 +76,17 @@ middleware only adds CORS for `chrome-extension://` origins on `EXTENSION_ALLOWE
 well-formed id in `local`). Handlers never look at cookies or headers directly.
 
 The admin panel resolves a different context (`apps/web/lib/admin/context.ts`): the roster in
-`platform_admins` plus the `ADMIN_EMAILS` bootstrap, 404 for non-staff. Its pages mutate through
-server actions (`apps/web/app/admin/*/actions.ts`); its route handlers are `/api/admin/metrics`,
+`platform_admins` plus the `ADMIN_EMAILS` bootstrap, 404 for non-staff, and then a **console
+session** — a signed, 12-hour cookie minted only by a sign-in at the portal the caller's role
+belongs to (`/admin/login` for Super Admins, `/staff/login` for the rest of the platform team;
+docs/SECURITY.md §2). A dashboard session alone does not open the console. Its pages mutate through
+server actions (`apps/web/app/admin/(console)/*/actions.ts`, sign-in/lock/sign-out in
+`apps/web/app/admin/login/actions.ts`); its route handlers are `/api/admin/metrics`,
 `/api/admin/channels` (+ `/test`, `/set-webhook`) and the scheduler-only `/api/admin/scrapers/run`.
+
+Both tenant resolvers (`lib/auth/session.ts`, `lib/api/context.ts`) refuse to act for an
+organization a Super Admin has suspended (0030): pages go to `/suspended`, API routes and the
+extension get a 403.
 
 Callers with no user session, each with its own fail-closed gate:
 
@@ -293,8 +301,13 @@ apps/web/app
   (app)/                authenticated shell: dashboard, customers, documents, document-tools,
                         applications, form-library, fill-sessions, schemes, billing,
                         settings (+ /ai, /members)
-  admin/                Super Admin panel, own layout + gate: overview, tenants, schemes,
-                        deadlines, forms, scrapers, queue, team, channels
+  admin/                Super Admin console
+    login/              Super Admin sign-in + the shared console sign-in/lock/sign-out actions
+    (console)/          gated shell (sidebar, breadcrumbs, ⌘K palette): overview, tenants
+                        (+ detail, suspend, plan override), audit, schemes, deadlines, forms,
+                        scrapers, queue, plans, team, channels
+  staff/login/          team sign-in for the other platform roles — opens the same console
+  suspended/            what a member of a suspended centre sees instead of the dashboard
   (public)/             no sign-in: drop/[code] (walk-in upload page), roadmap and tasks
                         (both redirect to the static public/tasks.html tracker)
   standee/print/        printable counter card, outside (app) so it prints without the shell

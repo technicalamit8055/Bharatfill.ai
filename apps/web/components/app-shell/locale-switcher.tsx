@@ -12,7 +12,7 @@ import { useI18n } from '@/lib/i18n/client';
  * keyboard- and screen-reader-correct for free, and the icons are painted over it rather than
  * replacing it.
  */
-export function LocaleSwitcher() {
+export function LocaleSwitcher({ tone = 'light' }: { tone?: 'light' | 'dark' } = {}) {
   const { locale, setLocale, t } = useI18n();
 
   return (
@@ -27,7 +27,11 @@ export function LocaleSwitcher() {
       <select
         value={locale}
         onChange={(event) => setLocale(event.target.value as Locale)}
-        className="h-10 cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-600"
+        className={
+          tone === 'dark'
+            ? 'h-9 cursor-pointer appearance-none rounded-lg border border-slate-700 bg-slate-900 pl-9 pr-8 text-xs font-medium text-slate-200 shadow-sm transition-colors hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-500/40'
+            : 'h-10 cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-600'
+        }
       >
         {LOCALES.map((value) => (
           <option key={value} value={value}>

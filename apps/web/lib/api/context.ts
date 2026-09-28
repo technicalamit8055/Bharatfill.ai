@@ -3,6 +3,7 @@ import 'server-only';
 import {
   assertCan,
   permissionsFor,
+  permissionDenied,
   unauthenticated,
   notFound,
   type OrgRole,
@@ -119,6 +120,14 @@ export async function resolveContext(
 
   const membership = rows[0];
   if (!membership?.organizations) throw notFound('errors.noOrganization');
+
+  // Suspended by platform staff (0030). Enforced here, once, for every tenant route and the
+  // extension, rather than in RLS: the centre's own reads must keep working so its members can
+  // see why, and a suspension is a billing/abuse control, not a confidentiality one — no other
+  // tenant's data becomes reachable either way.
+  if (membership.organizations.suspended_at) {
+    throw permissionDenied('errors.organization_suspended');
+  }
 
   const { organizations, ...member } = membership;
 

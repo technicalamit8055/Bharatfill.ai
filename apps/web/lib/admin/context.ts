@@ -2,9 +2,11 @@ import 'server-only';
 
 import {
   assertPlatformCan,
+  consolePortalFor,
   platformPermissionsFor,
   unauthenticated,
   notFound,
+  type ConsolePortal,
   type PlatformPermission,
   type PlatformRole,
 } from '@assistigo/core';
@@ -13,6 +15,12 @@ import { resolveUser } from '../api/context';
 import { createSupabaseAdminClient, type AssistigoSupabaseClient } from '../supabase/server';
 import type { PlatformAdminRow } from '../supabase/database.types';
 import { parseAdminEmails, resolvePlatformIdentity } from './authorize';
+import {
+  CONSOLE_SESSION_COOKIE,
+  deriveConsoleKey,
+  readCookie,
+  verifyConsoleSession,
+} from './console-session';
 
 /**
  * Request context for `/api/admin/*`.
@@ -44,6 +52,8 @@ export type PlatformContext = {
   permissions: ReadonlySet<PlatformPermission>;
   /** How access was granted. `bootstrap` means ADMIN_EMAILS, not a roster row. */
   via: 'roster' | 'bootstrap';
+  /** The console portal the caller's session was opened through. */
+  portal: ConsolePortal;
   ipAddress: string | null;
   userAgent: string | null;
 };
@@ -101,6 +111,16 @@ export async function resolvePlatformContext(request: Request): Promise<Platform
 
   if (!identity.granted) throw notFound('errors.not_found');
 
+  // Staff, but did this browser come in through the console's front door? Same check as the pages
+  // (lib/admin/session.ts). 401 rather than 404: the caller is already known to be staff.
+  const portal = consolePortalFor(identity.role);
+  const consoleSession = verifyConsoleSession(
+    consoleSigningKey(),
+    readCookie(request.headers.get('cookie'), CONSOLE_SESSION_COOKIE),
+    { userId: auth.userId, portal },
+  );
+  if (!consoleSession.valid) throw unauthenticated('errors.console_session_required');
+
   return {
     supabase,
     userSupabase: auth.supabase,
@@ -109,9 +129,21 @@ export async function resolvePlatformContext(request: Request): Promise<Platform
     role: identity.role,
     permissions: platformPermissionsFor(identity.role),
     via: identity.via,
+    portal,
     ipAddress: auth.ipAddress,
     userAgent: auth.userAgent,
   };
+}
+
+let cachedConsoleKey: Buffer | null = null;
+
+/**
+ * The key console session tokens are signed with (./console-session.ts), derived once from the
+ * service-role key.
+ */
+export function consoleSigningKey(): Buffer {
+  cachedConsoleKey ??= deriveConsoleKey(serverEnv().SUPABASE_SERVICE_ROLE_KEY);
+  return cachedConsoleKey;
 }
 
 /**

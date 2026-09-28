@@ -23,6 +23,12 @@ export const PLATFORM_PERMISSIONS = [
   'platform.analytics.view',
   /** The tenant list — organization metadata and usage only (§6.1). */
   'platform.tenants.view',
+  /**
+   * Suspend or reactivate an organization. Super admin only: suspension takes the dashboard and
+   * the extension away from every member of a centre at once. Still metadata-only — it changes
+   * whether a tenant may act, never what staff may read.
+   */
+  'platform.tenants.manage',
 
   // --- scheme & form catalogue --------------------------------------------
   'platform.schemes.view',
@@ -56,6 +62,12 @@ export const PLATFORM_PERMISSIONS = [
    * what every centre on that plan can do, the moment it is saved.
    */
   'platform.plans.manage',
+  /**
+   * Put one organization on a plan by hand — a comp, a pilot, a support fix (spec §6.1 "billing
+   * overrides"). Super admin only, reason required, and refused while a paid provider owns the
+   * centre's subscription, so the database and the payment provider never disagree.
+   */
+  'platform.billing.override',
 
   // --- team ----------------------------------------------------------------
   'platform.team.view',

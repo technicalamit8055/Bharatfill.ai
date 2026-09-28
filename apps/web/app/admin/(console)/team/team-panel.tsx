@@ -1,9 +1,16 @@
 'use client';
 
 import { useActionState } from 'react';
-import { PLATFORM_ROLES, PLATFORM_ROLE_LABELS, type PlatformRole } from '@assistigo/core';
+import {
+  CONSOLE_PORTAL_PATHS,
+  PLATFORM_ROLES,
+  PLATFORM_ROLE_LABELS,
+  consolePortalFor,
+  type PlatformRole,
+} from '@assistigo/core';
 import { useTranslations } from '@/lib/i18n/client';
 import {
+  AdminAvatar,
   AdminBadge,
   AdminButton,
   AdminCard,
@@ -40,7 +47,12 @@ export function GrantForm() {
   );
 
   return (
-    <AdminCard title={t('admin.team.grantTitle')} description={t('admin.team.grantSubtitle')}>
+    <AdminCard
+      className="scroll-mt-20"
+      title={t('admin.team.grantTitle')}
+      description={t('admin.team.grantSubtitle')}
+    >
+      <span id="grant" />
       {state.error ? <AdminNote tone="danger">{t(state.error)}</AdminNote> : null}
       {state.notice ? <AdminNote tone="success">{t(state.notice)}</AdminNote> : null}
 
@@ -83,10 +95,15 @@ function MemberRow({ member, canManage }: { member: TeamMember; canManage: boole
   const error = roleState.error || activeState.error;
 
   return (
-    <tr className="hover:bg-slate-900/40">
+    <tr className="transition-colors hover:bg-slate-900/60">
       <TD>
-        <div className="text-slate-100">{member.email}</div>
-        <div className="font-mono text-xs text-slate-600">{member.userId.slice(0, 8)}…</div>
+        <div className="flex items-center gap-3">
+          <AdminAvatar label={member.email} />
+          <div className="min-w-0">
+            <div className="truncate text-slate-100">{member.email}</div>
+            <div className="font-mono text-xs text-slate-600">{member.userId.slice(0, 8)}…</div>
+          </div>
+        </div>
       </TD>
       <TD>
         {canManage ? (
@@ -113,10 +130,19 @@ function MemberRow({ member, canManage }: { member: TeamMember; canManage: boole
         )}
       </TD>
       <TD>
+        <span className="font-mono text-xs text-slate-400">
+          {CONSOLE_PORTAL_PATHS[consolePortalFor(member.role)]}
+        </span>
+      </TD>
+      <TD>
         {member.isActive ? (
-          <AdminBadge tone="success">{t('admin.team.active')}</AdminBadge>
+          <AdminBadge tone="success" dot>
+            {t('admin.team.active')}
+          </AdminBadge>
         ) : (
-          <AdminBadge tone="neutral">{t('admin.team.revokedBadge')}</AdminBadge>
+          <AdminBadge tone="neutral" dot>
+            {t('admin.team.revokedBadge')}
+          </AdminBadge>
         )}
         {error ? <div className="mt-1 text-xs text-rose-400">{t(error)}</div> : null}
       </TD>
@@ -150,12 +176,14 @@ export function TeamTable({
   const t = useTranslations();
 
   return (
-    <AdminCard title={t('admin.team.rosterTitle')} description={t('admin.team.rosterSubtitle')}>
+    <AdminCard flush title={t('admin.team.rosterTitle')} description={t('admin.team.rosterSubtitle')}>
       <AdminTable
+        minWidth={820}
         head={
           <tr>
             <TH>{t('admin.team.email')}</TH>
             <TH>{t('admin.team.role')}</TH>
+            <TH>{t('admin.team.signsInAt')}</TH>
             <TH>{t('admin.team.status')}</TH>
             <TH>{t('admin.team.added')}</TH>
             <TH />

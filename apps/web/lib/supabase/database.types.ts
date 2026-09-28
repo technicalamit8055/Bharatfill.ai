@@ -43,6 +43,13 @@ export type OrganizationRow = Timestamps & {
   customer_counter: number;
   /** Permanent code printed on the counter standee, if this centre has minted one (0022). */
   counter_drop_code: string | null;
+  /**
+   * Suspension by platform staff (0030). Optional because a database without that migration has
+   * no such columns; absent and null both mean "not suspended".
+   */
+  suspended_at?: string | null;
+  suspension_reason?: string | null;
+  suspended_by?: string | null;
   created_by: string | null;
   deleted_at: string | null;
 };
@@ -408,7 +415,8 @@ export type SubscriptionRow = Timestamps & {
   id: string;
   organization_id: string;
   plan_id: string;
-  provider: 'mock' | 'razorpay' | 'stripe';
+  /** `manual` = set by platform staff from /admin (0030). */
+  provider: 'mock' | 'razorpay' | 'stripe' | 'manual';
   provider_customer_id: string | null;
   provider_subscription_id: string | null;
   status: 'active' | 'trialing' | 'past_due' | 'cancelled' | 'incomplete';
@@ -602,6 +610,10 @@ export type PlatformTenantRow = {
   application_count: number;
   fill_sessions_30d: number;
   last_activity_at: string | null;
+  /** 0030 columns. Absent when the database still has the 0021 function. */
+  suspended_at?: string | null;
+  subscription_status?: string | null;
+  total_count?: number;
 };
 
 export type DropChannelValue = 'whatsapp' | 'telegram' | 'web';

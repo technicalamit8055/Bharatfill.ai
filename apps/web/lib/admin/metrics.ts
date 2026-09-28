@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { z } from 'zod';
+import type { TenantStatus } from '@assistigo/core';
 import type { AssistigoSupabaseClient } from '../supabase/server';
 import type { PlatformTenantRow } from '../supabase/database.types';
 import { logger } from '../api/logger';
@@ -8,12 +9,13 @@ import { logger } from '../api/logger';
 /**
  * Platform analytics.
  *
- * This module is the *only* source of tenant data in the admin panel, and it reads exactly two
- * RPCs — `platform_metrics` and `platform_tenant_rows` (0021) — both of which return counts and
- * organization metadata and nothing else. That is the design, not an implementation detail:
- * spec §6.1 lets internal staff see organization metadata, usage and error reports, and does not
- * let them see customer records. Concentrating every tenant read into two reviewable SQL
- * functions is what makes that claim checkable.
+ * This module is the *only* source of tenant data in the admin panel, and it reads exactly three
+ * RPCs — `platform_metrics`, `platform_tenant_rows` (0021, widened in 0030) and
+ * `platform_tenant_detail` (0030) — all of which return counts and organization metadata and
+ * nothing else. That is the design, not an implementation detail: spec §6.1 lets internal staff
+ * see organization metadata, usage and error reports, and does not let them see customer
+ * records. Concentrating every tenant read into three reviewable SQL functions is what makes
+ * that claim checkable.
  *
  * If an admin screen ever needs something these do not return, the answer is to widen the RPC
  * under review — not to add a `from('customers')` call here.
@@ -138,7 +140,23 @@ export type TenantListOptions = {
   search?: string;
   limit?: number;
   offset?: number;
+  status?: TenantStatus | null;
+  plan?: string | null;
 };
+
+export type TenantListResult = {
+  rows: PlatformTenantRow[];
+  /** Matching centres across every page, or null when the database cannot say (pre-0030). */
+  total: number | null;
+  /**
+   * False when the database still has the 0021 function: suspension and the status/plan filters
+   * need migration 0030, and the page says so instead of silently ignoring them.
+   */
+  managementAvailable: boolean;
+};
+
+/** PostgREST's "no function with these arguments" and Postgres's own undefined-function code. */
+const MISSING_FUNCTION = new Set(['PGRST202', '42883']);
 
 /**
  * The tenant list: organization metadata and volumes.
@@ -146,21 +164,117 @@ export type TenantListOptions = {
  * Search is by organization name only. There is deliberately no way to look a tenant up by one of
  * their customers — that is the query an internal user should have to open a support access grant
  * to run, and it is not offered here at all.
+ *
+ * Falls back to the three-argument 0021 function when 0030 is not applied yet, so deploying this
+ * build ahead of the migration degrades the list rather than emptying it.
  */
 export async function loadTenantRows(
   supabase: AssistigoSupabaseClient,
   options: TenantListOptions = {},
-): Promise<PlatformTenantRow[]> {
-  const { data, error } = await supabase.rpc('platform_tenant_rows', {
+): Promise<TenantListResult> {
+  const base = {
     search: options.search?.trim() || null,
     row_limit: Math.min(Math.max(options.limit ?? 50, 1), 200),
     row_offset: Math.max(options.offset ?? 0, 0),
+  };
+
+  const { data, error } = await supabase.rpc('platform_tenant_rows', {
+    ...base,
+    status_filter: options.status ?? null,
+    plan_filter: options.plan?.trim() || null,
   });
 
-  if (error) {
-    logger.error('platform.tenants_failed', { code: error.code, dbError: error.message });
-    return [];
+  if (!error) {
+    const rows = (data ?? []) as PlatformTenantRow[];
+    const total = rows[0]?.total_count ?? (base.row_offset === 0 ? 0 : null);
+    return { rows, total: total === null ? null : Number(total), managementAvailable: true };
   }
 
-  return (data ?? []) as PlatformTenantRow[];
+  if (MISSING_FUNCTION.has(error.code ?? '')) {
+    const legacy = await supabase.rpc('platform_tenant_rows', base);
+    if (legacy.error) {
+      logger.error('platform.tenants_failed', { code: legacy.error.code, dbError: legacy.error.message });
+      return { rows: [], total: null, managementAvailable: false };
+    }
+    return { rows: (legacy.data ?? []) as PlatformTenantRow[], total: null, managementAvailable: false };
+  }
+
+  logger.error('platform.tenants_failed', { code: error.code, dbError: error.message });
+  return { rows: [], total: null, managementAvailable: true };
+}
+
+const tenantDetailSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  businessType: z.string(),
+  city: z.string().nullable(),
+  district: z.string().nullable(),
+  state: z.string().nullable(),
+  preferredLocale: z.string(),
+  planCode: z.string(),
+  createdAt: z.string(),
+  deletedAt: z.string().nullable(),
+  suspendedAt: z.string().nullable(),
+  suspensionReason: z.string().nullable(),
+  members: z.object({
+    active: z.number().int().nonnegative(),
+    invited: z.number().int().nonnegative(),
+    byRole: countsSchema,
+  }),
+  volumes: z.object({
+    customers: z.number().int().nonnegative(),
+    documents: z.number().int().nonnegative(),
+    applications: z.number().int().nonnegative(),
+    fillSessions30d: z.number().int().nonnegative(),
+    fieldsFilled30d: z.number().nonnegative(),
+    storageBytes: z.number().nonnegative(),
+  }),
+  applicationsByStatus: countsSchema,
+  lastActivityAt: z.string().nullable(),
+  subscription: z
+    .object({
+      status: z.string(),
+      provider: z.string(),
+      planCode: z.string(),
+      currentPeriodEnd: z.string().nullable(),
+      cancelAtPeriodEnd: z.boolean(),
+    })
+    .nullable(),
+  usageThisPeriod: countsSchema,
+});
+
+export type TenantDetail = z.infer<typeof tenantDetailSchema>;
+
+export type TenantDetailResult =
+  | { status: 'ok'; detail: TenantDetail }
+  | { status: 'not_found' }
+  /** The RPC is missing (pre-0030) or returned something this build does not recognise. */
+  | { status: 'unavailable' };
+
+/**
+ * One centre: metadata and counts from `platform_tenant_detail()` (0030), the third and last
+ * tenant read in the panel. Same contract as the other two — no customer record in the result.
+ */
+export async function loadTenantDetail(
+  supabase: AssistigoSupabaseClient,
+  id: string,
+): Promise<TenantDetailResult> {
+  const { data, error } = await supabase.rpc('platform_tenant_detail', { org: id });
+
+  if (error) {
+    if (!MISSING_FUNCTION.has(error.code ?? '')) {
+      logger.error('platform.tenant_detail_failed', { code: error.code, dbError: error.message });
+    }
+    return { status: 'unavailable' };
+  }
+  if (data === null) return { status: 'not_found' };
+
+  const parsed = tenantDetailSchema.safeParse(data);
+  if (!parsed.success) {
+    logger.error('platform.tenant_detail_shape_invalid', {
+      issues: parsed.error.issues.map((issue) => issue.path.join('.')),
+    });
+    return { status: 'unavailable' };
+  }
+  return { status: 'ok', detail: parsed.data };
 }

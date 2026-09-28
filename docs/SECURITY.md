@@ -23,7 +23,8 @@ digital personal data under India's DPDP Act 2023 and DPDP Rules 2025.
 | Forged WhatsApp/Telegram webhook delivery   | HMAC `X-Hub-Signature-256` / secret-token header, constant-time compare; unconfigured → 404  |
 | Leaked walk-in drop code                    | Add-only endpoint, 2 h session expiry, 10 files/session, 60 counter sessions/h, uniform 404  |
 | Visiting centre reading another's citizen   | Citizen-read OTP → 12 h-max grant naming one user; linking alone grants nothing              |
-| Internal staff reading customer records     | Panel reads counts only via two service-role RPCs; records still need a support grant        |
+| Internal staff reading customer records     | Panel reads counts only via three service-role RPCs; records still need a support grant      |
+| Console reached with a dashboard session    | Separate portal sign-in mints a signed, 12 h, user- and portal-bound console session         |
 
 ## 2. Tenancy and RLS
 
@@ -54,7 +55,7 @@ Rules:
   | inline runner in `/api/documents/:id/process`          | caller authorised against the document's org; claims only that document's job |
   | `/api/billing/webhook`                                 | bearer `BILLING_WEBHOOK_SECRET`, fails closed                                 |
   | `/api/extension/pairing-code`, `/api/extension/pair`   | signed-in session / one-time hashed code                                      |
-  | Super Admin panel, `/api/admin/*` except scrapers/run  | roster or `ADMIN_EMAILS`, then platform permission                            |
+  | Super Admin panel, `/api/admin/*` except scrapers/run  | roster or `ADMIN_EMAILS`, console session, then platform permission           |
   | `/api/admin/scrapers/run`                              | bearer `JOB_RUNNER_SECRET`                                                    |
   | `/api/webhooks/whatsapp`, `/api/webhooks/telegram`     | signature / secret token (see "Walk-in intake")                               |
   | `/drop/[code]`, `POST /api/document-drop/public/:code` | a live drop code; add-only                                                    |
@@ -75,11 +76,14 @@ own row and nobody else's, so a client can learn "am I staff?" without the roste
 staff becoming enumerable.
 
 The Super Admin panel is consequently a holder of the service-role client. It authorises first —
-`apps/web/lib/admin/context.ts` verifies the JWT, looks the caller up on the roster, and throws before either client is handed out — and only then acts with the service role
-to read tenant aggregates and write global catalogue rows. Both tenant reads go through
-`platform_metrics()` and `platform_tenant_rows()`, which return **counts and organization
-metadata only**; no admin screen has another source of tenant data, so "internal staff cannot see
-customer records" is a property of two reviewable SQL functions rather than of application code.
+`apps/web/lib/admin/context.ts` verifies the JWT, looks the caller up on the roster, checks the
+console session, and throws before either client is handed out — and only then acts with the
+service role to read tenant aggregates and write global catalogue rows. All three tenant reads go
+through `platform_metrics()`, `platform_tenant_rows()` and `platform_tenant_detail()` (0030), which
+return **counts and organization metadata only**; no admin screen has another source of tenant
+data, so "internal staff cannot see customer records" is a property of three reviewable SQL
+functions rather than of application code. The audit log viewer reads platform rows only
+(`organization_id is null`); a centre's own trail is not reachable from any filter.
 Reading a centre's actual records still requires a `support_access_grant` (§19.9), which the panel
 does not issue.
 
@@ -89,12 +93,65 @@ mature deployment should leave it empty. Platform roles and their permissions
 (`packages/core/src/platform/permissions.ts`) are a separate axis from tenant roles and carry no
 customer-data permission:
 
-| Platform role      | Can                                                                                |
-| ------------------ | ---------------------------------------------------------------------------------- |
-| `support_admin`    | read-only: analytics, tenant list, schemes, forms, scrapers, queue, jobs, audit    |
-| `content_manager`  | edit/publish schemes and deadlines, edit portal adapters, review the scraper queue |
-| `scraper_operator` | configure and run scraper sources, view the queue                                  |
-| `super_admin`      | everything above, plus team management and walk-in channel settings                |
+| Platform role      | Can                                                                                                          | Signs in at    |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ | -------------- |
+| `support_admin`    | read-only: analytics, tenant list and detail, schemes, forms, scrapers, queue, jobs, audit log               | `/staff/login` |
+| `content_manager`  | edit/publish schemes and deadlines, edit portal adapters, review the scraper queue                           | `/staff/login` |
+| `scraper_operator` | configure and run scraper sources, view the queue                                                            | `/staff/login` |
+| `super_admin`      | everything above, plus team management, walk-in channel settings, tenant suspension and billing overrides    | `/admin/login` |
+
+### Console sign-in: two portals and a console session
+
+The console has two sign-in pages (`packages/core/src/platform/portals.ts`): `/admin/login` for
+`super_admin` and `/staff/login` for every other platform role. Each accepts only its own roles —
+a Super Admin at the team page is refused, not let in through the lesser door — and both run the
+same server action (`apps/web/app/admin/login/actions.ts`), so they cannot drift apart.
+
+A Supabase session alone does not open `/admin`. A successful portal sign-in mints a **console
+session** (`apps/web/lib/admin/console-session.ts`): an HMAC-SHA256-signed, `httpOnly`,
+`SameSite=Lax` cookie bound to the user id and the portal, with an absolute 12-hour lifetime. The
+signing key is derived from the service-role key under a fixed label, so there is no new secret
+to provision. Every console page, server action and `/api/admin/*` handler checks it
+(`lib/admin/session.ts`, `lib/admin/context.ts`), after the roster:
+
+- staff signed in to the dashboard, but not through a portal, are sent to their portal to confirm
+  their password (the page pre-fills the address — "continue as");
+- a role change since sign-in moves the role to the other portal and invalidates the session;
+- "Lock console" drops the console session and keeps the dashboard session; "Sign out" drops both.
+
+Signed-out requests to `/admin/*` redirect to `/admin/login`; a signed-in non-staff user still gets
+a 404 inside the console. The two sign-in pages are public routes and so do confirm that a staff
+console exists — a deliberate trade for a real front door. They are `noindex`, give one answer for
+an unknown address and a wrong password, sign a non-staff account straight back out, and write
+`platform.console_access_denied` when a real account is turned away (not staff, revoked, unconfirmed
+bootstrap address, or wrong portal). Successful sign-ins write `platform.admin_signed_in`. The
+`next` parameter is restricted to paths inside `/admin` (`safeConsoleNext`).
+
+Not yet: MFA for console sign-in, and a lockout beyond Supabase Auth's own rate limits.
+
+### Tenant suspension and billing overrides (0030)
+
+Super Admins can suspend a centre and move it onto a plan by hand from `/admin/tenants/:id`
+(`platform.tenants.manage`, `platform.billing.override`). Both need a written reason (10–200
+characters, scrubbed of identifier-shaped text before it is stored or audited) and are audited as
+`critical`; suspension also asks for the centre's name to be typed.
+
+- **Suspension** sets `organizations.suspended_at`. The centre keeps every row it owns. The two
+  tenant context resolvers refuse to act for it: pages redirect to `/suspended`
+  (`lib/auth/session.ts`) and every tenant API route, including the extension's, returns 403
+  `errors.organization_suspended` (`lib/api/context.ts`). This is deliberately **not** an RLS
+  change: the centre's own members keep read access to their own rows, which no other tenant gains,
+  so suspension is an account-state control rather than a confidentiality one. The
+  `guard_organization_suspension()` trigger stops an owner clearing or setting the columns through
+  `organizations_update`. The public walk-in drop endpoints do not check suspension yet.
+- **Plan override** writes a `provider = 'manual'` subscription, and `organizations.plan_code`
+  follows through the 0018 sync trigger. It is refused while a paid provider (Razorpay, Stripe)
+  owns the live subscription — the provider's webhook would undo it and the invoice would
+  disagree — and onto a retired plan (`decidePlanOverride`). `guard_manual_subscription()` stops a
+  tenant session creating or editing a `manual` row, so a comp cannot be widened by its recipient.
+
+Tenant detail is read through `platform_tenant_detail()` — organization metadata and counts, no
+phone or email, no customer record — the third of the panel's three tenant reads.
 
 `platform_channel_settings` (0023) holds the deployment-wide WhatsApp/Telegram credentials. The
 access token, app secret and bot token are AES-256-GCM ciphertext under a channel-scoped AAD, and
@@ -357,7 +414,7 @@ Recorded in `audit_logs` with sensitivity `normal | sensitive | critical`:
 | billing         | `billing.plan_changed`, `billing.webhook_processed`                                                                                                                                                                                                                                                                                                                                                                          |
 | privacy         | `consent.granted` / `withdrawn`, `data.export_requested` / `delete_requested` / `deleted`                                                                                                                                                                                                                                                                                                                                    |
 | support         | `support.access_granted` / `access_used` / `access_revoked`                                                                                                                                                                                                                                                                                                                                                                  |
-| platform (§6.1) | `platform.admin_signed_in` / `admin_granted` / `admin_role_changed` / `admin_revoked`, `platform.scheme_created` / `scheme_updated` / `scheme_deadline_updated` / `scheme_published` / `scheme_deleted`, `platform.adapter_updated`, `platform.scraper_source_updated` / `scraper_run_triggered`, `platform.queue_item_approved` / `queue_item_rejected`, `platform.channel_settings_updated` / `channel_webhook_registered` |
+| platform (§6.1) | `platform.admin_signed_in` / `admin_granted` / `admin_role_changed` / `admin_revoked`, `platform.scheme_created` / `scheme_updated` / `scheme_deadline_updated` / `scheme_published` / `scheme_deleted`, `platform.adapter_updated`, `platform.scraper_source_updated` / `scraper_run_triggered`, `platform.queue_item_approved` / `queue_item_rejected`, `platform.channel_settings_updated` / `channel_webhook_registered`, `platform.console_access_denied`, `platform.tenant_suspended` / `tenant_reactivated` / `tenant_plan_overridden` |
 
 Platform rows carry `organization_id = null` — they are platform-wide acts — and none is `normal`.
 Roaming records the lookup that found nothing too, because a run of empty lookups is what an
@@ -380,8 +437,8 @@ Catalogued but not yet written by any code path (the feature behind each is not 
 not record it): `auth.session_revoked`, `organization.security_updated`, `organization.deleted`,
 `customer.exported`, `customer.roaming_access_expired` (the expiry sweep is unscheduled),
 `extraction.completed`, `adapter.updated`, `billing.webhook_processed`, `consent.granted` /
-`withdrawn`, `data.export_requested` / `delete_requested` / `deleted`, all three `support.*`, and
-`platform.admin_signed_in`. `organization.created` and `member.accepted` are written in SQL by
+`withdrawn`, `data.export_requested` / `delete_requested` / `deleted`, and all three `support.*`.
+`organization.created` and `member.accepted` are written in SQL by
 `create_organization` / `accept_invitation` (0011).
 
 ## 7. Extension security (spec §15.3, §19.6)
@@ -450,6 +507,8 @@ time-boxed, org-approved, and every use writes an audit entry.
 - [ ] A scheduler calls `/api/jobs/run` (drop purge) and something runs
       `expire_roaming_access_grants()`
 - [ ] `ADMIN_EMAILS` emptied once the `platform_admins` roster is populated
+- [ ] Migration 0030 applied, and `rls-tests/tenant_management.test.ts` passes against it
+- [ ] MFA required for console sign-in (§2, "Console sign-in")
 - [ ] Safety regression tests (captcha/otp/payment/submit) pass
 - [ ] `FIELD_ENCRYPTION_KEY` set, and rotation procedure documented
 - [ ] Backup and restore verified
