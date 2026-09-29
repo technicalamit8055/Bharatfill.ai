@@ -2956,6 +2956,66 @@
           "body": "Service Centres"
         }
       }
+    },
+    "footer": {
+      "cta": {
+        "pill": "Start Saving Hours Today",
+        "titleBefore": "Ready to Fill Any",
+        "titleHighlight": "Web Form in Seconds?",
+        "titleAfter": "",
+        "subtitle": "Join thousands of CSC operators, cyber cafes & applicants auto-filling forms with 99.8% AI accuracy.",
+        "primary": "Add to Chrome — It's Free",
+        "secondary": "Create Account",
+        "trust": {
+          "label": "Why it is easy to start",
+          "noCard": "No Credit Card Required",
+          "trusted": "Trusted by 1000+ Users",
+          "setup": "Set Up in 1 Minute"
+        },
+        "mockup": {
+          "label": "A laptop showing a web form Bharatfill has filled automatically, with 99.8% accuracy",
+          "filledTitle": "Form Filled",
+          "filledCaption": "Automatically",
+          "accuracyValue": "99.8%",
+          "accuracyLabel": "Accuracy"
+        }
+      },
+      "tagline": "India-first AI form-filling extension and candidate profile vault for CSCs, cyber cafes, VLEs, and individual applicants.",
+      "status": "All Systems Operational",
+      "socials": {
+        "label": "Bharatfill on social media",
+        "youtube": "Bharatfill on YouTube",
+        "linkedin": "Bharatfill on LinkedIn",
+        "x": "Bharatfill on X",
+        "instagram": "Bharatfill on Instagram"
+      },
+      "product": {
+        "title": "Product",
+        "features": "Features",
+        "howItWorks": "How It Works",
+        "whereItWorks": "Where It Works",
+        "pricing": "Pricing Plans",
+        "faq": "FAQ"
+      },
+      "legal": {
+        "title": "Legal & Compliance",
+        "privacy": "Privacy Policy",
+        "terms": "Terms of Service",
+        "acceptableUse": "Acceptable Use Policy",
+        "security": "Security & Aadhaar Compliance"
+      },
+      "digital": {
+        "title": "Built for a Digital World",
+        "body": "Empowering citizens and service providers across India and beyond.",
+        "pillars": {
+          "label": "What Bharatfill stands for",
+          "secure": "Secure",
+          "trusted": "Trusted",
+          "fast": "Fast"
+        }
+      },
+      "copyright": "© {year} Bharatfill.ai. All rights reserved.",
+      "disclaimer": "Bharatfill is an independent software tool. It is not affiliated with, endorsed by, or connected to any government department or official portal."
     }
   },
   "suspended": {

@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import en from '../../messages/en.json';
 import hi from '../../messages/hi.json';
-import { PORTAL_CATEGORIES, PORTALS, portalsIn } from './where-it-works';
+import { PORTAL_CATEGORIES, PORTAL_LOGOS, PORTALS, portalsIn } from './where-it-works';
 
 const PREFIX = 'landing.whereItWorks';
 
@@ -53,6 +53,12 @@ describe('where it works catalogue', () => {
 
     const listed = chips.flatMap((category) => portalsIn(category).map(({ key }) => key));
     expect([...listed].sort()).toEqual(PORTALS.map(({ key }) => key).sort());
+  });
+
+  it('declares logos for every portal, with unique file names', () => {
+    expect(Object.keys(PORTAL_LOGOS).sort()).toEqual(PORTALS.map(({ key }) => key).sort());
+    const names = Object.values(PORTAL_LOGOS).flatMap((logos) => logos.map(({ name }) => name));
+    expect(new Set(names).size).toBe(names.length);
   });
 
   it.each([

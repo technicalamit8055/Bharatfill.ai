@@ -24,6 +24,7 @@ import {
   portalsIn,
   type PortalCategory,
   type PortalKey,
+  type PortalLogoSources,
 } from '@/lib/landing/where-it-works';
 
 /** There is no dedicated support channel yet; new portal requests start from an account. */
@@ -208,7 +209,34 @@ function SideGraphics() {
   );
 }
 
-export function WhereItWorks() {
+/**
+ * The portals' real marks, in place of the icon. A pair overlaps like an avatar stack so two
+ * logos fit the same footprint as the icon tile; each sits on white so any artwork stays legible.
+ */
+function PortalLogos({ sources }: { sources: readonly string[] }) {
+  const pair = sources.length > 1;
+  return (
+    <span
+      aria-hidden
+      className="hidden shrink-0 items-center transition-transform duration-300 group-hover:scale-110 min-[320px]:flex"
+    >
+      {sources.map((src, index) => (
+        <span
+          key={src}
+          className={`flex items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200 ${
+            pair
+              ? 'h-8 w-8 p-1 lg:h-9 lg:w-9'
+              : 'h-12 w-12 p-1.5 lg:h-14 lg:w-14'
+          } ${index > 0 ? '-ml-3' : ''}`}
+        >
+          <img src={src} alt="" loading="lazy" className="h-full w-full object-contain" />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+export function WhereItWorks({ logos = {} }: { logos?: PortalLogoSources }) {
   const t = useTranslations();
   const [category, setCategory] = useState<PortalCategory>('all');
   // Until the first switch the cards use the scroll-in entrance; after it, each switch remounts
@@ -318,11 +346,15 @@ export function WhereItWorks() {
                 >
                   <div className="group flex h-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm shadow-slate-200/60 transition-all duration-300 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-100/70 lg:gap-4 lg:p-5">
                     {/* Dropped under 320px, where it would leave the title a word per line. */}
-                    <span
-                      className={`hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br transition-transform duration-300 group-hover:scale-110 min-[320px]:flex lg:h-14 lg:w-14 ${tile}`}
-                    >
-                      <Icon aria-hidden size={26} strokeWidth={2} />
-                    </span>
+                    {logos[key] ? (
+                      <PortalLogos sources={logos[key]} />
+                    ) : (
+                      <span
+                        className={`hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br transition-transform duration-300 group-hover:scale-110 min-[320px]:flex lg:h-14 lg:w-14 ${tile}`}
+                      >
+                        <Icon aria-hidden size={26} strokeWidth={2} />
+                      </span>
+                    )}
                     <div className="min-w-0 flex-1">
                       <h3 className="font-heading text-base font-bold leading-snug text-slate-900 lg:text-[17px]">
                         {t(`landing.whereItWorks.portals.${key}.title`)}

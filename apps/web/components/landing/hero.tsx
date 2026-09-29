@@ -149,25 +149,25 @@ export async function Hero() {
                 href={CHROME_STORE_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group relative inline-flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-r from-[#0055EE] via-[#0066FF] to-sky-500 py-3.5 pl-3 pr-5 text-base font-bold text-white shadow-lg shadow-blue-500/30 transition-all duration-300 hover:scale-[1.03] hover:shadow-blue-500/45 sm:w-auto sm:whitespace-nowrap"
+                className="group relative inline-flex w-full max-w-[17rem] items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-[#0055EE] via-[#0066FF] to-sky-500 py-2.5 pl-2.5 pr-4 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-all duration-300 hover:scale-[1.03] hover:shadow-blue-500/45 sm:w-auto sm:max-w-none sm:gap-2.5 sm:rounded-2xl sm:py-3.5 sm:pl-3 sm:pr-5 sm:text-base sm:whitespace-nowrap"
               >
                 <span
                   aria-hidden
                   className="hero-shine pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/35 to-transparent"
                 />
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
-                  <Image src="/chrome.png" alt="" aria-hidden width={28} height={28} className="h-7 w-7 object-contain" />
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white shadow-sm sm:h-10 sm:w-10">
+                  <Image src="/chrome.png" alt="" aria-hidden width={28} height={28} className="h-5 w-5 object-contain sm:h-7 sm:w-7" />
                 </span>
                 <span>{t('landing.hero.ctaPrimary')}</span>
-                <ArrowRight aria-hidden size={20} className="transition-transform group-hover:translate-x-1" />
+                <ArrowRight aria-hidden className="h-4 w-4 transition-transform group-hover:translate-x-1 sm:h-5 sm:w-5" />
               </a>
 
               <a
                 href="#demo"
-                className="inline-flex w-full items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base font-bold text-slate-900 shadow-sm transition-all duration-300 hover:border-blue-300 hover:bg-slate-50 sm:w-auto sm:whitespace-nowrap"
+                className="inline-flex w-full max-w-[17rem] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-900 shadow-sm transition-all duration-300 hover:border-blue-300 hover:bg-slate-50 sm:w-auto sm:max-w-none sm:gap-2.5 sm:rounded-2xl sm:px-5 sm:py-4 sm:text-base sm:whitespace-nowrap"
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#0066FF] text-[#0066FF]">
-                  <Play aria-hidden size={13} className="ml-0.5" strokeWidth={2.6} />
+                <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#0066FF] text-[#0066FF] sm:h-8 sm:w-8">
+                  <Play aria-hidden className="ml-0.5 h-3 w-3 sm:h-[13px] sm:w-[13px]" strokeWidth={2.6} />
                 </span>
                 <span>{t('landing.hero.ctaDemo')}</span>
               </a>

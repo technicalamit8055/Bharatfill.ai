@@ -7,6 +7,7 @@ import { WhereItWorks } from '@/components/landing/where-it-works';
 import { Pricing } from '@/components/landing/pricing';
 import { FAQ } from '@/components/landing/faq';
 import { Footer } from '@/components/landing/footer';
+import { getPortalLogoSources } from '@/lib/landing/portal-logos.server';
 
 export const metadata = {
   title: 'Bharatfill — AI Form Autofill Chrome Extension for CSCs & Applicants',
@@ -26,7 +27,7 @@ export default function LandingPage() {
         <InteractiveDemo />
         <HowItWorks />
         <FeaturesGrid />
-        <WhereItWorks />
+        <WhereItWorks logos={getPortalLogoSources()} />
         <Pricing />
         <FAQ />
       </main>

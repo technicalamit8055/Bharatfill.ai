@@ -23,6 +23,32 @@ export const PORTALS = [
 export type Portal = (typeof PORTALS)[number];
 export type PortalKey = Portal['key'];
 
+/**
+ * The real marks shown in each card's tile. They are third-party trademarks, so the files are
+ * supplied by hand: drop `<name>.svg` (or `.png` / `.webp`) into `public/portal-logos/`. A logo
+ * with no file is skipped, and a card with none falls back to its icon (see
+ * `portal-logos.server.ts`). `src` points at an asset that already lives elsewhere in `public/`.
+ * At most `MAX_TILE_LOGOS` show per card.
+ */
+export type PortalLogo = { readonly name: string; readonly src?: string };
+
+export const MAX_TILE_LOGOS = 2;
+
+export const PORTAL_LOGOS: Record<PortalKey, readonly PortalLogo[]> = {
+  sscRailway: [{ name: 'ssc', src: '/ssc-logo.png' }, { name: 'indian-railways' }],
+  nsp: [{ name: 'nsp' }],
+  stateRecruitment: [{ name: 'e-district' }],
+  workdayGreenhouse: [{ name: 'workday' }, { name: 'greenhouse' }],
+  linkedinIndeed: [{ name: 'linkedin' }, { name: 'indeed' }],
+  naukriShine: [{ name: 'naukri' }, { name: 'shine' }],
+  admissions: [{ name: 'cuet' }],
+  salesforceZoho: [{ name: 'salesforce' }, { name: 'zoho' }],
+  customForms: [],
+};
+
+/** Resolved public URLs of the logo files that exist, per portal. */
+export type PortalLogoSources = Partial<Record<PortalKey, readonly string[]>>;
+
 export function portalsIn(category: PortalCategory): readonly Portal[] {
   return category === 'all' ? PORTALS : PORTALS.filter((portal) => portal.category === category);
 }

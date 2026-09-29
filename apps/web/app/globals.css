@@ -773,6 +773,45 @@
   }
 }
 
+/*
+ * Landing footer motion (components/landing/footer.tsx).
+ *
+ * Loop: the two badges over the CTA banner's laptop drift out of step, the accuracy one further,
+ * slower and half a second behind. As in pricing, each badge's entrance sits on its wrapper and
+ * its float and tilt on the element inside, so the `.hiw-pop` transform, the float's standalone
+ * `translate` and the tilt never overwrite each other. The status dot's ping and pulse are
+ * Tailwind animations, stopped by `motion-reduce:` there.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes ftrFloat {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    50% {
+      translate: 0 -6px;
+    }
+  }
+
+  @keyframes ftrFloatFar {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    50% {
+      translate: 0 -8px;
+    }
+  }
+
+  .ftr-float {
+    animation: ftrFloat 3s ease-in-out infinite;
+  }
+
+  .ftr-float-far {
+    animation: ftrFloatFar 3.5s ease-in-out 0.5s infinite;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sparkline-bar,
   .animate-live-pulse,
