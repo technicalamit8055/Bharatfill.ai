@@ -18,11 +18,11 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
       <BrandPanel />
 
       {/* Form half. Owns the full width below `lg`. */}
-      <div className="relative flex flex-1 flex-col">
+      <div className="relative isolate flex flex-1 flex-col bg-slate-50/60 lg:border-l lg:border-slate-200/70">
         {/* Light aura so the phone/tablet view is not a bare white sheet. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-96 bg-gradient-to-b from-blue-50 via-slate-50/60 to-white"
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-96 bg-gradient-to-b from-blue-50 via-slate-50/60 to-transparent lg:hidden"
         />
 
         <header className="flex items-center justify-between gap-4 px-5 py-5 sm:px-8">
@@ -62,11 +62,18 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
         </main>
 
         <footer className="px-5 pb-8 sm:px-8">
-          <div className="mx-auto flex max-w-md flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-slate-200 pt-5 text-xs text-slate-500">
-            {LEGAL_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} className="transition-colors hover:text-slate-800">
-                {t(link.key)}
-              </Link>
+          <div className="mx-auto flex max-w-md flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-slate-200 pt-5 text-xs text-slate-500">
+            {LEGAL_LINKS.map((link, index) => (
+              <span key={link.href} className="flex items-center gap-x-4">
+                {index > 0 ? (
+                  <span aria-hidden className="text-slate-300">
+                    |
+                  </span>
+                ) : null}
+                <Link href={link.href} className="transition-colors hover:text-slate-800">
+                  {t(link.key)}
+                </Link>
+              </span>
             ))}
           </div>
         </footer>

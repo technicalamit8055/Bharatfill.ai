@@ -3,38 +3,48 @@ import type { ReactNode } from 'react';
 /**
  * The frame every auth screen sits in. Kept separate from the pages so the sign-in, sign-up and
  * reset screens cannot drift apart visually as copy changes.
+ *
+ * `highlight` colours one phrase of the title — the product name — without splitting the title
+ * across translation keys, so each language keeps its own word order.
  */
 export function AuthCard({
   title,
+  highlight,
   subtitle,
   children,
   footer,
 }: {
   title: string;
+  highlight?: string;
   subtitle?: string;
   children: ReactNode;
   footer?: ReactNode;
 }) {
   return (
-    <div className="relative">
-      {/* Soft coloured glow behind the card, echoing the landing hero aura. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -inset-x-6 -top-8 -z-10 h-40 rounded-full bg-gradient-to-r from-blue-300/40 via-cyan-200/40 to-blue-200/30 blur-3xl"
-      />
-
-      <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-[0_18px_50px_-20px_rgba(0,102,255,0.28)] backdrop-blur-xl sm:p-8">
-        <div className="space-y-1.5">
-          <h1 className="font-heading text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-            {title}
-          </h1>
-          {subtitle ? <p className="text-sm leading-relaxed text-slate-500">{subtitle}</p> : null}
-        </div>
-
-        <div className="mt-7">{children}</div>
+    <div>
+      <div className="space-y-2">
+        <h1 className="font-heading text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
+          <HighlightedTitle title={title} highlight={highlight} />
+        </h1>
+        {subtitle ? <p className="text-base leading-relaxed text-slate-500">{subtitle}</p> : null}
       </div>
 
-      {footer ? <div className="mt-6 text-center text-sm text-slate-600">{footer}</div> : null}
+      <div className="mt-8">{children}</div>
+
+      {footer ? <div className="mt-8 text-center text-sm text-slate-600">{footer}</div> : null}
     </div>
+  );
+}
+
+function HighlightedTitle({ title, highlight }: { title: string; highlight?: string }) {
+  const at = highlight ? title.indexOf(highlight) : -1;
+  if (!highlight || at < 0) return <>{title}</>;
+
+  return (
+    <>
+      {title.slice(0, at)}
+      <span className="text-[#0066FF]">{highlight}</span>
+      {title.slice(at + highlight.length)}
+    </>
   );
 }

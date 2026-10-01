@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState, type InputHTMLAttributes } from 'react';
+import { useId, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import { cn } from '@assistigo/ui';
 import { useTranslations } from '@/lib/i18n/client';
 
@@ -8,6 +8,8 @@ type PasswordFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & 
   label: string;
   hint?: string;
   error?: string;
+  /** Decorative icon drawn inside the input on the left. */
+  icon?: ReactNode;
 };
 
 /**
@@ -18,6 +20,7 @@ export function PasswordField({
   label,
   hint,
   error,
+  icon,
   required,
   className,
   ...inputProps
@@ -38,15 +41,24 @@ export function PasswordField({
       </label>
 
       <div className="relative">
+        {icon ? (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 flex w-11 items-center justify-center text-slate-400"
+          >
+            {icon}
+          </span>
+        ) : null}
         <input
           id={id}
           type={visible ? 'text' : 'password'}
           required={required}
           aria-invalid={Boolean(error) || undefined}
           className={cn(
-            'block w-full rounded-xl border-0 bg-white py-2.5 pl-3 pr-11 text-slate-900 shadow-sm',
+            'block w-full rounded-xl border-0 bg-white py-3 pr-11 text-slate-900 shadow-sm',
+            icon ? 'pl-11' : 'pl-3',
             'ring-1 ring-inset ring-slate-300 placeholder:text-slate-400',
-            'transition focus:ring-2 focus:ring-inset focus:ring-[#0066FF]',
+            'transition focus:ring-2 focus:ring-inset focus:ring-[#0066FF] focus-visible:outline-none',
             'disabled:bg-slate-50 disabled:text-slate-500 sm:text-sm',
             error && 'ring-red-400 focus:ring-red-500',
           )}

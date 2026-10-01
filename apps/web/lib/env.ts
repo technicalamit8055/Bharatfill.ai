@@ -118,6 +118,14 @@ const serverSchema = z.object({
    */
   SCRAPER_HTTP_ENABLED: z.enum(['on', 'off']).default('off'),
   /**
+   * Whether "Continue with Google" on the sign-in screen starts an OAuth flow.
+   *
+   * Off by default. Turning it on also needs the Google provider configured in Supabase Auth,
+   * and is a product decision: a first Google sign-in creates an account without the sign-up
+   * form's terms/privacy consent step. With it off the button explains that it is unavailable.
+   */
+  AUTH_GOOGLE_ENABLED: z.enum(['on', 'off']).default('off'),
+  /**
    * Extra hosts the `http` fetcher may contact, comma-separated (e.g. `ssc.gov.in`).
    *
    * Empty means only the well-known public government domains in

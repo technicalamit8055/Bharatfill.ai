@@ -18,6 +18,7 @@ export default function SignUpPage() {
   return (
     <AuthCard
       title={t('auth.signUpTitle')}
+      highlight={t('app.name')}
       subtitle={t('auth.signUpSubtitle')}
       footer={
         <>

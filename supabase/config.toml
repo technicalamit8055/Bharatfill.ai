@@ -48,8 +48,20 @@ double_confirm_changes = true
 enable_confirmations = false
 secure_password_change = true
 
+# Branded templates (docs/DOMAIN_STRATEGY.md: the public brand is Bharatfill). These apply to the
+# local stack only; the hosted project's templates are set in the dashboard — see
+# supabase/templates/README.md.
 [auth.email.template.invite]
-subject = "You have been invited to an Assistigo workspace"
+subject = "You have been invited to Bharatfill"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.confirmation]
+subject = "Confirm your Bharatfill account"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Bharatfill password"
+content_path = "./supabase/templates/recovery.html"
 
 [analytics]
 enabled = false

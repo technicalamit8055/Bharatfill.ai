@@ -1,10 +1,13 @@
 'use server';
 
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/api/logger';
-import { publicEnv } from '@/lib/env';
+import { recordPasswordChange } from '@/lib/auth/password-audit';
+import { oauthCallbackUrl, safeNext } from '@/lib/auth/redirects';
+import { publicEnv, serverEnv } from '@/lib/env';
 
 export type AuthFormState = { error?: string; notice?: string };
 
@@ -40,12 +43,6 @@ const signUpSchema = z
     path: ['consent'],
   });
 
-/** Only same-origin relative paths may be used as a post-sign-in destination. */
-function safeNext(value: string | undefined): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/dashboard';
-  return value;
-}
-
 export async function signInAction(
   _prev: AuthFormState,
   formData: FormData,
@@ -69,6 +66,37 @@ export async function signInAction(
   }
 
   redirect(safeNext(parsed.data.next));
+}
+
+/**
+ * Starts a Google sign-in. Off unless the deployment sets AUTH_GOOGLE_ENABLED=on, because turning
+ * it on also needs a Google OAuth client configured in Supabase, and a first Google sign-in
+ * creates an account without passing the sign-up consent step.
+ */
+export async function signInWithGoogleAction(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  if (serverEnv().AUTH_GOOGLE_ENABLED !== 'on') return { error: 'auth.googleUnavailable' };
+
+  const next = formData.get('next');
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: oauthCallbackUrl(
+        publicEnv().NEXT_PUBLIC_APP_URL,
+        typeof next === 'string' ? next : undefined,
+      ),
+    },
+  });
+
+  if (error || !data.url) {
+    logger.warn('auth.oauth_start_failed', { provider: 'google', reason: error?.message });
+    return { error: 'errors.internal' };
+  }
+
+  redirect(data.url);
 }
 
 export async function signUpAction(
@@ -107,12 +135,69 @@ export async function forgotPasswordAction(
   if (email.success) {
     const supabase = await createSupabaseServerClient();
     await supabase.auth.resetPasswordForEmail(email.data, {
-      redirectTo: `${publicEnv().NEXT_PUBLIC_APP_URL}/reset-password`,
+      // Through the callback, which turns the one-time code into a session on the server; the
+      // reset page then only has to ask "is there a session?" rather than handle a token itself.
+      redirectTo: `${publicEnv().NEXT_PUBLIC_APP_URL}/auth/callback?next=/reset-password`,
     });
   }
 
   // Same answer whether or not the address exists, for the same enumeration reason as above.
   return { notice: 'auth.resetSent' };
+}
+
+const resetPasswordSchema = z
+  .object({ password: passwordSchema, confirmPassword: z.string() })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'auth.passwordMismatch',
+    path: ['confirmPassword'],
+  });
+
+/**
+ * Completes a password recovery. The caller must already hold the session the emailed link
+ * established (`/auth/callback`); without one there is nothing to authorise the change, and the
+ * answer is the same "link expired" message the page shows.
+ */
+export async function resetPasswordAction(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const parsed = resetPasswordSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'errors.validation_failed' };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  // getUser() asks the auth server; getSession() would trust whatever the cookie claims.
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return { error: 'auth.resetLinkInvalid' };
+
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+  if (error) {
+    // The reason is logged; the password never is. Supabase rejects reusing the current one and
+    // weak-password policy hits, both of which the person can fix by choosing another.
+    logger.warn('auth.password_reset_failed', { reason: error.message, code: error.code });
+    return {
+      error:
+        error.code === 'same_password' ? 'auth.passwordUnchanged' : 'auth.passwordResetFailed',
+    };
+  }
+
+  // Anyone else holding a session for this account — the reason people reset a password — is
+  // signed out. This browser keeps its session so the person lands in the dashboard directly.
+  const { error: revokeError } = await supabase.auth.signOut({ scope: 'others' });
+  if (revokeError) logger.warn('auth.other_sessions_revoke_failed', { reason: revokeError.message });
+
+  const requestHeaders = await headers();
+  await recordPasswordChange(supabase, {
+    userId: userData.user.id,
+    ipAddress:
+      requestHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      requestHeaders.get('x-real-ip'),
+    userAgent: requestHeaders.get('user-agent'),
+    method: 'recovery',
+  });
+
+  redirect('/dashboard');
 }
 
 export async function signOutAction(): Promise<void> {

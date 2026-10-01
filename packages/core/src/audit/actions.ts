@@ -35,6 +35,14 @@ export const AUDIT_ACTIONS = define([
     description: 'Session revoked',
   },
   {
+    // The password was replaced through the emailed recovery link. Never carries the password,
+    // only how the change was authorised and how many other sessions were signed out with it.
+    action: 'auth.password_changed',
+    entityType: 'user',
+    sensitivity: 'sensitive',
+    description: 'Password changed',
+  },
+  {
     // Recorded when the operator authorises the browser extension from the dashboard, which is
     // the moment they grant it their session (docs/EXTENSION.md §3).
     action: 'extension.paired',

@@ -54,7 +54,9 @@ Remaining:
       — this also blocks actually _running_ `npm run db:seed` and `npm run test:rls` for the
       first time, not just writing them.
 - [ ] `npm run db:types` and wire the generated `Database` type into the Supabase clients
-- [ ] Password reset completion page (`/reset-password`)
+- [x] Password reset completion page (`/reset-password`) — recovery link → `/auth/callback` →
+      new-password form; signs out other sessions and audits `auth.password_changed`. The active
+      sessions roster in Settings (rest of AUTH-05) is still open.
 - [ ] Legal pages, pricing page, demo request page
 
 Acceptance: user signs up and creates an org · owner invites an operator · operator cannot reach
