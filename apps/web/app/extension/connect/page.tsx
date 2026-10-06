@@ -27,7 +27,7 @@ export default async function ExtensionConnectPage({
   const extensionId = resolveExtensionId(ext);
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-6 px-4 py-12">
+    <main className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center gap-6 px-4 py-12">
       <BharatfillLogo height={44} />
 
       {extensionId ? (

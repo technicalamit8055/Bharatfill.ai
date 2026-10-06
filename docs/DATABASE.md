@@ -57,6 +57,7 @@ only consumer, in `apps/web/lib/supabase/database.types.ts`.
 | `0028_scheme_artwork.sql`                      | `schemes_catalog.banner_path` and `illustration_path` (same shape check as `logo_path`) for the scheme detail page; `scheme-logos` bucket limit raised to 1 MB                                                    |
 | `0029_admin_managed_plans.sql`                 | Admin-managed plans: code whitelist → format check, limit checks, `guard_plan_update()` trigger (code immutable, price locked while in use, free never retired), `plans_read` also shows a retired plan to its own members |
 | `0030_platform_tenant_management.sql`          | `organizations.suspended_at` / `suspension_reason` / `suspended_by` + `guard_organization_suspension()`; `manual` subscription provider + `guard_manual_subscription()`; `platform_tenant_rows()` widened (status, subscription, total count, status/plan filters); `platform_tenant_detail()` |
+| `0031_auth_sessions.sql`                       | `list_my_auth_sessions()`, `revoke_my_auth_session(uuid)` — security definer over GoTrue's `auth.sessions`, caller's own rows only, `authenticated` only; nothing new stored (docs/SECURITY.md § Sessions roster) |
 
 Seed data is **separate from migrations** (`packages/database/src/seed/`), per spec §25.4.
 
@@ -450,6 +451,7 @@ non-loopback URL) with two organizations, one member per role in each. `npm run 
 | `plans.test.ts`          | 0029: code format and limit checks; code immutable; price locked once in use; free never retired; a retired plan readable only by its own organizations; tenants cannot write plans                                                                                                                                                                                     |
 | `tenant_management.test.ts` | 0030: an owner can neither set nor clear their own suspension but can still edit ordinary fields; a reason is required even from the service role; tenants cannot create or edit a `manual` subscription; `platform_tenant_detail()` and the five-argument `platform_tenant_rows()` refused to tenant sessions; the detail RPC returns no phone or email |
 | `roaming_access.test.ts` | 0024/0025: no access before a grant; a link grants nothing; pre-auth card only via the service-role RPC; a grant opens the four tables to the grant holder only, never `document_extractions` or writes to the customer row; expiry and revocation deny on their own; 12-hour ceiling and self-link rejection; the single 0025 document insert and all of its refusals |
+| `sessions.test.ts`       | 0031: a user lists only their own sessions with exactly one current; neither a same-centre owner nor another centre can revoke them; the current session and unknown ids return `false`; anon refused; a revoked session can neither refresh nor pass `getUser()` |
 
 Not yet covered: `document_drop_sessions` / `document_drop_files` (0022) and
 `platform_channel_settings` (0023). The suite needs Docker for `supabase start`.

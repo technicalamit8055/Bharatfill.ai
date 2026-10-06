@@ -12,6 +12,8 @@ export default async function SettingsPage() {
   const links = [
     // Every member's own settings — `null` because there is nothing on it to guard.
     { href: '/settings/preferences', labelKey: 'settings.preferences.navLabel', permission: null },
+    // Every member's own sessions — the page acts on the caller's account only.
+    { href: '/settings/sessions', labelKey: 'settings.sessions.navLabel', permission: null },
     { href: '/settings/members', labelKey: 'settings.members', permission: 'member.view' },
     {
       href: '/settings/organization',

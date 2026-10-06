@@ -258,6 +258,31 @@ Shared rules:
 - The citizen's `sender_id` is stored on the session to pre-fill the profile; it is personal data
   and must never be logged or put in audit metadata (§5).
 
+### Sessions roster (migration 0031)
+
+`/settings/sessions` lets every member see where their own account is signed in and sign those
+places out (spec §19.4; AUTH-05). It reads GoTrue's `auth.sessions` through two security-definer
+functions, `list_my_auth_sessions()` and `revoke_my_auth_session(id)`, both scoped by
+`auth.uid()` and the JWT's `session_id`, and granted to `authenticated` only:
+
+- No argument names a user, so nobody — an owner included — can list or end another member's
+  sessions from here. `revoke_my_auth_session` returns `false` alike for an unknown id, a foreign
+  id and the caller's current session, so it cannot be used to probe ids.
+- Revoking deletes the session row; its refresh tokens cascade, and GoTrue's `/user` check (what
+  `getUser()` calls on every dashboard request and extension API call) rejects the access token at
+  once. Only a direct PostgREST call holding the old JWT keeps working until it expires (≤ 1 h).
+- "Sign out all other sessions" is GoTrue's own `signOut({ scope: 'others' })`, as on password reset.
+- A paired extension holds the session of the browser it was paired from (docs/EXTENSION.md §3),
+  so it is never its own row; signing that browser out disconnects it too. The page says so.
+- The roster shows a coarse browser / OS / device class (`summarizeUserAgent`, no versions or
+  models) and the session's IP. The raw User-Agent never leaves the server.
+- Sign-in, refresh and extension refresh all run on our server, so `lib/supabase/forwarded-client.ts`
+  forwards the browser's `User-Agent` and first `X-Forwarded-For` address to Supabase Auth. Without
+  that every session would be recorded as Node at our server's IP. This changes what GoTrue keeps on
+  `auth.sessions` (the person's IP rather than ours) — the same value `audit_logs.ip_address`
+  already holds, with the same processor — and makes GoTrue's per-IP rate limits per person rather
+  than shared by every centre.
+
 ## 3. Role permission matrix
 
 | Capability               | owner |    manager    | operator |  viewer  | billing_admin |
@@ -434,7 +459,7 @@ The action catalogue is `packages/core/src/audit/actions.ts`. Audit rows are ins
 no update or delete policy exists for any role.
 
 Catalogued but not yet written by any code path (the feature behind each is not built, or does
-not record it): `auth.session_revoked`, `organization.security_updated`, `organization.deleted`,
+not record it): `organization.security_updated`, `organization.deleted`,
 `customer.exported`, `customer.roaming_access_expired` (the expiry sweep is unscheduled),
 `extraction.completed`, `adapter.updated`, `billing.webhook_processed`, `consent.granted` /
 `withdrawn`, `data.export_requested` / `delete_requested` / `deleted`, and all three `support.*`.

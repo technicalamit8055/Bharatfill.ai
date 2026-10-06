@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { forwardedClientHeaders } from './lib/supabase/forwarded-client';
 
 /**
  * Refreshes the Supabase session cookie on every request and keeps signed-out users out of the
@@ -115,6 +116,9 @@ export async function middleware(request: NextRequest) {
   if (!url || !anonKey) return response;
 
   const supabase = createServerClient(url, anonKey, {
+    // The refresh below is recorded against the person's browser, not this server — the
+    // sessions roster depends on it (lib/supabase/forwarded-client.ts).
+    global: { headers: forwardedClientHeaders((name) => request.headers.get(name)) },
     cookies: {
       getAll() {
         return request.cookies.getAll();

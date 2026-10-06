@@ -27,7 +27,9 @@ export const OPTIONS = extensionPreflight;
 const refresh = handler('extension.refresh', async (request) => {
   const { refreshToken } = await parseBody(request, bodySchema);
 
-  const supabase = createSupabaseAnonClient();
+  // Forwarded so the refresh keeps this browser's details on the session — that is what
+  // /settings/sessions shows.
+  const supabase = createSupabaseAnonClient(request);
   const { data, error } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
 
   const session = data?.session;

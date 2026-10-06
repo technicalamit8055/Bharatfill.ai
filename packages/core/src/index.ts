@@ -10,6 +10,7 @@ export * from './errors';
 
 export * from './auth/roles';
 export * from './auth/permissions';
+export * from './auth/user-agent';
 
 export * from './privacy/mask';
 export * from './privacy/redact';

@@ -55,8 +55,12 @@ Remaining:
       first time, not just writing them.
 - [ ] `npm run db:types` and wire the generated `Database` type into the Supabase clients
 - [x] Password reset completion page (`/reset-password`) — recovery link → `/auth/callback` →
-      new-password form; signs out other sessions and audits `auth.password_changed`. The active
-      sessions roster in Settings (rest of AUTH-05) is still open.
+      new-password form; signs out other sessions and audits `auth.password_changed`.
+- [x] Sessions & devices roster at `/settings/sessions` (rest of AUTH-05): every member sees their
+      own sessions (browser, OS, IP, signed in, last active), signs one out or all others, audited
+      `auth.session_revoked`. Migration 0031; server-side auth calls now forward the browser's
+      User-Agent / IP to Supabase Auth. `sessions.test.ts` (RLS) written, not yet run — same
+      Docker blocker as above.
 - [ ] Legal pages, pricing page, demo request page
 
 Acceptance: user signs up and creates an org · owner invites an operator · operator cannot reach
@@ -372,8 +376,7 @@ Known gaps found while updating the docs (details in `docs/SECURITY.md`):
       `identity_summary_json` without field encryption (unlike PAN and bank account)
 - [ ] `redact()` does not catch walk-in `sender_id` / `chatId` or roaming mobiles
 - [ ] No export route; customer delete is soft-delete only; data export/delete jobs not built
-- [ ] Audit actions defined but never written: `auth.session_revoked`,
-      `organization.security_updated` / `deleted`, `customer.exported`,
+- [ ] Audit actions defined but never written: `organization.security_updated` / `deleted`, `customer.exported`,
       `customer.roaming_access_expired`, `extraction.completed`, `adapter.updated`, `consent.*`,
       `data.*`, `support.*`, `platform.admin_signed_in`
 - [ ] Stale comments since 0026: `packages/ai/src/safety.ts` (`maskIdentifiersInText`), 0024

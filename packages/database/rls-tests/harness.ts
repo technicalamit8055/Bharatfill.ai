@@ -61,7 +61,8 @@ export type TestOrg = {
   usersByRole: Record<OrgRole, { id: string; email: string; client: SupabaseClient }>;
 };
 
-async function createSignedInClient(email: string): Promise<SupabaseClient> {
+/** Each call is a fresh sign-in, i.e. a new row in `auth.sessions` for that user. */
+export async function createSignedInClient(email: string): Promise<SupabaseClient> {
   const client = createClient(supabaseUrl(), anonKey(), {
     auth: { persistSession: false, autoRefreshToken: false },
   });

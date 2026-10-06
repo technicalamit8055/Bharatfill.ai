@@ -113,7 +113,7 @@
       "priority": "P1",
       "title": "Password Reset Flow & Session Revocation",
       "summary": "Dedicated password reset completion page and active session management.",
-      "status": "pending",
+      "status": "complete",
       "description": "Implements the completion screen at /reset-password for handling Supabase password recovery tokens, plus an active sessions dashboard in Settings allowing operators to view active browser sessions/extensions and revoke them remotely.",
       "keyCapabilities": [
         "Dedicated /reset-password screen with new password strength meters",
@@ -127,7 +127,9 @@
       ],
       "sourcePaths": [
         "apps/web/app/(auth)/reset-password",
-        "apps/web/app/(app)/settings/security"
+        "apps/web/app/(app)/settings/sessions",
+        "apps/web/lib/auth/active-sessions.ts",
+        "supabase/migrations/0031_auth_sessions.sql"
       ]
     },
     {

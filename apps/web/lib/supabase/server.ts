@@ -1,9 +1,10 @@
 import 'server-only';
 
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { publicEnv, serverEnv } from '../env';
+import { forwardedClientHeaders } from './forwarded-client';
 
 /** Until generated types are wired in (see database.types.ts), the client is schema-agnostic. */
 export type AssistigoSupabaseClient = SupabaseClient;
@@ -16,9 +17,13 @@ type CookieToSet = { name: string; value: string; options?: CookieOptions };
  */
 export async function createSupabaseServerClient(): Promise<AssistigoSupabaseClient> {
   const cookieStore = await cookies();
+  const requestHeaders = await headers();
   const env = publicEnv();
 
   return createServerClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+    // Sign-in and refresh happen here, so the auth service records the person's browser on the
+    // session rather than this server's (lib/supabase/forwarded-client.ts).
+    global: { headers: forwardedClientHeaders((name) => requestHeaders.get(name)) },
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -54,11 +59,15 @@ export function createSupabaseTokenClient(accessToken: string): AssistigoSupabas
  *
  * For the handful of calls that authenticate themselves with something other than a session —
  * currently only `/api/extension/refresh`, which presents a refresh token. Carries the anon
- * key, so RLS still treats it as an unauthenticated caller.
+ * key, so RLS still treats it as an unauthenticated caller. Pass the incoming request to have
+ * the auth service record the caller's browser rather than this server.
  */
-export function createSupabaseAnonClient(): AssistigoSupabaseClient {
+export function createSupabaseAnonClient(forwardFrom?: Request): AssistigoSupabaseClient {
   const env = publicEnv();
   return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+    global: {
+      headers: forwardFrom ? forwardedClientHeaders((name) => forwardFrom.headers.get(name)) : {},
+    },
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 }
