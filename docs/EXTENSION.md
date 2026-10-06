@@ -9,7 +9,7 @@ Derived from master spec §15, §7.4, §19.6.
 Manifest V3. Permissions requested at install:
 
 ```json
-"permissions": ["activeTab", "storage", "scripting", "sidePanel", "downloads"]
+"permissions": ["activeTab", "storage", "scripting", "sidePanel", "downloads", "offscreen"]
 ```
 
 `downloads` is what makes the side panel's one-click **Download** on a prepared file one click
@@ -17,6 +17,13 @@ Manifest V3. Permissions requested at install:
 save it. It grants no page access and no read of download history beyond what this extension
 itself starts. Spec §15.2 says start minimal, so it is listed here as the fifth and last: adding
 any further permission needs the same justification and matching Chrome Web Store copy.
+
+`offscreen` is the sixth, added for auto-fit (§6c) with that justification: the service worker has
+no `document`, so it cannot decode a photo onto a canvas or let pdf.js render a page, and fitting a
+customer file to a portal's KB limit needs both. It opens one hidden extension page
+(`src/offscreen/index.html`, reasons `BLOBS` + `WORKERS`) with no UI, no page access, no network
+access of its own and no token. Store copy: "Resizes and compresses a customer's file to an upload
+box's size limit on this computer; files are never uploaded for this."
 
 The intended design is no `host_permissions` at install time: page access from `activeTab` (user
 gesture) plus `chrome.scripting.executeScript`, with broad host access only ever as an optional
@@ -356,6 +363,29 @@ the same way), and the detector now also treats an element with no client rects 
 real browser and ignores punctuation-only labels, so RTPS Bihar's hidden
 representative-authorization and internal-uploader widgets no longer surface as phantom cards.
 
+### Table rows and hidden file inputs (`detector.ts`)
+
+**Row context.** For a field inside a `<td>`, the label is the run of cells before the field's
+cell, not only the one directly before it. Serial-number cells ("3.", "(a)") are skipped. The run
+stops at a cell that holds another field and is capped at two cells and 120 characters. So
+`3. | Caste Certificate | Mandatory | [file]` labels the box "Caste Certificate Mandatory", not
+"Mandatory". The same run leads `nearbyText`, ahead of the field's own cell text ("Choose file").
+Cells _after_ the field are never read: that is where portals show the uploaded filename, and a
+filename is customer data.
+
+**Hidden file inputs.** A styled upload widget hides the real `<input type="file">`
+(`display:none` or `hidden`) and opens it from something visible. Such an input is reported
+`visible: true` when either of these is itself visible:
+
+- a `<label>` for it with real text, or
+- a button, `[role=button]` or link whose text says upload, browse, choose or attach
+  (अपलोड / चुनें / संलग्न), inside the input's wrapper or the wrapper's parent. This only counts
+  while that wrapper holds no other file input.
+
+A hidden widget whose whole row is collapsed stays invisible, because its trigger fails the same
+check. The filler attaches to a hidden input the same way as to a visible one: it never gated on
+visibility.
+
 The picker is also reachable before any page is read: **Customer vault — all saved documents**
 under the customer card opens it with no target box (browse only), disabled while a roaming grant
 is locked.
@@ -410,10 +440,12 @@ content        applyFill(instructions)  then  attachFiles(fileInstructions)
 
 What keeps this inside §7.4.5 rather than becoming autofill of documents:
 
-- **Nothing is attached by default.** The panel starts with every tick box clear. A mapped text
-  value is a proposal the engine can defend; which document belongs in which upload slot is a
-  judgement about what the portal is asking for, so it takes an explicit tick per box — or an
-  explicit pick out of the customer document picker.
+- **Only unambiguous matches are pre-selected.** A box starts ticked only when one file is
+  plainly the answer: prepared for this box's own preset, or the one original upload of the
+  exact document the box names (§6e). Each pre-selection is visibly marked. Every other box
+  starts clear, because which document belongs there is a judgement about what the portal is
+  asking for, so it takes an explicit tick or an explicit pick out of the customer document
+  picker.
 - **One file per box**, because an upload input takes one; choosing a second replaces the first.
   A file chosen out of the picker for a box that also had suggestions is shown in that box's card
   as an **Override**, so what will be attached is never left implicit.
@@ -519,6 +551,178 @@ Asserted by `apps/extension/tests/multi-stage.test.ts` (5 tests: `CREATE_APPLICA
 same id on a second call and never sends a null `fillSessionId`/`portalUrl`; `REQUEST_MAPPING`
 forwards an explicit `applicationId`, reuses the tab's remembered one, and omits it on the first
 stage). The panel UI (counter, buttons, re-fill) has no tests.
+
+## 6c. Auto-fit: fitting a chosen file to its upload box (§7.4.5, §13.2)
+
+The common counter problem: the customer's Aadhaar is a 1.2 MB PDF scan and the box says "PDF, max
+200 KB", or the vault photo is a 150 KB PNG and the box wants a 20–50 KB JPEG. Auto-fit prepares a
+copy that fits, using the same encoders Document Tools Studio uses (`encodeToWindow`,
+`compressPdf`), and attaches it **only after the operator confirms it**.
+
+### When it runs
+
+When a file is chosen for a box that has a resolved preset (a "Documents to attach" card — the
+"Other upload boxes" have no KB window and are left alone), the panel runs `planAutoFit`
+(`packages/document-tools/src/autofit.ts`) on the file's metadata, the preset's `minBytes` /
+`maxBytes` and the box's `accept`:
+
+| Plan         | When                                                                              |
+| ------------ | --------------------------------------------------------------------------------- |
+| `none`       | Already inside the window and accepted by the box. Attached as before.            |
+| `image`      | JPEG/PNG/WebP outside the window, or not a type the box takes. Output is JPEG.    |
+| `pdf`        | PDF over the maximum.                                                             |
+| `cannot_fit` | PDF ↔ image needed, PDF under a minimum, JPEG ruled out, HEIC, or over 20 MB.     |
+
+A PNG for a JPEG-only box is now tickable in the suggestion list ("will be converted to JPEG for
+this box") because a JPEG is what will be attached. It never crops: framing stays in the Studio.
+
+### The flow
+
+```text
+side panel   PREPARE_AUTO_FIT { targetId, kind, accept, minBytes, maxBytes }
+background   downloadCustomerFile()  — same audited signed-URL route as a fill
+             planAutoFit() again on the real byte count; none / cannot_fit answered here
+             ensureOffscreen() → AUTO_FIT_RUN { job, sourceMimeType, dataBase64 }
+offscreen    encodeToWindow / compressPdf → holds the bytes under a token
+             ← { status: 'fitted', token, previewUrl (blob:), report }   — no bytes
+side panel   confirm card: "1.2 MB → 186 KB", what changed, preview, an unticked
+             "Attach this fitted copy instead of the original"
+             APPLY_FILL attachments[i].fitToken (only if ticked)
+background   AUTO_FIT_TAKE { token } → bytes → content script, as any attachment
+```
+
+### The rules it keeps
+
+- **Nothing is fitted silently.** The confirm tick starts clear; unticked, the original is attached
+  exactly as before (and the box's own validation decides). Fill is disabled while a copy is still
+  being prepared, so the operator never fills past a card they have not seen.
+- **Rasterising is called out.** Getting a scan under 200 KB usually means turning pages into
+  images at 72–150 DPI. The card says so first, in warning colour, with the DPI, and offers the
+  fitted PDF to open and read before confirming.
+- **Over the limit is a failure, not an attachment.** If the encoders cannot get under the maximum,
+  the card says so and points at the Studio; nothing is held.
+- **No fallback on expiry.** If a confirmed copy has gone (offscreen document closed, 15-minute hold
+  passed), the box fails with `attach_fit_expired`. It does not quietly re-download the original,
+  which is the file the portal would refuse.
+- **Not retained.** By product-owner decision (2026-10-06), fitted copies are not saved to the
+  customer's profile and create no `document_derivatives` row: they live in the offscreen
+  document's memory, at most 20 at a time, for at most 15 minutes, and are released on use, on
+  discard (choice changed, panel closed, fill done) or on expiry. No storage cost. The audit trail
+  is the signed-URL download of the original.
+- **Bytes never reach the panel.** The panel gets a token and a `blob:` URL for preview. The
+  offscreen document answers only `sender.url === background.js`; a panel message asking for bytes
+  is refused. Encoder errors are swallowed into `processing_failed` and never logged (§19.6).
+
+Asserted by `packages/document-tools/src/autofit.test.ts` (17 tests: planner decisions and
+the confirm-card wording) and `apps/extension/tests/auto-fit.test.ts` (12 tests: no offscreen for
+`none`/`cannot_fit`, offscreen job shape and summary-only reply, malformed reply → failure,
+confirmed copy attached without a second download, expired copy fails without fallback, discard
+does not create the document, offscreen sender check, one-use take, over-limit → failure, crash
+answer carries nothing about the file). The panel UI (card, tick, Fill gating) has no tests, and
+the real canvas/pdf.js encode has not yet been exercised in a browser.
+
+### Not yet
+
+- The customer document picker still applies `accept` strictly, so a PNG cannot be picked for a
+  JPEG-only box from the picker — only ticked from the suggestion list.
+- Extension strings are English-only, like the rest of the side panel.
+
+## 6d. Upload limits stated on the page (§7.4.5 "Required file type/size if known")
+
+Most portals have no adapter, so no preset — but nearly all of them print the rule beside the box:
+"Between 50 KB and 200 KB", "Format: JPEG/PDF", "(max. 2MB)", "Size (in KB): 10-200",
+"अधिकतम 100 KB". `parseUploadConstraints` (`packages/form-engine/src/constraints.ts`) reads those
+into `{ minBytes, maxBytes, formats }`, and the detector sends the result as
+`DetectedField.uploadConstraints` for every file input.
+
+**Where it reads.** Only the box's own surroundings, strongest first: its label, `aria-label`,
+`title`, `aria-describedby` targets, its wrapper up to three levels (stopping at a wrapper that
+holds a second file input, a `<tr>`/`<form>`, or more than 400 characters of text), then each cell
+of its table row read together with that column's header — so a `Max Size (KB)` header over a
+`200` cell is one statement. A form-wide instructions paragraph is never read: it describes every
+box at once. Each end of the window, and the format list, comes from the first source that states
+it. Text is read with a space at every node boundary, because minified markup otherwise glues
+"Signature" onto "max 20 KB".
+
+**What it will not guess.**
+
+- A size with no word saying which end it is ("File size: 180 KB") is ignored — that is as likely
+  to describe the file already uploaded. Cues: max / maximum / up to / not more than / should not
+  exceed / ≤ / अधिकतम / तक / से अधिक नहीं for a maximum; min / at least / not less than / ≥ /
+  न्यूनतम / से कम नहीं for a minimum. "More than 200 KB will be rejected" flips to a maximum.
+- A format is a rule only beside a cue (format, file type, only, allowed, प्रारूप, केवल …), in a
+  list of two or more, or in a local form like "(PDF)" / "in PDF". A lone "Upload PDF of the
+  certificate" sets nothing.
+- Nothing is read out of a filename: `photo_180kb.jpg` yields neither a size nor a format.
+- Two different maximums (or minimums) in one source mean it describes several boxes; that end is
+  dropped. A minimum at or above the maximum is dropped. Anything over 100 MB is a misread.
+
+**Privacy.** Cells after the box are read here (unlike `resolveRowContext`) because that is where
+portals print the rule — and also where they show the uploaded filename. That is safe only because
+the text never leaves the content script: each source goes straight into the parser and only numbers
+and the format enum are kept. `uploadConstraintsSchema` rejects anything else, and is optional so an
+older extension build's payload still validates.
+
+**Precedence.** `resolveUploadTarget(field, preset)` returns the window and `accept` to hold a file
+to: a resolved preset's size window wins (adapter `presetCode`, or the portal-name guess), the page
+fills in when no preset states a size; the box's own `accept` attribute wins over page-stated
+formats (`acceptFromFormats` builds the equivalent otherwise). The side panel shows "Stated on this
+page: 50–200 KB · JPEG or PDF" on a "Documents to attach" card with no preset window, and on every
+"Other upload boxes" card.
+
+Asserted by `packages/form-engine/src/constraints.test.ts` (60 tests: ranges, maxima, minima in
+English and Hindi including Devanagari digits, unit-in-header, cue-less and filename sizes ignored,
+multi-box text dropped, formats, merge, precedence, schema) and the "upload constraints stated on the
+page" block in `apps/extension/tests/detector.test.ts` (8 tests: hint span, `aria-describedby`,
+header + cell, one row per box, no borrowing across wrappers, filename beside the box, non-file
+fields, payload validates).
+
+### Not yet
+
+- Auto-fit (§6c) still takes its window from the preset only; the panel does not call
+  `useAutoFits` yet. When it does, `resolveUploadTarget` is the `targetFor` to use.
+- Pixel dimensions and DPI stated on the page ("200 × 230 px") are not parsed.
+- A per-document instructions block above all boxes ("Photo 20–50 KB; Signature 10–20 KB") is
+  ignored rather than split by document.
+
+## 6e. Pre-selecting unambiguous document matches (§7.4.5 "Suggested customer document")
+
+When the mapping comes back, the side panel ticks a file for every upload box where the choice
+is not a judgement call, so a page whose boxes each have one obvious file needs one press of
+Fill. `pickAutoMatches` in `packages/form-engine/src/auto-match.ts` decides; the panel only
+seeds `attachments` with what it returns.
+
+A box gets a pre-selection only when exactly one of its suggested files carries the strongest
+signal there is for it:
+
+1. **`preset`**: a derivative Document Tools Studio prepared against this box's own preset
+   (`matchesPreset`).
+2. **`document_type`**: failing that, an original upload already classified as the exact
+   document the box's label names (a "Caste certificate" box with one caste certificate on file).
+
+It stays empty, and remains an explicit tick, when:
+
+- two files tie in the strongest tier. Two preset matches stop the search rather than falling
+  through to a weaker tier;
+- the only signal is the category ("some pdf"), an unclassified upload, or newest-first order;
+- the file fails the box's `accept`, or falls outside the size window `resolveUploadTarget`
+  resolves (preset first, then the page's own stated limits, §6d);
+- the same file would be the pick for two boxes;
+- the box is invisible or missing from the latest detection.
+
+What the operator sees: a notice above "Documents to attach" counting the matches, and under each
+pre-selected row an **Auto-matched** strip naming the file, the reason ("Prepared for this
+portal" / "Same document type on file") and its size status against the box's window. The
+reason is shown as a fact, not a percentage. The matcher has no score, and a number would claim
+an accuracy nothing measured (§8.6). Any click replaces the pick: unticking it, ticking another
+suggestion, choosing a file from the vault picker, or **Remove**. The Fill button names both
+halves ("Fill 12 fields & attach 2 documents") and is enabled when only documents are chosen.
+Everything goes in one `APPLY_FILL`, as before.
+
+What does not change: nothing reaches the page until Fill, the live element is re-checked at
+attach time (§6a), and no thumbnail is fetched automatically. A preview mints an audited signed
+URL, so it still happens only when the operator presses **Preview**. Asserted by
+`packages/form-engine/src/auto-match.test.ts`.
 
 ## 7. Storage
 

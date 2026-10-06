@@ -207,6 +207,26 @@ export const messageSchema = z.discriminatedUnion('type', [
     targetId: z.string().uuid(),
     kind: z.enum(ATTACHMENT_KINDS).default('derivative'),
   }),
+
+  /**
+   * side panel → background → offscreen. Fits one chosen file to its upload box's KB window
+   * and format (docs/EXTENSION.md §6c), and answers with a summary, a preview URL and a token —
+   * never the bytes. The operator confirms the result before the fill attaches it.
+   *
+   * `accept`, `minBytes` and `maxBytes` are what the panel already holds for that box: the
+   * detected field's `accept` attribute and the resolved preset's size window.
+   */
+  z.object({
+    type: z.literal('PREPARE_AUTO_FIT'),
+    targetId: z.string().uuid(),
+    kind: z.enum(ATTACHMENT_KINDS).default('derivative'),
+    accept: z.string().max(500).nullable(),
+    minBytes: z.number().int().positive().nullable(),
+    maxBytes: z.number().int().positive().nullable(),
+  }),
+
+  /** side panel → background → offscreen. Drops a fitted copy the operator will not use. */
+  z.object({ type: z.literal('DISCARD_AUTO_FIT'), token: z.string().uuid() }),
 ]);
 
 export type Message = z.infer<typeof messageSchema>;

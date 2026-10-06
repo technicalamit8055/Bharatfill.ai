@@ -46,8 +46,9 @@ There are **two provider slots**, because a document has two very different read
 | AI vision | per organization  | `org_ai_vendor` | the organization's own vendor from `organization_ai_settings` (below)    | owner-configured   |
 
 The product is never hard-coded to one provider. `AiVisionOcrProvider`
-(`packages/ai/src/providers/ai-vision.ts`) speaks two wire formats — OpenAI chat-completions
-(`openai_compatible`) and Anthropic messages (`anthropic_messages`) — so `OCR_AI_BASE_URL` and
+(`packages/ai/src/providers/ai-vision.ts`) speaks three wire formats — OpenAI chat-completions
+(`openai_compatible`), Anthropic messages (`anthropic_messages`) and Vertex AI generateContent
+(`vertex_generate_content`, organization vendor only) — so `OCR_AI_BASE_URL` and
 `OCR_AI_MODEL` repoint the deployment reader at any compatible endpoint — another hosted vendor, a
 gateway, or a self-hosted vision model — without a code change. The OpenAI-shaped URL is built
 from the base URL (`…/v1/chat/completions`, or `…/chat/completions` when the base already ends in
@@ -65,7 +66,7 @@ environment reader is used exactly as before.
 
 | Setting         | Rule                                                                                                                                                                                      |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `provider`      | UI preset: `openai`, `anthropic`, `deepseek`, `gemini`, `ollama`, `openrouter`, `custom` (`apps/web/lib/ai/vendor-settings.ts`); presets supply a default base URL, model and wire format |
+| `provider`      | UI preset: `openai`, `anthropic`, `deepseek`, `gemini`, `vertex`, `ollama`, `openrouter`, `custom` (`apps/web/lib/ai/vendor-settings.ts`); presets supply a default base URL, model and wire format |
 | `base_url`      | `https://` only; localhost, private ranges, `.local` and the cloud metadata address refused                                                                                               |
 | `model`         | falls back to the preset's default when blank                                                                                                                                             |
 | `api_key`       | AES-256-GCM at rest; never returned — the API reports `hasApiKey` only                                                                                                                    |
@@ -77,6 +78,16 @@ prompt, never a document, 15 s timeout). Configuring a vendor does **not** turn 
 the same route's `enabled` flag writes `organizations.settings.ai_processing_enabled`, which
 remains the gate (rule 2 below). For a `googleapis.com` endpoint the key is also appended as a
 `key=` query parameter.
+
+`vertex` (migration 0033) is Vertex AI's API-key ("express mode") endpoint: `POST
+<base>/v1/publishers/google/models/<model>:generateContent`, default base
+`https://aiplatform.googleapis.com`. A base already carrying `/v1` — including a project-scoped
+`…/v1/projects/<id>/locations/<region>` — is used as the prefix. The key goes in the
+`x-goog-api-key` header, never the URL. Gemini "thought" parts are dropped; a response with no
+candidates (a blocked prompt) is an empty answer. It is the same Gemini models as the `gemini`
+preset, billed through the Google Cloud account rather than AI Studio prepay; the key must be
+allowed to call the Vertex AI API, and an account-bound key's service account needs the
+Vertex AI User role.
 
 ### The three reading methods
 
@@ -153,8 +164,9 @@ The operator sees `documents.warnings.aiDynamicExtractionUsed`.
 | Reader | Limitation                                                                                                                                                                                                                                                                                                                                                                 |
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | local  | Cannot read a photograph or a scanned PDF: there is no OCR engine on the box.                                                                                                                                                                                                                                                                                              |
-| local  | Cannot resolve PDF font encodings. A subset/CID font is reported as "no text", never as nonsense — `looksLikeProse` in `pdf-text.ts` is that guard.                                                                                                                                                                                                                        |
-| AI     | A chat-completions endpoint takes images, not PDFs. A text-bearing PDF is read locally and its text sent instead (as a plain-text message, no image part); a **scanned** PDF is refused with `AI_NEEDS_IMAGE`, because rasterising would need a new dependency. The one exception is a Gemini / `googleapis.com` endpoint, which is sent the PDF directly (same 6 MB cap). |
+| local  | Decodes fonts only through their `/ToUnicode` map (browser and Word PDFs ship one; pages, object streams and form XObjects are walked for it). A font with no map is reported as "no text", never as nonsense — `looksLikeProse` in `pdf-text.ts` is that guard.                                                                                  |
+| local  | Devanagari is drawn, not typed, in order. Drawn-order ि is moved back after its consonant; a line with an unmapped conjunct or reph glyph loses **all** its Hindi words (English kept), so a partial name such as `राम` for `राम शर्मा` is never proposed (`repairDevanagari`).                                                                                            |
+| AI     | A chat-completions endpoint takes images, not PDFs. A text-bearing PDF is read locally and its text sent instead (as a plain-text message, no image part); a **scanned** PDF is refused with `AI_NEEDS_IMAGE`, because rasterising would need a new dependency. The exception is a Gemini / Vertex AI / `googleapis.com` endpoint, which is sent the PDF directly (same 6 MB cap). |
 | AI     | Images over 6 MB are refused rather than turned into a request that fails slowly.                                                                                                                                                                                                                                                                                          |
 
 Every one of these becomes an operator-facing warning under `documents.warnings.*`, in `en` and
@@ -279,6 +291,22 @@ document, and the source text snippet. The operator accepts, edits, or rejects. 
 to `customers` **and** to `customer_field_values` with status `operator_verified`, plus an audit
 entry. Rejecting keeps the extracted value in `customer_field_values` as `rejected` for
 traceability but never surfaces it for autofill.
+
+### Already matched fields (new document, existing customer)
+
+The extractor always reads the whole document; it is never told what the profile already holds.
+After extraction, `apps/web/lib/documents/profile-match.ts` flags each proposed field whose value
+equals the customer's current profile value (ignoring only case and whitespace). The review screen
+pre-accepts those and shows them in a collapsed **Already matched** section, so the operator only
+has to look at new or different values. They can still open the section to edit, reject or undo
+any of them.
+
+- Only the `matchesProfile` boolean reaches the client — never the profile value.
+- Encrypted fields (PAN, bank account) are never decrypted to compare, so they always go to
+  normal review.
+- A profile value still marked `extracted` (unverified) never counts as a match.
+- Accepting a matched field changes no value. It records the new document as the field's source,
+  and the audit entry lists those keys as `matchedKeys`.
 
 ## 7. Retention (§12.7)
 

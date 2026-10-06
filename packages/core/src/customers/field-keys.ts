@@ -254,6 +254,16 @@ export const CUSTOMER_FIELDS: readonly CustomerFieldDef[] = [
     sensitivity: 'normal',
     storage: { kind: 'column', column: 'father_name' },
     maxLength: 160,
+    note: 'English spelling, as on the matriculation certificate. Hindi goes in father_name_hi.',
+  },
+  {
+    key: 'customer.father_name_hi',
+    section: 'family',
+    label: { en: "Father's name (Hindi)", hi: 'पिता का नाम (हिंदी)' },
+    dataType: 'name',
+    sensitivity: 'normal',
+    storage: { kind: 'column', column: 'father_name_hi' },
+    maxLength: 160,
   },
   {
     key: 'customer.mother_name',
@@ -262,6 +272,16 @@ export const CUSTOMER_FIELDS: readonly CustomerFieldDef[] = [
     dataType: 'name',
     sensitivity: 'normal',
     storage: { kind: 'column', column: 'mother_name' },
+    maxLength: 160,
+    note: 'English spelling, as on the matriculation certificate. Hindi goes in mother_name_hi.',
+  },
+  {
+    key: 'customer.mother_name_hi',
+    section: 'family',
+    label: { en: "Mother's name (Hindi)", hi: 'माता का नाम (हिंदी)' },
+    dataType: 'name',
+    sensitivity: 'normal',
+    storage: { kind: 'column', column: 'mother_name_hi' },
     maxLength: 160,
   },
   {
@@ -429,7 +449,11 @@ export const CUSTOMER_FIELDS: readonly CustomerFieldDef[] = [
         ['marksheet_number', { en: 'Marksheet number', hi: 'मार्कशीट संख्या' }, 'text'],
         ['marks_percentage', { en: 'Marks / percentage', hi: 'अंक / प्रतिशत' }, 'text'],
         ['aggregate_marks', { en: 'Aggregate marks', hi: 'कुल अंक' }, 'text'],
-        ['aggregate_marks_words', { en: 'Aggregate marks (in words)', hi: 'कुल अंक (शब्दों में)' }, 'text'],
+        [
+          'aggregate_marks_words',
+          { en: 'Aggregate marks (in words)', hi: 'कुल अंक (शब्दों में)' },
+          'text',
+        ],
         ['result', { en: 'Result', hi: 'परिणाम' }, 'text'],
       ] as const
     ).map<CustomerFieldDef>(([suffix, label, dataType]) => ({
@@ -456,7 +480,11 @@ export const CUSTOMER_FIELDS: readonly CustomerFieldDef[] = [
       ['passing_year', { en: 'Passing year', hi: 'उत्तीर्ण वर्ष' }, 'year'],
       ['marks_percentage', { en: 'Marks / percentage', hi: 'अंक / प्रतिशत' }, 'text'],
       ['aggregate_marks', { en: 'Aggregate marks', hi: 'कुल अंक' }, 'text'],
-      ['aggregate_marks_words', { en: 'Aggregate marks (in words)', hi: 'कुल अंक (शब्दों में)' }, 'text'],
+      [
+        'aggregate_marks_words',
+        { en: 'Aggregate marks (in words)', hi: 'कुल अंक (शब्दों में)' },
+        'text',
+      ],
       ['result', { en: 'Result', hi: 'परिणाम' }, 'text'],
     ] as const
   ).map<CustomerFieldDef>(([suffix, label, dataType]) => ({
@@ -588,6 +616,17 @@ export function isCustomerFieldKey(key: string): boolean {
 export function fieldsInSection(section: CustomerFieldSection): CustomerFieldDef[] {
   return CUSTOMER_FIELDS.filter((field) => field.section === section);
 }
+
+/**
+ * The same name stored twice: `english` in Latin script, `hindi` in Devanagari. A portal that only
+ * takes one script gets the field written in it (packages/form-engine/src/script.ts), and an
+ * extracted name is filed under whichever one its script says it is (packages/ai).
+ */
+export const NAME_SCRIPT_PAIRS: readonly { english: string; hindi: string }[] = [
+  { english: 'customer.full_name', hindi: 'customer.full_name_hi' },
+  { english: 'customer.father_name', hindi: 'customer.father_name_hi' },
+  { english: 'customer.mother_name', hindi: 'customer.mother_name_hi' },
+];
 
 /**
  * Fields that must be reviewed by a human before they can be trusted, no matter how confident

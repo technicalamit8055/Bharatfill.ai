@@ -17,6 +17,8 @@ export type ReviewField = {
   reviewReason: string | null;
   fieldLabel: { en: string; hi: string } | null;
   sensitivity: 'normal' | 'sensitive' | 'high_risk';
+  /** The value is already on the customer's profile, unchanged (lib/documents/profile-match.ts). */
+  matchesProfile: boolean;
 };
 
 type Decision = { action: 'accept' | 'edit' | 'reject'; value: string };
@@ -29,8 +31,14 @@ const CONFIDENCE_TONE = (confidence: number): 'success' | 'warning' | 'danger' =
  *
  * Every proposed field is shown with its confidence, the reason it needs a human, and the exact
  * line it was read from — an operator who can see the source checks a value in a second instead
- * of opening the scan. Nothing here is accepted by default: a field the operator does not act on
+ * of opening the scan. Nothing new is accepted by default: a field the operator does not act on
  * is simply not submitted.
+ *
+ * The one exception is a field whose value is already on the profile, unchanged — typically the
+ * name and date of birth on a second document for an existing customer. Those start accepted and
+ * sit in a collapsed "Already matched" section, so the operator's attention goes to what is new.
+ * Accepting one changes no value; it records this document as a source for it. Opening the
+ * section gives the same edit, reject and undo actions as every other field.
  */
 export function ExtractionReview({
   documentId,
@@ -47,10 +55,18 @@ export function ExtractionReview({
   onSaved?: () => void;
 }) {
   const t = useTranslations();
-  const { locale } = useI18n();
   const router = useRouter();
 
-  const [decisions, setDecisions] = useState<Record<string, Decision>>({});
+  const reviewFields = useMemo(() => fields.filter((field) => !field.matchesProfile), [fields]);
+  const matchedFields = useMemo(() => fields.filter((field) => field.matchesProfile), [fields]);
+
+  const [decisions, setDecisions] = useState<Record<string, Decision>>(() =>
+    canReview && hasCustomer
+      ? Object.fromEntries(
+          matchedFields.map((field) => [field.key, { action: 'accept', value: field.value }]),
+        )
+      : {},
+  );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -121,101 +137,43 @@ export function ExtractionReview({
         </Alert>
       ) : null}
 
-      <ul className="divide-y divide-slate-200">
-        {fields.map((field) => {
-          const decision = decisions[field.key];
-          const rejected = decision?.action === 'reject';
-          const editing = decision?.action === 'edit';
+      {reviewFields.length > 0 ? (
+        <ul className="divide-y divide-slate-200">
+          {reviewFields.map((field) => (
+            <ReviewFieldRow
+              key={field.key}
+              field={field}
+              decision={decisions[field.key]}
+              canReview={canReview}
+              onDecide={(decision) => setDecision(field.key, decision)}
+            />
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-slate-600">{t('documents.review.allMatched')}</p>
+      )}
 
-          return (
-            <li key={field.key} className="py-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-900">
-                    {field.fieldLabel ? field.fieldLabel[locale] : field.key}
-                  </p>
-                  {/* What the document actually printed, next to what we mapped it to. */}
-                  <p className="mt-0.5 text-xs text-slate-500">{field.label}</p>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-2">
-                  <Badge tone={CONFIDENCE_TONE(field.confidence)}>
-                    {formatConfidence(field.confidence)}
-                  </Badge>
-                  {field.reviewReason ? (
-                    <Badge tone="neutral">
-                      {t(`documents.review.reasons.${field.reviewReason}`)}
-                    </Badge>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="mt-3">
-                {editing ? (
-                  <Input
-                    aria-label={field.fieldLabel ? field.fieldLabel[locale] : field.key}
-                    value={decision.value}
-                    autoFocus
-                    onChange={(event) =>
-                      setDecision(field.key, { action: 'edit', value: event.target.value })
-                    }
-                  />
-                ) : (
-                  <p
-                    className={
-                      rejected
-                        ? 'text-sm text-slate-400 line-through'
-                        : 'text-sm font-medium text-slate-900'
-                    }
-                  >
-                    {field.value}
-                  </p>
-                )}
-              </div>
-
-              <p className="mt-2 truncate text-xs text-slate-400" title={field.sourceText}>
-                {t('documents.review.source')}: {field.sourceText}
-              </p>
-
-              {canReview ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant={decision?.action === 'accept' ? 'primary' : 'secondary'}
-                    onClick={() => setDecision(field.key, { action: 'accept', value: field.value })}
-                  >
-                    {t('documents.review.accept')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={editing ? 'primary' : 'secondary'}
-                    onClick={() =>
-                      setDecision(field.key, {
-                        action: 'edit',
-                        value: decision?.value ?? field.value,
-                      })
-                    }
-                  >
-                    {t('common.edit')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={rejected ? 'primary' : 'ghost'}
-                    onClick={() => setDecision(field.key, { action: 'reject', value: '' })}
-                  >
-                    {t('documents.review.reject')}
-                  </Button>
-                  {decision ? (
-                    <Button size="sm" variant="ghost" onClick={() => setDecision(field.key, null)}>
-                      {t('documents.review.undo')}
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
+      {matchedFields.length > 0 ? (
+        <details className="mt-4 rounded-md border border-slate-200">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-800">
+            {t('documents.review.matchedTitle', { count: matchedFields.length })}
+          </summary>
+          <div className="border-t border-slate-200 px-4">
+            <p className="pt-3 text-xs text-slate-500">{t('documents.review.matchedHelp')}</p>
+            <ul className="divide-y divide-slate-200">
+              {matchedFields.map((field) => (
+                <ReviewFieldRow
+                  key={field.key}
+                  field={field}
+                  decision={decisions[field.key]}
+                  canReview={canReview}
+                  onDecide={(decision) => setDecision(field.key, decision)}
+                />
+              ))}
+            </ul>
+          </div>
+        </details>
+      ) : null}
 
       {error ? (
         <Alert tone="danger" className="mt-4">
@@ -241,5 +199,99 @@ export function ExtractionReview({
         </div>
       ) : null}
     </Card>
+  );
+}
+
+function ReviewFieldRow({
+  field,
+  decision,
+  canReview,
+  onDecide,
+}: {
+  field: ReviewField;
+  decision: Decision | undefined;
+  canReview: boolean;
+  onDecide: (decision: Decision | null) => void;
+}) {
+  const t = useTranslations();
+  const { locale } = useI18n();
+
+  const rejected = decision?.action === 'reject';
+  const editing = decision?.action === 'edit';
+  const fieldName = field.fieldLabel ? field.fieldLabel[locale] : field.key;
+
+  return (
+    <li className="py-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-900">{fieldName}</p>
+          {/* What the document actually printed, next to what we mapped it to. */}
+          <p className="mt-0.5 text-xs text-slate-500">{field.label}</p>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge tone={CONFIDENCE_TONE(field.confidence)}>
+            {formatConfidence(field.confidence)}
+          </Badge>
+          {field.reviewReason ? (
+            <Badge tone="neutral">{t(`documents.review.reasons.${field.reviewReason}`)}</Badge>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-3">
+        {editing ? (
+          <Input
+            aria-label={fieldName}
+            value={decision.value}
+            autoFocus
+            onChange={(event) => onDecide({ action: 'edit', value: event.target.value })}
+          />
+        ) : (
+          <p
+            className={
+              rejected ? 'text-sm text-slate-400 line-through' : 'text-sm font-medium text-slate-900'
+            }
+          >
+            {field.value}
+          </p>
+        )}
+      </div>
+
+      <p className="mt-2 truncate text-xs text-slate-400" title={field.sourceText}>
+        {t('documents.review.source')}: {field.sourceText}
+      </p>
+
+      {canReview ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant={decision?.action === 'accept' ? 'primary' : 'secondary'}
+            onClick={() => onDecide({ action: 'accept', value: field.value })}
+          >
+            {t('documents.review.accept')}
+          </Button>
+          <Button
+            size="sm"
+            variant={editing ? 'primary' : 'secondary'}
+            onClick={() => onDecide({ action: 'edit', value: decision?.value ?? field.value })}
+          >
+            {t('common.edit')}
+          </Button>
+          <Button
+            size="sm"
+            variant={rejected ? 'primary' : 'ghost'}
+            onClick={() => onDecide({ action: 'reject', value: '' })}
+          >
+            {t('documents.review.reject')}
+          </Button>
+          {decision ? (
+            <Button size="sm" variant="ghost" onClick={() => onDecide(null)}>
+              {t('documents.review.undo')}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </li>
   );
 }

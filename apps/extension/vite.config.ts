@@ -26,11 +26,29 @@ export default defineConfig({
         root,
         '../../packages/form-engine/src/documents.ts',
       ),
+      '@assistigo/form-engine/constraints': path.resolve(
+        root,
+        '../../packages/form-engine/src/constraints.ts',
+      ),
       '@assistigo/form-engine/safety': path.resolve(
         root,
         '../../packages/form-engine/src/safety.ts',
       ),
       '@assistigo/form-engine': path.resolve(root, '../../packages/form-engine/src/index.ts'),
+      // Subpaths only, never the barrel: the offscreen document needs the canvas and PDF
+      // encoders, everything else needs only the pure auto-fit planner.
+      '@assistigo/document-tools/autofit': path.resolve(
+        root,
+        '../../packages/document-tools/src/autofit.ts',
+      ),
+      '@assistigo/document-tools/browser/image': path.resolve(
+        root,
+        '../../packages/document-tools/src/browser/image.ts',
+      ),
+      '@assistigo/document-tools/browser/pdf': path.resolve(
+        root,
+        '../../packages/document-tools/src/browser/pdf.ts',
+      ),
       '@': path.resolve(root, 'src'),
     },
   },
@@ -43,6 +61,8 @@ export default defineConfig({
       input: {
         popup: path.resolve(root, 'src/popup/index.html'),
         sidepanel: path.resolve(root, 'src/sidepanel/index.html'),
+        // Auto-fit runs here: the service worker has no canvas (docs/EXTENSION.md §6c).
+        offscreen: path.resolve(root, 'src/offscreen/index.html'),
         background: path.resolve(root, 'src/background/index.ts'),
       },
       output: {

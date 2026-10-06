@@ -14,73 +14,162 @@
  */
 
 import type { DocumentRequirement, PortalAdapter } from './adapters';
-import type { DetectedField, DocumentCategory } from './types';
+import type { DetectedField, DocumentCategory, SlotDocumentType } from './types';
 
-const CATEGORY_WORDS: Record<DocumentCategory, RegExp> = {
-  // Checked before "photo": a signature upload box is often labelled "Photo & Signature" as a
-  // section heading, and the word "signature" is the more specific signal in that text.
-  signature: /sign(?:ature)?s?\b|hastak+shar|हस्ताक्षर|dastkhat/i,
-  photo: /photo(?:graph)?s?\b|passport[\s-]?size|picture|फोटो|तस्वीर/i,
-  // Broadened to the Indian identity and educational documents an upload box is commonly
-  // labelled with — a portal that asks for "Aadhaar Card" or "Marksheet" gets a document
-  // suggestion rather than falling through to `null` for want of the word "pdf" or "scan".
-  pdf: /\bpdf\b|marksheet|certificate|scan(?:ned)?\s*copy|document\s*upload|aadhaar|pan\s*card|\bpan\b|voter|identity|id\s*proof|address\s*proof|income|caste|domicile|residence|ration/i,
-};
-
-function fieldText(
-  field: Pick<DetectedField, 'labelText' | 'ariaLabel' | 'placeholder' | 'name' | 'id' | 'nearbyText' | 'sectionHeading'>,
-): string {
-  return [
-    field.labelText,
-    field.ariaLabel,
-    field.placeholder,
-    field.name,
-    field.id,
-    field.nearbyText,
-    field.sectionHeading,
-  ]
-    .filter((part): part is string => Boolean(part))
-    .join(' ');
-}
-
-/** Signature checked before photo: "Photo & Signature Upload" should not read as a photo field. */
-const CATEGORY_PRIORITY: readonly DocumentCategory[] = ['signature', 'photo', 'pdf'];
-
-function categoryFromText(text: string): DocumentCategory | null {
-  for (const category of CATEGORY_PRIORITY) {
-    if (CATEGORY_WORDS[category].test(text)) return category;
-  }
-  return null;
+/** The coarse bucket — and so the Document Tools tool — a specific slot type belongs to. */
+export function documentCategoryForType(type: SlotDocumentType): DocumentCategory {
+  if (type === 'photo' || type === 'signature') return type;
+  return 'pdf';
 }
 
 /**
- * What kind of upload slot this file field is. Returns `null` for a non-file field, and also for
- * a file field with no usable signal at all — an upload box with no label, no `accept` and no
- * adapter requirement match is exactly the shape of a portal's hidden/internal file input
- * (RTPS Bihar's representative-authorization and internal-uploader widgets), and guessing `pdf`
- * for it produced a phantom document-attachment card offering unrelated customer files. A field
- * with a real signal is unaffected: broadening `CATEGORY_WORDS.pdf` already covers the common
- * Indian identity/educational upload labels, so this only changes the *no signal at all* case.
+ * Words that name one specific document, tried in order against one piece of text.
+ *
+ * Signature before photo: "Photo & Signature Upload" names the signature box, and "signature" is
+ * the more specific word in it. Photo before everything else, except where "photo" is an
+ * adjective ("Photo ID proof", "photo copy of marksheet"). Class 12 before class 10, because
+ * "senior secondary" contains "secondary". Certificates before identity cards, because a
+ * certificate label sometimes says what it was issued against ("Residence certificate (Aadhaar
+ * based)").
+ */
+const SLOT_TYPE_WORDS: readonly (readonly [SlotDocumentType, RegExp])[] = [
+  ['signature', /sign(?:ature)?s?\b|hastak+shar|हस्ताक्षर|dastkhat/i],
+  [
+    'photo',
+    /photo(?:graph)?s?\b(?!\s*(?:id\b|identity|copy|stat))|passport[\s-]?size|picture|फोटो|तस्वीर/i,
+  ],
+  ['marksheet_graduation', /graduat|\bdegree\b|स्नातक/i],
+  [
+    'marksheet_12',
+    /(?:class|std|standard)\s*(?:12|xii)\b|\b(?:12|xii)(?:th)?\s*(?:class|std|standard|mark|pass|cert)|intermediate|(?:higher|senior)\s*secondary|इंटर|बारहवीं|12वीं/i,
+  ],
+  [
+    'marksheet_10',
+    /(?:class|std|standard)\s*(?:10|x)\b|\b(?:10|x)(?:th)?\s*(?:class|std|standard|mark|pass|cert)|matric|secondary\s*school|मैट्रिक|दसवीं|10वीं/i,
+  ],
+  ['caste_certificate', /\bcaste\b|\bjati\b|जाति/i],
+  ['income_certificate', /\bincome\b|आय\s*प्रमाण/i],
+  ['residence_certificate', /residen(?:ce|tial)\s*cert|domicile|\bniwas\b|निवास/i],
+  ['pan', /\bpan\b|permanent\s*account|पैन/i],
+  ['voter_id', /\bvoter|\bepic\b|electoral|मतदाता/i],
+  ['aadhaar_like', /aadhaa?r|\buidai?\b|आधार/i],
+  ['receipt', /receipt|रसीद/i],
+];
+
+/**
+ * Words that say "a document goes here" without saying which one. A box labelled "Marksheet" or
+ * "Address proof" is a pdf slot, but naming one type for it would be a guess — an address proof
+ * can be an Aadhaar, a voter ID or a residence certificate.
+ */
+const GENERIC_DOCUMENT_WORDS =
+  /\bpdf\b|marksheet|certificate|scan(?:ned)?\s*copy|document\s*upload|identity|id\s*proof|address\s*proof|residence|ration/i;
+
+/**
+ * Splits the identifiers portals write (`casteCertFile`, `upload_photo`, `doc-income`) into
+ * words, so `\b` boundaries in the patterns above see them the way they see a label.
+ */
+function normalizeSlotText(text: string): string {
+  return text.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_\-.]+/g, ' ');
+}
+
+type SlotClass = { category: DocumentCategory; documentType: SlotDocumentType | null };
+
+function classifyText(text: string): SlotClass | null {
+  const normalized = normalizeSlotText(text);
+  for (const [type, words] of SLOT_TYPE_WORDS) {
+    if (words.test(normalized)) return { category: documentCategoryForType(type), documentType: type };
+  }
+  if (GENERIC_DOCUMENT_WORDS.test(normalized)) return { category: 'pdf', documentType: null };
+  return null;
+}
+
+type SlotTextField = Pick<
+  DetectedField,
+  'labelText' | 'ariaLabel' | 'placeholder' | 'name' | 'id' | 'nearbyText' | 'sectionHeading'
+>;
+
+/** The field's own text, strongest signal first. */
+function slotSources(field: SlotTextField): { text: string; ownText: boolean }[] {
+  const own = [field.labelText, field.ariaLabel, field.placeholder, field.name, field.id, field.nearbyText];
+  return [
+    ...own.map((text) => ({ text, ownText: true })),
+    { text: field.sectionHeading, ownText: false },
+  ].filter((source): source is { text: string; ownText: boolean } => Boolean(source.text));
+}
+
+function fieldText(field: SlotTextField): string {
+  return slotSources(field)
+    .map((source) => source.text)
+    .join(' ');
+}
+
+/**
+ * What one upload slot asks for: the coarse category, plus the specific document when the field
+ * names one.
+ *
+ * Each source is classified on its own, strongest first, rather than all of them run together:
+ * a box labelled "Photograph" under a "Photo & Signature" heading is the photo box, and a box
+ * labelled "Caste certificate" under an "Upload documents" heading is the caste-certificate box.
+ * The strongest source with any signal fixes the category. A weaker source can still name the
+ * specific type within that category — a "Certificate" label in a table row that reads "Income"
+ * — but never overrule it.
+ *
+ * The section heading can set the category, as it always could, but never the specific type: on
+ * RTPS Bihar the heading over every upload box is the form's own title, "Income certificate
+ * application", and the boxes under it want an Aadhaar and a photograph.
+ */
+function classifySlot(field: SlotTextField): SlotClass | null {
+  let category: DocumentCategory | null = null;
+  for (const source of slotSources(field)) {
+    const hit = classifyText(source.text);
+    if (!hit) continue;
+    category ??= hit.category;
+    if (
+      source.ownText &&
+      hit.documentType &&
+      documentCategoryForType(hit.documentType) === category
+    ) {
+      return { category, documentType: hit.documentType };
+    }
+  }
+  return category ? { category, documentType: null } : null;
+}
+
+/**
+ * What this upload slot asks for. Returns `null` for a non-file field, and also for a file field
+ * with no usable signal at all — an upload box with no label, no `accept` and no adapter
+ * requirement match is exactly the shape of a portal's hidden/internal file input (RTPS Bihar's
+ * representative-authorization and internal-uploader widgets), and guessing `pdf` for it
+ * produced a phantom document-attachment card offering unrelated customer files.
  *
  * Text wins over `accept`: "Photo (JPG only)" with `accept="image/*"` is a photo, but a bare
  * `accept="image/*"` with no label at all is too weak a signal to promise a specific preset —
- * it is only used as a last resort to tell a photo from a signature scan.
+ * it is only used as a last resort to tell a photo from a pdf slot, and never names a type.
  */
-export function inferFileFieldCategory(
-  field: Pick<
-    DetectedField,
-    'inputType' | 'labelText' | 'ariaLabel' | 'placeholder' | 'name' | 'id' | 'nearbyText' | 'sectionHeading' | 'accept'
-  >,
-): DocumentCategory | null {
+export function inferFileFieldSlot(
+  field: Pick<DetectedField, 'inputType' | 'accept'> & SlotTextField,
+): SlotClass | null {
   if (field.inputType.toLowerCase() !== 'file') return null;
 
-  const fromText = categoryFromText(fieldText(field));
+  const fromText = classifySlot(field);
   if (fromText) return fromText;
 
   const accept = field.accept?.toLowerCase() ?? '';
-  if (accept.includes('pdf')) return 'pdf';
-  if (accept.includes('image')) return 'photo';
+  if (accept.includes('pdf')) return { category: 'pdf', documentType: null };
+  if (accept.includes('image')) return { category: 'photo', documentType: null };
   return null;
+}
+
+/** The coarse half of `inferFileFieldSlot`. */
+export function inferFileFieldCategory(
+  field: Pick<DetectedField, 'inputType' | 'accept'> & SlotTextField,
+): DocumentCategory | null {
+  return inferFileFieldSlot(field)?.category ?? null;
+}
+
+/** How an adapter's requirement entry reads: its label first, its key when the label is silent. */
+function classifyRequirement(requirement: DocumentRequirement): SlotClass | null {
+  return classifyText(requirement.label) ?? classifyText(requirement.key);
 }
 
 function normalizeWords(text: string): string[] {
@@ -105,19 +194,23 @@ function overlapScore(a: string, b: string): number {
 export type DocumentFieldMatch = {
   signature: string;
   category: DocumentCategory;
+  /** The specific document the slot names, when it names one. */
+  documentType: SlotDocumentType | null;
   /** The adapter's own requirement entry, when one could be picked out. */
   requirement: DocumentRequirement | null;
 };
 
 /**
- * For every detected file field, infer its category and — when the resolved portal adapter
+ * For every detected file field, infer what it asks for and — when the resolved portal adapter
  * lists `documentRequirements` — pick the one requirement that best matches it.
  *
  * There is no selector on a `documentRequirement` (unlike `AdapterField`): a portal notice lists
  * "Photograph" and "Signature" as upload slots, not CSS. So the match is: prefer requirements
- * whose own label falls in the same category, then break ties (or fall back, if none did) by
- * text overlap against the field's own label/nearby text. A category match with only one
- * candidate is trusted outright — two upload boxes are rarely both "photo".
+ * naming the same specific document, then those in the same category, then break ties (or fall
+ * back, if none did) by text overlap against the field's own label/nearby text. A narrowed pool
+ * of exactly one is trusted outright — two upload boxes are rarely both "caste certificate", and
+ * two pdf requirements ("Caste certificate", "Income certificate") are now told apart by type
+ * even when the box's own label shares no word with either.
  *
  * A field the operator cannot see is skipped outright, regardless of category: a portal's hidden
  * representative-authorization or internal-uploader file input is not something the operator can
@@ -133,13 +226,19 @@ export function matchDocumentRequirements(
   for (const field of fields) {
     if (field.visible === false) continue;
 
-    const category = inferFileFieldCategory(field);
-    if (!category) continue;
+    const slot = inferFileFieldSlot(field);
+    if (!slot) continue;
+    const { category, documentType } = slot;
 
-    const sameCategory = requirements.filter(
-      (requirement) => categoryFromText(requirement.label) === category,
+    const classified = requirements.map(
+      (requirement) => [requirement, classifyRequirement(requirement)] as const,
     );
-    const pool = sameCategory.length > 0 ? sameCategory : requirements;
+    const sameType = documentType
+      ? classified.filter(([, cls]) => cls?.documentType === documentType).map(([r]) => r)
+      : [];
+    const sameCategory = classified.filter(([, cls]) => cls?.category === category).map(([r]) => r);
+    const narrowed = sameType.length > 0 ? sameType : sameCategory;
+    const pool = narrowed.length > 0 ? narrowed : requirements;
 
     const text = fieldText(field);
     let best: DocumentRequirement | null = null;
@@ -151,11 +250,11 @@ export function matchDocumentRequirements(
         best = requirement;
       }
     }
-    // No textual overlap, but exactly one requirement already narrowed by category — still a
-    // confident pick.
-    if (!best && sameCategory.length === 1) best = sameCategory[0] ?? null;
+    // No textual overlap, but exactly one requirement already narrowed by type or category —
+    // still a confident pick.
+    if (!best && narrowed.length === 1) best = narrowed[0] ?? null;
 
-    matches.push({ signature: field.signature, category, requirement: best });
+    matches.push({ signature: field.signature, category, documentType, requirement: best });
   }
 
   return matches;

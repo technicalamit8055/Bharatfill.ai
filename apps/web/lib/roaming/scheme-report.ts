@@ -32,7 +32,9 @@ export function customerRowFromRoamingCard(row: RoamingCustomerCardRow): Custome
     marital_status: null,
     category: row.category,
     father_name: null,
+    father_name_hi: null,
     mother_name: null,
+    mother_name_hi: null,
     spouse_name: null,
     guardian_name: null,
     // Only the state/district the roaming projection already resolved server-side — enough for

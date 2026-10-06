@@ -58,6 +58,8 @@ only consumer, in `apps/web/lib/supabase/database.types.ts`.
 | `0029_admin_managed_plans.sql`                 | Admin-managed plans: code whitelist → format check, limit checks, `guard_plan_update()` trigger (code immutable, price locked while in use, free never retired), `plans_read` also shows a retired plan to its own members |
 | `0030_platform_tenant_management.sql`          | `organizations.suspended_at` / `suspension_reason` / `suspended_by` + `guard_organization_suspension()`; `manual` subscription provider + `guard_manual_subscription()`; `platform_tenant_rows()` widened (status, subscription, total count, status/plan filters); `platform_tenant_detail()` |
 | `0031_auth_sessions.sql`                       | `list_my_auth_sessions()`, `revoke_my_auth_session(uuid)` — security definer over GoTrue's `auth.sessions`, caller's own rows only, `authenticated` only; nothing new stored (docs/SECURITY.md § Sessions roster) |
+| `0032_parent_names_hi.sql`                     | `customers.father_name_hi`, `customers.mother_name_hi` — Devanagari spellings beside the English `father_name` / `mother_name`; no backfill (docs/FORM_ENGINE.md §7a)                                             |
+| `0033_vertex_ai_vendor.sql`                    | `organization_ai_settings` checks widened: `provider` gains `vertex`, `wire_format` gains `vertex_generate_content` (Vertex AI express mode); nothing new stored (docs/AI_PIPELINE.md §2)                         |
 
 Seed data is **separate from migrations** (`packages/database/src/seed/`), per spec §25.4.
 
@@ -175,8 +177,10 @@ A table of its own, not a key in `organizations.settings`, because it holds a se
 API reports only whether a key is set. Any member may select the row (to show "read by"), only an
 owner may write it — stricter than ordinary org settings. Writing a row does **not** enable AI
 reading: `organizations.settings.ai_processing_enabled` is still the gate the pipeline checks.
-`provider` is a UI preset (`openai`, `anthropic`, `deepseek`, `gemini`, `ollama`, `openrouter`,
-`custom`); what is actually spoken is `wire_format` (`openai_compatible` | `anthropic_messages`).
+`provider` is a UI preset (`openai`, `anthropic`, `deepseek`, `gemini`, `vertex`, `ollama`,
+`openrouter`, `custom`); what is actually spoken is `wire_format` (`openai_compatible` |
+`anthropic_messages` | `vertex_generate_content`). 0033 widened both checks for `vertex`; nothing
+new is stored.
 
 ### `plan_code` sync (0018)
 

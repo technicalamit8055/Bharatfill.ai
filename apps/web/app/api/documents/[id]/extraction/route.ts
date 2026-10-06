@@ -3,6 +3,7 @@ import { extractedFieldSchema, extractionWarningSchema } from '@assistigo/ai';
 import { getCustomerField, notFound } from '@assistigo/core';
 import { requirePermission, resolveContext } from '@/lib/api/context';
 import { handler, ok } from '@/lib/api/response';
+import { loadProfileValuesForMatching, markProfileMatches } from '@/lib/documents/profile-match';
 import type { DocumentExtractionRow, DocumentRow } from '@/lib/supabase/database.types';
 
 const idSchema = z.string().uuid();
@@ -21,7 +22,9 @@ const storedWarningsSchema = z.array(extractionWarningSchema).catch([]);
  * GET /api/documents/:id/extraction
  *
  * The review payload (§17.4, §12.6): every proposed field with its confidence, the reason it
- * needs review, and the snippet it was read from.
+ * needs review, and the snippet it was read from. Each field also says whether it already
+ * matches the customer's profile, so the review screen can set it aside
+ * (lib/documents/profile-match.ts) — only that boolean is sent, never the profile value.
  */
 export const GET = handler(
   'api.documents.extraction',
@@ -65,7 +68,12 @@ export const GET = handler(
     }
 
     const row = data as DocumentExtractionRow;
-    const fields = storedFieldsSchema.parse(row.extracted_fields);
+    const profileValues = await loadProfileValuesForMatching(
+      context.supabase,
+      context.organization.id,
+      document.customer_id,
+    );
+    const fields = markProfileMatches(storedFieldsSchema.parse(row.extracted_fields), profileValues);
 
     return ok({
       documentId: id,

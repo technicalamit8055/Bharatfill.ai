@@ -84,7 +84,11 @@ export interface OcrProvider {
  * no environment access — the web app owns the secrets and hands over only what a provider
  * needs (see apps/web/lib/jobs/handlers/ocr-extract.ts).
  */
-export const AI_WIRE_FORMATS = ['openai_compatible', 'anthropic_messages'] as const;
+export const AI_WIRE_FORMATS = [
+  'openai_compatible',
+  'anthropic_messages',
+  'vertex_generate_content',
+] as const;
 export type AiWireFormat = (typeof AI_WIRE_FORMATS)[number];
 
 export type OcrProviderConfig = {

@@ -11,6 +11,7 @@ import { requiresReview } from '@assistigo/core';
 import { adapterDependencyDepth, findAdapterField, type PortalAdapter } from './adapters';
 import { bestMatch } from './scorer';
 import { classifyField, isFileInput, isPasswordField, isSupportedInputType } from './safety';
+import { SCRIPT_TWINS, expectedScript, scriptOf } from './script';
 import { applyTransform } from './transforms';
 import {
   CONFIDENCE,
@@ -88,6 +89,14 @@ function skip(
     safetyClass,
     skipReason: reason,
   };
+}
+
+/** Boxes a name or address is typed into — the only ones where the value's script matters. */
+function isFreeText(field: DetectedField): boolean {
+  if (field.tagName === 'textarea') return true;
+  return (
+    field.tagName === 'input' && ['text', 'search', 'contenteditable'].includes(field.inputType)
+  );
 }
 
 /** A successful resolution always names a customer field; `null` means nothing matched. */
@@ -231,9 +240,23 @@ export function proposeMappings(input: MappingInput): MappingProposal {
       continue;
     }
 
-    const rawValue = input.customerValues[resolved.customerField] ?? null;
-    const value = applyTransform(resolved.transform, rawValue);
-    if (value === null || value === '') {
+    const valueOf = (key: string | undefined): string | null =>
+      key ? applyTransform(resolved.transform, input.customerValues[key] ?? null) || null : null;
+
+    /*
+     * A name's other spelling stands in when this one is empty: an older profile keeps a Hindi
+     * father's name in `father_name`, and a newer one may have only `father_name_hi`. Whether that
+     * spelling suits this box is the script check's call, below.
+     */
+    let customerField = resolved.customerField;
+    let value = valueOf(customerField);
+    const fallback = value === null ? SCRIPT_TWINS[customerField] : undefined;
+    if (fallback && valueOf(fallback) !== null) {
+      customerField = fallback;
+      value = valueOf(fallback);
+    }
+
+    if (value === null) {
       mappings.push({
         signature: field.signature,
         customerField: resolved.customerField,
@@ -247,24 +270,57 @@ export function proposeMappings(input: MappingInput): MappingProposal {
       continue;
     }
 
+    const adapterField = input.adapter ? findAdapterField(input.adapter, field) : null;
+
+    /*
+     * Script check: a Hindi value in a box that only takes English (or the reverse). The other
+     * rendering of the same fact wins when the profile has it; otherwise an explicit rule blocks
+     * the value and the operator types it, and a merely English-looking box asks for review.
+     */
+    let scriptReview = false;
+    const valueScript = isFreeText(field) ? scriptOf(value) : null;
+    const expectation = valueScript ? expectedScript(field, value, adapterField?.script) : null;
+    if (expectation && valueScript !== expectation.script) {
+      const twin = SCRIPT_TWINS[customerField];
+      const twinValue = valueOf(twin);
+      if (twin && twinValue && scriptOf(twinValue) === expectation.script) {
+        customerField = twin;
+      } else if (expectation.strength === 'explicit') {
+        mappings.push({
+          signature: field.signature,
+          customerField,
+          source: resolved.source,
+          confidence: resolved.confidence,
+          reviewRequired: true,
+          safetyClass: 'normal',
+          skipReason: 'script_mismatch',
+          expectedScript: expectation.script,
+          ...(resolved.transform ? { transform: resolved.transform } : {}),
+        });
+        continue;
+      } else {
+        scriptReview = true;
+      }
+    }
+
     /*
      * Review is mandatory when any of these hold (§14.6):
      *   - the customer field is high-risk (Aadhaar, PAN, bank, category, income, DOB…),
      *   - the mapping is not confidently above the medium band,
      *   - the underlying value has not been verified by a human yet,
-     *   - the adapter explicitly demands it.
+     *   - the adapter explicitly demands it,
+     *   - the value may be in a script the portal will not accept.
      */
-    const adapterField = input.adapter ? findAdapterField(input.adapter, field) : null;
-
     const reviewRequired =
-      requiresReview(resolved.customerField) ||
+      requiresReview(customerField) ||
       resolved.confidence < CONFIDENCE.high ||
-      (input.unverifiedFields?.has(resolved.customerField) ?? false) ||
-      adapterField?.reviewRequired === true;
+      (input.unverifiedFields?.has(customerField) ?? false) ||
+      adapterField?.reviewRequired === true ||
+      scriptReview;
 
     mappings.push({
       signature: field.signature,
-      customerField: resolved.customerField,
+      customerField,
       source: resolved.source,
       confidence: resolved.confidence,
       reviewRequired,
@@ -320,13 +376,15 @@ export type FillInstructionOptions = {
  * preview the first time the two differ and they notice.
  */
 export function resolveFillValue(
-  mapping: Pick<FieldMapping, 'signature' | 'customerField' | 'transform'>,
+  mapping: Pick<FieldMapping, 'signature' | 'customerField' | 'transform' | 'skipReason'>,
   customerValues: Readonly<Record<string, string | null>>,
   edits?: Readonly<Record<string, string>>,
 ): string | null {
   const edited = edits?.[mapping.signature];
   if (edited !== undefined) return edited === '' ? null : edited;
   if (!mapping.customerField) return null;
+  // The saved value is in the wrong script for this box; only what the operator types goes in.
+  if (mapping.skipReason === 'script_mismatch') return null;
 
   const value = applyTransform(mapping.transform, customerValues[mapping.customerField] ?? null);
   return value === '' ? null : value;
@@ -353,13 +411,28 @@ export function buildFillInstructions(
     if (!approvedSignatures.has(mapping.signature)) continue;
     if (mapping.safetyClass !== 'normal') continue;
     if (!mapping.customerField) continue;
-    if (mapping.skipReason !== undefined && mapping.skipReason !== 'low_confidence') continue;
+    if (
+      mapping.skipReason !== undefined &&
+      mapping.skipReason !== 'low_confidence' &&
+      mapping.skipReason !== 'script_mismatch'
+    ) {
+      continue;
+    }
 
     const field = fieldBySignature.get(mapping.signature);
     if (!field) continue;
 
     const value = resolveFillValue(mapping, customerValues, options.edits);
     if (value === null) continue;
+    // An operator who pasted the same Hindi spelling back in has not fixed anything.
+    if (
+      mapping.skipReason === 'script_mismatch' &&
+      mapping.expectedScript &&
+      scriptOf(value) !== null &&
+      scriptOf(value) !== mapping.expectedScript
+    ) {
+      continue;
+    }
 
     instructions.push({
       signature: mapping.signature,

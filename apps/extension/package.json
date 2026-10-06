@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@assistigo/core": "*",
+    "@assistigo/document-tools": "*",
     "@assistigo/form-engine": "*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

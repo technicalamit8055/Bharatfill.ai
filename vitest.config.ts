@@ -19,7 +19,17 @@ const alias = {
   '@assistigo/form-engine/types': path.resolve(root, 'packages/form-engine/src/types.ts'),
   '@assistigo/form-engine/safety': path.resolve(root, 'packages/form-engine/src/safety.ts'),
   '@assistigo/form-engine/documents': path.resolve(root, 'packages/form-engine/src/documents.ts'),
+  '@assistigo/form-engine/constraints': path.resolve(root, 'packages/form-engine/src/constraints.ts'),
   '@assistigo/form-engine': path.resolve(root, 'packages/form-engine/src/index.ts'),
+  '@assistigo/document-tools/autofit': path.resolve(root, 'packages/document-tools/src/autofit.ts'),
+  '@assistigo/document-tools/browser/image': path.resolve(
+    root,
+    'packages/document-tools/src/browser/image.ts',
+  ),
+  '@assistigo/document-tools/browser/pdf': path.resolve(
+    root,
+    'packages/document-tools/src/browser/pdf.ts',
+  ),
   '@assistigo/document-tools': path.resolve(root, 'packages/document-tools/src/index.ts'),
   '@assistigo/database': path.resolve(root, 'packages/database/src/index.ts'),
   '@assistigo/ui': path.resolve(root, 'packages/ui/src/index.ts'),

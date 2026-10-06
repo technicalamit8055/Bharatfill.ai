@@ -12,8 +12,10 @@ import {
   ANTHROPIC_BASE_URL,
   AiVisionOcrProvider,
   buildDynamicSchemaPrompt,
+  buildVertexGenerateContentUrl,
   cleanTranscription,
   visionUnreadableReason,
+  type AiVisionProviderOptions,
 } from './ai-vision';
 import { ALL_EXTRACTABLE_FIELD_KEYS } from '../rules';
 import type { OcrInput } from '../types';
@@ -334,6 +336,151 @@ describe('Anthropic wire format', () => {
     });
 
     await expect(provider.extract(inputOf())).rejects.toThrowError(/provider_not_configured/);
+  });
+});
+
+/** A fetch stub that replies with a Vertex AI generateContent response. */
+function stubVertexFetch(body: Record<string, unknown>, init: { status?: number } = {}) {
+  const calls: { url: string; body: Record<string, unknown>; headers: Record<string, string> }[] =
+    [];
+
+  const impl = vi.fn(async (url: string | URL | Request, options?: RequestInit) => {
+    calls.push({
+      url: String(url),
+      body: JSON.parse(String(options?.body ?? '{}')),
+      headers: (options?.headers ?? {}) as Record<string, string>,
+    });
+
+    const status = init.status ?? 200;
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+    } as unknown as Response;
+  });
+
+  return { impl: impl as unknown as typeof fetch, calls };
+}
+
+function vertexAnswer(text: string) {
+  return { responseId: 'vtx-1', candidates: [{ content: { role: 'model', parts: [{ text }] } }] };
+}
+
+function vertexProvider(fetchImpl: typeof fetch, overrides: Partial<AiVisionProviderOptions> = {}) {
+  return new AiVisionOcrProvider({
+    apiKey: 'vertex-key',
+    baseUrl: 'https://aiplatform.googleapis.com',
+    model: 'gemini-3.6-flash',
+    wireFormat: 'vertex_generate_content',
+    fetchImpl,
+    ...overrides,
+  });
+}
+
+describe('Vertex AI wire format', () => {
+  it('calls the express-mode generateContent endpoint for the configured model', async () => {
+    const { impl, calls } = stubVertexFetch(vertexAnswer('Name: Sunita Devi'));
+    const result = await vertexProvider(impl).extract(inputOf());
+
+    expect(calls[0]?.url).toBe(
+      'https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.6-flash:generateContent',
+    );
+    expect(result.rawText).toBe('Name: Sunita Devi');
+    expect(result.providerRequestId).toBe('vtx-1');
+  });
+
+  it('sends the key in a header and never in the URL', async () => {
+    const { impl, calls } = stubVertexFetch(vertexAnswer('Name: Sunita Devi'));
+    await vertexProvider(impl).extract(inputOf());
+
+    expect(calls[0]?.headers['x-goog-api-key']).toBe('vertex-key');
+    expect(calls[0]?.headers.authorization).toBeUndefined();
+    expect(calls[0]?.url).not.toContain('vertex-key');
+    expect(calls[0]?.url).not.toContain('key=');
+  });
+
+  it('speaks generateContent: system instruction, inline image data, deterministic', async () => {
+    const { impl, calls } = stubVertexFetch(vertexAnswer('Name: Sunita Devi'));
+    await vertexProvider(impl).extract(inputOf());
+
+    const body = calls[0]?.body as {
+      systemInstruction: { parts: { text: string }[] };
+      contents: { role: string; parts: { text?: string; inlineData?: { mimeType: string } }[] }[];
+      generationConfig: { temperature: number };
+      messages?: unknown;
+    };
+    expect(body.messages).toBeUndefined();
+    expect(body.systemInstruction.parts[0]?.text).toMatch(/transcribe/i);
+    expect(body.contents[0]?.role).toBe('user');
+    expect(body.contents[0]?.parts.find((part) => part.inlineData)?.inlineData?.mimeType).toBe(
+      'image/jpeg',
+    );
+    expect(body.generationConfig.temperature).toBe(0);
+    expect(JSON.stringify(body)).not.toContain('sunita-devi-aadhaar');
+  });
+
+  it('sends a scanned PDF inline instead of refusing it', async () => {
+    const { impl, calls } = stubVertexFetch(vertexAnswer('Name: Sunita Devi'));
+    const scan = encoder.encode('%PDF-1.4\n1 0 obj << /Type /Page >> endobj\n%%EOF');
+
+    const result = await vertexProvider(impl).extract(
+      inputOf({ bytes: scan, mimeType: 'application/pdf' }),
+    );
+
+    const parts = (calls[0]?.body.contents as { parts: { inlineData?: { mimeType: string } }[] }[])[0]
+      ?.parts;
+    expect(parts?.find((part) => part.inlineData)?.inlineData?.mimeType).toBe('application/pdf');
+    expect(visionUnreadableReason(result)).toBeNull();
+  });
+
+  it('keeps the answer and drops the model\'s "thought" parts', async () => {
+    const { impl } = stubVertexFetch({
+      responseId: 'vtx-2',
+      candidates: [
+        {
+          content: {
+            parts: [
+              { text: 'Let me look at the label first…', thought: true },
+              { text: 'Name: Sunita ' },
+              { text: 'Devi' },
+            ],
+          },
+        },
+      ],
+    });
+
+    const result = await vertexProvider(impl).extract(inputOf());
+    expect(result.rawText).toBe('Name: Sunita Devi');
+  });
+
+  it('reports a blocked prompt (no candidates) as an empty answer, not a crash', async () => {
+    const { impl } = stubVertexFetch({ promptFeedback: { blockReason: 'OTHER' } });
+    const result = await vertexProvider(impl).extract(inputOf());
+    expect(visionUnreadableReason(result)).toBe('empty_response');
+  });
+
+  it('reports a rejected key the same way as the other wire formats', async () => {
+    const { impl } = stubVertexFetch({}, { status: 403 });
+    await expect(vertexProvider(impl).extract(inputOf())).rejects.toThrowError(
+      /provider_not_configured/,
+    );
+  });
+
+  it('builds the URL from a versioned or project-scoped base', () => {
+    expect(buildVertexGenerateContentUrl('https://aiplatform.googleapis.com/', 'gemini-x')).toBe(
+      'https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-x:generateContent',
+    );
+    expect(buildVertexGenerateContentUrl('https://aiplatform.googleapis.com/v1', 'gemini-x')).toBe(
+      'https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-x:generateContent',
+    );
+    expect(
+      buildVertexGenerateContentUrl(
+        'https://aiplatform.googleapis.com/v1/projects/demo/locations/global',
+        'gemini-x',
+      ),
+    ).toBe(
+      'https://aiplatform.googleapis.com/v1/projects/demo/locations/global/publishers/google/models/gemini-x:generateContent',
+    );
   });
 });
 

@@ -166,7 +166,9 @@ export const PATCH = handler(
     if (input.maritalStatus !== undefined) patch.marital_status = input.maritalStatus;
     if (input.category !== undefined) patch.category = input.category;
     if (input.fatherName !== undefined) patch.father_name = input.fatherName;
+    if (input.fatherNameHi !== undefined) patch.father_name_hi = input.fatherNameHi || null;
     if (input.motherName !== undefined) patch.mother_name = input.motherName;
+    if (input.motherNameHi !== undefined) patch.mother_name_hi = input.motherNameHi || null;
     if (input.spouseName !== undefined) patch.spouse_name = input.spouseName;
     if (input.guardianName !== undefined) patch.guardian_name = input.guardianName;
     if (input.address !== undefined) patch.address_json = input.address as unknown as Json;

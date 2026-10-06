@@ -9,7 +9,7 @@
 
 import type { ReactNode } from 'react';
 
-const asset = (file: string): string =>
+export const asset = (file: string): string =>
   typeof chrome !== 'undefined' && chrome.runtime?.getURL
     ? chrome.runtime.getURL(`icons/${file}`)
     : `icons/${file}`;

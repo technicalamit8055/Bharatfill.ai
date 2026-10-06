@@ -21,3 +21,4 @@ export * from './sheets';
 export * from './cards';
 export * from './recipe';
 export * from './preferences';
+export * from './autofit';

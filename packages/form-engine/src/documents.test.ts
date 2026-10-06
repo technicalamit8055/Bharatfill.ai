@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  documentCategoryForType,
   fileMatchesAccept,
   inferFileFieldCategory,
+  inferFileFieldSlot,
   matchDocumentRequirements,
 } from './documents';
 import type { PortalAdapter } from './adapters';
@@ -109,7 +111,127 @@ describe('inferFileFieldCategory', () => {
   });
 });
 
+describe('inferFileFieldSlot — specific document types', () => {
+  it.each([
+    ['Aadhaar Card', 'aadhaar_like'],
+    ['आधार कार्ड अपलोड करें', 'aadhaar_like'],
+    ['PAN Card', 'pan'],
+    ['Voter ID (EPIC)', 'voter_id'],
+    ['Class 10 Marksheet', 'marksheet_10'],
+    ['Matriculation certificate', 'marksheet_10'],
+    ['10th Pass Certificate', 'marksheet_10'],
+    ['Class XII Marksheet', 'marksheet_12'],
+    ['Intermediate marksheet', 'marksheet_12'],
+    ['Senior Secondary certificate', 'marksheet_12'],
+    ['Graduation degree', 'marksheet_graduation'],
+    ['Caste Certificate', 'caste_certificate'],
+    ['जाति प्रमाण पत्र', 'caste_certificate'],
+    ['Income Certificate', 'income_certificate'],
+    ['आय प्रमाण पत्र', 'income_certificate'],
+    ['Domicile Certificate', 'residence_certificate'],
+    ['निवास प्रमाण पत्र', 'residence_certificate'],
+    ['Fee receipt', 'receipt'],
+    ['Photograph', 'photo'],
+    ['Signature', 'signature'],
+  ] as const)('reads "%s" as %s', (labelText, documentType) => {
+    const slot = inferFileFieldSlot(field({ signature: `t-${labelText}`, labelText }));
+    expect(slot?.documentType).toBe(documentType);
+  });
+
+  it('keeps a document slot that names no single type as a plain pdf slot', () => {
+    // An address proof can be an Aadhaar, a voter ID or a residence certificate.
+    for (const labelText of ['Address Proof', 'Marksheet', 'Ration Card', 'Upload ID Proof']) {
+      expect(inferFileFieldSlot(field({ signature: `g-${labelText}`, labelText }))).toEqual({
+        category: 'pdf',
+        documentType: null,
+      });
+    }
+  });
+
+  it('does not read "photo" as an adjective as a photograph slot', () => {
+    expect(inferFileFieldSlot(field({ signature: 'p1', labelText: 'Photo ID proof' }))).toEqual({
+      category: 'pdf',
+      documentType: null,
+    });
+    expect(
+      inferFileFieldSlot(field({ signature: 'p2', labelText: 'Photo copy of 10th marksheet' })),
+    ).toEqual({ category: 'pdf', documentType: 'marksheet_10' });
+  });
+
+  it('lets the label beat a heading that names a different slot', () => {
+    // Run together, "Photo & Signature" in the heading used to make this a signature box.
+    const slot = inferFileFieldSlot(
+      field({ signature: 'h1', labelText: 'Photograph', sectionHeading: 'Photo & Signature' }),
+    );
+    expect(slot).toEqual({ category: 'photo', documentType: 'photo' });
+  });
+
+  it('takes the specific type from table-row text when the label is only generic', () => {
+    const slot = inferFileFieldSlot(
+      field({ signature: 'r1', labelText: 'Certificate', nearbyText: 'Income Certificate Choose file' }),
+    );
+    expect(slot).toEqual({ category: 'pdf', documentType: 'income_certificate' });
+  });
+
+  it('never takes the specific type from the section heading', () => {
+    // RTPS Bihar: every upload box sits under the form's own title.
+    const slot = inferFileFieldSlot(
+      field({
+        signature: 'r2',
+        labelText: 'Supporting document upload',
+        sectionHeading: 'Income Certificate Application',
+      }),
+    );
+    expect(slot).toEqual({ category: 'pdf', documentType: null });
+  });
+
+  it('reads the identifiers portals generate', () => {
+    expect(inferFileFieldSlot(field({ signature: 'n1', name: 'casteCertFile' }))?.documentType).toBe(
+      'caste_certificate',
+    );
+    expect(inferFileFieldSlot(field({ signature: 'n2', id: 'upload_photo' }))?.documentType).toBe(
+      'photo',
+    );
+  });
+
+  it('never names a type from the accept attribute alone', () => {
+    expect(inferFileFieldSlot(field({ signature: 'a1', accept: 'image/*' }))).toEqual({
+      category: 'photo',
+      documentType: null,
+    });
+  });
+
+  it('maps every type onto the category its tool handles', () => {
+    expect(documentCategoryForType('photo')).toBe('photo');
+    expect(documentCategoryForType('signature')).toBe('signature');
+    expect(documentCategoryForType('caste_certificate')).toBe('pdf');
+    expect(documentCategoryForType('aadhaar_like')).toBe('pdf');
+  });
+});
+
 describe('matchDocumentRequirements', () => {
+  it('tells two pdf requirements apart by type, with no shared words', () => {
+    const a = adapter({
+      slug: 'rtps',
+      documentRequirements: [
+        { key: 'caste', label: 'Caste certificate', required: true },
+        { key: 'income', label: 'Income certificate', required: true },
+      ],
+    });
+    const matches = matchDocumentRequirements(
+      [field({ signature: 'f1', labelText: 'आय प्रमाण पत्र' })],
+      a,
+    );
+    expect(matches).toEqual([
+      {
+        signature: 'f1',
+        category: 'pdf',
+        documentType: 'income_certificate',
+        requirement: a.documentRequirements[1],
+      },
+    ]);
+  });
+
   it('picks the sole requirement in a matching category', () => {
     const a = adapter({
       slug: 'ssc',
@@ -125,6 +247,7 @@ describe('matchDocumentRequirements', () => {
       {
         signature: 'f1',
         category: 'photo',
+        documentType: 'photo',
         requirement: { key: 'photo', label: 'Photograph', presetCode: 'ssc.photo', required: true },
       },
     ]);
@@ -154,7 +277,9 @@ describe('matchDocumentRequirements', () => {
       [field({ signature: 'f1', labelText: 'Signature' })],
       null,
     );
-    expect(matches).toEqual([{ signature: 'f1', category: 'signature', requirement: null }]);
+    expect(matches).toEqual([
+      { signature: 'f1', category: 'signature', documentType: 'signature', requirement: null },
+    ]);
   });
 
   it('skips fields with no inferable category rather than guessing "pdf"', () => {

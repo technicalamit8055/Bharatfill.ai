@@ -23,6 +23,7 @@ import {
   normalizePincode,
   parseIndianDate,
   requiresReview,
+  NAME_SCRIPT_PAIRS,
   type CustomerFieldDataType,
   type DocumentType,
 } from '@assistigo/core';
@@ -548,6 +549,22 @@ function reviewReasonFor(key: string, confidence: number, formatValid: boolean):
   return null;
 }
 
+/**
+ * A parent's name is filed under the spelling its script says it is: a Devanagari father's name
+ * read off a Hindi certificate is `father_name_hi`, not the English `father_name` a central portal will be
+ * filled from (docs/FORM_ENGINE.md §7a). The applicant's own name is left alone — `full_name`
+ * is the one field a profile cannot be created without, whatever script it arrives in.
+ */
+const PARENT_NAME_PAIRS = NAME_SCRIPT_PAIRS.filter(({ english }) => english !== 'customer.full_name');
+
+function keyForScript(key: string, value: string): string {
+  const pair = PARENT_NAME_PAIRS.find(({ english, hindi }) => key === english || key === hindi);
+  if (!pair) return key;
+  if (/\p{Script=Devanagari}/u.test(value)) return pair.hindi;
+  if (/\p{Script=Latin}/u.test(value)) return pair.english;
+  return key;
+}
+
 // ---------------------------------------------------------------------------
 // Extraction
 // ---------------------------------------------------------------------------
@@ -625,7 +642,7 @@ export function extractFields(input: ExtractFieldsInput): {
       : reviewReasonFor(top.rule.key, confidence, normalised.valid);
 
     const candidate: ExtractedField = {
-      key: top.rule.key,
+      key: keyForScript(top.rule.key, normalised.value),
       label: line.label.slice(0, 200),
       value: normalised.value,
       confidence,
@@ -843,7 +860,7 @@ export function buildFieldsFromStructuredOutput(input: {
     const reviewReason = reviewReasonFor(raw.key, confidence, normalised.valid);
 
     const candidate: ExtractedField = {
-      key: raw.key,
+      key: keyForScript(raw.key, normalised.value),
       label: (raw.label.trim() !== '' ? raw.label : definition.label.en).slice(0, 200),
       value: normalised.value,
       confidence,

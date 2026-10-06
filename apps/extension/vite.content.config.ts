@@ -24,6 +24,10 @@ export default defineConfig({
         root,
         '../../packages/form-engine/src/documents.ts',
       ),
+      '@assistigo/form-engine/constraints': path.resolve(
+        root,
+        '../../packages/form-engine/src/constraints.ts',
+      ),
       '@assistigo/form-engine': path.resolve(root, '../../packages/form-engine/src/index.ts'),
       '@': path.resolve(root, 'src'),
     },

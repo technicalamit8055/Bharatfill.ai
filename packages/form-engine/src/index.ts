@@ -13,4 +13,7 @@ export * from './transforms';
 export * from './adapters';
 export * from './adapter-registry';
 export * from './mapper';
+export * from './script';
 export * from './documents';
+export * from './constraints';
+export * from './auto-match';

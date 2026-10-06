@@ -31,6 +31,7 @@ const providerSchema: z.ZodType<OrganizationAiProvider> = z.enum([
   'anthropic',
   'deepseek',
   'gemini',
+  'vertex',
   'ollama',
   'openrouter',
   'custom',

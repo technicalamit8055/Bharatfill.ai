@@ -24,7 +24,7 @@ import type { OrganizationAiProvider } from '@/lib/supabase/database.types';
  */
 const bodySchema = z.object({
   provider: z
-    .enum(['openai', 'anthropic', 'deepseek', 'gemini', 'ollama', 'openrouter', 'custom'])
+    .enum(['openai', 'anthropic', 'deepseek', 'gemini', 'vertex', 'ollama', 'openrouter', 'custom'])
     .optional(),
   baseUrl: z.string().trim().max(500).optional(),
   model: z.string().trim().max(200).optional(),

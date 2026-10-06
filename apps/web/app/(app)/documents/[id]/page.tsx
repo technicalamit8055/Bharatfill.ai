@@ -14,6 +14,7 @@ import { getTranslations } from '@/lib/i18n/server';
 import { localised } from '@/lib/i18n';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { formatBytes, formatConfidence } from '@/lib/documents/format';
+import { loadProfileValuesForMatching, markProfileMatches } from '@/lib/documents/profile-match';
 import type {
   CustomerRow,
   DocumentExtractionRow,
@@ -78,16 +79,21 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     'id' | 'full_name' | 'customer_code'
   > | null;
 
-  const fields: ReviewField[] = storedFieldsSchema
-    .parse(extraction?.extracted_fields ?? [])
-    .map((field) => {
-      const definition = getCustomerField(field.key);
-      return {
-        ...field,
-        fieldLabel: definition?.label ?? null,
-        sensitivity: definition?.sensitivity ?? 'normal',
-      };
-    });
+  const profileValues = extraction
+    ? await loadProfileValuesForMatching(supabase, session.organization.id, document.customer_id)
+    : {};
+
+  const fields: ReviewField[] = markProfileMatches(
+    storedFieldsSchema.parse(extraction?.extracted_fields ?? []),
+    profileValues,
+  ).map((field) => {
+    const definition = getCustomerField(field.key);
+    return {
+      ...field,
+      fieldLabel: definition?.label ?? null,
+      sensitivity: definition?.sensitivity ?? 'normal',
+    };
+  });
 
   const warnings = storedWarningsSchema.parse(extraction?.warnings ?? []);
   const alreadyReviewed = extraction?.status === 'accepted' || extraction?.status === 'rejected';

@@ -15,6 +15,7 @@ import { recordUsage } from '@/lib/billing/entitlements';
 import { reviewSchema } from '@/lib/documents/schema';
 import { buildCustomerPatch } from '@/lib/customers/write-values';
 import { buildFieldValueRows } from '@/lib/customers/field-values';
+import { matchesProfileValue, profileValuesForMatching } from '@/lib/documents/profile-match';
 import type { CustomerRow, DocumentExtractionRow, DocumentRow } from '@/lib/supabase/database.types';
 
 const idSchema = z.string().uuid();
@@ -127,6 +128,25 @@ export const POST = handler(
     if (!customerRow) throw notFound('errors.not_found');
 
     const customer = customerRow as CustomerRow;
+
+    // Read before the write, so the audit entry can tell "already on the profile" apart from
+    // genuinely new data — the review screen pre-accepts the former (lib/documents/profile-match.ts).
+    const { data: existingValueRows, error: existingValuesError } = await context.supabase
+      .from('customer_field_values')
+      .select('field_key, value_text, status')
+      .eq('organization_id', context.organization.id)
+      .eq('customer_id', customerId);
+
+    if (existingValuesError) throw existingValuesError;
+
+    const profileValues = profileValuesForMatching(
+      customer,
+      (existingValueRows ?? []) as { field_key: string; value_text: string | null; status: string }[],
+    );
+    const matchedKeys = Object.keys(accepted).filter((key) =>
+      matchesProfileValue(accepted[key] ?? '', profileValues[key]),
+    );
+
     const { patch, encryptedKeys } = buildCustomerPatch(customer, accepted);
 
     // Provenance rows are built first, because building them encrypts the high-risk values and
@@ -194,6 +214,8 @@ export const POST = handler(
         documentId: id,
         customerId,
         acceptedKeys: Object.keys(accepted),
+        // Accepted keys whose value was already on the profile, unchanged.
+        matchedKeys,
         rejectedKeys: rejected,
         editedCount: input.decisions.filter((decision) => decision.action === 'edit').length,
       },

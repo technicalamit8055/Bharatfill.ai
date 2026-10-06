@@ -32,7 +32,17 @@ import {
   sessionStore,
   settingsStore,
 } from '../shared/storage';
-import { MAX_ATTACHMENT_BYTES } from '@assistigo/form-engine';
+import { MAX_ATTACHMENT_BYTES, fileMatchesAccept } from '@assistigo/form-engine';
+import { AUTO_FIT_MAX_SOURCE_BYTES, planAutoFit } from '@assistigo/document-tools/autofit';
+import {
+  OFFSCREEN_TARGET,
+  autoFitResultSchema,
+  takenFitSchema,
+  type AutoFitResult,
+  type OffscreenRequest,
+  type TakenFit,
+} from '../shared/autofit';
+import { bytesToBase64 } from '../shared/bytes';
 import type {
   AttachmentKind,
   DetectionPayload,
@@ -270,14 +280,131 @@ function safeDownloadName(filename: string): string {
   return cleaned.length > 0 ? cleaned.slice(0, 150) : 'assistigo-document';
 }
 
-/** Base64 for a `Uint8Array`, chunked so a large file cannot blow the argument limit. */
-function bytesToBase64(bytes: Uint8Array): string {
-  const CHUNK = 0x8000;
-  let binary = '';
-  for (let index = 0; index < bytes.length; index += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + CHUNK));
+type DownloadedFile = { bytes: Uint8Array; filename: string; mimeType: string };
+
+/**
+ * One customer file's bytes, through the audited signed-URL route its `kind` names.
+ *
+ * Shared by the fill and by auto-fit, so both go through the same `document.download` re-check
+ * and write the same audit row. Throws on a refused signed URL; reports the rest as an error
+ * code the panel already knows how to say.
+ */
+async function downloadCustomerFile(
+  kind: AttachmentKind,
+  id: string,
+  maxBytes: number,
+): Promise<DownloadedFile | { error: string }> {
+  const signed = await apiFetch<SignedDerivative>(signedUrlPath(kind, id), { method: 'POST' });
+
+  // Storage, not the dashboard API: a signed URL carries its own authorisation, so this
+  // request deliberately does not go through `apiFetch` and sends no bearer token.
+  const download = await fetch(signed.url);
+  if (!download.ok) return { error: 'attachment_unavailable' };
+
+  const buffer = await download.arrayBuffer();
+  if (buffer.byteLength === 0) return { error: 'attach_empty_file' };
+  if (buffer.byteLength > maxBytes) return { error: 'attachment_too_large' };
+
+  return { bytes: new Uint8Array(buffer), filename: signed.filename, mimeType: signed.mimeType };
+}
+
+// ---------------------------------------------------------------------------
+// Auto-fit (docs/EXTENSION.md §6c)
+// ---------------------------------------------------------------------------
+
+/**
+ * The page auto-fit runs in. This worker has no `document`, so it cannot decode a photo onto a
+ * canvas or let pdf.js render a page; the offscreen document can. Created on first use and left
+ * open, because it is also where fitted copies wait for the operator to confirm them — closing
+ * it would throw those away.
+ */
+const OFFSCREEN_PATH = 'src/offscreen/index.html';
+let creatingOffscreen: Promise<void> | null = null;
+
+async function offscreenExists(): Promise<boolean> {
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+    documentUrls: [chrome.runtime.getURL(OFFSCREEN_PATH)],
+  });
+  return contexts.length > 0;
+}
+
+async function ensureOffscreen(): Promise<void> {
+  if (await offscreenExists()) return;
+  creatingOffscreen ??= chrome.offscreen
+    .createDocument({
+      url: OFFSCREEN_PATH,
+      reasons: [chrome.offscreen.Reason.BLOBS, chrome.offscreen.Reason.WORKERS],
+      justification:
+        'Resize and compress a customer file to an upload box’s size limit, on this device.',
+    })
+    .finally(() => {
+      creatingOffscreen = null;
+    });
+  await creatingOffscreen;
+}
+
+/** One request to the offscreen document. Its answer is re-validated by the caller. */
+async function askOffscreen(request: OffscreenRequest): Promise<unknown> {
+  const response = (await chrome.runtime.sendMessage(request)) as
+    { ok: true; data: unknown } | { ok: false; error: string } | undefined;
+  if (!response?.ok) throw new Error('offscreen_failed');
+  return response.data;
+}
+
+/**
+ * Fits one customer file to one upload box, and hands back what the operator needs to confirm
+ * it — never the bytes, which stay in the offscreen document behind a token.
+ *
+ * The plan is worked out again here on the real download, not trusted from the panel: the
+ * panel planned on the database's `sizeBytes`, and what matters is the file the portal would
+ * actually receive.
+ */
+async function prepareAutoFit(
+  message: Extract<Message, { type: 'PREPARE_AUTO_FIT' }>,
+): Promise<AutoFitResult | { error: string }> {
+  const file = await downloadCustomerFile(
+    message.kind,
+    message.targetId,
+    AUTO_FIT_MAX_SOURCE_BYTES,
+  );
+  if ('error' in file) {
+    return file.error === 'attachment_too_large'
+      ? { status: 'cannot_fit', reason: 'source_too_large' }
+      : file;
   }
-  return btoa(binary);
+
+  const plan = planAutoFit(
+    { filename: file.filename, mimeType: file.mimeType, sizeBytes: file.bytes.length },
+    { minBytes: message.minBytes, maxBytes: message.maxBytes },
+    (candidate) => fileMatchesAccept(message.accept, candidate),
+  );
+  if (plan.action === 'none') return { status: 'already_fits' };
+  if (plan.action === 'cannot_fit') return { status: 'cannot_fit', reason: plan.reason };
+
+  await ensureOffscreen();
+  const raw = await askOffscreen({
+    target: OFFSCREEN_TARGET,
+    type: 'AUTO_FIT_RUN',
+    job: plan,
+    sourceMimeType: file.mimeType,
+    dataBase64: bytesToBase64(file.bytes),
+  });
+  const parsed = autoFitResultSchema.safeParse(raw);
+  return parsed.success ? parsed.data : { status: 'cannot_fit', reason: 'processing_failed' };
+}
+
+/** The confirmed fitted copy for one upload box, taken out of the offscreen document. */
+async function takeFittedCopy(token: string): Promise<TakenFit | null> {
+  if (!(await offscreenExists())) return null;
+  try {
+    const parsed = takenFitSchema.safeParse(
+      await askOffscreen({ target: OFFSCREEN_TARGET, type: 'AUTO_FIT_TAKE', token }),
+    );
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -310,34 +437,32 @@ async function fetchAttachments(
     };
 
     try {
-      const signed = await apiFetch<SignedDerivative>(
-        signedUrlPath(request.kind, request.targetId),
-        { method: 'POST' },
-      );
-
-      // Storage, not the dashboard API: a signed URL carries its own authorisation, so this
-      // request deliberately does not go through `apiFetch` and sends no bearer token.
-      const download = await fetch(signed.url);
-      if (!download.ok) {
-        unavailable('attachment_unavailable');
+      /*
+       * A confirmed auto-fit: attach the copy the operator looked at, not the original. It was
+       * downloaded through the same audited route when it was prepared. If it has expired, the
+       * box fails rather than quietly falling back to an original the portal would refuse.
+       */
+      if (request.fitToken) {
+        const fitted = await takeFittedCopy(request.fitToken);
+        if (!fitted) {
+          unavailable('attach_fit_expired');
+          continue;
+        }
+        batch.instructions.push({ signature: request.signature, ...fitted });
         continue;
       }
 
-      const buffer = await download.arrayBuffer();
-      if (buffer.byteLength === 0) {
-        unavailable('attach_empty_file');
-        continue;
-      }
-      if (buffer.byteLength > MAX_ATTACHMENT_BYTES) {
-        unavailable('attachment_too_large');
+      const file = await downloadCustomerFile(request.kind, request.targetId, MAX_ATTACHMENT_BYTES);
+      if ('error' in file) {
+        unavailable(file.error);
         continue;
       }
 
       batch.instructions.push({
         signature: request.signature,
-        filename: signed.filename,
-        mimeType: signed.mimeType,
-        dataBase64: bytesToBase64(new Uint8Array(buffer)),
+        filename: file.filename,
+        mimeType: file.mimeType,
+        dataBase64: bytesToBase64(file.bytes),
       });
     } catch {
       /*
@@ -871,6 +996,23 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
         { method: 'POST' },
       );
       return ok(signed);
+    }
+
+    case 'PREPARE_AUTO_FIT': {
+      const result = await prepareAutoFit(message);
+      return 'error' in result ? fail(result.error) : ok(result);
+    }
+
+    case 'DISCARD_AUTO_FIT': {
+      // Never create the offscreen document just to empty it.
+      if (await offscreenExists()) {
+        await askOffscreen({
+          target: OFFSCREEN_TARGET,
+          type: 'AUTO_FIT_DISCARD',
+          token: message.token,
+        }).catch(() => undefined);
+      }
+      return ok(null);
     }
 
     default:

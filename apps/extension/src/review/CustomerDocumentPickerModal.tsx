@@ -43,7 +43,7 @@ export type PickerSlot = {
  * worth putting all of that into the side panel bundle — the same reasoning as the subpath
  * import in `shared/messages.ts`.
  */
-const DOCUMENT_TYPE_LABEL: Record<string, string> = {
+export const DOCUMENT_TYPE_LABEL: Record<string, string> = {
   aadhaar_like: 'Aadhaar-like ID',
   pan: 'PAN card',
   voter_id: 'Voter ID',

@@ -75,7 +75,7 @@ describe('father vs applicant name', () => {
 
     const byKey = new Map(extraction.fields.map((field) => [field.key, field.value]));
     expect(byKey.get('customer.full_name')).toBe('सुनीता देवी');
-    expect(byKey.get('customer.father_name')).toBe('राम प्रसाद');
+    expect(byKey.get('customer.father_name_hi')).toBe('राम प्रसाद');
   });
 });
 

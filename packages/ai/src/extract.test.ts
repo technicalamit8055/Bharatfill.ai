@@ -15,7 +15,13 @@ import type { DocumentType } from '@assistigo/core';
 import type { OcrResult, StructuredExtractedField } from './types';
 
 function field(overrides: Partial<StructuredExtractedField>): StructuredExtractedField {
-  return { key: 'customer.full_name', label: 'Name', value: 'Amit Kumar', confidence: 0.9, ...overrides };
+  return {
+    key: 'customer.full_name',
+    label: 'Name',
+    value: 'Amit Kumar',
+    confidence: 0.9,
+    ...overrides,
+  };
 }
 
 describe('buildFieldsFromStructuredOutput', () => {
@@ -264,11 +270,9 @@ describe('graduation marksheet fields', () => {
 
   it('tells the levels apart when a label names one of them', () => {
     const values = extract(
-      [
-        'Class 10 Roll No 1234567',
-        'Class 12 Roll No 7654321',
-        'University Roll No 2100567',
-      ].join('\n'),
+      ['Class 10 Roll No 1234567', 'Class 12 Roll No 7654321', 'University Roll No 2100567'].join(
+        '\n',
+      ),
       'unknown',
     );
 
@@ -321,5 +325,47 @@ describe('an unclassified document', () => {
     const values = extract('Aadhaar Number: 2000 0000 0000', 'unknown');
 
     expect(values.has('customer.aadhaar_last4')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Parent names by script (docs/FORM_ENGINE.md §7a)
+// ---------------------------------------------------------------------------
+
+describe('parent names are filed under the spelling their script says', () => {
+  it('files a Devanagari father’s name as the Hindi spelling and keeps an English one as is', () => {
+    const values = extract(
+      [
+        'पिता का नाम परीक्षण प्रसाद',
+        "Father's Name PARIKSHAN PRASAD",
+        'माता का नाम नमूना देवी',
+      ].join('\n'),
+      'marksheet_10',
+    );
+
+    expect(values.get('customer.father_name_hi')).toBe('परीक्षण प्रसाद');
+    expect(values.get('customer.father_name')).toBe('PARIKSHAN PRASAD');
+    expect(values.get('customer.mother_name_hi')).toBe('नमूना देवी');
+    expect(values.has('customer.mother_name')).toBe(false);
+  });
+
+  it('corrects a structured answer that put a name under the wrong spelling', () => {
+    const { fields } = buildFieldsFromStructuredOutput({
+      fields: [
+        field({ key: 'customer.father_name', label: 'पिता का नाम', value: 'परीक्षण प्रसाद' }),
+        field({ key: 'customer.mother_name_hi', label: "Mother's Name", value: 'Sample Devi' }),
+      ],
+    });
+    const keys = fields.map((extracted) => extracted.key).sort();
+
+    expect(keys).toEqual(['customer.father_name_hi', 'customer.mother_name']);
+  });
+
+  it('leaves the applicant’s own name where it is, whatever its script', () => {
+    const { fields } = buildFieldsFromStructuredOutput({
+      fields: [field({ key: 'customer.full_name', value: 'परीक्षण कुमार' })],
+    });
+
+    expect(fields[0]?.key).toBe('customer.full_name');
   });
 });

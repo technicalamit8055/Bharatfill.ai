@@ -11,6 +11,7 @@ import {
   mergeAdapters,
   proposeMappings,
   selectAdapter,
+  type DocumentFieldMatch,
   type DocumentRequirement,
   type DocumentSuggestion,
   type OrgFieldMapping,
@@ -97,6 +98,29 @@ const EDUCATIONAL_DOCUMENT_TYPES: readonly DocumentType[] = [
 ];
 const ADDRESS_PROOF_REQUIREMENT_WORDS = /address\s*proof|aadhaar|voter|residence/i;
 const EDUCATIONAL_REQUIREMENT_WORDS = /marksheet|educational|graduation|\bclass\s*1[02]\b/i;
+
+/**
+ * Stored types that might still be anything: a file OCR has not classified (or could not) is
+ * never ruled out of a specific slot, only ranked below the files that are known to fit.
+ */
+const UNCLASSIFIED_DOCUMENT_TYPES: readonly DocumentType[] = ['unknown', 'generic'];
+
+/**
+ * The types a source document may have to be offered for this slot, or null for "any".
+ *
+ * The slot's own label is the most specific signal there is: a box the detector read as
+ * "Caste certificate" wants exactly that, so a customer's income certificate — also a 'pdf' —
+ * is not offered for it. Failing that, the adapter's resolved requirement narrows as before.
+ */
+function allowedDocumentTypesForSlot(
+  slotType: DocumentFieldMatch['documentType'],
+  requirement: DocumentRequirement | null,
+): readonly DocumentType[] | null {
+  if (slotType && slotType !== 'photo' && slotType !== 'signature') {
+    return [slotType, ...UNCLASSIFIED_DOCUMENT_TYPES];
+  }
+  return allowedDocumentTypesForRequirement(requirement);
+}
 
 function allowedDocumentTypesForRequirement(
   requirement: DocumentRequirement | null,
@@ -457,10 +481,17 @@ export const POST = handler('api.forms.map', async (request) => {
     // match (no derivative tool has touched them), but still worth offering when no prepared
     // file exists yet. Once the adapter has resolved a specific requirement, narrow further than
     // the coarse category — an address-proof slot never wants a marksheet and vice versa.
-    const allowedTypes = allowedDocumentTypesForRequirement(match.requirement);
-    const sourceDocCandidates = (sourceDocsByCategory.get(match.category) ?? []).filter(
-      (row) => !allowedTypes || (allowedTypes as readonly string[]).includes(row.document_type),
-    );
+    const allowedTypes = allowedDocumentTypesForSlot(match.documentType, match.requirement);
+    const sourceDocCandidates = (sourceDocsByCategory.get(match.category) ?? [])
+      .filter(
+        (row) => !allowedTypes || (allowedTypes as readonly string[]).includes(row.document_type),
+      )
+      // Stable sort: a file known to be this exact document first, newest-first within each half.
+      .sort(
+        (a, b) =>
+          Number(b.document_type === match.documentType) -
+          Number(a.document_type === match.documentType),
+      );
     const sourceDocSuggestions = sourceDocCandidates.map((row) => ({
       id: row.id,
       filename: row.original_filename,
@@ -477,6 +508,7 @@ export const POST = handler('api.forms.map', async (request) => {
     return {
       signature: match.signature,
       category: match.category,
+      documentType: match.documentType,
       preset: preset ? toPresetSummary(preset) : null,
       suggestions: [...derivativeSuggestions, ...sourceDocSuggestions].slice(
         0,

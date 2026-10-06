@@ -6,9 +6,9 @@
   "region": "All India",
   "category": "recruitment",
   "urlPatterns": ["https://ssc.gov.in/**", "https://*.ssc.gov.in/**"],
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "testing",
-  "notes": "One adapter covers One-Time Registration and the CGL/CHSL/GD application forms because SSC reuses the OTR profile across every examination — the application form re-displays the registered particulars rather than asking for them again, so the same label set applies. Matching is label-driven: SSC's Angular front end generates its control names (formcontrolname=\"ctrl_12\"), so a hand-written selector would be a guess that rots at the next release. Class 10 is SSC's 'Matriculation', which is why the matriculation fields below map onto the registry's customer.education.class10.* block. SSC treats the matriculation-certificate spelling of the name as authoritative and shows it beside the Hindi rendering, so candidate_name_hi claims both labels.",
+  "notes": "One adapter covers One-Time Registration and the CGL/CHSL/GD application forms because SSC reuses the OTR profile across every examination — the application form re-displays the registered particulars rather than asking for them again, so the same label set applies. Matching is label-driven: SSC's Angular front end generates its control names (formcontrolname=\"ctrl_12\"), so a hand-written selector would be a guess that rots at the next release. Class 10 is SSC's 'Matriculation', which is why the matriculation fields below map onto the registry's customer.education.class10.* block. OTR takes candidate, father's and mother's names in English only (the matriculation-certificate spelling), so those fields declare script 'latin' and a Hindi value is never typed into them. Only an explicit 'name in Hindi' box gets customer.full_name_hi.",
   "knownIssues": "Identification Marks (SSC asks for two visible marks) has no equivalent in the customer field registry, so it is left to the operator — proposing one from any existing field would be a confident wrong answer. Adding customer.identification_marks is a product decision under docs/SECURITY.md §4, not an adapter change. Full Aadhaar is deliberately absent: only customer.aadhaar_last4 is mapped, matching the last-4 control SSC's OTR actually shows. SSC's captcha and the OTP step are never touched (spec §2 prohibits both). Category, date of birth and the Aadhaar last-4 are high_risk fields, so each is marked reviewRequired regardless of adapter confidence.",
   "documentRequirements": [
     {
@@ -47,14 +47,13 @@
         "guardian",
         "hindi",
         "हिंदी",
-        "matriculation",
-        "as per matriculation",
         "user",
         "bank",
         "account"
       ],
       "inputType": "text",
-      "required": true
+      "required": true,
+      "script": "latin"
     },
     {
       "key": "candidate_name_hi",
@@ -62,12 +61,12 @@
       "labelPatterns": [
         "name in hindi",
         "candidate's name in hindi",
-        "name as per matriculation certificate",
         "नाम हिंदी में",
         "अभ्यर्थी का नाम"
       ],
       "negativePatterns": ["father", "mother", "पिता", "माता", "husband", "spouse", "guardian"],
-      "inputType": "text"
+      "inputType": "text",
+      "script": "devanagari"
     },
     {
       "key": "father_name",
@@ -85,7 +84,8 @@
         "अभ्यर्थी"
       ],
       "inputType": "text",
-      "required": true
+      "required": true,
+      "script": "latin"
     },
     {
       "key": "mother_name",
@@ -103,7 +103,8 @@
         "अभ्यर्थी"
       ],
       "inputType": "text",
-      "required": true
+      "required": true,
+      "script": "latin"
     },
     {
       "key": "date_of_birth",

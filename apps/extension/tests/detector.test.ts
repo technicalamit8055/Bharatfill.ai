@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { detectionPayloadSchema } from '@assistigo/form-engine';
 import {
   collectPageContext,
   detectFields,
@@ -202,6 +203,38 @@ describe('detector — field discovery', () => {
   });
 });
 
+describe('detector — wire contract', () => {
+  it('keeps every string within the mapping API limits, however long the page makes it', () => {
+    // SSC's registration form wraps a paragraph-length declaration in a <label>; one string over
+    // its cap used to make POST /api/forms/map reject the whole page.
+    const long = (word: string) => Array.from({ length: 80 }, () => word).join(' ');
+    const doc = render(`
+      <form>
+        <label>
+          <input type="checkbox" name="declaration" />
+          ${long('I hereby declare that the information given above is true.')}
+        </label>
+        <label for="email">${long('Email')}</label>
+        <input id="email" name="${'n'.repeat(400)}" type="email"
+          placeholder="${long('Enter')}" aria-label="${long('Email address')}"
+          pattern="${'[a-z]'.repeat(100)}" />
+        <input id="${'i'.repeat(400)}" type="file" accept="${long('.pdf,')}" />
+        <h2>${long('Section')}</h2>
+        <select name="board"><option value="${'v'.repeat(400)}">${long('Board')}</option></select>
+      </form>
+    `);
+
+    const payload = { page: collectPageContext(doc), fields: detectFields(doc) };
+    const parsed = detectionPayloadSchema.safeParse(payload);
+    expect(parsed.success ? [] : parsed.error.issues.map((issue) => issue.path.join('.'))).toEqual(
+      [],
+    );
+    expect(payload.fields.find((f) => f.name === 'declaration')?.labelText).toMatch(
+      /^I hereby declare/,
+    );
+  });
+});
+
 describe('detector — label resolution', () => {
   it('prefers an explicit label[for]', () => {
     const doc = render(`<label for="a">Father's Name</label><input id="a" name="x" />`);
@@ -250,6 +283,144 @@ describe('detector — label resolution', () => {
   it('falls through past a punctuation-only sibling to find a real label', () => {
     const doc = render(`<div><span>Photograph</span><span>..</span><input name="p" /></div>`);
     expect(resolveLabel(doc.querySelector('input')!)).toBe('Photograph');
+  });
+});
+
+describe('detector — table row context', () => {
+  it('reads the label run of an upload row, not just the cell before the field', () => {
+    // The cell right before the box says "Mandatory"; on its own that was the whole label.
+    const doc = render(`
+      <table><tr>
+        <td>3.</td><td>Caste Certificate</td><td>Mandatory</td>
+        <td><input type="file" name="doc3" /></td>
+      </tr></table>
+    `);
+    expect(resolveLabel(doc.querySelector('input')!)).toBe('Caste Certificate Mandatory');
+  });
+
+  it('stops at the cell of the previous field, so two fields in a row keep their own labels', () => {
+    const doc = render(`
+      <table><tr>
+        <td>Name</td><td><input name="n" /></td>
+        <td>Father's Name</td><td><input name="f" /></td>
+      </tr></table>
+    `);
+    const [first, second] = Array.from(doc.querySelectorAll('input'));
+    expect(resolveLabel(first!)).toBe('Name');
+    expect(resolveLabel(second!)).toBe("Father's Name");
+  });
+
+  it('does not let a hidden input in a label cell end the run', () => {
+    const doc = render(`
+      <table><tr>
+        <td>Income Certificate<input type="hidden" name="doc_id" value="7" /></td>
+        <td><input type="file" name="u" /></td>
+      </tr></table>
+    `);
+    expect(resolveLabel(doc.querySelector('input[type="file"]')!)).toBe('Income Certificate');
+  });
+
+  it('puts the row label in front of the cell text in nearbyText', () => {
+    const doc = render(`
+      <table><tr>
+        <td>1</td><td>Domicile Certificate</td>
+        <td><label for="u">Choose file</label><input type="file" id="u" name="u" /></td>
+      </tr></table>
+    `);
+    const [field] = detectFields(doc);
+    expect(field?.labelText).toBe('Choose file');
+    expect(field?.nearbyText).toBe('Domicile Certificate Choose file');
+  });
+
+  it('never reads the cells after the field, where a portal shows the uploaded filename', () => {
+    const doc = render(`
+      <table><tr>
+        <td>Aadhaar Card</td>
+        <td><input type="file" name="u" /></td>
+        <td>aadhaar_front_scan.jpg uploaded</td>
+      </tr></table>
+    `);
+    const [field] = detectFields(doc);
+    expect(field?.labelText).toBe('Aadhaar Card');
+    expect(field?.nearbyText).toBe('Aadhaar Card');
+    expect(JSON.stringify(field)).not.toContain('aadhaar_front_scan');
+  });
+});
+
+describe('detector — hidden file inputs behind a visible trigger', () => {
+  it('keeps a display:none file input that a visible label opens', () => {
+    const doc = render(`
+      <input type="file" id="photo" name="photo" style="display:none" />
+      <label for="photo" class="btn">Upload Photograph</label>
+    `);
+    const [field] = detectFields(doc);
+    expect(field?.inputType).toBe('file');
+    expect(field?.visible).toBe(true);
+    expect(field?.labelText).toBe('Upload Photograph');
+  });
+
+  it('keeps a `hidden` file input with a Browse button beside it', () => {
+    const doc = render(`
+      <table><tr>
+        <td>Income Certificate</td>
+        <td><div><input type="file" name="inc" hidden /><button type="button">Browse</button></div></td>
+      </tr></table>
+    `);
+    const [field] = detectFields(doc);
+    expect(field?.visible).toBe(true);
+    expect(field?.nearbyText).toContain('Income Certificate');
+  });
+
+  it('recognises a Hindi upload button', () => {
+    const doc = render(`
+      <div><input type="file" name="s" style="display:none" /><a href="#">अपलोड करें</a></div>
+    `);
+    expect(detectFields(doc)[0]?.visible).toBe(true);
+  });
+
+  it('still drops a hidden file input whose trigger is hidden too', () => {
+    // RTPS Bihar's collapsed representative-authorization row: the label is inside the same
+    // collapsed container, so it cannot vouch for the input.
+    const doc = render(`
+      <div style="display:none">
+        <input type="file" id="rep" name="rep" />
+        <label for="rep">Upload authorization</label>
+        <button type="button">Browse</button>
+      </div>
+    `);
+    expect(detectFields(doc)[0]?.visible).toBe(false);
+  });
+
+  it('still drops a hidden file input with no trigger at all', () => {
+    const doc = render(`<div><input type="file" name="internal" style="display:none" /></div>`);
+    expect(detectFields(doc)[0]?.visible).toBe(false);
+  });
+
+  it("does not let one box's Browse button vouch for a hidden neighbour", () => {
+    const doc = render(`
+      <div>
+        <input type="file" name="a" style="display:none" />
+        <input type="file" name="b" />
+        <button type="button">Browse</button>
+      </div>
+    `);
+    const fields = detectFields(doc);
+    expect(fields.find((f) => f.name === 'a')?.visible).toBe(false);
+    expect(fields.find((f) => f.name === 'b')?.visible).toBe(true);
+  });
+
+  it('ignores a button that does not open a picker', () => {
+    const doc = render(`
+      <div><input type="file" name="x" style="display:none" /><button type="button">Remove</button></div>
+    `);
+    expect(detectFields(doc)[0]?.visible).toBe(false);
+  });
+
+  it('leaves the visibility of other hidden fields alone', () => {
+    const doc = render(`
+      <label for="t">Upload</label><input id="t" name="t" style="display:none" />
+    `);
+    expect(detectFields(doc)[0]?.visible).toBe(false);
   });
 });
 
@@ -368,5 +539,117 @@ describe('detector — blocked pages', () => {
 
   it('runs on an ordinary portal page', () => {
     expect(isBlockedPage({ protocol: 'https:', hostname: 'demo.assistigo.test' })).toBe(false);
+  });
+});
+
+describe('detector — upload constraints stated on the page', () => {
+  const KB = 1024;
+
+  function fileField(doc: Document) {
+    const field = detectFields(doc).find((candidate) => candidate.inputType === 'file');
+    if (!field) throw new Error('no file field detected');
+    return field;
+  }
+
+  it('reads a hint span beside the box', () => {
+    const doc = render(`
+      <form>
+        <div class="upload">
+          <label for="photo">Photograph</label>
+          <input id="photo" name="photo" type="file" />
+          <span class="hint">Between 20 KB and 50 KB. Format: JPEG</span>
+        </div>
+      </form>
+    `);
+    expect(fileField(doc).uploadConstraints).toEqual({
+      minBytes: 20 * KB,
+      maxBytes: 50 * KB,
+      formats: ['jpeg'],
+    });
+  });
+
+  it('reads an aria-describedby hint that lives outside the wrapper', () => {
+    const doc = render(`
+      <form>
+        <div><label for="cert">Caste certificate</label><input id="cert" type="file" aria-describedby="cert-help" /></div>
+        <p id="cert-help">PDF only, max 200 KB</p>
+      </form>
+    `);
+    expect(fileField(doc).uploadConstraints).toEqual({
+      minBytes: null,
+      maxBytes: 200 * KB,
+      formats: ['pdf'],
+    });
+  });
+
+  it('reads table cells under their column headers, including cells after the box', () => {
+    const doc = render(`
+      <form><table>
+        <thead><tr><th>S.No</th><th>Document</th><th>Upload</th><th>Max Size (KB)</th><th>File Type</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Income certificate</td><td><input type="file" name="income" /></td><td>200</td><td>PDF</td></tr>
+        </tbody>
+      </table></form>
+    `);
+    expect(fileField(doc).uploadConstraints).toEqual({
+      minBytes: null,
+      maxBytes: 200 * KB,
+      formats: ['pdf'],
+    });
+  });
+
+  it('keeps each row to its own box', () => {
+    const doc = render(`
+      <form><table>
+        <tr><td>Photo</td><td><input type="file" name="photo" /></td><td>20 KB to 50 KB, JPG only</td></tr>
+        <tr><td>Signature</td><td><input type="file" name="sign" /></td><td>10 KB to 20 KB, JPG only</td></tr>
+      </table></form>
+    `);
+    const [photo, sign] = detectFields(doc);
+    expect(photo?.uploadConstraints?.maxBytes).toBe(50 * KB);
+    expect(sign?.uploadConstraints?.maxBytes).toBe(20 * KB);
+  });
+
+  it('does not borrow a neighbouring box’s hint from a shared wrapper', () => {
+    const doc = render(`
+      <form>
+        <div>
+          <div><label for="a">Photo</label><input id="a" type="file" /></div>
+          <div><label for="b">Signature</label><input id="b" type="file" /><span>max 20 KB</span></div>
+        </div>
+      </form>
+    `);
+    const [photo, sign] = detectFields(doc);
+    expect(photo?.uploadConstraints ?? null).toBeNull();
+    expect(sign?.uploadConstraints?.maxBytes).toBe(20 * KB);
+  });
+
+  it('never turns the uploaded filename beside the box into a rule, and never sends the text', () => {
+    const doc = render(`
+      <form><table>
+        <tr><td>Photo</td><td><input type="file" name="photo" /></td><td>photo_180kb.jpg uploaded · 180 KB</td></tr>
+      </table></form>
+    `);
+    const field = fileField(doc);
+    expect(field.uploadConstraints).toBeNull();
+    expect(JSON.stringify(field)).not.toContain('photo_180kb');
+  });
+
+  it('is null for every field that is not a file input', () => {
+    const doc = render(`
+      <form><label for="n">Name (max 50 KB)</label><input id="n" type="text" /></form>
+    `);
+    expect(detectFields(doc)[0]?.uploadConstraints).toBeNull();
+  });
+
+  it('produces a payload the mapping API accepts', () => {
+    const doc = render(`
+      <form><label for="p">Photo (JPG, max 50 KB)</label><input id="p" type="file" /></form>
+    `);
+    const result = detectionPayloadSchema.safeParse({
+      page: collectPageContext(doc),
+      fields: detectFields(doc),
+    });
+    expect(result.success).toBe(true);
   });
 });

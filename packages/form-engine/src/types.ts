@@ -8,6 +8,8 @@
  */
 
 import { z } from 'zod';
+import type { DocumentType } from '@assistigo/core';
+import { UPLOAD_FORMATS } from './constraints';
 
 export const SAFETY_CLASSES = ['normal', 'captcha', 'otp', 'payment', 'submit'] as const;
 export type SafetyClass = (typeof SAFETY_CLASSES)[number];
@@ -22,11 +24,21 @@ export const MAPPING_SOURCES = [
 ] as const;
 export type MappingSource = (typeof MAPPING_SOURCES)[number];
 
+/** Writing systems a portal box can insist on. See script.ts. */
+export const SCRIPTS = ['latin', 'devanagari'] as const;
+export type Script = (typeof SCRIPTS)[number];
+
 export const fieldOptionSchema = z.object({
   value: z.string().max(300),
   label: z.string().max(300),
 });
 export type FieldOption = z.infer<typeof fieldOptionSchema>;
+
+export const uploadConstraintsSchema = z.object({
+  minBytes: z.number().int().positive().nullable(),
+  maxBytes: z.number().int().positive().nullable(),
+  formats: z.array(z.enum(UPLOAD_FORMATS)).max(UPLOAD_FORMATS.length),
+});
 
 /** Nearby text is capped hard: a whole paragraph of page content is not metadata. */
 const NEARBY_TEXT_MAX = 120;
@@ -49,6 +61,13 @@ export const detectedFieldSchema = z.object({
   pattern: z.string().max(300).nullable(),
   /** `accept` attribute of a file input, e.g. "image/*" or ".pdf,.jpg". Null for every other type. */
   accept: z.string().max(200).nullable(),
+  /**
+   * File inputs only: the size window and formats the page states beside the box ("Between
+   * 50 KB and 200 KB", "Format: JPEG/PDF"), read in the page by `parseUploadConstraints`.
+   * Numbers and format tokens only — the text they were read from never leaves the page.
+   * Optional so a payload from an older extension build still validates.
+   */
+  uploadConstraints: uploadConstraintsSchema.nullable().optional(),
   /** Whether the field already holds something — never what it holds. */
   hasValue: z.boolean(),
   visible: z.boolean(),
@@ -94,6 +113,11 @@ export type FieldMapping = {
   transform?: string;
   /** Why this field will not be filled, when it will not be. */
   skipReason?: SkipReason;
+  /**
+   * Set with `script_mismatch`: the script this field wants. The saved value is in the other one,
+   * so it is filled only from what the operator types, never from the profile.
+   */
+  expectedScript?: Script;
 };
 
 export const SKIP_REASONS = [
@@ -112,6 +136,7 @@ export const SKIP_REASONS = [
   'dependent_not_ready',
   'operator_skipped',
   'low_confidence',
+  'script_mismatch',
 ] as const;
 export type SkipReason = (typeof SKIP_REASONS)[number];
 
@@ -134,6 +159,10 @@ export const SKIP_REASON_LABELS: Record<SkipReason, { en: string; hi: string }> 
   dependent_not_ready: { en: 'Waiting on an earlier dropdown', hi: 'पिछले ड्रॉपडाउन का इंतज़ार' },
   operator_skipped: { en: 'You skipped this', hi: 'आपने इसे छोड़ा' },
   low_confidence: { en: 'Needs your confirmation', hi: 'आपकी पुष्टि चाहिए' },
+  script_mismatch: {
+    en: 'Saved value is in a different script — type it in yourself',
+    hi: 'सहेजा गया मान दूसरी लिपि में है — इसे खुद टाइप करें',
+  },
 };
 
 /** What the content script is told to do, per field. Values appear only here. */
@@ -195,6 +224,12 @@ const fileAttachmentRequestObjectSchema = z.object({
   signature: z.string(),
   targetId: z.string().uuid(),
   kind: z.enum(ATTACHMENT_KINDS).default('derivative'),
+  /**
+   * Set when the operator confirmed an auto-fitted copy of this file (docs/EXTENSION.md §6c):
+   * the worker attaches those prepared bytes instead of downloading the original again. An
+   * opaque handle, never bytes — the panel still holds none.
+   */
+  fitToken: z.string().uuid().optional(),
 });
 
 export const fileAttachmentRequestSchema = z.preprocess((raw) => {
@@ -251,6 +286,31 @@ export const DOCUMENT_CATEGORIES = ['photo', 'signature', 'pdf'] as const;
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
 
 /**
+ * The specific `documents.document_type` an upload slot asks for — "Caste certificate", not
+ * just "pdf". The subset of core's `DOCUMENT_TYPES` that a portal label can name: `generic`,
+ * `application_pdf` and `unknown` describe a stored file, never what a box wants.
+ *
+ * A literal list checked against core with a type-only import rather than a runtime import: the
+ * content script loads this file through the `form-engine/types` subpath, and the core barrel
+ * would drag the customer schema into every page bundle. A rename in core still fails the build.
+ */
+export const SLOT_DOCUMENT_TYPES = [
+  'aadhaar_like',
+  'pan',
+  'voter_id',
+  'marksheet_10',
+  'marksheet_12',
+  'marksheet_graduation',
+  'caste_certificate',
+  'income_certificate',
+  'residence_certificate',
+  'receipt',
+  'photo',
+  'signature',
+] as const satisfies readonly DocumentType[];
+export type SlotDocumentType = (typeof SLOT_DOCUMENT_TYPES)[number];
+
+/**
  * A file already on the customer's profile that could satisfy this slot — either a prepared
  * derivative (built by Document Tools Studio for a specific preset) or one of the customer's own
  * source documents (an upload with no derivative made from it yet).
@@ -292,6 +352,8 @@ export type DocumentPresetSummary = z.infer<typeof documentPresetSummarySchema>;
 export const documentSuggestionSchema = z.object({
   signature: z.string(),
   category: z.enum(DOCUMENT_CATEGORIES),
+  /** The specific document the slot asks for, when its label names one. Null from older servers. */
+  documentType: z.enum(SLOT_DOCUMENT_TYPES).nullable().default(null),
   preset: documentPresetSummarySchema.nullable(),
   suggestions: z.array(derivativeSuggestionSchema).max(5),
 });

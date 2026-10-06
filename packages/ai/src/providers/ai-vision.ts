@@ -1,9 +1,9 @@
 /**
  * AI vision provider — the high-accuracy reader (docs/AI_PIPELINE.md §2).
  *
- * Speaks two wire shapes, chosen by `wireFormat`: the OpenAI chat-completions shape (DeepSeek,
- * OpenAI, OpenRouter, Ollama, vLLM and most hosted gateways implement this) and the Anthropic
- * messages shape. The endpoint, model and shape are configuration, not code, because §12.3
+ * Speaks three wire shapes, chosen by `wireFormat`: the OpenAI chat-completions shape (DeepSeek,
+ * OpenAI, OpenRouter, Ollama, vLLM and most hosted gateways implement this), the Anthropic
+ * messages shape, and Vertex AI's generateContent shape. The endpoint, model and shape are configuration, not code, because §12.3
  * forbids hard-coding the product to one vendor — pointing this at a different provider, or at a
  * self-hosted vision model, is a configuration change, never a code change.
  *
@@ -64,6 +64,18 @@ export function buildOpenAiChatCompletionsUrl(baseUrl: string): string {
     return `${clean}/chat/completions`;
   }
   return `${clean}/v1/chat/completions`;
+}
+
+/**
+ * Vertex AI's generateContent URL for a Google publisher model.
+ *
+ * The bare host is the API-key ("express mode") endpoint. A base that already carries a version
+ * — `…/v1`, or a project-scoped `…/v1/projects/<id>/locations/<region>` — is used as the prefix.
+ */
+export function buildVertexGenerateContentUrl(baseUrl: string, model: string): string {
+  const clean = baseUrl.replace(/\/+$/, '');
+  const prefix = /\/v1(?:beta1)?(?:\/|$)/.test(clean) ? clean : `${clean}/v1`;
+  return `${prefix}/publishers/google/models/${encodeURIComponent(model)}:generateContent`;
 }
 
 /**
@@ -195,6 +207,27 @@ const openAiCompletionSchema = z.object({
 const anthropicMessageSchema = z.object({
   id: z.string().max(200).optional(),
   content: z.array(z.object({ type: z.string(), text: z.string().optional() })).min(1),
+});
+
+/**
+ * `candidates` is absent when Google blocks a prompt outright, and `content` when a candidate
+ * stopped before producing any — both read as an empty answer, not a malformed one.
+ */
+const vertexGenerateContentSchema = z.object({
+  responseId: z.string().max(200).optional(),
+  candidates: z
+    .array(
+      z.object({
+        content: z
+          .object({
+            parts: z
+              .array(z.object({ text: z.string().optional(), thought: z.boolean().optional() }))
+              .optional(),
+          })
+          .optional(),
+      }),
+    )
+    .optional(),
 });
 
 function base64(bytes: Uint8Array): string {
@@ -386,8 +419,12 @@ export class AiVisionOcrProvider implements OcrProvider {
         return [{ type: 'text', text: `${prompt}\n\n${local.text}` }];
       }
 
-      // Google Gemini's multimodal endpoint accepts PDF documents directly.
-      if (this.name === 'gemini' || this.baseUrl.includes('googleapis.com')) {
+      // Google Gemini's multimodal endpoint, and Vertex AI's, accept PDF documents directly.
+      if (
+        this.name === 'gemini' ||
+        this.wireFormat === 'vertex_generate_content' ||
+        this.baseUrl.includes('googleapis.com')
+      ) {
         if (input.bytes.length > MAX_IMAGE_BYTES) return 'file_too_large';
         return [
           { type: 'text', text: structured ? STRUCTURED_IMAGE_PROMPT : TRANSCRIBE_IMAGE_PROMPT },
@@ -414,14 +451,17 @@ export class AiVisionOcrProvider implements OcrProvider {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
-      const response =
-        this.wireFormat === 'anthropic_messages'
-          ? await this.callAnthropic(systemPrompt, content, controller.signal)
-          : await this.callOpenAiCompatible(systemPrompt, content, controller.signal);
-      return response;
+      switch (this.wireFormat) {
+        case 'anthropic_messages':
+          return await this.callAnthropic(systemPrompt, content, controller.signal);
+        case 'vertex_generate_content':
+          return await this.callVertexGenerateContent(systemPrompt, content, controller.signal);
+        default:
+          return await this.callOpenAiCompatible(systemPrompt, content, controller.signal);
+      }
     } catch (error) {
-      // Already a typed provider error from callOpenAiCompatible/callAnthropic — pass it through
-      // rather than relabelling it as a transport failure.
+      // Already a typed provider error from one of the call* methods — pass it through rather
+      // than relabelling it as a transport failure.
       if (isAppError(error)) throw error;
       // Timeout or transport failure. The cause is not attached: an error from a body-carrying
       // request can echo page content back into a log line (§24.2).
@@ -441,14 +481,14 @@ export class AiVisionOcrProvider implements OcrProvider {
     const hasImage = content.some((part) => part.type === 'image');
     const userContent: string | unknown[] = hasImage
       ? content.map((part) =>
-          part.type === 'text'
-            ? part
-            : {
-                type: 'image_url',
-                // A data URL, so no document is ever uploaded to a bucket a third party can re-fetch.
-                image_url: { url: `data:${part.mimeType};base64,${part.base64Data}` },
-              },
-        )
+        part.type === 'text'
+          ? part
+          : {
+            type: 'image_url',
+            // A data URL, so no document is ever uploaded to a bucket a third party can re-fetch.
+            image_url: { url: `data:${part.mimeType};base64,${part.base64Data}` },
+          },
+      )
       : content.map((part) => (part.type === 'text' ? part.text : '')).join('\n');
 
     let endpointUrl = buildOpenAiChatCompletionsUrl(this.baseUrl);
@@ -542,6 +582,59 @@ export class AiVisionOcrProvider implements OcrProvider {
       .join('\n');
 
     return { text, requestId: parsed.data.id ?? null };
+  }
+
+  /**
+   * Vertex AI's generateContent shape, with an API key ("express mode").
+   *
+   * The key travels in the `x-goog-api-key` header, never the query string, so it cannot end up
+   * in a proxy or access log that records URLs. Gemini models may emit "thought" parts before
+   * the answer; only the answer is kept.
+   */
+  private async callVertexGenerateContent(
+    systemPrompt: string,
+    content: ChatContentPart[],
+    signal: AbortSignal,
+  ): Promise<{ text: string; requestId: string | null }> {
+    const parts = content.map((part) =>
+      part.type === 'text'
+        ? { text: part.text }
+        : { inlineData: { mimeType: part.mimeType, data: part.base64Data } },
+    );
+
+    const response = await this.fetchImpl(buildVertexGenerateContentUrl(this.baseUrl, this.model), {
+      method: 'POST',
+      headers: {
+        'x-goog-api-key': this.apiKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts }],
+        // Headroom over the other wire formats' 4096: a thinking model's reasoning tokens count
+        // against this budget before the answer does.
+        generationConfig: { temperature: 0, maxOutputTokens: 8192 },
+      }),
+      signal,
+    });
+
+    if (!response.ok) {
+      throw providerUnavailable(
+        response.status === 401 || response.status === 403
+          ? 'errors.ocr_provider_not_configured'
+          : 'errors.ocr_provider_failed',
+      );
+    }
+
+    const parsed = vertexGenerateContentSchema.safeParse(await response.json());
+    if (!parsed.success) throw providerUnavailable('errors.ocr_provider_failed');
+
+    const text = (parsed.data.candidates?.[0]?.content?.parts ?? [])
+      .filter((part) => part.thought !== true && part.text !== undefined)
+      .map((part) => part.text)
+      .join('');
+
+    return { text, requestId: parsed.data.responseId ?? null };
   }
 
   /**

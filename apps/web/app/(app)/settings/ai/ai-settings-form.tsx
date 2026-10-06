@@ -22,6 +22,7 @@ const PROVIDER_ORDER: OrganizationAiProvider[] = [
   'anthropic',
   'deepseek',
   'gemini',
+  'vertex',
   'ollama',
   'openrouter',
   'custom',

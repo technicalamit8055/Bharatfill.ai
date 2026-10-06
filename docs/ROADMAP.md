@@ -330,6 +330,28 @@ Remaining:
       assignment reports `failed` rather than a fallback that would look filled but submit
       nothing. Download and the Studio deep link remain for portals with no real
       `<input type="file">` to attach to.
+- [x] Auto-fit (docs/EXTENSION.md §6c) — a chosen file outside its box's KB window (or a PNG for
+      a JPEG-only box) is fitted in an offscreen document with `encodeToWindow` / `compressPdf`,
+      shown to the operator as a before/after card with a preview, and attached only once they
+      tick it. Fitted copies are not retained (product-owner decision, 2026-10-06). New
+      `offscreen` permission. 29 new tests.
+- [ ] Auto-fit: manual QA in a real Chrome build (real canvas + pdf.js in the offscreen
+      document), and allowing a convertible PNG from the customer document picker.
+- [x] Upload limits stated on the page (docs/EXTENSION.md §6d) — "Between 50 KB and 200 KB",
+      "Format: JPEG/PDF", "अधिकतम 100 KB" and table header + cell pairs are parsed in the content
+      script into `DetectedField.uploadConstraints` (numbers and a format enum only; the text never
+      leaves the page), used when no preset states a window. 68 new tests.
+- [ ] Page-stated limits: feed `resolveUploadTarget` into auto-fit once the panel wires
+      `useAutoFits`; parse stated pixel dimensions / DPI.
+- [x] Pre-selecting unambiguous document matches (docs/EXTENSION.md §6e). `pickAutoMatches`
+      ticks a box's file only when exactly one file is prepared for the box's preset, or exactly
+      one original upload is the exact document type the box names. That file must also pass
+      `accept` and the resolved size window, and must not be the pick for two boxes. Marked
+      "Auto-matched" with the reason and size status. Any click overrides it. Fill now attaches
+      documents even with no text field ticked. Supersedes the "nothing ticked by default" rule
+      above (product-owner decision, 2026-10-06). 10 new tests.
+- [ ] Pre-selection: manual QA in a real Chrome build; show a thumbnail without minting an
+      audited signed URL per detect (needs a decision on audit volume).
 - [ ] Org-level custom presets via `document_requirement_presets` (the table exists and is
       RLS-policied from Migration 0004; the built-in catalogue in `packages/document-tools`
       covers the top portals for now, the same pattern as `BUILT_IN_ADAPTERS` in the form engine).

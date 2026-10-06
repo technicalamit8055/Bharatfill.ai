@@ -55,12 +55,19 @@ export type OrganizationRow = Timestamps & {
 };
 
 export type OrganizationAiProvider =
-  'openai' | 'anthropic' | 'deepseek' | 'gemini' | 'ollama' | 'openrouter' | 'custom';
+  | 'openai'
+  | 'anthropic'
+  | 'deepseek'
+  | 'gemini'
+  | 'vertex'
+  | 'ollama'
+  | 'openrouter'
+  | 'custom';
 
 export type OrganizationAiSettingsRow = Timestamps & {
   organization_id: string;
   provider: OrganizationAiProvider;
-  wire_format: 'openai_compatible' | 'anthropic_messages';
+  wire_format: 'openai_compatible' | 'anthropic_messages' | 'vertex_generate_content';
   base_url: string | null;
   model: string | null;
   api_key_encrypted: string | null;
@@ -110,7 +117,9 @@ export type CustomerRow = Timestamps & {
   marital_status: string | null;
   category: string | null;
   father_name: string | null;
+  father_name_hi: string | null;
   mother_name: string | null;
+  mother_name_hi: string | null;
   spouse_name: string | null;
   guardian_name: string | null;
   address_json: Json;

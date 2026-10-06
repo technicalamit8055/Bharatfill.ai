@@ -25,9 +25,10 @@ export type ProviderPreset = {
 
 /**
  * Presets are a UI convenience, not a second integration per vendor: every one of them speaks
- * either the OpenAI-compatible chat-completions shape or the Anthropic messages shape, which
- * `packages/ai/src/providers/ai-vision.ts` already implements generically. Adding a new hosted
- * vendor that speaks one of these two shapes is a preset entry, never new request-building code.
+ * the OpenAI-compatible chat-completions shape, the Anthropic messages shape or Vertex AI's
+ * generateContent shape, which `packages/ai/src/providers/ai-vision.ts` implements generically.
+ * Adding a new hosted vendor that speaks one of these shapes is a preset entry, never new
+ * request-building code.
  */
 export const AI_PROVIDER_PRESETS: Record<OrganizationAiProvider, ProviderPreset> = {
   openai: {
@@ -53,6 +54,15 @@ export const AI_PROVIDER_PRESETS: Record<OrganizationAiProvider, ProviderPreset>
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     defaultModel: 'gemini-3.6-flash',
     wireFormat: 'openai_compatible',
+  },
+  vertex: {
+    // Vertex AI's API-key ("express mode") endpoint. Same Gemini models as the preset above, but
+    // billed through the Google Cloud account rather than AI Studio prepay — and it speaks
+    // Google's generateContent shape, not chat-completions.
+    label: 'Google Vertex AI',
+    defaultBaseUrl: 'https://aiplatform.googleapis.com',
+    defaultModel: 'gemini-3.6-flash',
+    wireFormat: 'vertex_generate_content',
   },
   ollama: {
     // No default: Assistigo's servers, not the owner's computer, make this request, so

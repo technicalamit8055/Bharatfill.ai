@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AUTO_MATCH_REASON_LABELS,
   SKIP_REASON_LABELS,
+  UPLOAD_SIZE_STATUS_LABELS,
   buildFillInstructions,
   confidenceBand,
+  describeUploadConstraints,
   fileMatchesAccept,
+  pickAutoMatches,
   resolveFillValue,
+  resolveUploadTarget,
   type AttachmentKind,
+  type AutoMatchReason,
   type DetectedField,
   type DetectionPayload,
   type DocumentCategory,
@@ -14,6 +20,7 @@ import {
   type FieldMapping,
   type FileAttachmentRequest,
   type FillResult,
+  type UploadSizeStatus,
 } from '@assistigo/form-engine';
 import { send } from '../shared/send';
 import { CustomerPicker } from '../shared/CustomerPicker';
@@ -21,6 +28,7 @@ import { RoamingAuthBanner } from '../shared/RoamingAuthBanner';
 import { DocumentPreviewModal, type PreviewTarget } from './DocumentPreviewModal';
 import {
   CustomerDocumentPickerModal,
+  DOCUMENT_TYPE_LABEL,
   attachRejection,
   describeAccept,
   type PickerSlot,
@@ -202,7 +210,9 @@ const DOCUMENT_CATEGORY_LABEL: Record<DocumentCategory, string> = {
  * which signed-URL route reaches the bytes, and a file chosen out of the customer vault has to
  * be nameable in the card even though it appears in no suggestion list. `manual` is what tells
  * the two apart — a ticked suggestion can be described from the suggestion itself, an override
- * cannot.
+ * cannot. `auto` is set only on a pick `pickAutoMatches` made when the page was read, and is
+ * what the "Auto-matched" strip under the ticked row is drawn from; any click by the operator
+ * replaces the choice with one that has no `auto`.
  */
 type AttachmentChoice = {
   id: string;
@@ -211,6 +221,14 @@ type AttachmentChoice = {
   sizeBytes: number;
   mimeType: string;
   manual: boolean;
+  auto?: { reason: AutoMatchReason; size: UploadSizeStatus };
+};
+
+const SIZE_STATUS_BADGE: Record<UploadSizeStatus, string> = {
+  fits: 'badge-ok',
+  unstated: 'badge-muted',
+  too_small: 'badge-warn',
+  too_large: 'badge-warn',
 };
 
 /** A file the operator picked out of the vault, in the shape an attachment choice needs. */
@@ -304,6 +322,45 @@ function ChosenFileCard({
   );
 }
 
+/**
+ * Says which file was pre-selected for a box, why, and how it sits against the box's size window.
+ *
+ * The reason is a fact about the match ("prepared for this portal"), not a percentage: the
+ * matcher has no score, and a number would claim an accuracy nothing measured (spec §8.6).
+ */
+function AutoMatchStrip({
+  choice,
+  auto,
+  onRemove,
+}: {
+  choice: AttachmentChoice;
+  auto: NonNullable<AttachmentChoice['auto']>;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="attach-chosen attach-auto">
+      <span className="attach-chosen__body">
+        <span className="row" style={{ gap: 5, flexWrap: 'wrap' }}>
+          <span className="badge badge-ok">
+            <SparkIcon size={11} />
+            Auto-matched
+          </span>
+          <span className="badge badge-muted">{AUTO_MATCH_REASON_LABELS[auto.reason].en}</span>
+          <span className={`badge ${SIZE_STATUS_BADGE[auto.size]}`}>
+            {UPLOAD_SIZE_STATUS_LABELS[auto.size].en}
+          </span>
+        </span>
+        <span className="tiny truncate" style={{ display: 'block', marginTop: 3 }}>
+          {choice.filename} · {formatKb(choice.sizeBytes)}
+        </span>
+      </span>
+      <button type="button" className="btn-ghost tiny" onClick={onRemove} style={{ flexShrink: 0 }}>
+        Remove
+      </button>
+    </div>
+  );
+}
+
 type Stage = 'idle' | 'detecting' | 'reviewing' | 'filling' | 'done';
 
 const BAND_BADGE: Record<ReturnType<typeof confidenceBand>, string> = {
@@ -325,12 +382,14 @@ export function ReviewPanel() {
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [approved, setApproved] = useState<Set<string>>(new Set());
   /**
-   * Which file the operator chose for each upload box, keyed by field signature.
+   * Which file will go into each upload box, keyed by field signature.
    *
-   * Starts empty and stays empty unless someone chooses one: a mapped text value is a proposal
-   * the engine can defend, but putting a particular document into a particular upload slot is a
-   * judgement about what this portal is asking for, so nothing is attached by default (§7.4.5).
-   * One file per box, because a portal's upload input takes one.
+   * Seeded when the page is read with the picks `pickAutoMatches` can defend — one file prepared
+   * for this box's own preset, or the one original upload of the exact document the box names —
+   * and empty for every other box (docs/EXTENSION.md §6e). Anything weaker is a judgement about
+   * what this portal is asking for, so it stays an explicit tick (§7.4.5). Every pick is shown,
+   * marked, in the review list, and nothing reaches the page until Fill. One file per box,
+   * because a portal's upload input takes one.
    */
   const [attachments, setAttachments] = useState<Record<string, AttachmentChoice>>({});
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -393,7 +452,10 @@ export function ReviewPanel() {
       (proposal?.mappings ?? []).filter(
         (mapping) =>
           mapping.customerField !== null &&
-          (mapping.skipReason === undefined || mapping.skipReason === 'low_confidence'),
+          (mapping.skipReason === undefined ||
+            mapping.skipReason === 'low_confidence' ||
+            // Listed so the operator can type the value in the right script; starts unticked.
+            mapping.skipReason === 'script_mismatch'),
       ),
     [proposal],
   );
@@ -430,6 +492,17 @@ export function ReviewPanel() {
   const unmatchedUploads = useMemo(
     () => uploadFields.filter((field) => !suggestedUploadSignatures.has(field.signature)),
     [uploadFields, suggestedUploadSignatures],
+  );
+
+  /** Chosen files Fill will actually attach — only boxes the latest detection still reports. */
+  const attachingCount = useMemo(() => {
+    const live = new Set(uploadFields.map((field) => field.signature));
+    return Object.keys(attachments).filter((signature) => live.has(signature)).length;
+  }, [uploadFields, attachments]);
+
+  const autoMatchedCount = useMemo(
+    () => Object.values(attachments).filter((choice) => choice.auto).length,
+    [attachments],
   );
 
   const detect = async () => {
@@ -477,6 +550,25 @@ export function ReviewPanel() {
               !mapping.reviewRequired,
           )
           .map((mapping) => mapping.signature),
+      ),
+    );
+    // Unambiguous document matches start ticked; the review list marks each one.
+    setAttachments(
+      Object.fromEntries(
+        pickAutoMatches(mapped.data.documentSuggestions ?? [], detected.data.fields).map(
+          (pick) => [
+            pick.signature,
+            {
+              id: pick.file.id,
+              kind: pick.file.kind ?? 'derivative',
+              filename: pick.file.filename,
+              sizeBytes: pick.file.sizeBytes,
+              mimeType: pick.file.mimeType,
+              manual: false,
+              auto: { reason: pick.reason, size: pick.size },
+            },
+          ],
+        ),
       ),
     );
     setStage('reviewing');
@@ -632,12 +724,12 @@ export function ReviewPanel() {
   ): PickerSlot | null =>
     field
       ? {
-          signature: field.signature,
-          label: fieldLabel(field),
-          accept: field.accept,
-          category: suggestion?.category ?? null,
-          preset: suggestion?.preset ?? null,
-        }
+        signature: field.signature,
+        label: fieldLabel(field),
+        accept: field.accept,
+        category: suggestion?.category ?? null,
+        preset: suggestion?.preset ?? null,
+      }
       : null;
 
   const downloadFile = async (id: string, kind: 'derivative' | 'source_document') => {
@@ -750,6 +842,15 @@ export function ReviewPanel() {
   const skippedCount = results?.filter((result) => result.action === 'skipped').length ?? 0;
   const failedCount = results?.filter((result) => result.action === 'failed').length ?? 0;
   const totalResults = filledCount + skippedCount + failedCount;
+
+  const fieldsPhrase = `${approved.size} field${approved.size === 1 ? '' : 's'}`;
+  const documentsPhrase = `${attachingCount} document${attachingCount === 1 ? '' : 's'}`;
+  const fillLabel =
+    attachingCount === 0
+      ? `Fill ${fieldsPhrase}`
+      : approved.size === 0
+        ? `Attach ${documentsPhrase}`
+        : `Fill ${fieldsPhrase} & attach ${documentsPhrase}`;
 
   return (
     <div className="app">
@@ -923,6 +1024,16 @@ export function ReviewPanel() {
             {proposal.documentSuggestions && proposal.documentSuggestions.length > 0 ? (
               <>
                 <h2>Documents to attach</h2>
+                {autoMatchedCount > 0 ? (
+                  <div className="notice notice-info">
+                    <SparkIcon size={13} />
+                    <span>
+                      {autoMatchedCount} document{autoMatchedCount === 1 ? ' was' : 's were'}{' '}
+                      matched to {autoMatchedCount === 1 ? 'its' : 'their'} upload box
+                      {autoMatchedCount === 1 ? '' : 'es'}. Check each one before you press Fill.
+                    </span>
+                  </div>
+                ) : null}
                 <div className="card card-flush">
                   {proposal.documentSuggestions.map((suggestion) => {
                     const docField = fieldBySignature.get(suggestion.signature);
@@ -930,13 +1041,21 @@ export function ReviewPanel() {
                     const constraints = suggestion.preset
                       ? formatPresetConstraints(suggestion.preset)
                       : null;
+                    // What the page says beside the box, shown only where no preset gives a window.
+                    const pageStated =
+                      docField &&
+                        resolveUploadTarget(docField, suggestion.preset).sizeSource !== 'preset'
+                        ? describeUploadConstraints(docField.uploadConstraints)
+                        : null;
 
                     return (
                       <div key={suggestion.signature} className="field-row">
                         <span className="spread">
                           <span className="strong truncate">{fieldLabel(docField)}</span>
                           <span className="badge badge-brand">
-                            {DOCUMENT_CATEGORY_LABEL[suggestion.category]}
+                            {(suggestion.documentType &&
+                              DOCUMENT_TYPE_LABEL[suggestion.documentType]) ??
+                              DOCUMENT_CATEGORY_LABEL[suggestion.category]}
                           </span>
                         </span>
 
@@ -944,6 +1063,12 @@ export function ReviewPanel() {
                           <p className="tiny muted" style={{ margin: '4px 0 0' }}>
                             {suggestion.preset.portal} · {suggestion.preset.label}
                             {constraints ? ` · ${constraints}` : ''}
+                          </p>
+                        ) : null}
+
+                        {pageStated ? (
+                          <p className="tiny muted" style={{ margin: '4px 0 0' }}>
+                            Stated on this page: {pageStated}
                           </p>
                         ) : null}
 
@@ -1033,8 +1158,17 @@ export function ReviewPanel() {
                                 </div>
                               );
                             })}
+                            {chosen?.auto ? (
+                              <AutoMatchStrip
+                                choice={chosen}
+                                auto={chosen.auto}
+                                onRemove={() => clearAttachment(suggestion.signature)}
+                              />
+                            ) : null}
                             <p className="tiny muted" style={{ margin: '2px 0 0' }}>
-                              Tick a file to attach it to this upload box when you press Fill.
+                              {chosen?.auto
+                                ? 'Pre-selected for you. Untick it, tick another file, or choose a different one below.'
+                                : 'Tick a file to attach it to this upload box when you press Fill.'}
                             </p>
                           </div>
                         ) : (
@@ -1107,6 +1241,7 @@ export function ReviewPanel() {
                   {unmatchedUploads.map((field) => {
                     const chosen = attachments[field.signature];
                     const acceptPhrase = describeAccept(field.accept);
+                    const pageStated = describeUploadConstraints(field.uploadConstraints);
 
                     return (
                       <div key={field.signature} className="field-row">
@@ -1121,6 +1256,12 @@ export function ReviewPanel() {
                           {acceptPhrase ? ` — it accepts ${acceptPhrase}` : ''}. Pick a file
                           yourself if the portal asks for one.
                         </p>
+
+                        {pageStated ? (
+                          <p className="tiny muted" style={{ margin: '4px 0 0' }}>
+                            Stated on this page: {pageStated}
+                          </p>
+                        ) : null}
 
                         {chosen ? (
                           <ChosenFileCard
@@ -1177,6 +1318,10 @@ export function ReviewPanel() {
                   const ticked = approved.has(mapping.signature);
                   // What will actually be typed, transform included — not the raw profile value.
                   const value = resolveFillValue(mapping, proposal.values, edits) ?? '';
+                  const scriptMismatch = mapping.skipReason === 'script_mismatch';
+                  const savedValue = mapping.customerField
+                    ? (proposal.values[mapping.customerField] ?? '')
+                    : '';
 
                   const rowClass = [
                     'field-row',
@@ -1212,17 +1357,30 @@ export function ReviewPanel() {
                       <input
                         type="text"
                         value={value}
-                        onChange={(event) =>
-                          setEdits((current) => ({
-                            ...current,
-                            [mapping.signature]: event.target.value,
-                          }))
-                        }
+                        onChange={(event) => {
+                          const typed = event.target.value;
+                          setEdits((current) => ({ ...current, [mapping.signature]: typed }));
+                          // Typing the value yourself is the approval this row was waiting for.
+                          if (scriptMismatch && typed.trim() !== '' && !ticked) {
+                            toggle(mapping.signature);
+                          }
+                        }}
+                        placeholder={scriptMismatch ? savedValue : undefined}
                         style={{ marginTop: 7 }}
                         aria-label={`Value for ${fieldLabel(field)}`}
                       />
 
-                      {mapping.reviewRequired ? (
+                      {scriptMismatch ? (
+                        <p
+                          className="tiny row"
+                          style={{ color: 'var(--warn)', margin: '5px 0 0', gap: 5 }}
+                        >
+                          <AlertIcon size={12} />
+                          {mapping.expectedScript === 'latin'
+                            ? 'Saved in Hindi, but this box takes English. Type the spelling from the certificate.'
+                            : 'Saved in English, but this box takes Hindi. Type it in Hindi.'}
+                        </p>
+                      ) : mapping.reviewRequired ? (
                         <p
                           className="tiny row"
                           style={{ color: 'var(--warn)', margin: '5px 0 0', gap: 5 }}
@@ -1240,18 +1398,19 @@ export function ReviewPanel() {
             <button
               type="button"
               className="btn-primary btn-block"
-              disabled={approved.size === 0 || stage === 'filling'}
+              // A page that only asks for documents is still worth one press.
+              disabled={(approved.size === 0 && attachingCount === 0) || stage === 'filling'}
               onClick={() => void fill()}
             >
               {stage === 'filling' ? (
                 <>
                   <span className="spinner" />
-                  Filling…
+                  {attachingCount > 0 ? 'Filling and attaching…' : 'Filling…'}
                 </>
               ) : (
                 <>
                   <CheckIcon size={15} />
-                  {`Fill ${approved.size} field${approved.size === 1 ? '' : 's'}`}
+                  {fillLabel}
                 </>
               )}
             </button>
@@ -1259,8 +1418,9 @@ export function ReviewPanel() {
             <div className="notice notice-info">
               <ShieldIcon size={13} />
               <span>
-                Bharatfill fills the fields you ticked. Check the form, complete any CAPTCHA or OTP
-                yourself, then press the portal&rsquo;s own submit button.
+                Bharatfill fills the fields you ticked and attaches the documents you kept selected,
+                in one pass. Check the form, complete any CAPTCHA or OTP yourself, then press the
+                portal&rsquo;s own submit button.
               </span>
             </div>
           </>
@@ -1344,12 +1504,11 @@ export function ReviewPanel() {
                   ) : (
                     <>
                       <RefreshIcon size={14} />
-                      {`Re-fill ${
-                        results.filter(
-                          (result) =>
-                            result.action === 'skipped' && result.skipReason === 'dependent_not_ready',
-                        ).length
-                      } skipped field(s)`}
+                      {`Re-fill ${results.filter(
+                        (result) =>
+                          result.action === 'skipped' && result.skipReason === 'dependent_not_ready',
+                      ).length
+                        } skipped field(s)`}
                     </>
                   )}
                 </button>

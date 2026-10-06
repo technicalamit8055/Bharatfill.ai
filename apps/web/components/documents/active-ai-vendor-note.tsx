@@ -10,6 +10,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   anthropic: 'Anthropic',
   deepseek: 'DeepSeek',
   gemini: 'Google Gemini',
+  vertex: 'Google Vertex AI',
   ollama: 'Ollama',
   openrouter: 'OpenRouter',
   custom: 'Custom',

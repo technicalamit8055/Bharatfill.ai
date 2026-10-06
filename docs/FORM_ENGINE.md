@@ -41,6 +41,12 @@ The content script sends metadata only:
   maxLength: number | null;
   pattern: string | null;
   accept: string | null; // file inputs only, e.g. "image/*"
+  uploadConstraints?: {
+    // file inputs only; parsed in the page, never the text itself
+    minBytes: number | null;
+    maxBytes: number | null;
+    formats: ('jpeg' | 'png' | 'pdf' | 'gif' | 'webp' | 'bmp' | 'tiff')[];
+  } | null;
   hasValue: boolean; // whether it is already filled — never the value itself
   visible: boolean;
   disabled: boolean;
@@ -268,6 +274,32 @@ voter, identity / ID proof, address proof, income, caste, domicile, residence an
 and `matchDocumentRequirements` skips any field with `visible === false`. A file field with no
 text signal and no usable `accept` still infers `null`, so it gets no suggestion card.
 
+### Slot classifier: specific document types (`documents.ts`)
+
+`inferFileFieldSlot` returns `{ category, documentType }`. `category` is still `photo` /
+`signature` / `pdf`, the bucket that picks a Document Tools tool and a `document_derivatives`
+row. `documentType` is the specific `documents.document_type` the box names, from
+`SLOT_DOCUMENT_TYPES` in `types.ts`: core's `DOCUMENT_TYPES` minus `generic`, `application_pdf`
+and `unknown`, which describe a stored file, never what a box asks for. It is checked against
+core with a type-only import, so the content script never loads the core barrel.
+
+- Each text source is classified on its own, strongest first: label, aria-label, placeholder,
+  name, id, nearby text, then section heading. The first source with any signal fixes the
+  category. A weaker source can still name the type inside that category ("Certificate" label,
+  "Income" in the row), but it never overrules the category.
+- The section heading can set the category but never the type. On RTPS Bihar it is the form's
+  own title ("Income certificate application") over every box.
+- Labels that name no single document ("Address proof", "Marksheet", "Ration card") stay
+  `pdf` with `documentType: null`. An `accept`-only inference never names a type.
+- `name`/`id` are split on camelCase and `_-.` first, so `casteCertFile` reads as caste.
+
+`DocumentFieldMatch` and `DocumentSuggestion` carry `documentType` (nullable; a suggestion from
+an older server defaults it to `null`). `matchDocumentRequirements` tries requirements of the
+same type first, then the same category, then all of them. In `POST /api/forms/map`, a slot with
+a specific pdf type is offered only source documents of that type, plus `unknown`/`generic` ones,
+ranked after exact matches. A customer's income certificate is no longer suggested for the caste
+box. The side panel's suggestion badge shows the type ("Caste certificate") in place of "PDF".
+
 ## 6a. Supported portals
 
 | Adapter slug               | Portal                                                 | Forms                                                         | Status  |
@@ -310,7 +342,7 @@ adapter has no stage field (§6); the extension links the passes (docs/EXTENSION
 
 ### SSC
 
-`packages/form-engine/src/adapters/ssc-portal.json`, slug `ssc-portal`, version 1.0.0, status
+`packages/form-engine/src/adapters/ssc-portal.json`, slug `ssc-portal`, version 1.1.0, status
 `testing`, region All India. URL patterns `https://ssc.gov.in/**` and `https://*.ssc.gov.in/**`
 (the OTR form lives on a subdomain; a look-alike host such as `notssc.gov.in` does not match).
 
@@ -321,9 +353,9 @@ Matching is label-driven with no selectors: SSC's Angular front end generates co
 
 | Adapter key                                            | Customer field                                                      | Notes                                                                        |
 | ------------------------------------------------------ | ------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `candidate_name`                                       | `customer.full_name`                                                | negatives exclude father/mother/spouse/guardian, Hindi, matriculation        |
-| `candidate_name_hi`                                    | `customer.full_name_hi`                                             | also claims "name as per matriculation certificate"                          |
-| `father_name`, `mother_name`                           | `customer.father_name`, `customer.mother_name`                      | each excludes the other parent and the candidate                             |
+| `candidate_name`                                       | `customer.full_name`                                                | claims "as per Matriculation Certificate"; script `latin`                    |
+| `candidate_name_hi`                                    | `customer.full_name_hi`                                             | explicit "name in Hindi" labels only; script `devanagari`                    |
+| `father_name`, `mother_name`                           | `customer.father_name`, `customer.mother_name`                      | each excludes the other parent and the candidate; script `latin`             |
 | `date_of_birth`                                        | `customer.date_of_birth`                                            | `date.ddmmyyyy`, review required                                             |
 | `gender`                                               | `customer.gender`                                                   | select, `gender.full`                                                        |
 | `category`                                             | `customer.category`                                                 | select, `category.code`, review required                                     |
@@ -378,6 +410,31 @@ Transforms never invent data. If input is missing, the transform returns `null` 
 skipped rather than filled with a guess. An unknown transform name also returns `null` (skip, not
 raw value), and `adapter-registry.test.ts` fails any built-in adapter that names one.
 
+## 7a. Script (Hindi vs English)
+
+A profile can hold a name in Devanagari while the portal only takes English (SSC OTR), or the
+reverse. `packages/form-engine/src/script.ts` decides what a text box wants, strongest first:
+
+1. the adapter field's `script` (`latin` | `devanagari`);
+2. the label, aria-label, placeholder or help text ("in English", "(English)", "capital letters",
+   "in Hindi", "हिंदी") — a label offering both says nothing;
+3. the field's own `pattern`, when it rejects the Devanagari value;
+4. _inferred_: the box and its section are labelled in English alone.
+
+Names are stored in both scripts where the profile has them (`NAME_SCRIPT_PAIRS` in
+`@assistigo/core`): `full_name` ↔ `full_name_hi`, `father_name` ↔ `father_name_hi`,
+`mother_name` ↔ `mother_name_hi` (migration 0032). The unsuffixed field is the English spelling.
+When the mapped one is empty the other stands in, so a profile saved before the split — Hindi in
+`father_name` — still fills a Hindi box. Extraction files a parent's name under the key its script
+says (`keyForScript` in packages/ai); the applicant's `full_name` is never re-keyed, because a
+profile cannot be created without it.
+
+On a mismatch the mapper uses the other rendering of the same fact when the profile has one. Otherwise an explicit rule (1–3) gives `skipReason:
+'script_mismatch'` with `expectedScript`: the side panel lists the row unticked with the saved value
+as a placeholder, and `buildFillInstructions` fills it only from what the operator typed, in the
+expected script. An inferred rule (4) only forces review. Nothing is transliterated: a guessed
+spelling that differs from the certificate is a confident wrong answer.
+
 ## 8. Dependent dropdowns
 
 State → district → sub-division → block chains are filled sequentially: set the parent, dispatch `change`, wait
@@ -395,8 +452,9 @@ never populates, the field is marked `skipped` with reason `dependent_not_ready`
 - File inputs: never carry a mapped value — `isSupportedInputType('file')` is false, so the
   mapper skips every one of them with `unsupported_type`. Not a browser limit (Chromium does let
   a content script assign `input.files` from a `DataTransfer`) but a product rule: which document
-  belongs in which upload slot is the operator's judgement, so it takes an explicit tick per box
-  in the side panel and travels a separate path, `attachFiles` rather than `applyFill`
+  belongs in which upload slot is the operator's judgement. The side panel pre-ticks only an
+  unambiguous match (`pickAutoMatches`, docs/EXTENSION.md §6e), and leaves every other box for an
+  explicit tick. Files travel a separate path, `attachFiles` rather than `applyFill`
   (spec §7.4.5, docs/EXTENSION.md §6a).
 - Every field produces a result row: `filled | skipped | edited | failed` plus a reason.
 

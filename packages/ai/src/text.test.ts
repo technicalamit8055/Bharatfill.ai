@@ -108,7 +108,7 @@ describe('extractFromText', () => {
     });
 
     expect(valueOf(fields, 'customer.full_name')).toBe('सुनीता देवी');
-    expect(valueOf(fields, 'customer.father_name')).toBe('राम कुमार');
+    expect(valueOf(fields, 'customer.father_name_hi')).toBe('राम कुमार');
     expect(valueOf(fields, 'customer.mobile')).toBe('9900054321');
   });
 

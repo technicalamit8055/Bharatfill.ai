@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import { SCHEME_CATEGORIES } from '@assistigo/core';
+import { SCRIPTS } from './types';
 
 export const ADAPTER_STATUSES = ['draft', 'testing', 'active', 'deprecated'] as const;
 export type AdapterStatus = (typeof ADAPTER_STATUSES)[number];
@@ -34,6 +35,11 @@ export const adapterFieldSchema = z.object({
   required: z.boolean().optional(),
   /** Forces review even when the mapping is certain (§14.6). */
   reviewRequired: z.boolean().optional(),
+  /**
+   * The script this box accepts, when the portal enforces one without saying so in the label
+   * (SSC's name boxes take English only). A value in the other script is never filled (script.ts).
+   */
+  script: z.enum(SCRIPTS).optional(),
   /** For dependent dropdowns: the adapter key that must be filled first. */
   dependsOn: z.string().max(80).optional(),
 });

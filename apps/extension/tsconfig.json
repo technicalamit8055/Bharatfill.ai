@@ -11,7 +11,13 @@
       "@assistigo/form-engine": ["../../packages/form-engine/src/index.ts"],
       "@assistigo/form-engine/types": ["../../packages/form-engine/src/types.ts"],
       "@assistigo/form-engine/safety": ["../../packages/form-engine/src/safety.ts"],
-      "@assistigo/form-engine/documents": ["../../packages/form-engine/src/documents.ts"]
+      "@assistigo/form-engine/documents": ["../../packages/form-engine/src/documents.ts"],
+      "@assistigo/form-engine/constraints": ["../../packages/form-engine/src/constraints.ts"],
+      "@assistigo/document-tools/autofit": ["../../packages/document-tools/src/autofit.ts"],
+      "@assistigo/document-tools/browser/image": [
+        "../../packages/document-tools/src/browser/image.ts"
+      ],
+      "@assistigo/document-tools/browser/pdf": ["../../packages/document-tools/src/browser/pdf.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "*.config.ts"]
