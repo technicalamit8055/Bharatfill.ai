@@ -6,10 +6,10 @@
   "region": "All India",
   "category": "recruitment",
   "urlPatterns": ["https://ssc.gov.in/**", "https://*.ssc.gov.in/**"],
-  "version": "1.1.0",
+  "version": "1.2.0",
   "status": "testing",
-  "notes": "One adapter covers One-Time Registration and the CGL/CHSL/GD application forms because SSC reuses the OTR profile across every examination — the application form re-displays the registered particulars rather than asking for them again, so the same label set applies. Matching is label-driven: SSC's Angular front end generates its control names (formcontrolname=\"ctrl_12\"), so a hand-written selector would be a guess that rots at the next release. Class 10 is SSC's 'Matriculation', which is why the matriculation fields below map onto the registry's customer.education.class10.* block. OTR takes candidate, father's and mother's names in English only (the matriculation-certificate spelling), so those fields declare script 'latin' and a Hindi value is never typed into them. Only an explicit 'name in Hindi' box gets customer.full_name_hi.",
-  "knownIssues": "Identification Marks (SSC asks for two visible marks) has no equivalent in the customer field registry, so it is left to the operator — proposing one from any existing field would be a confident wrong answer. Adding customer.identification_marks is a product decision under docs/SECURITY.md §4, not an adapter change. Full Aadhaar is deliberately absent: only customer.aadhaar_last4 is mapped, matching the last-4 control SSC's OTR actually shows. SSC's captcha and the OTP step are never touched (spec §2 prohibits both). Category, date of birth and the Aadhaar last-4 are high_risk fields, so each is marked reviewRequired regardless of adapter confidence.",
+  "notes": "Covers OTR and the CGL/CHSL/GD forms, which re-display the OTR profile. Label-driven: SSC's Angular front end generates control names (ctrl_12). Education Details uses generic boxes (Roll Number, Passing Year, Name of Board/University) whose qualification is chosen by the 'Qualifying Educational Qualification' dropdown, so those fields declare educationLevels; the level comes from the box's label or heading, else the operator's pick in the side panel, else the customer's highest recorded level (always reviewed). Address boxes declare contextVariants: present/correspondence headings map to customer.address.*, permanent ones to customer.permanent_address.*. Names are English-only (script latin).",
+  "knownIssues": "Not filled, left to the operator: Identification Marks (no registry field; a SECURITY.md §4 decision), State/UT of Board/University, Highest/Qualifying Educational Qualification and EQ Status (portal choices, not customer data), marital status (SSC's Unmarried/Married does not match the registry's options), disability and ex-servicemen questions. Full Aadhaar is never mapped, only customer.aadhaar_last4. Captcha and OTP are never touched. Category, date of birth and Aadhaar last-4 are always reviewed.",
   "documentRequirements": [
     {
       "key": "photo",
@@ -20,10 +20,10 @@
     },
     {
       "key": "signature",
-      "label": "Signature (10–20 KB JPEG)",
+      "label": "Signature (10–20 KB JPEG, 6.0 × 2.0 cm at 300 DPI)",
       "presetCode": "ssc.signature",
       "required": true,
-      "notes": "Black or blue ink on plain white paper, 10–20 KB JPEG. SSC rejects a signature written in capital letters."
+      "notes": "Black or blue ink on plain white paper, 10–20 KB JPEG, 6.0 × 2.0 cm at 300 DPI (709 × 237 px), horizontal. SSC rejects any other size, a blurred or miniature signature, and one written in capital letters."
     }
   ],
   "fields": [
@@ -34,6 +34,7 @@
         "candidate's name",
         "candidate name",
         "name of candidate",
+        "name of the candidate",
         "applicant name",
         "your name"
       ],
@@ -49,7 +50,9 @@
         "हिंदी",
         "user",
         "bank",
-        "account"
+        "account",
+        "changed",
+        "change your name"
       ],
       "inputType": "text",
       "required": true,
@@ -140,12 +143,19 @@
         "exam",
         "post",
         "disability",
-        "ex-servicemen"
+        "ex-servicemen",
+        "relaxation"
       ],
       "inputType": "select-one",
       "transform": "category.code",
       "required": true,
       "reviewRequired": true
+    },
+    {
+      "key": "nationality",
+      "customerField": "customer.nationality",
+      "labelPatterns": ["nationality", "राष्ट्रीयता"],
+      "inputType": "select-one"
     },
     {
       "key": "aadhaar_last4",
@@ -182,6 +192,30 @@
       "required": true
     },
     {
+      "key": "alternate_mobile",
+      "customerField": "customer.mobile_alt",
+      "labelPatterns": [
+        "alternate mobile number",
+        "alternate mobile",
+        "alternative mobile number",
+        "alternative mobile",
+        "alternate contact number"
+      ],
+      "negativePatterns": [
+        "otp",
+        "ओटीपी",
+        "one time password",
+        "onetime password",
+        "verification",
+        "verify",
+        "सत्यापन",
+        "parent",
+        "guardian"
+      ],
+      "inputType": "text",
+      "transform": "mobile.10digit"
+    },
+    {
       "key": "email",
       "customerField": "customer.email",
       "labelPatterns": ["email id", "email address", "e-mail", "email", "ईमेल"],
@@ -202,45 +236,106 @@
       "required": true
     },
     {
-      "key": "matriculation_roll_number",
+      "key": "roll_number",
       "customerField": "customer.education.class10.roll_number",
-      "labelPatterns": [
-        "matriculation roll number",
-        "matriculation roll no",
-        "roll number of matriculation",
-        "10th roll number",
-        "roll number"
-      ],
-      "negativePatterns": ["intermediate", "12th", "graduation", "registration", "exam", "admit"],
+      "labelPatterns": ["roll number", "roll no"],
+      "negativePatterns": ["registration", "admit", "application", "enrolment", "exam centre"],
       "inputType": "text",
-      "required": true
+      "required": true,
+      "educationLevels": {
+        "class10": "customer.education.class10.roll_number",
+        "class12": "customer.education.class12.roll_number",
+        "graduation": "customer.education.graduation.roll_number"
+      }
     },
     {
-      "key": "matriculation_passing_year",
+      "key": "passing_year",
       "customerField": "customer.education.class10.passing_year",
-      "labelPatterns": [
-        "year of passing matriculation",
-        "matriculation passing year",
-        "passing year",
-        "year of passing"
-      ],
-      "negativePatterns": ["intermediate", "12th", "graduation", "birth", "issue"],
-      "inputType": "text",
-      "required": true
+      "labelPatterns": ["passing year", "year of passing", "passing out year", "year of pass"],
+      "negativePatterns": ["birth", "issue"],
+      "inputType": "select-one",
+      "required": true,
+      "educationLevels": {
+        "class10": "customer.education.class10.passing_year",
+        "class12": "customer.education.class12.passing_year",
+        "graduation": "customer.education.graduation.passing_year"
+      }
     },
     {
-      "key": "matriculation_board",
+      "key": "board_university",
       "customerField": "customer.education.class10.board",
       "labelPatterns": [
-        "board of matriculation",
-        "matriculation board",
-        "board name",
+        "name of board university",
         "name of board",
+        "board name",
+        "name of university",
+        "university name",
+        "board university",
         "board"
       ],
-      "negativePatterns": ["intermediate", "12th", "graduation", "university", "roll", "year"],
+      "negativePatterns": ["state", "roll", "year", "percentage", "marks"],
       "inputType": "select-one",
-      "required": true
+      "required": true,
+      "educationLevels": {
+        "class10": "customer.education.class10.board",
+        "class12": "customer.education.class12.board",
+        "graduation": "customer.education.graduation.university"
+      }
+    },
+    {
+      "key": "percentage",
+      "customerField": "customer.education.class10.marks_percentage",
+      "labelPatterns": ["percentage of marks", "marks percentage", "percentage"],
+      "negativePatterns": ["disability", "cgpa", "grade"],
+      "inputType": "text",
+      "educationLevels": {
+        "class10": "customer.education.class10.marks_percentage",
+        "class12": "customer.education.class12.marks_percentage",
+        "graduation": "customer.education.graduation.marks_percentage"
+      }
+    },
+    {
+      "key": "marks_obtained",
+      "customerField": "customer.education.class10.aggregate_marks",
+      "labelPatterns": ["marks obtained", "obtained marks", "aggregate marks"],
+      "negativePatterns": ["maximum", "max marks", "full marks", "out of", "percentage"],
+      "inputType": "text",
+      "educationLevels": {
+        "class10": "customer.education.class10.aggregate_marks",
+        "class12": "customer.education.class12.aggregate_marks",
+        "graduation": "customer.education.graduation.aggregate_marks"
+      }
+    },
+    {
+      "key": "school_college",
+      "customerField": "customer.education.class10.school",
+      "labelPatterns": [
+        "name of school",
+        "school name",
+        "name of college",
+        "college name",
+        "name of institute",
+        "institute name",
+        "name of institution"
+      ],
+      "negativePatterns": ["state", "address", "district"],
+      "inputType": "text",
+      "educationLevels": {
+        "class10": "customer.education.class10.school",
+        "class12": "customer.education.class12.school",
+        "graduation": "customer.education.graduation.college"
+      }
+    },
+    {
+      "key": "stream",
+      "customerField": "customer.education.class12.stream_faculty",
+      "labelPatterns": ["stream", "faculty", "name of course", "course name", "name of degree"],
+      "inputType": "text",
+      "educationLevels": {
+        "class10": "customer.education.class10.stream_faculty",
+        "class12": "customer.education.class12.stream_faculty",
+        "graduation": "customer.education.graduation.course"
+      }
     },
     {
       "key": "permanent_address_line1",
@@ -249,42 +344,188 @@
         "permanent address line 1",
         "permanent address",
         "address line 1",
+        "address line1",
         "house no",
+        "house number",
         "स्थायी पता"
       ],
       "negativePatterns": [
-        "present",
-        "correspondence",
-        "current",
         "line 2",
+        "line 3",
         "pin",
         "state",
-        "district"
+        "district",
+        "city",
+        "email",
+        "same as",
+        "school",
+        "college",
+        "board"
       ],
-      "inputType": "text"
+      "inputType": "text",
+      "contextVariants": [
+        {
+          "patterns": ["permanent", "स्थायी"],
+          "customerField": "customer.permanent_address.house_number"
+        },
+        {
+          "patterns": [
+            "present",
+            "correspondence",
+            "current",
+            "communication",
+            "वर्तमान",
+            "पत्राचार"
+          ],
+          "customerField": "customer.address.house_number"
+        }
+      ]
+    },
+    {
+      "key": "address_line2",
+      "customerField": "customer.permanent_address.street",
+      "labelPatterns": ["address line 2", "address line2", "street", "locality"],
+      "negativePatterns": ["line 1", "line 3", "pin", "state", "district", "email", "same as"],
+      "inputType": "text",
+      "contextVariants": [
+        {
+          "patterns": ["permanent", "स्थायी"],
+          "customerField": "customer.permanent_address.street"
+        },
+        {
+          "patterns": [
+            "present",
+            "correspondence",
+            "current",
+            "communication",
+            "वर्तमान",
+            "पत्राचार"
+          ],
+          "customerField": "customer.address.street"
+        }
+      ]
+    },
+    {
+      "key": "city",
+      "customerField": "customer.permanent_address.village_town_city",
+      "labelPatterns": ["city town village", "village town city", "city", "town", "village"],
+      "negativePatterns": ["district", "state", "pin", "same as", "birth"],
+      "inputType": "text",
+      "contextVariants": [
+        {
+          "patterns": ["permanent", "स्थायी"],
+          "customerField": "customer.permanent_address.village_town_city"
+        },
+        {
+          "patterns": [
+            "present",
+            "correspondence",
+            "current",
+            "communication",
+            "वर्तमान",
+            "पत्राचार"
+          ],
+          "customerField": "customer.address.village_town_city"
+        }
+      ]
     },
     {
       "key": "permanent_state",
       "customerField": "customer.permanent_address.state",
-      "labelPatterns": ["permanent address state", "state", "राज्य"],
-      "negativePatterns": ["present", "correspondence", "current", "district", "statement"],
-      "inputType": "select-one"
+      "labelPatterns": ["permanent address state", "state ut", "state", "राज्य"],
+      "negativePatterns": [
+        "district",
+        "statement",
+        "board",
+        "university",
+        "school",
+        "college",
+        "institute",
+        "domicile",
+        "exam",
+        "centre",
+        "center",
+        "same as"
+      ],
+      "inputType": "select-one",
+      "contextVariants": [
+        {
+          "patterns": ["permanent", "स्थायी"],
+          "customerField": "customer.permanent_address.state"
+        },
+        {
+          "patterns": [
+            "present",
+            "correspondence",
+            "current",
+            "communication",
+            "वर्तमान",
+            "पत्राचार"
+          ],
+          "customerField": "customer.address.state"
+        }
+      ]
     },
     {
       "key": "permanent_district",
       "customerField": "customer.permanent_address.district",
       "labelPatterns": ["permanent address district", "district", "जिला"],
-      "negativePatterns": ["present", "correspondence", "current", "sub", "state"],
+      "negativePatterns": [
+        "sub",
+        "state",
+        "board",
+        "university",
+        "school",
+        "college",
+        "exam",
+        "centre",
+        "center",
+        "same as"
+      ],
       "inputType": "select-one",
-      "dependsOn": "permanent_state"
+      "dependsOn": "permanent_state",
+      "contextVariants": [
+        {
+          "patterns": ["permanent", "स्थायी"],
+          "customerField": "customer.permanent_address.district"
+        },
+        {
+          "patterns": [
+            "present",
+            "correspondence",
+            "current",
+            "communication",
+            "वर्तमान",
+            "पत्राचार"
+          ],
+          "customerField": "customer.address.district"
+        }
+      ]
     },
     {
       "key": "permanent_pincode",
       "customerField": "customer.permanent_address.pincode",
       "labelPatterns": ["permanent address pin code", "pin code", "pincode", "पिन कोड"],
-      "negativePatterns": ["present", "correspondence", "current"],
+      "negativePatterns": ["same as"],
       "inputType": "text",
-      "transform": "pin.6digit"
+      "transform": "pin.6digit",
+      "contextVariants": [
+        {
+          "patterns": ["permanent", "स्थायी"],
+          "customerField": "customer.permanent_address.pincode"
+        },
+        {
+          "patterns": [
+            "present",
+            "correspondence",
+            "current",
+            "communication",
+            "वर्तमान",
+            "पत्राचार"
+          ],
+          "customerField": "customer.address.pincode"
+        }
+      ]
     }
   ]
 }

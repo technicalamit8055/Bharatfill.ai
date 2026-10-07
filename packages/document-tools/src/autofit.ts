@@ -34,8 +34,30 @@ export const AUTO_FIT_MAX_SOURCE_BYTES = 20 * 1024 * 1024;
 
 export type AutoFitSource = { filename: string; mimeType: string; sizeBytes: number };
 
+/**
+ * The exact picture a box wants, when it states one: "6.0 cm × 2.0 cm at 300 DPI" is
+ * 709 × 236 px. `subject` decides how a source that is not already that shape gets there.
+ */
+export type AutoFitDimensions = {
+  widthPx: number;
+  heightPx: number;
+  /** Written into the JPEG header, so a portal that measures centimetres reads them back. */
+  dpi: number | null;
+  /**
+   * `signature`: paper margin trimmed, then centred on white — a signature on a wider sheet is
+   * still a signature. `photo`: never cropped; one of the wrong shape needs a person to frame the
+   * face. `document`: centred on white.
+   */
+  subject: 'signature' | 'photo' | 'document';
+};
+
 /** A portal's KB window. `null` and absent both mean the notice did not state that end. */
-export type AutoFitWindow = { minBytes?: number | null; maxBytes?: number | null };
+export type AutoFitWindow = {
+  minBytes?: number | null;
+  maxBytes?: number | null;
+  /** Set when the box states a pixel or physical size; images are then redrawn to it. */
+  dimensions?: AutoFitDimensions | null;
+};
 
 /** The upload box's own `accept` check, passed in so this package needs no form-engine import. */
 export type AcceptsFile = (file: { filename: string; mimeType: string }) => boolean;
@@ -52,6 +74,12 @@ export type AutoFitBlockReason =
   /** A PDF under the portal's minimum. */
   | 'below_minimum';
 
+/**
+ * Found only once the image is decoded: a photo whose shape is too far from the box's to resize
+ * without cropping, and framing a face is a person's call.
+ */
+export type AutoFitLateBlockReason = 'needs_crop';
+
 export type AutoFitPlan =
   | { action: 'none' }
   | {
@@ -63,6 +91,8 @@ export type AutoFitPlan =
       maxBytes?: number;
       /** The source was not a JPEG, so the format changes. Named on the confirm card. */
       converted: boolean;
+      /** Redraw to this exact size first; the KB search then never downscales. */
+      resize?: AutoFitDimensions;
     }
   | { action: 'pdf'; filename: string; maxBytes: number }
   | { action: 'cannot_fit'; reason: AutoFitBlockReason };
@@ -122,13 +152,21 @@ export function planAutoFit(
 
   const minBytes = definedBytes(window.minBytes);
   const maxBytes = definedBytes(window.maxBytes);
+  const resize = isPdf ? undefined : usableDimensions(window.dimensions);
   const accepted = accepts({ filename: source.filename, mimeType: source.mimeType });
   const verdict = judgeSize(source.sizeBytes, {
     ...(minBytes !== undefined ? { minBytes } : {}),
     ...(maxBytes !== undefined ? { maxBytes } : {}),
   });
 
-  if (accepted && (verdict === 'ok' || verdict === 'unknown')) return { action: 'none' };
+  /*
+   * A stated size is checked by the portal on the pixels, and an original upload's metadata has
+   * none — so an image for a sized box is always redrawn. Redrawing one that is already right
+   * costs a second, and the operator still sees and confirms it.
+   */
+  if (accepted && (verdict === 'ok' || verdict === 'unknown') && !resize) {
+    return { action: 'none' };
+  }
   if (source.sizeBytes > AUTO_FIT_MAX_SOURCE_BYTES) {
     return { action: 'cannot_fit', reason: 'source_too_large' };
   }
@@ -150,7 +188,17 @@ export function planAutoFit(
     ...(minBytes !== undefined ? { minBytes } : {}),
     ...(maxBytes !== undefined ? { maxBytes } : {}),
     converted: mimeType !== 'image/jpeg',
+    ...(resize ? { resize } : {}),
   };
+}
+
+/** Dimensions worth acting on: whole pixels, in a range no misread could produce. */
+function usableDimensions(
+  dimensions: AutoFitDimensions | null | undefined,
+): AutoFitDimensions | undefined {
+  if (!dimensions) return undefined;
+  const sane = (value: number) => Number.isInteger(value) && value >= 16 && value <= 8000;
+  return sane(dimensions.widthPx) && sane(dimensions.heightPx) ? dimensions : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +219,8 @@ export type AutoFitReport = {
   rasterised: boolean;
   /** PDF: DPI the pages were rasterised at, when they were. */
   dpi: number | null;
+  /** Image: redrawn to the box's exact size. Absent on reports from before resizing existed. */
+  resized?: { widthPx: number; heightPx: number; dpi: number | null } | null;
 };
 
 /** "1.2 MB", "186 KB" — a size the way an operator reads it off a portal notice. */
@@ -194,6 +244,15 @@ export function describeAutoFit(report: AutoFitReport): { headline: string; chan
       `Pages turned into images${report.dpi ? ` at ${report.dpi} DPI` : ''} — check the text is still readable.`,
     );
   }
+  if (report.resized) {
+    const { widthPx, heightPx, dpi } = report.resized;
+    const cm = (px: number, at: number) => ((px / at) * 2.54).toFixed(1);
+    changes.push(
+      dpi
+        ? `Resized to ${cm(widthPx, dpi)} × ${cm(heightPx, dpi)} cm (${widthPx} × ${heightPx} px at ${dpi} DPI).`
+        : `Resized to ${widthPx} × ${heightPx} px.`,
+    );
+  }
   if (report.converted) changes.push('Converted to JPEG.');
   if (report.scale !== null && report.scale < 1) {
     changes.push(`Resolution reduced to ${Math.round(report.scale * 100)}%.`);
@@ -207,9 +266,11 @@ export function describeAutoFit(report: AutoFitReport): { headline: string; chan
 
 /** Why a file could not be fitted, as one sentence for the panel. */
 export const AUTO_FIT_BLOCK_MESSAGES: Record<
-  AutoFitBlockReason | 'still_over_limit' | 'processing_failed',
+  AutoFitBlockReason | AutoFitLateBlockReason | 'still_over_limit' | 'processing_failed',
   string
 > = {
+  needs_crop:
+    'This photo is not the shape the portal asks for and needs cropping — prepare it in Document Tools Studio.',
   unsupported_type: 'This file type cannot be resized automatically.',
   source_too_large: 'This file is too large to resize here — prepare it in Document Tools Studio.',
   type_not_accepted: 'This upload box does not accept this kind of document.',

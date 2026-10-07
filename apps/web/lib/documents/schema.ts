@@ -25,7 +25,15 @@ export const uploadIntentSchema = z.object({
 export const documentListSchema = z.object({
   customerId: z.string().uuid().optional(),
   status: z
-    .enum(['uploaded', 'processing', 'extracted', 'review_required', 'verified', 'failed'])
+    .enum([
+      'uploaded',
+      'processing',
+      'extracted',
+      'review_required',
+      'verified',
+      'stored',
+      'failed',
+    ])
     .optional(),
   documentType: z.enum(DOCUMENT_TYPES).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),

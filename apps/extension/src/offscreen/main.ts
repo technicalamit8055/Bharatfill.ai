@@ -16,7 +16,12 @@
  * Errors are never logged or forwarded: the input is a customer's identity document (§19.6).
  */
 
-import { decodeImage, encodeToWindow, renderImage } from '@assistigo/document-tools/browser/image';
+import {
+  decodeImage,
+  encodeToWindow,
+  renderImage,
+  renderIntoFrame,
+} from '@assistigo/document-tools/browser/image';
 import { compressPdf } from '@assistigo/document-tools/browser/pdf';
 import { MAX_ATTACHMENT_BYTES } from '@assistigo/form-engine/types';
 import {
@@ -75,6 +80,9 @@ type Encoded = {
   rasterised: boolean;
   dpi: number | null;
   overLimit: boolean;
+  resized: { widthPx: number; heightPx: number; dpi: number | null } | null;
+  /** A photo whose shape is too far from the box's to fit without cropping. */
+  needsCrop?: boolean;
 };
 
 async function encode(
@@ -93,31 +101,59 @@ async function encode(
       rasterised: result.rasterised,
       dpi: result.dpi,
       overLimit: result.overLimit,
+      resized: null,
     };
   }
 
+  const resize = job.resize;
   const decoded = await decodeImage(new Blob([source.slice()], { type: sourceMimeType }));
-  let canvas: HTMLCanvasElement;
+  let canvas: HTMLCanvasElement | null;
   try {
-    // Whole image, natural size, white behind any transparency: JPEG has no alpha channel.
-    canvas = renderImage(decoded);
+    canvas = resize
+      ? // The box's exact size: signature margin trimmed, centred on white, never stretched.
+        renderIntoFrame(decoded, {
+          width: resize.widthPx,
+          height: resize.heightPx,
+          subject: resize.subject,
+        })
+      : // Whole image, natural size, white behind any transparency: JPEG has no alpha channel.
+        renderImage(decoded);
   } finally {
     decoded.release();
   }
+  if (!canvas) {
+    return {
+      bytes: new Uint8Array(),
+      width: null,
+      height: null,
+      scale: null,
+      padded: false,
+      rasterised: false,
+      dpi: null,
+      overLimit: false,
+      resized: null,
+      needsCrop: true,
+    };
+  }
+
   const result = await encodeToWindow(canvas, {
     mimeType: job.outputMimeType,
     ...(job.minBytes !== undefined ? { minBytes: job.minBytes } : {}),
     ...(job.maxBytes !== undefined ? { maxBytes: job.maxBytes } : {}),
+    // A portal that checks pixels must get exactly these pixels, so only quality may move.
+    ...(resize ? { fixedSize: true } : {}),
+    ...(resize?.dpi ? { dpi: resize.dpi } : {}),
   });
   return {
     bytes: result.bytes,
     width: result.width,
     height: result.height,
-    scale: result.scale,
+    scale: resize ? null : result.scale,
     padded: result.padded,
     rasterised: false,
     dpi: null,
     overLimit: result.overLimit,
+    resized: resize ? { widthPx: result.width, heightPx: result.height, dpi: resize.dpi } : null,
   };
 }
 
@@ -128,6 +164,7 @@ async function run(
 ): Promise<AutoFitResult> {
   const source = base64ToBytes(dataBase64);
   const encoded = await encode(job, source, sourceMimeType);
+  if (encoded.needsCrop) return { status: 'cannot_fit', reason: 'needs_crop' };
 
   // Over the limit is reported, never attached: a portal that refuses the upload after the
   // operator confirmed it is worse than being told now.
@@ -164,6 +201,7 @@ async function run(
       padded: encoded.padded,
       rasterised: encoded.rasterised,
       dpi: encoded.dpi,
+      resized: encoded.resized,
     },
   };
 }

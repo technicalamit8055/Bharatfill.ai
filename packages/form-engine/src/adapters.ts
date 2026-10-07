@@ -10,14 +10,16 @@
 
 import { z } from 'zod';
 import { SCHEME_CATEGORIES } from '@assistigo/core';
-import { SCRIPTS } from './types';
+import { EDUCATION_LEVELS, SCRIPTS, type EducationLevel } from './types';
 
 export const ADAPTER_STATUSES = ['draft', 'testing', 'active', 'deprecated'] as const;
 export type AdapterStatus = (typeof ADAPTER_STATUSES)[number];
 
+const customerFieldKeySchema = z.string().regex(/^customer\./, 'must be a customer.* field key');
+
 export const adapterFieldSchema = z.object({
   key: z.string().min(1).max(80),
-  customerField: z.string().regex(/^customer\./, 'must be a customer.* field key'),
+  customerField: customerFieldKeySchema,
   /** Preferred when the portal's markup is stable. */
   selector: z.string().max(300).optional(),
   /** Fallback when a selector drifts, and the reason adapters degrade gracefully. */
@@ -42,7 +44,41 @@ export const adapterFieldSchema = z.object({
   script: z.enum(SCRIPTS).optional(),
   /** For dependent dropdowns: the adapter key that must be filled first. */
   dependsOn: z.string().max(80).optional(),
+  /**
+   * Other customer fields this box can mean, picked by context. The first variant with a pattern
+   * in the box's own label (then its section heading) replaces `customerField` — "Address Line 1"
+   * under "Present Address" is the current address, not the permanent one.
+   */
+  contextVariants: z
+    .array(
+      z.object({
+        patterns: z.array(z.string().min(1).max(200)).min(1).max(20),
+        customerField: customerFieldKeySchema,
+      }),
+    )
+    .max(10)
+    .optional(),
+  /**
+   * For a generic education box ("Roll Number", "Passing Year"): the customer field for each
+   * qualification level it can be about. Which level applies is decided by education-level.ts;
+   * a level missing here is never used for this box. `customerField` is the fallback when no
+   * level can be decided at all.
+   */
+  educationLevels: z
+    .object({
+      class10: customerFieldKeySchema.optional(),
+      class12: customerFieldKeySchema.optional(),
+      graduation: customerFieldKeySchema.optional(),
+    } satisfies Record<EducationLevel, z.ZodTypeAny>)
+    .strict()
+    .optional(),
 });
+
+/** The levels an adapter field declares a customer field for, in `EDUCATION_LEVELS` order. */
+export function adapterEducationLevels(adapterField: Pick<AdapterField, 'educationLevels'>) {
+  const levels = adapterField.educationLevels;
+  return levels ? EDUCATION_LEVELS.filter((level) => levels[level] !== undefined) : [];
+}
 
 export type AdapterField = z.infer<typeof adapterFieldSchema>;
 
@@ -161,6 +197,8 @@ export type AdapterMatchable = {
   labelText: string | null;
   placeholder?: string | null;
   ariaLabel?: string | null;
+  /** Read only by `contextualCustomerField`, never by matching itself. */
+  sectionHeading?: string | null;
 };
 
 function normaliseForMatch(text: string): string {
@@ -287,6 +325,34 @@ export function findAdapterField(
   }
 
   return best;
+}
+
+/**
+ * The customer field an adapter field means for this particular box, after `contextVariants`.
+ *
+ * The box's own text is consulted before its section heading: a heading is shared by every box
+ * under it, so it is the weaker statement about any one of them.
+ */
+export function contextualCustomerField(
+  adapterField: Pick<AdapterField, 'customerField' | 'contextVariants'>,
+  field: AdapterMatchable,
+): string {
+  const variants = adapterField.contextVariants ?? [];
+  if (variants.length === 0) return adapterField.customerField;
+
+  const own = haystackOf({ ...field, name: null, id: null });
+  const heading = normaliseForMatch(field.sectionHeading ?? '');
+  for (const text of [own, heading]) {
+    if (!text) continue;
+    const hit = variants.find((variant) =>
+      variant.patterns.some((pattern) => {
+        const needle = normaliseForMatch(pattern);
+        return needle !== '' && text.includes(needle);
+      }),
+    );
+    if (hit) return hit.customerField;
+  }
+  return adapterField.customerField;
 }
 
 /**

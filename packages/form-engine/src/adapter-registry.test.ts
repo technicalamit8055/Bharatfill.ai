@@ -12,6 +12,16 @@ import { BUILT_IN_ADAPTERS, BUILT_IN_ADAPTER_BY_SLUG, mergeAdapters } from './ad
 import { adapterDependencyDepth, portalAdapterSchema, type PortalAdapter } from './adapters';
 import { TRANSFORM_NAMES } from './transforms';
 
+/** Every customer field an adapter field can resolve to besides its own `customerField`. */
+function alternateTargets(field: PortalAdapter['fields'][number]): string[] {
+  return [
+    ...Object.values(field.educationLevels ?? {}).filter(
+      (target): target is string => typeof target === 'string',
+    ),
+    ...(field.contextVariants ?? []).map((variant) => variant.customerField),
+  ];
+}
+
 describe('built-in adapters — integrity', () => {
   it('ships at least one', () => {
     expect(BUILT_IN_ADAPTERS.length).toBeGreaterThan(0);
@@ -47,11 +57,39 @@ describe('built-in adapters — integrity', () => {
     }
   });
 
+  it('every educationLevels and contextVariants target exists too', () => {
+    // These replace customerField at map time, so a typo in one is the same confident wrong fill.
+    for (const adapter of BUILT_IN_ADAPTERS) {
+      for (const field of adapter.fields) {
+        for (const target of alternateTargets(field)) {
+          expect(isCustomerFieldKey(target), `${adapter.slug}/${field.key} → ${target}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('educationLevels only ever point at that level of the education block', () => {
+    for (const adapter of BUILT_IN_ADAPTERS) {
+      for (const field of adapter.fields) {
+        for (const [level, target] of Object.entries(field.educationLevels ?? {})) {
+          expect(target, `${adapter.slug}/${field.key}.${level}`).toMatch(
+            new RegExp(`^customer\\.education\\.${level}\\.`),
+          );
+        }
+      }
+    }
+  });
+
   it('no adapter maps a forbidden field key', () => {
     // Chiefly: a full Aadhaar number, which is never stored and so can never be filled.
     for (const adapter of BUILT_IN_ADAPTERS) {
       for (const field of adapter.fields) {
         expect(isForbiddenFieldKey(field.customerField)).toBe(false);
+        for (const target of alternateTargets(field)) {
+          expect(isForbiddenFieldKey(target), `${adapter.slug}/${field.key} → ${target}`).toBe(
+            false,
+          );
+        }
       }
     }
   });

@@ -38,6 +38,11 @@ export type QualitySearchState = {
    * cannot oscillate between two rungs and spend its whole budget going nowhere.
    */
   droppedRung: boolean;
+  /**
+   * Resolution is not the search's to give up: the portal checks pixel dimensions (SSC's
+   * "6.0 cm × 2.0 cm at 300 DPI"), so only quality moves. Absent means false.
+   */
+  fixedScale?: boolean;
 };
 
 /**
@@ -76,16 +81,17 @@ const RUNG_JUMP_RATIO = 2.5;
 const RUNG_CLIMB_RATIO = 0.5;
 
 export function startQualitySearch(
-  options: { startQuality?: number; startScale?: number } = {},
+  options: { startQuality?: number; startScale?: number; fixedScale?: boolean } = {},
 ): QualitySearchState {
-  const { startQuality = MAX_QUALITY, startScale = 1 } = options;
+  const { startQuality = MAX_QUALITY, startScale = 1, fixedScale = false } = options;
   return {
     low: MIN_QUALITY,
     high: Math.min(MAX_QUALITY, Math.max(MIN_QUALITY, startQuality)),
-    scale: nearestRung(startScale),
+    scale: fixedScale ? 1 : nearestRung(startScale),
     best: null,
     probes: 0,
     droppedRung: false,
+    ...(fixedScale ? { fixedScale: true } : {}),
   };
 }
 
@@ -151,6 +157,7 @@ export function recordQualityProbe(
     // Sharper file available: the opening estimate guessed small, and top quality at this rung
     // is still nowhere near the limit.
     if (
+      !state.fixedScale &&
       !state.droppedRung &&
       higherRung !== undefined &&
       probe.quality >= state.high - 0.01 &&
@@ -164,6 +171,13 @@ export function recordQualityProbe(
 
   const wayOver = bytes > maxBytes * RUNG_JUMP_RATIO;
   const qualityExhausted = probe.quality <= MIN_QUALITY + 0.02;
+
+  if (state.fixedScale) {
+    // No rung to fall back to: bisect quality, and stop once it is spent.
+    return qualityExhausted
+      ? { ...state, probes: MAX_PROBES, high: probe.quality }
+      : { ...state, probes, high: probe.quality };
+  }
 
   if (wayOver || qualityExhausted) {
     if (lowerRung === undefined) {
@@ -201,6 +215,77 @@ const MAX_COM_PAYLOAD = 65533;
 
 export function isJpeg(bytes: Uint8Array): boolean {
   return bytes[0] === JPEG_SOI[0] && bytes[1] === JPEG_SOI[1];
+}
+
+/** "JFIF\0" — the identifier that makes an APP0 segment the JFIF header. */
+const JFIF_ID = [0x4a, 0x46, 0x49, 0x46, 0x00];
+
+/**
+ * Where the JFIF APP0 segment starts, if the file has one among its leading header segments.
+ * Stops at the first segment that is not an APPn or a comment: the header is over by then.
+ */
+function findJfifSegment(bytes: Uint8Array): number | null {
+  let offset = 2;
+  while (offset + 4 <= bytes.length && bytes[offset] === 0xff) {
+    const marker = bytes[offset + 1] as number;
+    const isHeaderSegment = (marker >= 0xe0 && marker <= 0xef) || marker === 0xfe;
+    if (!isHeaderSegment) return null;
+    const length = ((bytes[offset + 2] as number) << 8) | (bytes[offset + 3] as number);
+    if (
+      marker === 0xe0 &&
+      length >= 16 &&
+      JFIF_ID.every((value, index) => bytes[offset + 4 + index] === value)
+    ) {
+      return offset;
+    }
+    offset += 2 + length;
+  }
+  return null;
+}
+
+/** The DPI a JPEG's JFIF header states, or `null` when it states none in dots per inch. */
+export function readJpegDpi(bytes: Uint8Array): { x: number; y: number } | null {
+  if (!isJpeg(bytes)) return null;
+  const at = findJfifSegment(bytes);
+  if (at === null || bytes[at + 11] !== 1) return null;
+  return {
+    x: ((bytes[at + 12] as number) << 8) | (bytes[at + 13] as number),
+    y: ((bytes[at + 14] as number) << 8) | (bytes[at + 15] as number),
+  };
+}
+
+/**
+ * Stamps a resolution into a JPEG's JFIF header, so "709 × 236 px" also reads as "6.0 × 2.0 cm
+ * at 300 DPI" to a portal that measures in centimetres.
+ *
+ * A canvas encodes with no meaningful density (units 0, aspect 1:1), and a validator reading
+ * that falls back to 72 or 96 DPI — at which 709 px is 25 cm wide. Patches the existing JFIF
+ * header in place, or inserts one straight after SOI. Image data is untouched.
+ */
+export function setJpegDpi(bytes: Uint8Array, dpi: number): Uint8Array {
+  if (!isJpeg(bytes) || !Number.isInteger(dpi) || dpi <= 0 || dpi > 0xffff) return bytes;
+
+  const at = findJfifSegment(bytes);
+  if (at !== null) {
+    const out = bytes.slice();
+    out[at + 11] = 1; // units: dots per inch
+    out[at + 12] = (dpi >> 8) & 0xff;
+    out[at + 13] = dpi & 0xff;
+    out[at + 14] = (dpi >> 8) & 0xff;
+    out[at + 15] = dpi & 0xff;
+    return out;
+  }
+
+  // prettier-ignore
+  const app0 = Uint8Array.from([
+    0xff, 0xe0, 0x00, 0x10, ...JFIF_ID, 0x01, 0x01, 0x01,
+    (dpi >> 8) & 0xff, dpi & 0xff, (dpi >> 8) & 0xff, dpi & 0xff, 0x00, 0x00,
+  ]);
+  const out = new Uint8Array(bytes.length + app0.length);
+  out.set(bytes.subarray(0, 2), 0);
+  out.set(app0, 2);
+  out.set(bytes.subarray(2), 2 + app0.length);
+  return out;
 }
 
 /**
@@ -242,15 +327,21 @@ export function padJpegToMinimum(bytes: Uint8Array, minBytes: number): Uint8Arra
     remaining -= segment.length;
   }
 
+  // After the JFIF header when it leads the file, so it stays the first segment — where strict
+  // readers look for the DPI `setJpegDpi` wrote. Otherwise straight after SOI, as before.
+  const jfif = findJfifSegment(bytes);
+  const insertAt =
+    jfif === 2 ? 2 + 2 + (((bytes[4] as number) << 8) | (bytes[5] as number)) : 2;
+
   const total = bytes.length + segments.reduce((sum, segment) => sum + segment.length, 0);
   const out = new Uint8Array(total);
-  out.set(bytes.subarray(0, 2), 0); // SOI
-  let offset = 2;
+  out.set(bytes.subarray(0, insertAt), 0);
+  let offset = insertAt;
   for (const segment of segments) {
     out.set(segment, offset);
     offset += segment.length;
   }
-  out.set(bytes.subarray(2), offset);
+  out.set(bytes.subarray(insertAt), offset);
   return out;
 }
 

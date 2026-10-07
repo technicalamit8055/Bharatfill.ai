@@ -13,12 +13,14 @@ import { z } from 'zod';
 // uses them.
 import {
   ATTACHMENT_KINDS,
+  EDUCATION_LEVELS,
   detectionPayloadSchema,
   fileAttachmentRequestSchema,
   fileFillInstructionSchema,
   fillInstructionSchema,
   fillResultSchema,
 } from '@assistigo/form-engine/types';
+import { autoFitDimensionsSchema } from './autofit';
 
 /** The selected customer, as the extension holds it: identity plus just enough to confirm it. */
 export const customerSummarySchema = z.object({
@@ -149,7 +151,15 @@ export const messageSchema = z.discriminatedUnion('type', [
    * with one application row and several linked fill sessions instead of one per page scanned.
    * Optional: the first stage of a journey has nothing to link to yet.
    */
-  z.object({ type: z.literal('REQUEST_MAPPING'), applicationId: z.string().uuid().optional() }),
+  z.object({
+    type: z.literal('REQUEST_MAPPING'),
+    applicationId: z.string().uuid().optional(),
+    /**
+     * The operator's pick in the side panel's qualification selector, for generic education boxes
+     * ("Roll Number" under SSC's qualifying-qualification block). Never read from the page.
+     */
+    educationLevel: z.enum(EDUCATION_LEVELS).optional(),
+  }),
 
   /**
    * side panel → background → content. The only message that ever carries customer values,
@@ -223,6 +233,11 @@ export const messageSchema = z.discriminatedUnion('type', [
     accept: z.string().max(500).nullable(),
     minBytes: z.number().int().positive().nullable(),
     maxBytes: z.number().int().positive().nullable(),
+    /**
+     * The exact picture size the box wants, from the page's own notice or the preset
+     * (`resolveUploadTarget`). An image is then redrawn to it, with the DPI in its header.
+     */
+    dimensions: autoFitDimensionsSchema.nullable().optional(),
   }),
 
   /** side panel → background → offscreen. Drops a fitted copy the operator will not use. */

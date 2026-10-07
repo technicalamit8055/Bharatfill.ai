@@ -60,6 +60,7 @@ only consumer, in `apps/web/lib/supabase/database.types.ts`.
 | `0031_auth_sessions.sql`                       | `list_my_auth_sessions()`, `revoke_my_auth_session(uuid)` — security definer over GoTrue's `auth.sessions`, caller's own rows only, `authenticated` only; nothing new stored (docs/SECURITY.md § Sessions roster) |
 | `0032_parent_names_hi.sql`                     | `customers.father_name_hi`, `customers.mother_name_hi` — Devanagari spellings beside the English `father_name` / `mother_name`; no backfill (docs/FORM_ENGINE.md §7a)                                             |
 | `0033_vertex_ai_vendor.sql`                    | `organization_ai_settings` checks widened: `provider` gains `vertex`, `wire_format` gains `vertex_generate_content` (Vertex AI express mode); nothing new stored (docs/AI_PIPELINE.md §2)                         |
+| `0034_document_stored_status.sql`              | `documents.status` check gains `stored` — a photo or signature kept unread at the operator's request; nothing new stored (docs/AI_PIPELINE.md §2)                                                                  |
 
 Seed data is **separate from migrations** (`packages/database/src/seed/`), per spec §25.4.
 
@@ -204,6 +205,13 @@ retired. Limit and feature edits apply to every subscriber immediately.
 A check-constraint change, not an enum, matching `DOCUMENT_TYPES` in
 `packages/core/src/documents/types.ts`. The `ocr-extract` handler falls back to a status-only
 update on `23514` so a database that has not run 0019 does not fail extraction.
+
+### `stored` document status (0034)
+
+The same kind of change, matching `DOCUMENT_STATUSES`. `stored` means the file was verified and
+then deliberately not read, so no `ocr.extract` job was queued for it. `processDocument`
+(`apps/web/lib/documents/process.ts`) falls back to `extracted` on `23514`, so a database that
+has not run 0034 still keeps the photo unread rather than failing the upload.
 
 ### `schemes_catalog` — reference data, tenant-scoped (0020)
 

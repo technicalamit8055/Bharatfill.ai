@@ -17,6 +17,7 @@ const STATUS_TONE: Record<string, 'neutral' | 'info' | 'success' | 'warning' | '
   extracted: 'info',
   review_required: 'warning',
   verified: 'success',
+  stored: 'success',
   failed: 'danger',
 };
 

@@ -7,6 +7,7 @@ import {
   confidenceBand,
   describeUploadConstraints,
   fileMatchesAccept,
+  inferFileFieldCategory,
   pickAutoMatches,
   resolveFillValue,
   resolveUploadTarget,
@@ -17,6 +18,7 @@ import {
   type DocumentCategory,
   type DocumentPresetSummary,
   type DocumentSuggestion,
+  type EducationLevel,
   type FieldMapping,
   type FileAttachmentRequest,
   type FillResult,
@@ -26,6 +28,7 @@ import { send } from '../shared/send';
 import { CustomerPicker } from '../shared/CustomerPicker';
 import { RoamingAuthBanner } from '../shared/RoamingAuthBanner';
 import { DocumentPreviewModal, type PreviewTarget } from './DocumentPreviewModal';
+import { AutoFitCard, useAutoFits, type FitTarget } from './AutoFitCard';
 import {
   CustomerDocumentPickerModal,
   DOCUMENT_TYPE_LABEL,
@@ -195,7 +198,19 @@ type Proposal = {
   /** Signatures in the order they must be written — parents of dependent dropdowns first. */
   fillOrder?: string[];
   documentSuggestions?: DocumentSuggestion[];
+  /** Present when generic education boxes depended on a page-wide qualification level. */
+  educationLevel?: {
+    level: EducationLevel | null;
+    source: 'operator' | 'profile' | null;
+    withData: EducationLevel[];
+  } | null;
 };
+
+const EDUCATION_LEVEL_CHOICES: ReadonlyArray<{ level: EducationLevel; label: string }> = [
+  { level: 'class10', label: '10th' },
+  { level: 'class12', label: '12th' },
+  { level: 'graduation', label: 'Graduation' },
+];
 
 const DOCUMENT_CATEGORY_LABEL: Record<DocumentCategory, string> = {
   photo: 'Photo',
@@ -393,6 +408,13 @@ export function ReviewPanel() {
    */
   const [attachments, setAttachments] = useState<Record<string, AttachmentChoice>>({});
   const [edits, setEdits] = useState<Record<string, string>>({});
+  /**
+   * The operator's answer to "which qualification is this page about?", for generic education
+   * boxes (SSC's "Roll Number" under the qualifying-qualification block). Null until they pick:
+   * the server then guesses from the profile and asks for review on every such row.
+   */
+  const [educationLevel, setEducationLevel] = useState<EducationLevel | null>(null);
+  const [remapping, setRemapping] = useState(false);
   const [results, setResults] = useState<FillResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reported, setReported] = useState(false);
@@ -500,6 +522,71 @@ export function ReviewPanel() {
     return Object.keys(attachments).filter((signature) => live.has(signature)).length;
   }, [uploadFields, attachments]);
 
+  /**
+   * What each upload box holds a chosen file to: the KB window, the types it takes and — when the
+   * page or the preset states one — the exact picture size (SSC's signature: 6 × 2 cm at 300 DPI).
+   * Everything auto-fit needs to decide whether a chosen file goes in as-is or as a fitted copy.
+   */
+  const fitTargetFor = useCallback(
+    (signature: string): FitTarget | null => {
+      const field = fieldBySignature.get(signature);
+      if (!field) return null;
+      const suggestion = proposal?.documentSuggestions?.find(
+        (candidate) => candidate.signature === signature,
+      );
+      const target = resolveUploadTarget(field, suggestion?.preset);
+      // A box with no suggestion card is still read for what it is: a signature box's paper
+      // margin is trimmed, a photo is never padded into shape.
+      const category = suggestion?.category ?? inferFileFieldCategory(field);
+      return {
+        accept: target.accept,
+        minBytes: target.minBytes,
+        maxBytes: target.maxBytes,
+        dimensions: target.dimensions
+          ? {
+              ...target.dimensions,
+              subject: category === 'photo' || category === 'signature' ? category : 'document',
+            }
+          : null,
+      };
+    },
+    [fieldBySignature, proposal],
+  );
+
+  const {
+    fits,
+    confirmFit,
+    fitTokenFor,
+    resetFits,
+    anyWorking: fitting,
+  } = useAutoFits(attachments, fitTargetFor, stage === 'reviewing');
+
+  /** Under a chosen file: the fitted copy, its preview and the tick that swaps it in. */
+  const fitCardFor = (signature: string) => {
+    const fit = fits[signature];
+    if (!fit) return null;
+    const target = fitTargetFor(signature);
+    const window =
+      target && (target.minBytes || target.maxBytes)
+        ? [
+            target.minBytes ? formatKb(target.minBytes) : null,
+            target.maxBytes ? formatKb(target.maxBytes) : null,
+          ]
+            .filter(Boolean)
+            .join('–')
+        : null;
+    const size = target?.dimensions
+      ? `${target.dimensions.widthPx}×${target.dimensions.heightPx}px`
+      : null;
+    return (
+      <AutoFitCard
+        fit={fit}
+        windowLabel={[window, size].filter(Boolean).join(' · ') || null}
+        onConfirm={(confirmed) => confirmFit(signature, confirmed)}
+      />
+    );
+  };
+
   const autoMatchedCount = useMemo(
     () => Object.values(attachments).filter((choice) => choice.auto).length,
     [attachments],
@@ -523,10 +610,28 @@ export function ReviewPanel() {
       return;
     }
     setDetection(detected.data);
+    // A new reading may be a different page; the qualification picked for the last one is stale.
+    setEducationLevel(null);
 
+    await requestMapping(detected.data.fields, null, { seedAttachments: true });
+  };
+
+  /**
+   * Asks the server what goes where, for the detection already in hand.
+   *
+   * Run again — without reading the page — when the operator picks a qualification level, so
+   * the generic education rows re-map. Files already chosen are kept on that re-run: the level
+   * says nothing about which document goes in which upload box.
+   */
+  const requestMapping = async (
+    fields: readonly DetectedField[],
+    level: EducationLevel | null,
+    { seedAttachments }: { seedAttachments: boolean },
+  ) => {
     const mapped = await send<Proposal>({
       type: 'REQUEST_MAPPING',
       ...(activeApplicationId ? { applicationId: activeApplicationId } : {}),
+      ...(level ? { educationLevel: level } : {}),
     });
     if (!mapped.ok) {
       setError(
@@ -534,11 +639,14 @@ export function ReviewPanel() {
           ? 'Select a customer first.'
           : 'Could not work out what goes where. You can still fill this form by hand.',
       );
-      setStage('idle');
+      // A failed re-map keeps the proposal already on screen; only a first mapping has none.
+      if (seedAttachments) setStage('idle');
       return;
     }
 
     setProposal(mapped.data);
+    // Edits are keyed by signature, but a re-mapped row may now hold a different field's value.
+    setEdits({});
     // Fields that need review start unticked, so the operator has to look at them.
     setApproved(
       new Set(
@@ -552,27 +660,47 @@ export function ReviewPanel() {
           .map((mapping) => mapping.signature),
       ),
     );
+    if (!seedAttachments) return;
     // Unambiguous document matches start ticked; the review list marks each one.
     setAttachments(
       Object.fromEntries(
-        pickAutoMatches(mapped.data.documentSuggestions ?? [], detected.data.fields).map(
-          (pick) => [
-            pick.signature,
-            {
-              id: pick.file.id,
-              kind: pick.file.kind ?? 'derivative',
-              filename: pick.file.filename,
-              sizeBytes: pick.file.sizeBytes,
-              mimeType: pick.file.mimeType,
-              manual: false,
-              auto: { reason: pick.reason, size: pick.size },
-            },
-          ],
-        ),
+        pickAutoMatches(mapped.data.documentSuggestions ?? [], fields).map((pick) => [
+          pick.signature,
+          {
+            id: pick.file.id,
+            kind: pick.file.kind ?? 'derivative',
+            filename: pick.file.filename,
+            sizeBytes: pick.file.sizeBytes,
+            mimeType: pick.file.mimeType,
+            manual: false,
+            auto: { reason: pick.reason, size: pick.size },
+          },
+        ]),
       ),
     );
     setStage('reviewing');
   };
+
+  const pickEducationLevel = async (level: EducationLevel) => {
+    if (!detection || remapping || level === educationLevel) return;
+    setEducationLevel(level);
+    setRemapping(true);
+    setError(null);
+    try {
+      await requestMapping(detection.fields, level, { seedAttachments: false });
+    } finally {
+      setRemapping(false);
+    }
+  };
+
+  /** Rows the adapter or dictionary recognised, but this customer's profile has no value for. */
+  const missingFromProfile = useMemo(
+    () =>
+      (proposal?.mappings ?? []).filter(
+        (mapping) => mapping.customerField !== null && mapping.skipReason === 'no_value',
+      ),
+    [proposal],
+  );
 
   const fill = async () => {
     if (!proposal) return;
@@ -604,10 +732,12 @@ export function ReviewPanel() {
      */
     const attachableSignatures = new Set(uploadFields.map((field) => field.signature));
     const attachmentRequests: FileAttachmentRequest[] = Object.entries(attachments).flatMap(
-      ([signature, choice]) =>
-        attachableSignatures.has(signature)
-          ? [{ signature, targetId: choice.id, kind: choice.kind }]
-          : [],
+      ([signature, choice]) => {
+        if (!attachableSignatures.has(signature)) return [];
+        // A fitted copy the operator confirmed goes in place of the original (§6c).
+        const fitToken = fitTokenFor(signature);
+        return [{ signature, targetId: choice.id, kind: choice.kind, ...(fitToken ? { fitToken } : {}) }];
+      },
     );
 
     const response = await send<{ results: FillResult[] }>({
@@ -622,6 +752,8 @@ export function ReviewPanel() {
       return;
     }
 
+    // Confirmed copies were taken by this fill; anything left over is dropped.
+    resetFits();
     setResults(response.data.results);
     setStage('done');
   };
@@ -662,7 +794,9 @@ export function ReviewPanel() {
     }
 
     const updated = new Map(response.data.results.map((result) => [result.signature, result]));
-    setResults((current) => (current ?? []).map((result) => updated.get(result.signature) ?? result));
+    setResults((current) =>
+      (current ?? []).map((result) => updated.get(result.signature) ?? result),
+    );
   };
 
   /**
@@ -724,12 +858,12 @@ export function ReviewPanel() {
   ): PickerSlot | null =>
     field
       ? {
-        signature: field.signature,
-        label: fieldLabel(field),
-        accept: field.accept,
-        category: suggestion?.category ?? null,
-        preset: suggestion?.preset ?? null,
-      }
+          signature: field.signature,
+          label: fieldLabel(field),
+          accept: field.accept,
+          category: suggestion?.category ?? null,
+          preset: suggestion?.preset ?? null,
+        }
       : null;
 
   const downloadFile = async (id: string, kind: 'derivative' | 'source_document') => {
@@ -921,11 +1055,11 @@ export function ReviewPanel() {
         ) : null}
 
         {/*
-          * Available before the page has even been read: an operator often wants to check what
-          * the citizen already has on file before deciding which form to open. Disabled for a
-          * roaming customer until the citizen has consented — their files are not readable yet,
-          * and an empty vault would read as "they have none" (migration 0024).
-          */}
+         * Available before the page has even been read: an operator often wants to check what
+         * the citizen already has on file before deciding which form to open. Disabled for a
+         * roaming customer until the citizen has consented — their files are not readable yet,
+         * and an empty vault would read as "they have none" (migration 0024).
+         */}
         {session.selectedCustomer ? (
           <button
             type="button"
@@ -1041,10 +1175,14 @@ export function ReviewPanel() {
                     const constraints = suggestion.preset
                       ? formatPresetConstraints(suggestion.preset)
                       : null;
-                    // What the page says beside the box, shown only where no preset gives a window.
+                    // What the page says beside the box: shown where no preset gives a window, and
+                    // whenever the page states a picture size, because that one beats the preset.
+                    const docTarget = docField
+                      ? resolveUploadTarget(docField, suggestion.preset)
+                      : null;
                     const pageStated =
                       docField &&
-                        resolveUploadTarget(docField, suggestion.preset).sizeSource !== 'preset'
+                      (docTarget?.sizeSource !== 'preset' || docTarget.dimensionSource === 'page')
                         ? describeUploadConstraints(docField.uploadConstraints)
                         : null;
 
@@ -1191,6 +1329,8 @@ export function ReviewPanel() {
                           />
                         ) : null}
 
+                        {chosen ? fitCardFor(suggestion.signature) : null}
+
                         {session.selectedCustomer ? (
                           <div className="stack-sm" style={{ marginTop: 7 }}>
                             <button
@@ -1229,11 +1369,11 @@ export function ReviewPanel() {
             ) : null}
 
             {/*
-              * Upload boxes the server had nothing to say about — an unlabelled input, a label
-              * in a script the category words do not cover, or a portal's own catch-all "any
-              * other supporting document". There is no suggestion to offer, but the operator can
-              * still put a file in one, and cannot do that at all if the box is never listed.
-              */}
+             * Upload boxes the server had nothing to say about — an unlabelled input, a label
+             * in a script the category words do not cover, or a portal's own catch-all "any
+             * other supporting document". There is no suggestion to offer, but the operator can
+             * still put a file in one, and cannot do that at all if the box is never listed.
+             */}
             {unmatchedUploads.length > 0 && session.selectedCustomer ? (
               <>
                 <h2>Other upload boxes</h2>
@@ -1272,6 +1412,8 @@ export function ReviewPanel() {
                           />
                         ) : null}
 
+                        {chosen ? fitCardFor(field.signature) : null}
+
                         <button
                           type="button"
                           className="btn-secondary tiny btn-block"
@@ -1288,6 +1430,42 @@ export function ReviewPanel() {
                   })}
                 </div>
               </>
+            ) : null}
+
+            {proposal.educationLevel ? (
+              <div className="card stack-sm">
+                <p className="strong small" style={{ margin: 0 }}>
+                  Which qualification is this page about?
+                </p>
+                <div className="picker-chips" role="radiogroup" aria-label="Qualification level">
+                  {EDUCATION_LEVEL_CHOICES.map((choice) => {
+                    const on = proposal.educationLevel?.level === choice.level;
+                    const hasData = proposal.educationLevel?.withData.includes(choice.level);
+                    return (
+                      <button
+                        key={choice.level}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        disabled={remapping}
+                        className={`picker-chip${on ? ' picker-chip-on' : ''}`}
+                        onClick={() => void pickEducationLevel(choice.level)}
+                      >
+                        {choice.label}
+                        {hasData ? null : <span className="picker-chip__count">no data</span>}
+                      </button>
+                    );
+                  })}
+                  {remapping ? <span className="spinner spinner-ink" /> : null}
+                </div>
+                <p className="tiny muted" style={{ margin: 0 }}>
+                  {proposal.educationLevel.source === 'operator'
+                    ? 'Roll number, passing year, board and marks below use the level you picked.'
+                    : proposal.educationLevel.level
+                      ? 'Guessed from the customer’s highest saved qualification. Match it to the qualification selected on the page.'
+                      : 'This customer has no saved education details. Pick the qualification selected on the page.'}
+                </p>
+              </div>
             ) : null}
 
             {fillable.length > 0 ? (
@@ -1307,8 +1485,9 @@ export function ReviewPanel() {
                   </div>
                   <p className="strong">No matches on this page</p>
                   <p className="tiny muted" style={{ marginTop: 2 }}>
-                    Nothing here matches this customer&rsquo;s saved details. Report the form and it
-                    can be supported.
+                    {missingFromProfile.length > 0
+                      ? 'Fields on this page were recognised, but this customer’s profile has no value for them yet. Add the details to the profile, then detect again.'
+                      : 'Nothing here matches this customer’s saved details, or the fields are already filled. Report the form and it can be supported.'}
                   </p>
                 </div>
               ) : (
@@ -1395,17 +1574,48 @@ export function ReviewPanel() {
               )}
             </div>
 
+            {missingFromProfile.length > 0 ? (
+              <details className="card">
+                <summary className="small strong">
+                  Not in this customer&rsquo;s profile ({missingFromProfile.length})
+                </summary>
+                <p className="tiny muted" style={{ margin: '6px 0' }}>
+                  Recognised on this page, but the profile has no value. Type them on the portal, or
+                  add them to the profile and detect again.
+                </p>
+                <div className="stack-sm">
+                  {missingFromProfile.map((mapping) => (
+                    <div key={mapping.signature} className="spread tiny">
+                      {/* Host-page text, rendered as text — never as markup (§19.6). */}
+                      <span className="truncate">
+                        {fieldLabel(fieldBySignature.get(mapping.signature))}
+                      </span>
+                      <span className="field-key truncate">{mapping.customerField}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ) : null}
+
             <button
               type="button"
               className="btn-primary btn-block"
               // A page that only asks for documents is still worth one press.
-              disabled={(approved.size === 0 && attachingCount === 0) || stage === 'filling'}
+              // Not while a file is still being fitted: the original would go in its place.
+              disabled={
+                (approved.size === 0 && attachingCount === 0) || stage === 'filling' || fitting
+              }
               onClick={() => void fill()}
             >
               {stage === 'filling' ? (
                 <>
                   <span className="spinner" />
                   {attachingCount > 0 ? 'Filling and attaching…' : 'Filling…'}
+                </>
+              ) : fitting ? (
+                <>
+                  <span className="spinner" />
+                  Fitting files to the portal…
                 </>
               ) : (
                 <>
@@ -1488,7 +1698,8 @@ export function ReviewPanel() {
                * on the portal fixes. The others (no_mapping, captcha_field…) would not change.
                */}
               {results.some(
-                (result) => result.action === 'skipped' && result.skipReason === 'dependent_not_ready',
+                (result) =>
+                  result.action === 'skipped' && result.skipReason === 'dependent_not_ready',
               ) ? (
                 <button
                   type="button"
@@ -1504,11 +1715,13 @@ export function ReviewPanel() {
                   ) : (
                     <>
                       <RefreshIcon size={14} />
-                      {`Re-fill ${results.filter(
-                        (result) =>
-                          result.action === 'skipped' && result.skipReason === 'dependent_not_ready',
-                      ).length
-                        } skipped field(s)`}
+                      {`Re-fill ${
+                        results.filter(
+                          (result) =>
+                            result.action === 'skipped' &&
+                            result.skipReason === 'dependent_not_ready',
+                        ).length
+                      } skipped field(s)`}
                     </>
                   )}
                 </button>
@@ -1541,8 +1754,8 @@ export function ReviewPanel() {
               <ArrowIcon size={13} />
               <span>
                 Completed Stage {currentStage}. Solve any CAPTCHA and press the portal&rsquo;s own
-                Proceed / Save &amp; Next, then scan the next page here — Bharatfill never does
-                that step for you.
+                Proceed / Save &amp; Next, then scan the next page here — Bharatfill never does that
+                step for you.
               </span>
             </div>
 

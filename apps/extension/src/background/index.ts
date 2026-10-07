@@ -51,6 +51,7 @@ import type {
   FileAttachmentRequest,
   FileFillInstruction,
   FillResult,
+  MappingProposal,
 } from '@assistigo/form-engine';
 
 /**
@@ -376,7 +377,7 @@ async function prepareAutoFit(
 
   const plan = planAutoFit(
     { filename: file.filename, mimeType: file.mimeType, sizeBytes: file.bytes.length },
-    { minBytes: message.minBytes, maxBytes: message.maxBytes },
+    { minBytes: message.minBytes, maxBytes: message.maxBytes, dimensions: message.dimensions },
     (candidate) => fileMatchesAccept(message.accept, candidate),
   );
   if (plan.action === 'none') return { status: 'already_fits' };
@@ -785,6 +786,7 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
         /** Signatures in dependency order; the side panel fills in this order. */
         fillOrder: string[];
         summary: Record<string, number>;
+        educationLevel?: MappingProposal['educationLevel'];
         documentSuggestions: DocumentSuggestion[];
         values: Record<string, string>;
       }>('/api/forms/map', {
@@ -793,6 +795,7 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
           customerId: customer.id,
           detection: state.detection,
           ...(applicationId ? { applicationId } : {}),
+          ...(message.educationLevel ? { educationLevel: message.educationLevel } : {}),
         }),
       });
 

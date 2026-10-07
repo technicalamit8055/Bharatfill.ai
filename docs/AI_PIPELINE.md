@@ -113,6 +113,20 @@ Three rules hold whichever method was picked, and are enforced in `packages/ai/s
    operator who can see "read by the basic reader" can act; a document stuck at `failed` tells
    them nothing.
 
+**Photos and signatures are not read at all.** A photograph or a signature _is_ the value (§12.4),
+so when the operator picks Photograph or Signature as the type, both upload forms hide the picker
+and post `storeOnly: true` instead of a method. `/process` still sniffs the magic bytes, then marks
+the document `stored` without queueing `ocr.extract`: no reader runs, no extraction quota is
+needed, nothing leaves the server. The server refuses `storeOnly` (409,
+`documents.errors.storeOnlyType`) for any type outside `STORE_ONLY_DOCUMENT_TYPES`, and the
+document page offers no "Read again" on a stored file.
+
+The skip is the operator's explicit choice, never inferred from `documents.document_type`. That
+column also holds a citizen's drop hint and the last classification, and the classifier calls
+every image without text `photo` — including the phone photo of a marksheet that `auto` escalates
+to the AI reader for. A walk-in drop is therefore still read as before, whatever the citizen
+tapped.
+
 Customer data is never used for model training. Only the provider request id is stored for audit,
 never the payload. The filename is deliberately **not** transmitted: it routinely carries the
 customer's name and adds nothing to a transcription (§19.6).
@@ -359,6 +373,7 @@ POST /api/documents/upload-intent   → row reserved, one-time signed upload URL
 PUT  <signed upload url>            → bytes go browser → storage, never through a route handler
 POST /api/documents/:id/process     → magic bytes sniffed server-side, then `ocr.extract` queued
                                       …then run inline (see below)
+                                      (`storeOnly`: sniffed, then marked `stored`; nothing queued)
 POST /api/jobs/run                  → scheduler claims due jobs and runs this pipeline
 GET  /api/documents/:id/extraction  → the review payload
 POST /api/documents/:id/review      → the human gate; the only path into a customer profile

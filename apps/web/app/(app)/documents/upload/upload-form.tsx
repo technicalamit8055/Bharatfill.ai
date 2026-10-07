@@ -10,6 +10,7 @@ import {
   DOCUMENT_TYPE_LABELS,
   MAX_UPLOAD_BYTES,
   isAllowedUploadMimeType,
+  isStoreOnlyDocumentType,
   type DocumentType,
 } from '@assistigo/core';
 import type { ExtractionMode } from '@assistigo/ai/types';
@@ -31,7 +32,8 @@ type CustomerOption = { id: string; label: string };
  *
  *   1. ask the server to reserve a document row and a one-time upload URL,
  *   2. PUT the bytes straight to storage — they never pass through a route handler,
- *   3. tell the server to verify the bytes and queue extraction.
+ *   3. tell the server to verify the bytes and queue extraction — or, for a photograph or a
+ *      signature, to verify them and save the file without reading it (§12.4).
  *
  * The file itself is never held in component state beyond the upload; there is no reason for a
  * customer's Aadhaar scan to outlive the request that stored it.
@@ -48,9 +50,12 @@ export function UploadForm({
   const router = useRouter();
 
   const [file, setFile] = useState<File | null>(null);
+  const [documentType, setDocumentType] = useState('');
   const [extractionMode, setExtractionMode] = useState<ExtractionMode>('auto');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const storeOnly = isStoreOnlyDocumentType(documentType);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const selected = event.target.files?.[0] ?? null;
@@ -83,7 +88,6 @@ export function UploadForm({
 
     const form = new FormData(event.currentTarget);
     const customerId = String(form.get('customerId') ?? '');
-    const documentType = String(form.get('documentType') ?? '');
 
     setPending(true);
     setError(null);
@@ -126,11 +130,12 @@ export function UploadForm({
       }
 
       // The server has not seen a byte until this call: it downloads the object, checks the
-      // magic bytes against what we claimed, and only then queues extraction.
+      // magic bytes against what we claimed, and only then queues extraction — or, for a photo
+      // or signature, saves it unread.
       const processResponse = await fetch(`/api/documents/${intent.documentId}/process`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ extractionMode }),
+        body: JSON.stringify(storeOnly ? { storeOnly: true } : { extractionMode }),
       });
 
       const processJson = (await processResponse.json()) as
@@ -196,7 +201,12 @@ export function UploadForm({
           <label htmlFor="documentType" className="text-sm font-medium text-slate-800">
             {t('documents.type')}
           </label>
-          <Select id="documentType" name="documentType" defaultValue="">
+          <Select
+            id="documentType"
+            name="documentType"
+            value={documentType}
+            onChange={(event) => setDocumentType(event.target.value)}
+          >
             <option value="">{t('documents.detectType')}</option>
             {DOCUMENT_TYPES.filter((type) => type !== 'unknown').map((type: DocumentType) => (
               <option key={type} value={type}>
@@ -204,21 +214,25 @@ export function UploadForm({
               </option>
             ))}
           </Select>
-          <p className="text-xs text-slate-500">{t('documents.typeHint')}</p>
+          <p className="text-xs text-slate-500">
+            {t(storeOnly ? 'documents.storeOnly.hint' : 'documents.typeHint')}
+          </p>
         </div>
 
-        <ExtractionModeSelect
-          id="extractionMode"
-          value={extractionMode}
-          onChange={setExtractionMode}
-          disabled={pending}
-        />
+        {storeOnly ? null : (
+          <ExtractionModeSelect
+            id="extractionMode"
+            value={extractionMode}
+            onChange={setExtractionMode}
+            disabled={pending}
+          />
+        )}
 
         {error ? <Alert tone="danger">{t(error)}</Alert> : null}
 
         <div className="flex gap-2">
           <Button type="submit" loading={pending} disabled={!file}>
-            {t('documents.upload')}
+            {t(storeOnly ? 'common.save' : 'documents.upload')}
           </Button>
           <Link
             href="/documents"

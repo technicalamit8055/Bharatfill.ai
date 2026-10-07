@@ -161,6 +161,8 @@ describe('resolveUploadTarget', () => {
         minBytes: 50 * KB,
         maxBytes: 200 * KB,
         sizeSource: 'page',
+        dimensions: null,
+        dimensionSource: null,
       });
     }
   });
@@ -177,7 +179,107 @@ describe('resolveUploadTarget', () => {
       minBytes: null,
       maxBytes: null,
       sizeSource: null,
+      dimensions: null,
+      dimensionSource: null,
     });
+  });
+
+  // SSC's signature box: the preset said 4 × 2 cm at 200 DPI after the portal moved on.
+  const sscPage = {
+    minBytes: 10 * KB,
+    maxBytes: 20 * KB,
+    formats: ['jpeg' as const],
+    dimensions: { width: 60, height: 20, unit: 'mm' as const, dpi: 300 },
+  };
+  const stalePreset = { minBytes: 10 * KB, maxBytes: 20 * KB, widthMm: 40, heightMm: 20, dpi: 200 };
+
+  it('lets a size stated on the page beat the preset, because the portal checks that one', () => {
+    expect(
+      resolveUploadTarget({ accept: null, uploadConstraints: sscPage }, stalePreset),
+    ).toMatchObject({
+      sizeSource: 'preset',
+      dimensions: { widthPx: 709, heightPx: 237, dpi: 300 },
+      dimensionSource: 'page',
+    });
+  });
+
+  it('turns a preset’s physical size into pixels at its own DPI', () => {
+    expect(
+      resolveUploadTarget({ accept: null }, { ...stalePreset, widthMm: 60, dpi: 300 }),
+    ).toMatchObject({ dimensions: { widthPx: 709, heightPx: 237, dpi: 300 }, dimensionSource: 'preset' });
+  });
+
+  it('prefers a preset’s exact pixels over its physical size', () => {
+    expect(
+      resolveUploadTarget(
+        { accept: null },
+        { minBytes: null, maxBytes: null, widthPx: 200, heightPx: 230, widthMm: 35, heightMm: 45 },
+      ).dimensions,
+    ).toEqual({ widthPx: 200, heightPx: 230, dpi: null });
+  });
+
+  it('assumes 300 DPI for centimetres when neither the page nor the preset names one', () => {
+    expect(
+      resolveUploadTarget(
+        {
+          accept: null,
+          uploadConstraints: { ...sscPage, dimensions: { ...sscPage.dimensions, dpi: null } },
+        },
+        null,
+      ).dimensions,
+    ).toEqual({ widthPx: 709, heightPx: 237, dpi: 300 });
+  });
+});
+
+describe('parseUploadConstraints — picture size', () => {
+  it('reads SSC’s signature notice, width first, with its DPI', () => {
+    const notice =
+      'Allowed image size: 10 KB to 20 KB in JPEG / JPG format. Image dimensions: about 6.0 cm (width) X 2.0 cm (height) at a resolution of 300 DPI. Application with blurred / miniature signature will be rejected.';
+    expect(parseUploadConstraints(notice)).toEqual({
+      minBytes: 10 * KB,
+      maxBytes: 20 * KB,
+      formats: ['jpeg'],
+      dimensions: { width: 60, height: 20, unit: 'mm', dpi: 300 },
+    });
+  });
+
+  it.each([
+    ['Photo size 3.5 cm x 4.5 cm', { width: 35, height: 45, unit: 'mm', dpi: null }],
+    ['35mm × 45mm', { width: 35, height: 45, unit: 'mm', dpi: null }],
+    ['2 x 2 inches', { width: 50.8, height: 50.8, unit: 'mm', dpi: null }],
+    ['Dimensions 200 x 230 pixels', { width: 200, height: 230, unit: 'px', dpi: null }],
+    ['140 X 60 px at 200 DPI', { width: 140, height: 60, unit: 'px', dpi: 200 }],
+    ['4.5 cm (height) x 3.5 cm (width)', { width: 35, height: 45, unit: 'mm', dpi: null }],
+    ['हस्ताक्षर 6 सेमी x 2 सेमी', { width: 60, height: 20, unit: 'mm', dpi: null }],
+  ])('reads %j', (text, dimensions) => {
+    expect(parseUploadConstraints(text)?.dimensions).toEqual(dimensions);
+  });
+
+  it('does not read a bare "10 x 20" with no unit as a size', () => {
+    expect(parseUploadConstraints('Grid 10 x 20')).toBeNull();
+  });
+
+  it('trusts no size when one text states two different ones', () => {
+    expect(
+      parseUploadConstraints('Photo 3.5 cm x 4.5 cm, signature 6 cm x 2 cm')?.dimensions ?? null,
+    ).toBeNull();
+  });
+
+  it('ignores SSC’s error line, which names the size without a "×"', () => {
+    expect(
+      parseUploadConstraints('DIMENSION IS NOT CORRECT. WIDTH SHOULD BE 6cm AND HEIGHT SHOULD BE 2cm'),
+    ).toBeNull();
+  });
+
+  it('describes a stated size for the side panel', () => {
+    expect(
+      describeUploadConstraints({
+        minBytes: 10 * KB,
+        maxBytes: 20 * KB,
+        formats: ['jpeg'],
+        dimensions: { width: 60, height: 20, unit: 'mm', dpi: 300 },
+      }),
+    ).toBe('10–20 KB · JPEG · 6 × 2 cm at 300 DPI');
   });
 });
 

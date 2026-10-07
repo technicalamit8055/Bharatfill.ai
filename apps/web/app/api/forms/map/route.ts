@@ -7,6 +7,7 @@ import {
 } from '@assistigo/core';
 import {
   detectionPayloadSchema,
+  EDUCATION_LEVELS,
   matchDocumentRequirements,
   mergeAdapters,
   proposeMappings,
@@ -174,6 +175,11 @@ const bodySchema = z.object({
    * yet, and links it retroactively instead when the operator saves it (POST /api/applications).
    */
   applicationId: z.string().uuid().optional(),
+  /**
+   * The qualification the operator says this page's generic education boxes are about (SSC's
+   * "Qualifying Educational Qualification" block). The operator's answer, not a page value.
+   */
+  educationLevel: z.enum(EDUCATION_LEVELS).optional(),
 });
 
 /**
@@ -189,10 +195,12 @@ export const POST = handler('api.forms.map', async (request) => {
   const context = await resolveContext(request);
   requirePermission(context, 'fill.run');
 
-  const { customerId, detection, applicationId: requestedApplicationId } = await parseBody(
-    request,
-    bodySchema,
-  );
+  const {
+    customerId,
+    detection,
+    applicationId: requestedApplicationId,
+    educationLevel,
+  } = await parseBody(request, bodySchema);
 
   // Entitlement is checked before any work is done, so an out-of-credit organization gets a
   // clear answer rather than a proposal it cannot act on (§22.4).
@@ -336,6 +344,7 @@ export const POST = handler('api.forms.map', async (request) => {
     adapter,
     orgMappings,
     overwriteFilled: settings.overwrite_filled_fields === true,
+    educationLevel: educationLevel ?? null,
   });
 
   // Open the fill session now, so a fill that is started and abandoned is still visible to the
@@ -525,6 +534,7 @@ export const POST = handler('api.forms.map', async (request) => {
     mappings: proposal.mappings,
     fillOrder: proposal.fillOrder,
     summary: proposal.summary,
+    educationLevel: proposal.educationLevel,
     documentSuggestions,
     values: usedValues,
     /** Masked previews, safe to render in a log or a dashboard list. */

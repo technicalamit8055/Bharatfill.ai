@@ -164,7 +164,14 @@ export type DocumentRow = Timestamps & {
   sha256: string | null;
   document_type: string;
   status:
-    'uploaded' | 'processing' | 'extracted' | 'review_required' | 'verified' | 'failed' | 'deleted';
+    | 'uploaded'
+    | 'processing'
+    | 'extracted'
+    | 'review_required'
+    | 'verified'
+    | 'stored'
+    | 'failed'
+    | 'deleted';
   is_sensitive: boolean;
   expires_at: string | null;
   label: string | null;

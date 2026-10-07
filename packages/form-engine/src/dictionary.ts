@@ -103,7 +103,8 @@ export const MAPPING_DICTIONARY: readonly DictionaryEntry[] = [
       'छात्र का नाम',
     ],
     attributes: ['fullname', 'full name', 'applicant name', 'candidate name', 'name', 'aname'],
-    negative: [...OTHER_PERSON, ...NOT_A_PERSON],
+    // "Have you ever changed your name?" is a yes/no question about the name, not the name box.
+    negative: [...OTHER_PERSON, ...NOT_A_PERSON, 'changed', 'change of name', 'name change'],
     inputTypes: ['text'],
   },
   {

@@ -28,6 +28,20 @@ export type MappingSource = (typeof MAPPING_SOURCES)[number];
 export const SCRIPTS = ['latin', 'devanagari'] as const;
 export type Script = (typeof SCRIPTS)[number];
 
+/**
+ * Qualification levels a generic education box can be about — the `customer.education.<level>`
+ * blocks in the field registry. See education-level.ts.
+ */
+export const EDUCATION_LEVELS = ['class10', 'class12', 'graduation'] as const;
+export type EducationLevel = (typeof EDUCATION_LEVELS)[number];
+
+/**
+ * How a generic education box's level was decided. `label` is the box or its section naming it;
+ * `operator` is the side panel's choice; `profile` is a guess from the customer's data.
+ */
+export const EDUCATION_LEVEL_SOURCES = ['label', 'operator', 'profile'] as const;
+export type EducationLevelSource = (typeof EDUCATION_LEVEL_SOURCES)[number];
+
 export const fieldOptionSchema = z.object({
   value: z.string().max(300),
   label: z.string().max(300),
@@ -38,6 +52,19 @@ export const uploadConstraintsSchema = z.object({
   minBytes: z.number().int().positive().nullable(),
   maxBytes: z.number().int().positive().nullable(),
   formats: z.array(z.enum(UPLOAD_FORMATS)).max(UPLOAD_FORMATS.length),
+  /**
+   * The picture size the page states ("6.0 cm (width) X 2.0 cm (height) at 300 DPI"), width
+   * first. Optional so a payload from an older extension build still validates.
+   */
+  dimensions: z
+    .object({
+      width: z.number().positive().max(10000),
+      height: z.number().positive().max(10000),
+      unit: z.enum(['px', 'mm']),
+      dpi: z.number().int().positive().max(2400).nullable(),
+    })
+    .nullable()
+    .optional(),
 });
 
 /** Nearby text is capped hard: a whole paragraph of page content is not metadata. */
@@ -118,6 +145,11 @@ export type FieldMapping = {
    * so it is filled only from what the operator types, never from the profile.
    */
   expectedScript?: Script;
+  /**
+   * Set on a generic education box ("Roll Number"): the qualification it was mapped as, and how
+   * that was decided. `profile` is a guess and always comes with `reviewRequired`.
+   */
+  educationLevel?: { level: EducationLevel; source: EducationLevelSource };
 };
 
 export const SKIP_REASONS = [

@@ -195,6 +195,10 @@ type AdapterField = {
   required?: boolean;
   reviewRequired?: boolean;
   dependsOn?: string; // adapter key that must be filled first
+  script?: 'latin' | 'devanagari'; // §7a
+  // Context-picked alternatives to customerField (§6 "Context and qualification level")
+  contextVariants?: { patterns: string[]; customerField: string }[];
+  educationLevels?: { class10?: string; class12?: string; graduation?: string };
 };
 ```
 
@@ -233,6 +237,42 @@ whole token in `name`/`id`, then the longest matching `labelPattern`.
 matches against `name`, `id`, `labelText`, `placeholder` and `ariaLabel` — never `nearbyText`,
 because an adapter match is treated as near-certain and may only look at text that belongs to the
 one control.
+
+### Context and qualification level
+
+Matching decides _which adapter field_ claims a box. Two optional properties then decide _which
+customer field_ that adapter field means for this particular box. They are resolved in
+`adapterCustomerField` (`mapper.ts`). Matching still reads only the box's own text.
+
+**`contextVariants`** suits a generic box whose meaning comes from its block, like "Address Line 1"
+under "Present Address" or under "Permanent Address". The first variant with a pattern in the box's
+own label, placeholder or aria-label wins. Only if none does is the section heading tried.
+Otherwise `customerField` applies. Own text comes first so that a "Permanent Address Line 1" label
+beats a heading the detector borrowed from the next block (`contextualCustomerField` in
+`adapters.ts`).
+
+**`educationLevels`** suits a generic education box ("Roll Number", "Passing Year", "Name of
+Board/ University") whose qualification is chosen by another dropdown on the page. SSC's
+"Details of Qualifying Educational Qualification" is the case that forced it. The detector never
+reads a page value, so the level comes from `education-level.ts`, strongest first:
+
+1. the box's own label, placeholder or aria-label naming one level ("Matriculation", "12th",
+   "Higher Secondary (10+2)", "Graduation"). Text naming two levels names none, and "University"
+   is not a level word, because SSC labels a class-12 board box "Board/ University";
+2. its section heading naming one;
+3. the operator's pick in the side panel (`REQUEST_MAPPING.educationLevel`, docs/EXTENSION.md §6f);
+4. the highest level the customer's profile has any `customer.education.<level>.*` value for.
+   This is a guess, so the row is always `reviewRequired`.
+
+A level the adapter field does not list is never used. If no level can be decided, the field
+falls back to `customerField`. Each mapping records `educationLevel: { level, source }`, where
+`source` is `label`, `operator` or `profile`. `MappingProposal.educationLevel` (`{ level, source,
+withData }`) is non-null when some generic box depended on the page-wide level, and that is what
+makes the panel offer the picker.
+
+`adapter-registry.test.ts` checks every variant and level target the same way it checks
+`customerField`: each must exist, none may be forbidden, and a level may only point into its own
+`customer.education.<level>.` block.
 
 ### Fill order
 
@@ -342,7 +382,7 @@ adapter has no stage field (§6); the extension links the passes (docs/EXTENSION
 
 ### SSC
 
-`packages/form-engine/src/adapters/ssc-portal.json`, slug `ssc-portal`, version 1.1.0, status
+`packages/form-engine/src/adapters/ssc-portal.json`, slug `ssc-portal`, version 1.2.0, status
 `testing`, region All India. URL patterns `https://ssc.gov.in/**` and `https://*.ssc.gov.in/**`
 (the OTR form lives on a subdomain; a look-alike host such as `notssc.gov.in` does not match).
 
@@ -351,45 +391,63 @@ because SSC reuses the OTR profile across examinations and re-displays the regis
 Matching is label-driven with no selectors: SSC's Angular front end generates control names
 (`formcontrolname="ctrl_12"`).
 
-| Adapter key                                            | Customer field                                                      | Notes                                                                        |
-| ------------------------------------------------------ | ------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `candidate_name`                                       | `customer.full_name`                                                | claims "as per Matriculation Certificate"; script `latin`                    |
-| `candidate_name_hi`                                    | `customer.full_name_hi`                                             | explicit "name in Hindi" labels only; script `devanagari`                    |
-| `father_name`, `mother_name`                           | `customer.father_name`, `customer.mother_name`                      | each excludes the other parent and the candidate; script `latin`             |
-| `date_of_birth`                                        | `customer.date_of_birth`                                            | `date.ddmmyyyy`, review required                                             |
-| `gender`                                               | `customer.gender`                                                   | select, `gender.full`                                                        |
-| `category`                                             | `customer.category`                                                 | select, `category.code`, review required                                     |
-| `aadhaar_last4`                                        | `customer.aadhaar_last4`                                            | review required; negatives exclude full / 12-digit / enrolment / OTP         |
-| `mobile`, `email`                                      | `customer.mobile`, `customer.email`                                 | `mobile.10digit`; full OTP negatives; email also excludes confirm / re-enter |
-| `matriculation_roll_number`, `_passing_year`, `_board` | `customer.education.class10.roll_number` / `passing_year` / `board` | SSC's "Matriculation" = Class 10; board is a select                          |
-| `permanent_address_line1`                              | `customer.permanent_address.house_number`                           | excludes present / correspondence address                                    |
-| `permanent_state` → `permanent_district`               | `customer.permanent_address.state` / `.district`                    | selects; district `dependsOn` state                                          |
-| `permanent_pincode`                                    | `customer.permanent_address.pincode`                                | `pin.6digit`                                                                 |
+| Adapter key                                        | Customer field                                                                                 | Notes                                                                                               |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `candidate_name`                                   | `customer.full_name`                                                                           | claims "as per Matriculation Certificate"; never "Have you ever changed your name?"; script `latin` |
+| `candidate_name_hi`                                | `customer.full_name_hi`                                                                        | explicit "name in Hindi" labels only; script `devanagari`                                           |
+| `father_name`, `mother_name`                       | `customer.father_name`, `customer.mother_name`                                                 | each excludes the other parent and the candidate; script `latin`                                    |
+| `date_of_birth`                                    | `customer.date_of_birth`                                                                       | `date.ddmmyyyy`, review required                                                                    |
+| `gender`                                           | `customer.gender`                                                                              | select, `gender.full`                                                                               |
+| `category`                                         | `customer.category`                                                                            | select, `category.code`, review required; excludes age-relaxation codes                             |
+| `nationality`                                      | `customer.nationality`                                                                         | select                                                                                              |
+| `aadhaar_last4`                                    | `customer.aadhaar_last4`                                                                       | review required; negatives exclude full / 12-digit / enrolment / OTP                                |
+| `mobile`, `alternate_mobile`, `email`              | `customer.mobile`, `customer.mobile_alt`, `customer.email`                                     | `mobile.10digit`; full OTP negatives on all three; email also excludes confirm / re-enter           |
+| `roll_number`, `passing_year`, `board_university`  | `customer.education.<level>.roll_number` / `passing_year` / `board` (graduation: `university`) | `educationLevels` (§6); an explicit "Matriculation …" label resolves to class 10                    |
+| `percentage`, `marks_obtained`                     | `customer.education.<level>.marks_percentage` / `aggregate_marks`                              | `educationLevels`; marks exclude maximum / full marks                                               |
+| `school_college`, `stream`                         | `<level>.school` (graduation: `college`), `<level>.stream_faculty` (graduation: `course`)      | `educationLevels`                                                                                   |
+| `permanent_address_line1`, `address_line2`, `city` | `customer.permanent_address.house_number` / `street` / `village_town_city`                     | `contextVariants`: present / correspondence / current → `customer.address.*`                        |
+| `permanent_state` → `permanent_district`           | `customer.permanent_address.state` / `.district`                                               | selects; district `dependsOn` state; `contextVariants` as above; never a board's state              |
+| `permanent_pincode`                                | `customer.permanent_address.pincode`                                                           | `pin.6digit`; `contextVariants` as above                                                            |
+
+Every address field excludes "same as", so the "present address same as permanent" checkbox is
+never claimed. `permanent_state` and `permanent_district` exclude board, university, school,
+college, institute, domicile and exam-centre labels. Before 1.2.0, "State/ UT of Board/
+University" on Education Details was mapped to the customer's home state.
+
+Education Details is the page `educationLevels` was built for. Q19 "Highest Educational
+Qualification", Q20 "Details of Qualifying Educational Qualification" and Q20.1 "EQ Status" are
+portal choices the operator answers. Q20.2–20.6 are generic boxes about whichever qualification
+Q20 names. The side panel shows the level it used and lets the operator change it
+(docs/EXTENSION.md §6f).
 
 Document requirements:
 
 | Key         | Label                                                       | Preset          | Notes                                                                                             |
 | ----------- | ----------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------- |
 | `photo`     | Applicant photograph (20–50 KB JPEG, name and date stamped) | `ssc.photo`     | webcam step at OTR or upload; rejected without name + capture date, or if older than three months |
-| `signature` | Signature (10–20 KB JPEG)                                   | `ssc.signature` | black or blue ink on white; rejected if in capital letters                                        |
+| `signature` | Signature (10–20 KB JPEG, 6.0 × 2.0 cm at 300 DPI)          | `ssc.signature` | black or blue ink on white, 709 × 237 px; rejected at any other size, blurred, or in capitals      |
 
 Both presets exist in `packages/document-tools/src/presets.ts`.
 
 What the adapter deliberately does **not** fill (from its `knownIssues`):
 
-| Field                | Why                                                                                                       |
-| -------------------- | --------------------------------------------------------------------------------------------------------- |
-| Identification marks | No equivalent in the customer field registry. Adding one is a product decision under docs/SECURITY.md §4. |
-| Full Aadhaar         | Only the last-4 control SSC's OTR shows is mapped.                                                        |
-| CAPTCHA, OTP step    | Never touched (§5).                                                                                       |
+| Field                                         | Why                                                                                                       |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Identification marks                          | No equivalent in the customer field registry. Adding one is a product decision under docs/SECURITY.md §4. |
+| State/ UT of Board/ University                | No registry field. Proposing the home state would be a confident wrong answer.                            |
+| Highest / Qualifying qualification, EQ status | Portal choices, not customer data.                                                                        |
+| Marital status                                | SSC's "Unmarried / Married" does not match the registry's `single / married …` options.                   |
+| Disability, ex-servicemen questions           | No yes/no registry fields for them.                                                                       |
+| Full Aadhaar                                  | Only the last-4 control SSC's OTR shows is mapped.                                                        |
+| CAPTCHA, OTP step                             | Never touched (§5).                                                                                       |
 
-Several label patterns are generic on purpose (`state`, `district`, `board`, `roll number`,
-`passing year`, `permanent address`); they are scoped only by the URL patterns and the negatives.
 Asserted by the `ssc-portal adapter` block in `adapters.test.ts` (schema, URL match incl.
 subdomain and look-alike, parent-name separation, state → district order, preset codes, last-4
-only, review on every high-risk field) plus the registry checks in `adapter-registry.test.ts`
-(uuid id, unique slug, every `customerField` exists, every transform exists). **Not yet smoke-tested
-on the live portal.**
+only, review on every high-risk field), and by `ssc-portal.test.ts`. That file runs the real mapper
+over the Education Details labels from the bug report and over the personal and address blocks.
+The registry checks in `adapter-registry.test.ts` also apply. **Not yet smoke-tested on the live
+portal.** A `portal_adapters` row for `ssc-portal` still beats this file (§6), so a database seeded
+with 1.1.0 keeps the old mapping until `npm run db:seed:adapters` is run again.
 
 ## 7. Transforms
 

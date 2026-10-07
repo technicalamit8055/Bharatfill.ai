@@ -57,12 +57,35 @@ export const HIGH_SENSITIVITY_DOCUMENT_TYPES: readonly DocumentType[] = [
   'voter_id',
 ];
 
+/**
+ * Document classes that are kept exactly as uploaded and never read (§12.4).
+ *
+ * A photograph or a signature _is_ the value: there is no field on it to extract, so reading one
+ * can only spend time and quota and — through the AI reader — send a customer's face or signature
+ * to an outside provider for nothing.
+ *
+ * Only the operator's explicit choice puts a document on this path (`storeOnly` on
+ * `POST /api/documents/:id/process`). `documents.document_type` alone is never enough: it also
+ * holds a citizen's drop hint and the last classification, and the classifier calls any image
+ * without text a photo — including the phone photo of a marksheet the AI reader exists for.
+ */
+export const STORE_ONLY_DOCUMENT_TYPES = ['photo', 'signature'] as const;
+export type StoreOnlyDocumentType = (typeof STORE_ONLY_DOCUMENT_TYPES)[number];
+
+export function isStoreOnlyDocumentType(value: unknown): value is StoreOnlyDocumentType {
+  return (
+    typeof value === 'string' && (STORE_ONLY_DOCUMENT_TYPES as readonly string[]).includes(value)
+  );
+}
+
 export const DOCUMENT_STATUSES = [
   'uploaded',
   'processing',
   'extracted',
   'review_required',
   'verified',
+  /** Kept as uploaded, deliberately never read — see `STORE_ONLY_DOCUMENT_TYPES`. */
+  'stored',
   'failed',
   'deleted',
 ] as const;

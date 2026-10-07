@@ -8,7 +8,19 @@
  */
 
 import { requiresReview } from '@assistigo/core';
-import { adapterDependencyDepth, findAdapterField, type PortalAdapter } from './adapters';
+import {
+  adapterDependencyDepth,
+  adapterEducationLevels,
+  contextualCustomerField,
+  findAdapterField,
+  type AdapterField,
+  type PortalAdapter,
+} from './adapters';
+import {
+  educationLevelOfField,
+  educationLevelsWithData,
+  fallbackEducationLevel,
+} from './education-level';
 import { bestMatch } from './scorer';
 import { classifyField, isFileInput, isPasswordField, isSupportedInputType } from './safety';
 import { SCRIPT_TWINS, expectedScript, scriptOf } from './script';
@@ -17,6 +29,7 @@ import {
   CONFIDENCE,
   type DetectedField,
   type DetectionPayload,
+  type EducationLevel,
   type FieldMapping,
   type FillInstruction,
   type MappingSource,
@@ -51,6 +64,11 @@ export type MappingInput = {
   history?: readonly HistoricalMapping[];
   /** Operators can opt in to overwriting fields the portal pre-filled. Off by default. */
   overwriteFilled?: boolean;
+  /**
+   * The qualification the operator says this page's generic education boxes are about (side
+   * panel picker). Beats the profile guess, never a box that names its own level.
+   */
+  educationLevel?: EducationLevel | null;
 };
 
 export type MappingProposal = {
@@ -73,6 +91,16 @@ export type MappingProposal = {
     otp: number;
     payment: number;
   };
+  /**
+   * Present when at least one generic education box was mapped without naming its own level, so
+   * the side panel can offer the operator the choice. `level` is what was applied, `withData` the
+   * levels the customer's profile holds anything for, highest first.
+   */
+  educationLevel: {
+    level: EducationLevel | null;
+    source: 'operator' | 'profile' | null;
+    withData: EducationLevel[];
+  } | null;
 };
 
 function skip(
@@ -105,7 +133,38 @@ type ResolvedMapping = {
   source: MappingSource;
   confidence: number;
   transform?: string;
+  educationLevel?: FieldMapping['educationLevel'];
 };
+
+/**
+ * Which customer field an adapter field means for this box: the level-specific one for a generic
+ * education box (education-level.ts), otherwise whatever `contextVariants` picks.
+ */
+function adapterCustomerField(
+  adapterField: AdapterField,
+  field: DetectedField,
+  input: MappingInput,
+): Pick<ResolvedMapping, 'customerField' | 'educationLevel'> {
+  const levels = adapterEducationLevels(adapterField);
+  if (levels.length > 0) {
+    const named = educationLevelOfField(field);
+    const namedField = named ? adapterField.educationLevels?.[named] : undefined;
+    if (named && namedField) {
+      return { customerField: namedField, educationLevel: { level: named, source: 'label' } };
+    }
+
+    const fallback = fallbackEducationLevel(
+      levels,
+      input.educationLevel,
+      educationLevelsWithData(input.customerValues),
+    );
+    const fallbackField = fallback ? adapterField.educationLevels?.[fallback.level] : undefined;
+    if (fallback && fallbackField) {
+      return { customerField: fallbackField, educationLevel: fallback };
+    }
+  }
+  return { customerField: contextualCustomerField(adapterField, field) };
+}
 
 /**
  * Resolution order (§14.3). First hit wins, and the source is recorded so the review UI can tell
@@ -117,7 +176,7 @@ function resolveMapping(field: DetectedField, input: MappingInput): ResolvedMapp
     const adapterField = findAdapterField(input.adapter, field);
     if (adapterField) {
       return {
-        customerField: adapterField.customerField,
+        ...adapterCustomerField(adapterField, field, input),
         source: 'adapter',
         // An adapter is a human-verified statement about this exact form.
         confidence: input.adapter.status === 'active' ? 0.99 : 0.9,
@@ -240,6 +299,8 @@ export function proposeMappings(input: MappingInput): MappingProposal {
       continue;
     }
 
+    const level = resolved.educationLevel ? { educationLevel: resolved.educationLevel } : {};
+
     const valueOf = (key: string | undefined): string | null =>
       key ? applyTransform(resolved.transform, input.customerValues[key] ?? null) || null : null;
 
@@ -266,6 +327,7 @@ export function proposeMappings(input: MappingInput): MappingProposal {
         safetyClass: 'normal',
         skipReason: 'no_value',
         ...(resolved.transform ? { transform: resolved.transform } : {}),
+        ...level,
       });
       continue;
     }
@@ -296,6 +358,7 @@ export function proposeMappings(input: MappingInput): MappingProposal {
           skipReason: 'script_mismatch',
           expectedScript: expectation.script,
           ...(resolved.transform ? { transform: resolved.transform } : {}),
+          ...level,
         });
         continue;
       } else {
@@ -309,14 +372,16 @@ export function proposeMappings(input: MappingInput): MappingProposal {
      *   - the mapping is not confidently above the medium band,
      *   - the underlying value has not been verified by a human yet,
      *   - the adapter explicitly demands it,
-     *   - the value may be in a script the portal will not accept.
+     *   - the value may be in a script the portal will not accept,
+     *   - the qualification level of a generic education box is only a guess from the profile.
      */
     const reviewRequired =
       requiresReview(customerField) ||
       resolved.confidence < CONFIDENCE.high ||
       (input.unverifiedFields?.has(customerField) ?? false) ||
       adapterField?.reviewRequired === true ||
-      scriptReview;
+      scriptReview ||
+      resolved.educationLevel?.source === 'profile';
 
     mappings.push({
       signature: field.signature,
@@ -327,8 +392,34 @@ export function proposeMappings(input: MappingInput): MappingProposal {
       safetyClass: 'normal',
       ...(resolved.transform ? { transform: resolved.transform } : {}),
       ...(resolved.confidence < CONFIDENCE.medium ? { skipReason: 'low_confidence' as const } : {}),
+      ...level,
     });
   }
+
+  // The page-wide level, reported only when some box depended on it rather than naming its own.
+  const pageLevelMapping = mappings.find(
+    (mapping) => mapping.educationLevel && mapping.educationLevel.source !== 'label',
+  );
+  const unresolvedLevelBox = input.adapter
+    ? input.detection.fields.some((field) => {
+        const mapping = mappings.find((candidate) => candidate.signature === field.signature);
+        if (!mapping?.customerField || mapping.educationLevel) return false;
+        const adapterField = findAdapterField(input.adapter as PortalAdapter, field);
+        return adapterField ? adapterEducationLevels(adapterField).length > 0 : false;
+      })
+    : false;
+  const educationLevel: MappingProposal['educationLevel'] =
+    pageLevelMapping?.educationLevel || unresolvedLevelBox
+      ? {
+          level: pageLevelMapping?.educationLevel?.level ?? null,
+          source:
+            pageLevelMapping?.educationLevel?.source === 'operator' ||
+            pageLevelMapping?.educationLevel?.source === 'profile'
+              ? pageLevelMapping.educationLevel.source
+              : null,
+          withData: educationLevelsWithData(input.customerValues),
+        }
+      : null;
 
   const proposed = mappings.filter((mapping) => mapping.customerField !== null);
   const fillable = proposed.filter((mapping) => mapping.skipReason === undefined);
@@ -346,6 +437,7 @@ export function proposeMappings(input: MappingInput): MappingProposal {
       otp: mappings.filter((mapping) => mapping.safetyClass === 'otp').length,
       payment: mappings.filter((mapping) => mapping.safetyClass === 'payment').length,
     },
+    educationLevel,
   };
 }
 

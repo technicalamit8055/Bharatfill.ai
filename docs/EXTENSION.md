@@ -154,6 +154,7 @@ DETECTION_RESULT         declared in the schema, not routed: detection travels a
                          DETECT_FIELDS
 REQUEST_MAPPING          sidepanel → background → POST /api/forms/map
                          { applicationId? } links this stage to a saved application (§6b)
+                         { educationLevel? } the operator's qualification pick (§6f)
 APPLY_FILL               sidepanel → background → content   (values travel only here)
                          instructions come from buildFillInstructions(), never from the panel
                          itself: that applies the named transforms, re-checks safety classes,
@@ -621,10 +622,50 @@ does not create the document, offscreen sender check, one-use take, over-limit �
 answer carries nothing about the file). The panel UI (card, tick, Fill gating) has no tests, and
 the real canvas/pdf.js encode has not yet been exercised in a browser.
 
+### Exact picture size (2026-10-06)
+
+Some portals check pixels as well as kilobytes. SSC rejected an extension-attached signature with
+"DIMENSION IS NOT CORRECT. WIDTH SHOULD BE 6cm AND HEIGHT SHOULD BE 2cm". Three things were
+wrong at once:
+
+1. **The panel never ran auto-fit.** `useAutoFits` and `AutoFitCard` existed but `ReviewPanel` did
+   not call them, so every chosen file went to the portal exactly as stored. They are now wired
+   into both upload lists. `fitTargetFor` builds each box's target from `resolveUploadTarget`, Fill
+   waits while a copy is being prepared ("Fitting files to the portal…"), a ticked copy's
+   `fitToken` rides on its attachment, and `resetFits` runs after the fill.
+2. **Auto-fit only ever changed bytes.** `resolveUploadTarget` now also returns
+   `dimensions: { widthPx, heightPx, dpi }`, and `PREPARE_AUTO_FIT` carries it with a `subject`
+   (`signature` / `photo` / `document`, from the suggestion's category or
+   `inferFileFieldCategory`). The page's stated size beats the preset's (§6d). The KB window still
+   goes the other way. With a size set, `planAutoFit` always plans an image redraw, because an
+   original upload's metadata has no pixel size to check. The offscreen document then:
+   - draws the image into the exact frame with `renderIntoFrame`. A signature's paper margin is
+     trimmed first, then the signature is centred on white with a 4% margin. Nothing is ever
+     stretched;
+   - refuses a photo whose shape is more than 4% off with `needs_crop` ("needs cropping — prepare
+     it in Document Tools Studio"), because framing a face is a person's call;
+   - encodes with `encodeToWindow({ fixedSize: true, dpi })`. The quality search never drops a
+     resolution rung, so the pixels are exactly the frame's;
+   - writes the DPI into the JPEG's JFIF header (`setJpegDpi`). A canvas JPEG says no density, and
+     a validator reading that at 72 or 96 DPI sees 709 px as 18–25 cm. KB padding now goes after
+     that header, not before it.
+
+   The confirm card adds "Resized to 6.0 × 2.0 cm (709 × 237 px at 300 DPI)."
+3. **The preset was stale.** `ssc.signature` said 40 × 20 mm at 200 DPI. It now says 60 × 20 mm at
+   300 DPI (709 × 237 px, rounded up like every preset).
+
+The canvas half (`renderIntoFrame`, `encodeToWindow` with `fixedSize`) has no browser test. The
+pure half does: `packages/document-tools/src/dimension-fit.test.ts` (JFIF stamping and padding
+order, fixed-size search, frame geometry, planning, the preset) and the dimension cases in
+`packages/form-engine/src/constraints.test.ts`.
+
 ### Not yet
 
 - The customer document picker still applies `accept` strictly, so a PNG cannot be picked for a
   JPEG-only box from the picker — only ticked from the suggestion list.
+- A fitted copy is still attached only after the operator ticks it. On a box with a stated size,
+  the original will usually be rejected, so leaving the tick clear is rarely what anyone wants.
+  Whether a size-fitted copy should start ticked is a product decision.
 - Extension strings are English-only, like the rest of the side panel.
 
 ## 6d. Upload limits stated on the page (§7.4.5 "Required file type/size if known")
@@ -632,12 +673,23 @@ the real canvas/pdf.js encode has not yet been exercised in a browser.
 Most portals have no adapter, so no preset — but nearly all of them print the rule beside the box:
 "Between 50 KB and 200 KB", "Format: JPEG/PDF", "(max. 2MB)", "Size (in KB): 10-200",
 "अधिकतम 100 KB". `parseUploadConstraints` (`packages/form-engine/src/constraints.ts`) reads those
-into `{ minBytes, maxBytes, formats }`, and the detector sends the result as
+into `{ minBytes, maxBytes, formats, dimensions? }`, and the detector sends the result as
 `DetectedField.uploadConstraints` for every file input.
+
+`dimensions` (2026-10-06) is a picture size stated as `width × height` with a unit: "6.0 cm
+(width) X 2.0 cm (height) at a resolution of 300 DPI", "3.5 x 4.5 cm", "200 x 230 pixels",
+"2 x 2 inches" or "6 सेमी x 2 सेमी". The result is `{ width, height, unit: 'px' | 'mm', dpi }`.
+Width comes first unless the first number is labelled "(height)". A bare "10 x 20" with no unit,
+two different sizes in one source, and SSC's error line ("WIDTH SHOULD BE 6cm AND HEIGHT SHOULD
+BE 2cm", which has no "×") all yield nothing. `resolveUploadTarget` turns the result into pixels,
+using the page's DPI, then the preset's, then 300. Unlike the KB window, **a stated size beats the
+preset**: the portal validates against what it prints, and a preset that disagrees is out of date
+(§6c "Exact picture size").
 
 **Where it reads.** Only the box's own surroundings, strongest first: its label, `aria-label`,
 `title`, `aria-describedby` targets, its wrapper up to three levels (stopping at a wrapper that
-holds a second file input, a `<tr>`/`<form>`, or more than 400 characters of text), then each cell
+holds a second file input, a `<tr>`/`<form>`, or more than 800 characters of text — raised from
+400 because SSC's signature block alone is about 650), then each cell
 of its table row read together with that column's header — so a `Max Size (KB)` header over a
 `200` cell is one statement. A form-wide instructions paragraph is never read: it describes every
 box at once. Each end of the window, and the format list, comes from the first source that states
@@ -723,6 +775,33 @@ What does not change: nothing reaches the page until Fill, the live element is r
 attach time (§6a), and no thumbnail is fetched automatically. A preview mints an audited signed
 URL, so it still happens only when the operator presses **Preview**. Asserted by
 `packages/form-engine/src/auto-match.test.ts`.
+
+## 6f. Qualification picker and fields missing from the profile
+
+Some recruitment pages ask about "the qualifying qualification" through generic boxes: SSC's
+Education Details has a "Roll Number" and a "Passing Year" that belong to whatever the page's
+own dropdown names (docs/FORM_ENGINE.md §6, "Context and qualification level"). The detector never
+reads that dropdown's value, so the panel asks the operator instead.
+
+- When `proposal.educationLevel` is non-null, a **Which qualification is this page about?** row of
+  chips (10th / 12th / Graduation) appears above the field list. The applied level is
+  highlighted, and a level the customer has no saved data for is marked "no data". The note under
+  the chips says whether the level is the operator's pick or a guess from the highest saved
+  qualification. Every row filled from a guess starts unticked, because guessed rows are
+  `reviewRequired`.
+- Picking a chip sends `REQUEST_MAPPING { educationLevel }` again for the detection already in
+  hand. The page is not read again. Ticks and typed edits reset, because a row may now hold a
+  different field, but chosen files are kept: the level says nothing about uploads. Each re-map
+  opens a fresh fill session, like any other mapping request. A box whose own label or heading
+  names its level ("Matriculation Roll Number") ignores the pick.
+- A new **Detect fields** clears the pick, because the next page may be about something else.
+
+Rows the adapter or dictionary recognised but the customer's profile has no value for
+(`skipReason: 'no_value'`) are listed in a collapsed **Not in this customer's profile (N)** card.
+Each entry shows the page label and the customer field key. Before this card existed, such a page
+showed "No matches on this page" with "Nothing here matches this customer's saved details",
+which read as an unsupported form. The empty state now says the fields were recognised and the
+profile is missing them.
 
 ## 7. Storage
 

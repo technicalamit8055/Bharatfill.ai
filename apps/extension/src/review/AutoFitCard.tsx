@@ -5,6 +5,7 @@ import {
   describeAutoFit,
   formatFileSize,
   planAutoFit,
+  type AutoFitDimensions,
 } from '@assistigo/document-tools/autofit';
 import type { AutoFitResult } from '../shared/autofit';
 import type { MessageResponse } from '../shared/messages';
@@ -26,6 +27,8 @@ export type FitTarget = {
   accept: string | null;
   minBytes: number | null;
   maxBytes: number | null;
+  /** The exact picture size the box wants, when the page or the preset states one. */
+  dimensions: AutoFitDimensions | null;
 };
 
 /** The parts of an attachment choice a fit needs. */
@@ -150,6 +153,7 @@ export function useAutoFits(
         accept: target.accept,
         minBytes: target.minBytes,
         maxBytes: target.maxBytes,
+        dimensions: target.dimensions,
       }).then((response) => settle(signature, choice.id, response));
     }
 

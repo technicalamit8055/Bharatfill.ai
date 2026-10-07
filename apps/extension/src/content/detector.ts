@@ -352,8 +352,13 @@ function resolveSectionHeading(element: Element): string | null {
   return null;
 }
 
-/** Wrapper text longer than this is a form section, not a hint about one box. */
-const CONSTRAINT_TEXT_LIMIT = 400;
+/**
+ * Wrapper text longer than this is a form section, not a hint about one box. 800 because a
+ * single box's own instruction panel can run long: SSC's signature block (label, five bullet
+ * points, the button and its error line) is about 650 characters. A wrapper holding a second
+ * upload box is still cut off by `fileInputCount`, whatever its length.
+ */
+const CONSTRAINT_TEXT_LIMIT = 800;
 /** How far up from a file input to read hint text: its wrapper, and two more levels. */
 const CONSTRAINT_WRAPPER_DEPTH = 3;
 

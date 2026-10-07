@@ -10,6 +10,7 @@ import {
   DOCUMENT_TYPE_LABELS,
   MAX_UPLOAD_BYTES,
   isAllowedUploadMimeType,
+  isStoreOnlyDocumentType,
   type DocumentType,
 } from '@assistigo/core';
 import type { ExtractionMode } from '@assistigo/ai/types';
@@ -30,6 +31,9 @@ import { ExtractionReview, type ReviewField } from '../../documents/[id]/extract
  * renders the same accept/edit/reject table the standalone document page uses
  * (`../../documents/[id]/extraction-review.tsx`) — matching the paste-text panel's inline review
  * instead of sending the operator away to review it later.
+ *
+ * A photograph or a signature skips all of that (§12.4): there is nothing on it to read, so the
+ * reading-method picker goes away and the file is saved as it is (`storeOnly`).
  */
 
 const POLL_INTERVAL_MS = 3000;
@@ -74,6 +78,8 @@ export function UploadDocumentPanel({
   const [documentStatus, setDocumentStatus] = useState<string | null>(null);
   const [result, setResult] = useState<ExtractionGetResponse['extraction']>(null);
   const [reviewed, setReviewed] = useState(false);
+  /** A photo or signature went up as `storeOnly`: there is no extraction coming to wait for. */
+  const [savedUnread, setSavedUnread] = useState(false);
 
   async function fetchExtraction(id: string) {
     try {
@@ -138,8 +144,11 @@ export function UploadDocumentPanel({
     setDocumentStatus(null);
     setResult(null);
     setReviewed(false);
+    setSavedUnread(false);
     setError(null);
   }
+
+  const storeOnly = isStoreOnlyDocumentType(documentType);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -189,11 +198,12 @@ export function UploadDocumentPanel({
 
       // The server has not seen a byte until this call: it downloads the object, checks the
       // magic bytes against what we claimed, and only then queues extraction — and, in most
-      // deployments, runs it in-request.
+      // deployments, runs it in-request. A photo or signature is checked the same way, then
+      // saved without being read.
       const processResponse = await fetch(`/api/documents/${intent.documentId}/process`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ extractionMode }),
+        body: JSON.stringify(storeOnly ? { storeOnly: true } : { extractionMode }),
       });
 
       const processJson = (await processResponse.json()) as
@@ -208,9 +218,10 @@ export function UploadDocumentPanel({
 
       setDocumentId(intent.documentId);
       setDocumentStatus(processJson.data.status);
+      setSavedUnread(storeOnly);
       setFile(null);
       setDocumentType('');
-      await fetchExtraction(intent.documentId);
+      if (!storeOnly) await fetchExtraction(intent.documentId);
       // The Documents card below reads from the same server component tree, so this is what
       // makes the new row (and its status) show up without a full page reload.
       router.refresh();
@@ -271,21 +282,27 @@ export function UploadDocumentPanel({
                 </option>
               ))}
             </Select>
-            <p className="text-xs text-slate-500">{t('documents.typeHint')}</p>
+            <p className="text-xs text-slate-500">
+              {t(storeOnly ? 'documents.storeOnly.hint' : 'documents.typeHint')}
+            </p>
           </div>
 
-          <ExtractionModeSelect
-            id="profile-upload-mode"
-            value={extractionMode}
-            onChange={setExtractionMode}
-            disabled={pending}
-          />
-          {extractionMode !== 'non_ai' ? <ActiveAiVendorNote /> : null}
+          {storeOnly ? null : (
+            <>
+              <ExtractionModeSelect
+                id="profile-upload-mode"
+                value={extractionMode}
+                onChange={setExtractionMode}
+                disabled={pending}
+              />
+              {extractionMode !== 'non_ai' ? <ActiveAiVendorNote /> : null}
+            </>
+          )}
 
           {error ? <Alert tone="danger">{t(error)}</Alert> : null}
 
           <Button type="submit" loading={pending} disabled={!file}>
-            {t('documents.upload')}
+            {t(storeOnly ? 'common.save' : 'documents.upload')}
           </Button>
         </form>
       ) : (
@@ -300,6 +317,12 @@ export function UploadDocumentPanel({
           {isFailed ? (
             <Alert tone="danger" title={t('documents.failedTitle')}>
               {t('documents.failedHelp')}
+            </Alert>
+          ) : null}
+
+          {savedUnread ? (
+            <Alert tone="success" title={t('documents.storeOnly.savedTitle')}>
+              {t('documents.storeOnly.savedHelp')}
             </Alert>
           ) : null}
 

@@ -22,11 +22,21 @@ import type { DetectedField } from './types';
 export const UPLOAD_FORMATS = ['jpeg', 'png', 'pdf', 'gif', 'webp', 'bmp', 'tiff'] as const;
 export type UploadFormat = (typeof UPLOAD_FORMATS)[number];
 
+/** A picture size as the page states it. `mm` covers cm too; `dpi` only when the page says. */
+export type UploadDimensions = {
+  width: number;
+  height: number;
+  unit: 'px' | 'mm';
+  dpi: number | null;
+};
+
 export type UploadConstraints = {
   minBytes: number | null;
   maxBytes: number | null;
   /** In the order the page named them. Empty when the page named none. */
   formats: UploadFormat[];
+  /** Absent or `null` when the page states no size. Optional for older payloads. */
+  dimensions?: UploadDimensions | null;
 };
 
 const KB = 1024;
@@ -256,6 +266,77 @@ function parseFormats(raw: string): UploadFormat[] {
 }
 
 // ---------------------------------------------------------------------------
+// Dimensions
+// ---------------------------------------------------------------------------
+
+const LENGTH_UNIT = String.raw`(cm|mm|inch(?:es)?|centimet(?:er|re)s?|millimet(?:er|re)s?|सेमी|से\.\s?मी\.?)`;
+/** "(width)" / "(height)" after a number — the one hint that the page put height first. */
+const AXIS = String.raw`(?:\s*\(\s*(width|height|w|h)\s*\))?`;
+const BY = String.raw`\s*(?:x|×|\*|by)\s*`;
+/** "6.0 cm (width) X 2.0 cm (height)", "3.5 x 4.5 cm", "35mm x 45mm". */
+const PHYSICAL = new RegExp(
+  String.raw`${NUM_START}${NUM}\s*${LENGTH_UNIT}?${AXIS}${BY}${NUM}\s*${LENGTH_UNIT}${AXIS}`,
+  'g',
+);
+/** "200 x 230 pixels", "140 X 60 px". The unit is required: "10 x 20" alone is not a size. */
+const PIXELS = new RegExp(
+  String.raw`${NUM_START}(\d{2,5})\s*(?:px|pixels?)?${AXIS}${BY}(\d{2,5})\s*(?:px|pixels?)(?![a-z])${AXIS}`,
+  'g',
+);
+const DPI = /(?<![\w.])(\d{2,4})\s*(?:dpi|ppi|dots\s+per\s+inch)(?![a-z])/g;
+
+function lengthToMm(value: number, unit: string): number {
+  if (unit.startsWith('mm') || unit.startsWith('milli')) return value;
+  if (unit.startsWith('inch')) return value * 25.4;
+  return value * 10;
+}
+
+function sameDimensions(a: UploadDimensions, b: UploadDimensions): boolean {
+  return a.unit === b.unit && sameLimit(a.width, b.width) && sameLimit(a.height, b.height);
+}
+
+/**
+ * The single picture size a piece of text states, or `null` when it states none or several.
+ *
+ * Width comes first unless the page labels the first number "(height)". Pixel sizes beat
+ * physical ones when a page gives both, because pixels are what a validator counts. A DPI is
+ * attached only when the text names one, and only when it names one DPI.
+ */
+function parseDimensions(raw: string): UploadDimensions | null {
+  const text = normalize(raw);
+  const found: UploadDimensions[] = [];
+
+  for (const match of text.matchAll(PIXELS)) {
+    const [, a = '', axisA, b = ''] = match;
+    const [width, height] = axisA?.startsWith('h') ? [+b, +a] : [+a, +b];
+    if (width >= 16 && height >= 16 && width <= 8000 && height <= 8000) {
+      found.push({ width, height, unit: 'px', dpi: null });
+    }
+  }
+
+  if (found.length === 0) {
+    for (const match of text.matchAll(PHYSICAL)) {
+      const [, a = '', unitA, axisA, b = '', unitB = ''] = match;
+      const first = lengthToMm(Number.parseFloat(a), unitA ?? unitB);
+      const second = lengthToMm(Number.parseFloat(b), unitB);
+      const [width, height] = axisA?.startsWith('h') ? [second, first] : [first, second];
+      if (width >= 5 && height >= 5 && width <= 500 && height <= 500) {
+        found.push({ width, height, unit: 'mm', dpi: null });
+      }
+    }
+  }
+
+  const [first] = found;
+  if (!first || !found.every((size) => sameDimensions(size, first))) return null;
+
+  const dpis = Array.from(text.matchAll(DPI), (match) => Number(match[1])).filter(
+    (dpi) => dpi >= 72 && dpi <= 2400,
+  );
+  const dpi = dpis.length > 0 && dpis.every((value) => value === dpis[0]) ? (dpis[0] ?? null) : null;
+  return { ...first, dpi };
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -264,13 +345,16 @@ export function parseUploadConstraints(text: string | null | undefined): UploadC
   if (!text || !text.trim()) return null;
   const sizes = parseSizes(text);
   const formats = parseFormats(text);
+  const dimensions = parseDimensions(text);
   // A minimum at or over the maximum is a misread; the maximum is the one a portal enforces.
   const minBytes =
     sizes.minBytes !== null && sizes.maxBytes !== null && sizes.minBytes >= sizes.maxBytes
       ? null
       : sizes.minBytes;
-  if (minBytes === null && sizes.maxBytes === null && formats.length === 0) return null;
-  return { minBytes, maxBytes: sizes.maxBytes, formats };
+  if (minBytes === null && sizes.maxBytes === null && formats.length === 0 && !dimensions) {
+    return null;
+  }
+  return { minBytes, maxBytes: sizes.maxBytes, formats, ...(dimensions ? { dimensions } : {}) };
 }
 
 /**
@@ -284,15 +368,17 @@ export function mergeUploadConstraints(
   let minBytes: number | null = null;
   let maxBytes: number | null = null;
   let formats: UploadFormat[] = [];
+  let dimensions: UploadDimensions | null = null;
   for (const source of sources) {
     if (!source) continue;
     minBytes ??= source.minBytes;
     maxBytes ??= source.maxBytes;
     if (formats.length === 0) formats = source.formats;
+    dimensions ??= source.dimensions ?? null;
   }
   if (minBytes !== null && maxBytes !== null && minBytes >= maxBytes) minBytes = null;
-  if (minBytes === null && maxBytes === null && formats.length === 0) return null;
-  return { minBytes, maxBytes, formats };
+  if (minBytes === null && maxBytes === null && formats.length === 0 && !dimensions) return null;
+  return { minBytes, maxBytes, formats, ...(dimensions ? { dimensions } : {}) };
 }
 
 const FORMAT_ACCEPT: Record<UploadFormat, readonly string[]> = {
@@ -311,6 +397,9 @@ export function acceptFromFormats(formats: readonly UploadFormat[]): string | nu
   return formats.flatMap((format) => FORMAT_ACCEPT[format]).join(',');
 }
 
+/** The exact picture an upload box wants, in pixels, with the DPI to stamp when one is known. */
+export type UploadPixelSize = { widthPx: number; heightPx: number; dpi: number | null };
+
 /** What an upload box asks for, from every source the extension has. */
 export type UploadTarget = {
   accept: string | null;
@@ -318,7 +407,54 @@ export type UploadTarget = {
   maxBytes: number | null;
   /** Where the size window came from. `null` when nothing stated one. */
   sizeSource: 'preset' | 'page' | null;
+  /** The picture size to redraw an image to, or `null` when nothing states one. */
+  dimensions: UploadPixelSize | null;
+  dimensionSource: 'preset' | 'page' | null;
 };
+
+/** The preset fields `resolveUploadTarget` reads — a `DocumentPresetSummary` fits. */
+export type UploadTargetPreset = {
+  minBytes: number | null;
+  maxBytes: number | null;
+  widthPx?: number | null;
+  heightPx?: number | null;
+  widthMm?: number | null;
+  heightMm?: number | null;
+  dpi?: number | null;
+};
+
+/** A size stated in centimetres with no DPI anywhere: what Indian portal notices assume. */
+const DEFAULT_UPLOAD_DPI = 300;
+
+/** Rounds up, exactly like document-tools' `mmToPx`, so Studio and auto-fit agree to the pixel. */
+const mmToPx = (mm: number, dpi: number) => Math.max(1, Math.ceil((mm / 25.4) * dpi));
+
+function pageDimensions(
+  stated: UploadDimensions,
+  preset: UploadTargetPreset | null | undefined,
+): UploadPixelSize {
+  if (stated.unit === 'px') {
+    return {
+      widthPx: Math.round(stated.width),
+      heightPx: Math.round(stated.height),
+      dpi: stated.dpi,
+    };
+  }
+  const dpi = stated.dpi ?? preset?.dpi ?? DEFAULT_UPLOAD_DPI;
+  return { widthPx: mmToPx(stated.width, dpi), heightPx: mmToPx(stated.height, dpi), dpi };
+}
+
+function presetDimensions(preset: UploadTargetPreset | null | undefined): UploadPixelSize | null {
+  if (!preset) return null;
+  if (preset.widthPx && preset.heightPx) {
+    return { widthPx: preset.widthPx, heightPx: preset.heightPx, dpi: preset.dpi ?? null };
+  }
+  if (preset.widthMm && preset.heightMm) {
+    const dpi = preset.dpi ?? DEFAULT_UPLOAD_DPI;
+    return { widthPx: mmToPx(preset.widthMm, dpi), heightPx: mmToPx(preset.heightMm, dpi), dpi };
+  }
+  return null;
+}
 
 /**
  * The window and file types to hold a file to for one upload box.
@@ -330,10 +466,21 @@ export type UploadTarget = {
  */
 export function resolveUploadTarget(
   field: Pick<DetectedField, 'accept' | 'uploadConstraints'>,
-  preset: { minBytes: number | null; maxBytes: number | null } | null | undefined,
+  preset: UploadTargetPreset | null | undefined,
 ): UploadTarget {
   const page = field.uploadConstraints ?? null;
   const accept = field.accept?.trim() ? field.accept : acceptFromFormats(page?.formats ?? []);
+
+  /*
+   * Dimensions go the other way from the KB window: the page's own statement wins. A portal's
+   * validator rejects on the size it prints beside the box, so when a preset and the box
+   * disagree it is the preset that is out of date — SSC moved its signature from 4 × 2 cm at
+   * 200 DPI to 6 × 2 cm at 300 DPI and said so only on the page.
+   */
+  const stated = page?.dimensions ?? null;
+  const fromPreset = presetDimensions(preset);
+  const dimensions = stated ? pageDimensions(stated, preset) : fromPreset;
+  const dimensionSource = stated ? ('page' as const) : fromPreset ? ('preset' as const) : null;
 
   if (preset && (preset.minBytes || preset.maxBytes)) {
     return {
@@ -341,12 +488,21 @@ export function resolveUploadTarget(
       minBytes: preset.minBytes || null,
       maxBytes: preset.maxBytes || null,
       sizeSource: 'preset',
+      dimensions,
+      dimensionSource,
     };
   }
   if (page && (page.minBytes !== null || page.maxBytes !== null)) {
-    return { accept, minBytes: page.minBytes, maxBytes: page.maxBytes, sizeSource: 'page' };
+    return {
+      accept,
+      minBytes: page.minBytes,
+      maxBytes: page.maxBytes,
+      sizeSource: 'page',
+      dimensions,
+      dimensionSource,
+    };
   }
-  return { accept, minBytes: null, maxBytes: null, sizeSource: null };
+  return { accept, minBytes: null, maxBytes: null, sizeSource: null, dimensions, dimensionSource };
 }
 
 function formatSize(bytes: number): string {
@@ -381,6 +537,16 @@ export function describeUploadConstraints(
   const kinds =
     labels.length > 1 ? `${labels.slice(0, -1).join(', ')} or ${labels[labels.length - 1]}` : labels[0];
 
-  const parts = [size, kinds].filter(Boolean);
+  const parts = [size, kinds, describeDimensions(constraints.dimensions)].filter(Boolean);
   return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+/** "6 × 2 cm at 300 DPI", "200 × 230 px" — the way the page said it. */
+export function describeDimensions(dimensions: UploadDimensions | null | undefined): string | null {
+  if (!dimensions) return null;
+  const { width, height, unit, dpi } = dimensions;
+  const at = dpi ? ` at ${dpi} DPI` : '';
+  if (unit === 'px') return `${width} × ${height} px${at}`;
+  const cm = (mm: number) => Number((mm / 10).toFixed(2));
+  return `${cm(width)} × ${cm(height)} cm${at}`;
 }

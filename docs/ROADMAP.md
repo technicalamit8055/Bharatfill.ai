@@ -245,6 +245,13 @@ Done (added since):
 - [x] Second portal adapter — `ssc-portal.json` for SSC (ssc.gov.in and the OTR subdomain), status
       `testing`, with photo/signature requirements bound to the `ssc.photo` / `ssc.signature`
       presets. `FORM_ENGINE.md` §6a.
+- [x] `ssc-portal` 1.2.0 (2026-10-06): Education Details now maps. Generic education boxes
+      resolve their qualification level from the label, the heading, the operator's side-panel
+      pick, or the profile; a profile guess is always reviewed. Address boxes switch between
+      present and permanent by context. Two false matches are fixed: "State/ UT of Board/
+      University" no longer gets the customer's home state, and "Have you ever changed your
+      name?" no longer gets the full name. The side panel lists recognised fields that are
+      missing from the profile. `FORM_ENGINE.md` §6, §6a; `EXTENSION.md` §6f.
 - [x] Safety fix (2cb8e14): camelCase names are split before lowercasing, so `otpMobile` is
       classed as OTP rather than a mobile field; mobile/email adapter entries now exclude OTP boxes
       (RTPS and SSC). New regression tests in `safety.test.ts`.

@@ -106,6 +106,37 @@ export function fitWithin(source: Size, bounds: Size): Size {
 }
 
 /**
+ * Where `source` lands inside a fixed `frame`: scaled to fit without distortion, centred, with
+ * `margin` (a fraction of each frame side) kept clear on every edge. The rest of the frame is
+ * background. Used to put a signature into a portal's exact "6.0 × 2.0 cm" box.
+ */
+export function containInFrame(
+  source: Size,
+  frame: Size,
+  margin = 0,
+): { x: number; y: number; width: number; height: number } {
+  const safe = Math.min(0.45, Math.max(0, margin));
+  const boxWidth = frame.width * (1 - safe * 2);
+  const boxHeight = frame.height * (1 - safe * 2);
+  const scale = Math.min(boxWidth / source.width, boxHeight / source.height);
+  const width = Math.max(1, Math.round(source.width * scale));
+  const height = Math.max(1, Math.round(source.height * scale));
+  return {
+    x: Math.round((frame.width - width) / 2),
+    y: Math.round((frame.height - height) / 2),
+    width,
+    height,
+  };
+}
+
+/** How far apart two shapes are, as a fraction: 0 is the same aspect ratio, 0.1 is 10% off. */
+export function aspectDeviation(source: Size, frame: Size): number {
+  const a = source.width / source.height;
+  const b = frame.width / frame.height;
+  return Math.abs(a - b) / b;
+}
+
+/**
  * The largest centred rectangle of a given aspect ratio that fits inside `source`.
  * This is the starting crop box: it keeps the whole subject in frame and is what an operator
  * expects to see before they drag anything.

@@ -59,9 +59,11 @@ const SSC: RequirementPreset[] = [
     outputMime: 'image/jpeg',
     minBytes: 10 * KB,
     maxBytes: 20 * KB,
-    widthMm: 40,
+    // SSC's upload box: "about 6.0 cm (width) X 2.0 cm (height) at a resolution of 300 DPI",
+    // and it rejects any other size ("DIMENSION IS NOT CORRECT"). 709 × 236 px.
+    widthMm: 60,
     heightMm: 20,
-    dpi: 200,
+    dpi: 300,
     notes: 'Signed in black or blue ink on plain white paper. Not in capital letters.',
     notesHi: 'सादे सफेद कागज़ पर काली या नीली स्याही से। कैपिटल अक्षरों में नहीं।',
     source: 'SSC One Time Registration instructions',

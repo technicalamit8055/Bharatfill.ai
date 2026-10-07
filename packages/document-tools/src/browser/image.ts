@@ -13,7 +13,9 @@
 
 import {
   MAX_QUALITY,
+  aspectDeviation,
   cleanSignature,
+  containInFrame,
   contentBoundingBox,
   enhance,
   estimateInitialScale,
@@ -21,6 +23,7 @@ import {
   nextQualityProbe,
   padJpegToMinimum,
   recordQualityProbe,
+  setJpegDpi,
   startQualitySearch,
   type CleanSignatureOptions,
   type EnhanceOptions,
@@ -245,6 +248,56 @@ export function renderImage(image: DecodedImage, options: RenderOptions = {}): H
   );
   context.restore();
 
+  return canvas;
+}
+
+/**
+ * How far a photo's shape may be from the box's before fitting it would visibly pad it. Past this
+ * it needs cropping, which is framing a face — a person's job, in Document Tools Studio.
+ */
+export const PHOTO_ASPECT_TOLERANCE = 0.04;
+
+/** Clear space kept around a signature inside its box, so it never touches the edge. */
+const SIGNATURE_MARGIN = 0.04;
+
+/**
+ * Draws an image into a fixed-size frame on white, for an upload box with an exact size.
+ *
+ * Never stretches and never crops into content. A signature's paper margin is trimmed first
+ * (`findTrimRect`), so a signature photographed on a whole sheet still fills its 6 × 2 cm box
+ * rather than shrinking into a corner of it. A photo of the wrong shape is refused with
+ * `null` — padding a face with white bars, or cutting one, is not a call to make silently.
+ */
+export function renderIntoFrame(
+  image: DecodedImage,
+  frame: { width: number; height: number; subject: 'signature' | 'photo' | 'document' },
+): HTMLCanvasElement | null {
+  let source: DecodedImage = image;
+
+  if (frame.subject === 'signature') {
+    // White behind any transparency first, so a PNG signature trims against paper, not alpha.
+    const whole = renderImage(image);
+    const trim = findTrimRect(whole, { tolerance: 40, padding: 2 });
+    if (trim && trim.width > 4 && trim.height > 4) {
+      source = canvasAsSource(renderImage(canvasAsSource(whole), { crop: trim }));
+    }
+  }
+
+  if (frame.subject === 'photo' && aspectDeviation(source, frame) > PHOTO_ASPECT_TOLERANCE) {
+    return null;
+  }
+
+  const rect = containInFrame(
+    source,
+    frame,
+    frame.subject === 'signature' ? SIGNATURE_MARGIN : 0,
+  );
+  const canvas = createCanvas(frame.width, frame.height);
+  fillWhite(canvas);
+  const context = context2d(canvas);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
+  context.drawImage(source.source, rect.x, rect.y, rect.width, rect.height);
   return canvas;
 }
 
@@ -475,6 +528,10 @@ export type EncodeResult = {
  * PNG has no quality knob, so a PNG that overshoots is re-encoded as JPEG only if the caller
  * asked for JPEG; otherwise it is handed back as-is with `overLimit` set. Silently swapping the
  * format would break a portal that validates the extension.
+ *
+ * `fixedSize` is for a box that checks pixel dimensions: the search then only lowers quality and
+ * never falls back to a smaller resolution. `dpi` is stamped into every JPEG it produces
+ * (`setJpegDpi`), before any size is measured, so the header never tips a file over the limit.
  */
 export async function encodeToWindow(
   canvas: HTMLCanvasElement,
@@ -482,13 +539,16 @@ export async function encodeToWindow(
     mimeType: OutputMimeType;
     minBytes?: number;
     maxBytes?: number;
+    fixedSize?: boolean;
+    dpi?: number;
   },
 ): Promise<EncodeResult> {
-  const { mimeType, minBytes, maxBytes } = options;
+  const { mimeType, minBytes, maxBytes, fixedSize = false, dpi } = options;
+  const stamp = (bytes: Uint8Array) => (dpi && isJpeg(bytes) ? setJpegDpi(bytes, dpi) : bytes);
 
   if (mimeType === 'image/png' || maxBytes === undefined) {
     const blob = await canvasToBlob(canvas, mimeType, mimeType === 'image/jpeg' ? MAX_QUALITY : undefined);
-    let bytes = await blobBytes(blob);
+    let bytes = stamp(await blobBytes(blob));
     const padded = minBytes !== undefined && bytes.length < minBytes && isJpeg(bytes);
     if (padded) bytes = padJpegToMinimum(bytes, minBytes);
     return {
@@ -505,8 +565,12 @@ export async function encodeToWindow(
 
   // Opening guess from the un-compressed size, so the common "4 MB photo into 50 KB" case does
   // not spend its probe budget at full resolution.
-  const reference = await blobBytes(await canvasToBlob(canvas, 'image/jpeg', MAX_QUALITY));
-  let state = startQualitySearch({ startScale: estimateInitialScale(reference.length, maxBytes) });
+  const reference = stamp(await blobBytes(await canvasToBlob(canvas, 'image/jpeg', MAX_QUALITY)));
+  let state = startQualitySearch(
+    fixedSize
+      ? { fixedScale: true }
+      : { startScale: estimateInitialScale(reference.length, maxBytes) },
+  );
 
   const rendered = new Map<number, HTMLCanvasElement>([[1, canvas]]);
   const encoded = new Map<string, Uint8Array>();
@@ -521,7 +585,7 @@ export async function encodeToWindow(
         target = scaleCanvas(canvas, probe.scale);
         rendered.set(probe.scale, target);
       }
-      bytes = await blobBytes(await canvasToBlob(target, 'image/jpeg', probe.quality));
+      bytes = stamp(await blobBytes(await canvasToBlob(target, 'image/jpeg', probe.quality)));
       encoded.set(key, bytes);
     }
     state = recordQualityProbe(state, probe, bytes.length, maxBytes);

@@ -25,9 +25,21 @@ export const AUTO_FIT_FAILURES = [
   'type_not_accepted',
   'jpeg_not_accepted',
   'below_minimum',
+  'needs_crop',
   'still_over_limit',
   'processing_failed',
 ] as const;
+
+/**
+ * The exact size an upload box wants an image redrawn to (`AutoFitDimensions`). The bounds are
+ * the same sanity range `planAutoFit` applies, so a misread size is refused at the boundary.
+ */
+export const autoFitDimensionsSchema = z.object({
+  widthPx: z.number().int().min(16).max(8000),
+  heightPx: z.number().int().min(16).max(8000),
+  dpi: z.number().int().positive().max(2400).nullable(),
+  subject: z.enum(['signature', 'photo', 'document']),
+});
 export type AutoFitFailure = (typeof AUTO_FIT_FAILURES)[number];
 
 export const autoFitReportSchema = z.object({
@@ -38,6 +50,14 @@ export const autoFitReportSchema = z.object({
   padded: z.boolean(),
   rasterised: z.boolean(),
   dpi: z.number().int().positive().nullable(),
+  resized: z
+    .object({
+      widthPx: z.number().int().positive(),
+      heightPx: z.number().int().positive(),
+      dpi: z.number().int().positive().nullable(),
+    })
+    .nullable()
+    .optional(),
 });
 
 export const autoFitResultSchema = z.discriminatedUnion('status', [
@@ -67,6 +87,7 @@ export const autoFitJobSchema = z.discriminatedUnion('action', [
     minBytes: z.number().int().positive().optional(),
     maxBytes: z.number().int().positive().optional(),
     converted: z.boolean(),
+    resize: autoFitDimensionsSchema.optional(),
   }),
   z.object({
     action: z.literal('pdf'),

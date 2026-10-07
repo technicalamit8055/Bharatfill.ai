@@ -1243,18 +1243,25 @@
     "processingHelp": "This usually takes a few seconds. This page updates on its own.",
     "failedTitle": "Could not read this document",
     "failedHelp": "Try uploading a clearer scan, or read it again.",
+    "storeOnly": {
+      "hint": "Photos and signatures are saved as they are. Nothing is read from them, and nothing is sent to an AI provider.",
+      "savedTitle": "Saved without reading",
+      "savedHelp": "Photos and signatures are kept exactly as uploaded and used as they are when a form asks for one. To have a document read, upload it with a different document type."
+    },
     "statuses": {
       "uploaded": "Uploaded",
       "processing": "Reading",
       "extracted": "Read",
       "review_required": "Needs review",
       "verified": "Verified",
+      "stored": "Saved",
       "failed": "Failed",
       "deleted": "Deleted",
       "unknown": "Unclassified"
     },
     "errors": {
-      "uploadFailed": "The file could not be uploaded. Please try again."
+      "uploadFailed": "The file could not be uploaded. Please try again.",
+      "storeOnlyType": "Only a photograph or a signature can be saved without being read."
     },
     "warnings": {
       "title": "Notes on this extraction",

@@ -36,6 +36,7 @@ const STATUS_TONE: Record<string, 'neutral' | 'info' | 'success' | 'warning' | '
   extracted: 'info',
   review_required: 'warning',
   verified: 'success',
+  stored: 'success',
   failed: 'danger',
 };
 
@@ -121,7 +122,9 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
             documentId={document.id}
             canDownload={session.permissions.has('document.download')}
             canDelete={session.permissions.has('document.delete')}
-            canProcess={session.permissions.has('document.upload')}
+            // A photo or signature saved unread has nothing to read; offering "Read again" would
+            // only invite sending it to the AI reader for nothing (§12.4).
+            canProcess={session.permissions.has('document.upload') && document.status !== 'stored'}
           />
         </div>
       </div>
@@ -174,6 +177,12 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       {document.status === 'failed' ? (
         <Alert tone="danger" title={t('documents.failedTitle')}>
           {t('documents.failedHelp')}
+        </Alert>
+      ) : null}
+
+      {document.status === 'stored' ? (
+        <Alert tone="success" title={t('documents.storeOnly.savedTitle')}>
+          {t('documents.storeOnly.savedHelp')}
         </Alert>
       ) : null}
 
