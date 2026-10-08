@@ -126,6 +126,21 @@ const serverSchema = z.object({
    */
   AUTH_GOOGLE_ENABLED: z.enum(['on', 'off']).default('off'),
   /**
+   * Whether visitors can create an account. `off` is the pre-launch mode: /sign-up shows the
+   * launch notice instead of the form, `signUpAction` refuses every submission, and the landing
+   * CTAs open the launch dialog. Sign-in is unaffected, so the team can keep using the product.
+   *
+   * This only closes the app's own form. Supabase Auth's "Allow new users to sign up" must be
+   * turned off too, or an account can still be created against Supabase directly, or by a first
+   * Google sign-in.
+   */
+  SIGNUPS_ENABLED: z.enum(['on', 'off']).default('off'),
+  /**
+   * Where the launch notice sends people to hear about launch day — a WhatsApp channel,
+   * Instagram or X profile. HTTPS only. Unset means the notice shows no follow link.
+   */
+  LAUNCH_CHANNEL_URL: optionalString(z.string().url().startsWith('https://')),
+  /**
    * Extra hosts the `http` fetcher may contact, comma-separated (e.g. `ssc.gov.in`).
    *
    * Empty means only the well-known public government domains in

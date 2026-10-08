@@ -7,6 +7,7 @@ import { ArrowRight } from 'lucide-react';
 import { LocaleSwitcher } from '@/components/app-shell/locale-switcher';
 import { useTranslations } from '@/lib/i18n/client';
 import { BharatfillLogo } from './bharatfill-logo';
+import { LaunchCta } from './launch-dialog';
 
 const NAV_LINKS = [
   { href: '#features', labelKey: 'landing.header.nav.features' },
@@ -55,10 +56,9 @@ export function Header() {
           >
             {t('landing.header.signIn')}
           </Link>
-          <a
+          <LaunchCta
             href="https://chromewebstore.google.com"
-            target="_blank"
-            rel="noopener noreferrer"
+            external
             className="group relative inline-flex items-center justify-center gap-2 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#0055EE] via-[#0066FF] to-sky-500 py-1.5 pl-1.5 pr-1.5 min-[320px]:pr-3 sm:py-2 sm:pl-2 sm:pr-5 text-xs font-bold text-white shadow-lg shadow-blue-500/30 transition-all duration-300 hover:scale-[1.02] hover:shadow-blue-500/45 sm:text-sm whitespace-nowrap shrink-0"
           >
             <span className="flex h-6 w-6 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-white">
@@ -75,7 +75,7 @@ export function Header() {
             {/* Icon-only under 320px (e.g. fold cover screens); the label stays for screen readers. */}
             <span className="sr-only min-[320px]:not-sr-only sm:hidden">{t('landing.header.install')}</span>
             <ArrowRight aria-hidden size={16} className="hidden sm:block transition-transform group-hover:translate-x-0.5" />
-          </a>
+          </LaunchCta>
 
           {/* Mobile Menu Toggle */}
           <button

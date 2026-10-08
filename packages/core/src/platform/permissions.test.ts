@@ -102,6 +102,13 @@ describe('platform permissions', () => {
     });
   });
 
+  it('reserves the launch early-access list for super_admin', () => {
+    for (const role of PLATFORM_ROLES) {
+      expect(canPlatform(role, 'platform.leads.view')).toBe(role === 'super_admin');
+      expect(canPlatform(role, 'platform.leads.manage')).toBe(role === 'super_admin');
+    }
+  });
+
   it('reserves team management for super_admin', () => {
     for (const role of PLATFORM_ROLES) {
       expect(canPlatform(role, 'platform.team.manage')).toBe(role === 'super_admin');

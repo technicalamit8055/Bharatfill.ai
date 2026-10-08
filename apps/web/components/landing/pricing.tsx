@@ -1,6 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import {
   ArrowRight,
   Check,
@@ -13,6 +12,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { getTranslations } from '@/lib/i18n/server';
+import { LaunchCta } from '@/components/landing/launch-dialog';
 import { Reveal } from '@/components/landing/reveal';
 import {
   PRICING_ASSURANCES,
@@ -533,7 +533,7 @@ export async function Pricing() {
                     </ul>
 
                     <div className="relative mt-auto pt-8 lg:mt-0">
-                      <Link
+                      <LaunchCta
                         href={href}
                         className={`group/cta flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-base font-semibold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${art.cta}`}
                       >
@@ -543,7 +543,7 @@ export async function Pricing() {
                           size={18}
                           className="transition-transform duration-300 group-hover/cta:translate-x-1"
                         />
-                      </Link>
+                      </LaunchCta>
                       {note && <p className="mt-3 text-center text-sm text-slate-500">{note}</p>}
                     </div>
                   </div>

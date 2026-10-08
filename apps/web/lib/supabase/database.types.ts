@@ -547,6 +547,18 @@ export type PlatformAdminRow = Timestamps & {
   granted_by: string | null;
 };
 
+/** Pre-launch early-access contact (0035). An operator's, never a citizen's. */
+export type LaunchLeadRow = {
+  id: string;
+  /** Bare 10-digit Indian mobile, no +91. */
+  whatsapp_number: string;
+  shop_name: string;
+  city: string;
+  locale: 'en' | 'hi';
+  consent_version: string;
+  created_at: string;
+};
+
 export type ScraperFetcherValue = 'manual' | 'fixture' | 'http';
 
 export type ScraperRunStatusValue =

@@ -556,6 +556,20 @@ export const AUDIT_ACTIONS = define([
     sensitivity: 'critical',
     description: 'Organization plan set manually by platform staff',
   },
+  {
+    // The early-access list left the console as a CSV. `metadata` carries the row count only.
+    action: 'platform.launch_leads_exported',
+    entityType: 'launch_lead',
+    sensitivity: 'sensitive',
+    description: 'Launch early-access list exported by platform staff',
+  },
+  {
+    // An operator was taken off the early-access list. The number itself is never recorded.
+    action: 'platform.launch_lead_deleted',
+    entityType: 'launch_lead',
+    sensitivity: 'sensitive',
+    description: 'Launch early-access lead removed by platform staff',
+  },
 ] as const);
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]['action'];

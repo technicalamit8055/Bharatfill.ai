@@ -17,6 +17,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { getTranslations } from '@/lib/i18n/server';
+import { LaunchCta } from './launch-dialog';
 
 const CHROME_STORE_URL = 'https://chromewebstore.google.com';
 
@@ -145,10 +146,9 @@ export async function Hero() {
             </p>
 
             <div className="hero-rise mt-8 flex flex-col items-center gap-3 [--hero-delay:240ms] sm:flex-row sm:flex-wrap sm:justify-center lg:justify-start">
-              <a
+              <LaunchCta
                 href={CHROME_STORE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
+                external
                 className="group relative inline-flex w-full max-w-[17rem] items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-[#0055EE] via-[#0066FF] to-sky-500 py-2.5 pl-2.5 pr-4 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-all duration-300 hover:scale-[1.03] hover:shadow-blue-500/45 sm:w-auto sm:max-w-none sm:gap-2.5 sm:rounded-2xl sm:py-3.5 sm:pl-3 sm:pr-5 sm:text-base sm:whitespace-nowrap"
               >
                 <span
@@ -160,7 +160,7 @@ export async function Hero() {
                 </span>
                 <span>{t('landing.hero.ctaPrimary')}</span>
                 <ArrowRight aria-hidden className="h-4 w-4 transition-transform group-hover:translate-x-1 sm:h-5 sm:w-5" />
-              </a>
+              </LaunchCta>
 
               <a
                 href="#demo"

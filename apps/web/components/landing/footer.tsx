@@ -5,6 +5,7 @@ import { ArrowRight, Check, Globe, ShieldCheck, Users, Zap, type LucideIcon } fr
 import type { Translator } from '@/lib/i18n';
 import { getTranslations } from '@/lib/i18n/server';
 import { BharatfillLogo } from '@/components/landing/bharatfill-logo';
+import { LaunchCta } from '@/components/landing/launch-dialog';
 import { Reveal } from '@/components/landing/reveal';
 import {
   FOOTER_LEGAL_LINKS,
@@ -246,10 +247,9 @@ function CtaBanner({ t }: { t: Translator }) {
               className="hiw-rise mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center xl:justify-start"
               style={delay(300)}
             >
-              <a
+              <LaunchCta
                 href={CHROME_STORE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
+                external
                 className="group inline-flex h-[3.75rem] w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-[#0055EE] via-[#0066FF] to-sky-500 pl-3 pr-5 text-[15px] font-bold text-white sm:text-base shadow-md shadow-blue-500/30 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-blue-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066FF] focus-visible:ring-offset-2 sm:w-auto sm:whitespace-nowrap"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
@@ -269,13 +269,13 @@ function CtaBanner({ t }: { t: Translator }) {
                   size={20}
                   className="hidden shrink-0 transition-transform group-hover:translate-x-1 min-[400px]:block"
                 />
-              </a>
-              <Link
+              </LaunchCta>
+              <LaunchCta
                 href="/sign-up"
                 className="inline-flex h-[3.75rem] w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-9 text-base font-bold text-[#0066FF] shadow-sm transition-all duration-300 hover:border-blue-300 hover:bg-blue-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066FF] focus-visible:ring-offset-2 sm:w-auto sm:whitespace-nowrap"
               >
                 {t('landing.footer.cta.secondary')}
-              </Link>
+              </LaunchCta>
             </div>
 
             {/*

@@ -3,8 +3,16 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient, createSupabaseServerClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/api/logger';
+import { getLocale } from '@/lib/i18n/server';
+import {
+  LAUNCH_CONSENT_VERSION,
+  LAUNCH_HONEYPOT_FIELD,
+  LAUNCH_LEADS_PER_MINUTE,
+  launchLeadSchema,
+} from '@/lib/launch/leads';
+import { launchState } from '@/lib/launch/state';
 import { recordPasswordChange } from '@/lib/auth/password-audit';
 import { oauthCallbackUrl, safeNext } from '@/lib/auth/redirects';
 import { publicEnv, serverEnv } from '@/lib/env';
@@ -103,6 +111,9 @@ export async function signUpAction(
   _prev: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  // The page hides the form in pre-launch mode; this is what actually refuses a direct post.
+  if (!launchState().signupsOpen) return { error: 'auth.signupsClosed' };
+
   const parsed = signUpSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'errors.validation_failed' };
@@ -124,6 +135,67 @@ export async function signUpAction(
   if (!data.session) return { notice: 'auth.checkEmail' };
 
   redirect('/onboarding');
+}
+
+export type LaunchLeadState = { error?: string; joined?: boolean };
+
+/**
+ * Adds an operator to the early-access list shown in place of sign-up (migration 0035).
+ *
+ * Writes with the service role because the table has no client policies at all. The answer is
+ * the same whether the number was new or already listed, so the form cannot be used to check
+ * whether a given number has signed up. Nothing about the lead is logged.
+ */
+export async function joinLaunchListAction(
+  _prev: LaunchLeadState,
+  formData: FormData,
+): Promise<LaunchLeadState> {
+  // The list only exists while sign-ups are closed; afterwards the form is gone and so is this.
+  if (launchState().signupsOpen) return { error: 'launch.form.closed' };
+
+  // A filled honeypot is a bot. It is told it succeeded, so it has no reason to try again.
+  const honeypot = formData.get(LAUNCH_HONEYPOT_FIELD);
+  if (typeof honeypot === 'string' && honeypot !== '') return { joined: true };
+
+  const parsed = launchLeadSchema.safeParse({
+    whatsapp: formData.get('whatsapp') ?? '',
+    shopName: formData.get('shopName') ?? '',
+    city: formData.get('city') ?? '',
+    consent: formData.get('consent') ?? undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'errors.validation_failed' };
+  }
+
+  const supabase = createSupabaseAdminClient();
+
+  const since = new Date(Date.now() - 60_000).toISOString();
+  const { count } = await supabase
+    .from('launch_leads')
+    .select('id', { count: 'exact', head: true })
+    .gte('created_at', since);
+  if ((count ?? 0) >= LAUNCH_LEADS_PER_MINUTE) {
+    logger.warn('launch.lead_rate_limited');
+    return { error: 'launch.form.busy' };
+  }
+
+  const { error } = await supabase.from('launch_leads').upsert(
+    {
+      whatsapp_number: parsed.data.whatsapp,
+      shop_name: parsed.data.shopName,
+      city: parsed.data.city,
+      locale: await getLocale(),
+      consent_version: LAUNCH_CONSENT_VERSION,
+    },
+    { onConflict: 'whatsapp_number', ignoreDuplicates: true },
+  );
+
+  if (error) {
+    logger.error('launch.lead_save_failed', { dbError: error.message });
+    return { error: 'errors.internal' };
+  }
+
+  return { joined: true };
 }
 
 export async function forgotPasswordAction(

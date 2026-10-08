@@ -2,7 +2,6 @@
 
 import { useState, type CSSProperties } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -18,6 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslations } from '@/lib/i18n/client';
+import { LaunchCta } from '@/components/landing/launch-dialog';
 import { Reveal } from '@/components/landing/reveal';
 import {
   PORTAL_CATEGORIES,
@@ -396,7 +396,7 @@ export function WhereItWorks({ logos = {} }: { logos?: PortalLogoSources }) {
                 {t('landing.whereItWorks.callout.body')}
               </p>
             </div>
-            <Link
+            <LaunchCta
               href={REQUEST_SUPPORT_HREF}
               className="group/cta inline-flex shrink-0 items-center gap-2 rounded-xl border border-[#0066FF] px-5 py-2.5 text-sm font-semibold text-[#0066FF] transition-colors duration-300 hover:bg-[#0066FF] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066FF] focus-visible:ring-offset-2"
             >
@@ -406,7 +406,7 @@ export function WhereItWorks({ logos = {} }: { logos?: PortalLogoSources }) {
                 size={16}
                 className="transition-transform duration-300 group-hover/cta:translate-x-1"
               />
-            </Link>
+            </LaunchCta>
           </div>
         </Reveal>
       </div>

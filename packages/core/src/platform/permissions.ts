@@ -69,6 +69,16 @@ export const PLATFORM_PERMISSIONS = [
    */
   'platform.billing.override',
 
+  // --- launch --------------------------------------------------------------
+  /**
+   * The pre-launch early-access list: operators' WhatsApp numbers, shop names and cities, and
+   * the CSV export used for the launch-day message. Super admin only — it is contact data, even
+   * if it is a shop's and not a citizen's. Every export is audited.
+   */
+  'platform.leads.view',
+  /** Remove a lead when the operator asks to be taken off the list, or has since signed up. */
+  'platform.leads.manage',
+
   // --- team ----------------------------------------------------------------
   'platform.team.view',
   'platform.team.manage',

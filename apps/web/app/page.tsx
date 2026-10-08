@@ -7,6 +7,8 @@ import { WhereItWorks } from '@/components/landing/where-it-works';
 import { Pricing } from '@/components/landing/pricing';
 import { FAQ } from '@/components/landing/faq';
 import { Footer } from '@/components/landing/footer';
+import { LaunchDialogProvider } from '@/components/landing/launch-dialog';
+import { launchState } from '@/lib/launch/state';
 import { getPortalLogoSources } from '@/lib/landing/portal-logos.server';
 
 export const metadata = {
@@ -19,19 +21,23 @@ export const metadata = {
  * Clean Light Theme Landing Page for Bharatfill.ai
  */
 export default function LandingPage() {
+  const { signupsOpen, channelUrl } = launchState();
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-blue-500/20 selection:text-blue-900">
-      <Header />
-      <main>
-        <Hero />
-        <InteractiveDemo />
-        <HowItWorks />
-        <FeaturesGrid />
-        <WhereItWorks logos={getPortalLogoSources()} />
-        <Pricing />
-        <FAQ />
-      </main>
-      <Footer />
-    </div>
+    <LaunchDialogProvider signupsOpen={signupsOpen} channelUrl={channelUrl}>
+      <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-blue-500/20 selection:text-blue-900">
+        <Header />
+        <main>
+          <Hero />
+          <InteractiveDemo />
+          <HowItWorks />
+          <FeaturesGrid />
+          <WhereItWorks logos={getPortalLogoSources()} />
+          <Pricing />
+          <FAQ />
+        </main>
+        <Footer />
+      </div>
+    </LaunchDialogProvider>
   );
 }

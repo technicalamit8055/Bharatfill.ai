@@ -115,7 +115,35 @@
     "consentTerms": "Terms of Service",
     "consentAnd": "and the",
     "consentPrivacy": "Privacy Policy",
-    "consentSuffix": ""
+    "consentSuffix": "",
+    "signupsClosed": "New accounts open when Bharatfill launches this Diwali. If you already have an account, please sign in."
+  },
+  "launch": {
+    "pill": "Launching this Diwali",
+    "title": "Bharatfill arrives this Diwali",
+    "body": "We are putting the final touches on the Chrome extension. New accounts open on launch day.",
+    "offerLead": "Be among the first 100 Cyber Cafés & CSC operators to get",
+    "offerHighlight": "1 Month of Unlimited AI Form Autofill Free.",
+    "channelCta": "Follow launch updates",
+    "haveAccount": "Already have an account?",
+    "close": "Close",
+    "form": {
+      "whatsapp": "WhatsApp number",
+      "shopName": "Shop name",
+      "city": "City",
+      "shopNamePlaceholder": "Enter your shop name",
+      "cityPlaceholder": "Enter your city",
+      "consent": "Bharatfill may message me on WhatsApp about the launch. These details are kept until I create an account or ask for them to be deleted.",
+      "submit": "Reserve my spot",
+      "joinedTitle": "शुभकामनाएं! Your spot is reserved.",
+      "joinedBody": "We’ll notify you on WhatsApp on launch day.",
+      "whatsappInvalid": "Enter a 10-digit Indian mobile number.",
+      "shopNameInvalid": "Enter your shop name (2–80 characters).",
+      "cityInvalid": "Enter your city (2–60 characters).",
+      "consentRequired": "Please agree so we can message you on launch day.",
+      "busy": "Lots of people are signing up right now. Please try again in a minute.",
+      "closed": "Early access has ended — you can create an account now."
+    }
   },
   "onboarding": {
     "title": "Set up your centre",
@@ -1696,7 +1724,8 @@
       "channels": "Channels & Bots",
       "groupBilling": "Billing",
       "plans": "Plans",
-      "audit": "Audit log"
+      "audit": "Audit log",
+      "launchLeads": "Launch leads"
     },
     "lifecycle": {
       "active": "Open",
@@ -2469,6 +2498,27 @@
       "unknownActor": "Unknown",
       "showMetadata": "Show details",
       "privacyNote": "Platform events only. A centre’s own activity log — what its operators did with its customers — is not readable from the console."
+    },
+    "launchLeads": {
+      "title": "Launch leads",
+      "subtitle": "Cyber cafes and CSCs who reserved early access from the launch notice, newest first.",
+      "totalCount": "{count} leads",
+      "export": "Export CSV",
+      "loadFailed": "The list could not be loaded. Try again shortly.",
+      "privacyNote": "Operators’ contact details, shared for the launch-day WhatsApp message only. Remove a lead when the operator asks, or once they have created an account. Every export is recorded in the audit log.",
+      "joined": "Joined",
+      "whatsapp": "WhatsApp",
+      "shopName": "Shop",
+      "city": "City",
+      "language": "Language",
+      "actions": "Actions",
+      "delete": "Remove",
+      "confirmDelete": "Remove this lead? This cannot be undone.",
+      "deleted": "Lead removed.",
+      "empty": "No one has reserved a spot yet.",
+      "range": "{from}–{to} of {total}",
+      "previous": "Previous",
+      "next": "Next"
     },
     "theme": {
       "label": "Theme",
