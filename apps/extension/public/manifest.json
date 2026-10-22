@@ -53,6 +53,12 @@
   "optional_host_permissions": ["http://*/*", "https://*/*"],
 
   "externally_connectable": {
-    "matches": ["http://localhost:3000/*", "https://assistigo.ai/*", "https://*.assistigo.ai/*"]
+    "matches": [
+      "http://localhost:3000/*",
+      "https://bharatfillai.in/*",
+      "https://*.bharatfillai.in/*",
+      "https://assistigo.ai/*",
+      "https://*.assistigo.ai/*"
+    ]
   }
 }
