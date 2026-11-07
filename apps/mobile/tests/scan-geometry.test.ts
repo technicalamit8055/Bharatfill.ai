@@ -6,19 +6,26 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ARMED_CAPTURE,
   applyFrameAffine,
   clampPoint,
   cropView,
+  DEFAULT_REARM,
+  disarmCapture,
   fitContain,
   fitQuadInside,
   flattenedSize,
   fullFrameQuad,
   INITIAL_STABILITY,
+  innerRect,
   insetQuad,
   isConvex,
   isPlausibleDocument,
+  loupePosition,
+  loupeView,
   MAX_STRAIGHTEN,
   maxCornerShift,
+  nextCaptureArm,
   nextRotation,
   nextStability,
   orderCorners,
@@ -33,6 +40,7 @@ import {
   rotatePoint,
   rotateQuad,
   sameQuad,
+  smoothQuad,
   scaleQuad,
   steadyProgress,
   straightenedQuad,
@@ -486,5 +494,183 @@ describe('crop editor: turning and straightening', () => {
     const from = photoToView(start, tilted);
     const to = photoToView({ x: start.x + delta.x, y: start.y + delta.y }, tilted);
     expectClose({ x: to.x - from.x, y: to.y - from.y }, { x: 12, y: -8 });
+  });
+});
+
+describe('innerRect', () => {
+  const square: Quad = [
+    { x: 10, y: 20 },
+    { x: 110, y: 20 },
+    { x: 110, y: 220 },
+    { x: 10, y: 220 },
+  ];
+
+  it('is the page itself for an upright page', () => {
+    expect(innerRect(square)).toEqual({ x: 10, y: 20, width: 100, height: 200 });
+  });
+
+  it('shrinks towards the centre', () => {
+    expect(innerRect(square, 0.1)).toEqual({ x: 15, y: 30, width: 90, height: 180 });
+  });
+
+  it('stays inside a tilted page', () => {
+    for (const degrees of [-15, -7, 5, 15]) {
+      const tilted = rotateQuad(
+        [
+          { x: 100, y: 100 },
+          { x: 500, y: 100 },
+          { x: 500, y: 650 },
+          { x: 100, y: 650 },
+        ],
+        degrees,
+        { x: 300, y: 375 },
+      );
+      const quad = orderCorners(tilted) as Quad;
+      const rect = innerRect(quad, 0.04);
+      expect(rect, `${degrees}°`).not.toBeNull();
+      const { x, y, width, height } = rect as NonNullable<typeof rect>;
+      for (const corner of [
+        { x, y },
+        { x: x + width, y },
+        { x: x + width, y: y + height },
+        { x, y: y + height },
+      ]) {
+        // Inside a convex clockwise quad: on the inner side of every edge.
+        for (let i = 0; i < 4; i += 1) {
+          const a = quad[i] as Point;
+          const b = quad[(i + 1) % 4] as Point;
+          const crossed = (b.x - a.x) * (corner.y - a.y) - (b.y - a.y) * (corner.x - a.x);
+          expect(crossed, `${degrees}° edge ${i}`).toBeGreaterThanOrEqual(0);
+        }
+      }
+    }
+  });
+
+  it('is null for a page too thin to hold one', () => {
+    expect(
+      innerRect([
+        { x: 0, y: 0 },
+        { x: 10, y: 50 },
+        { x: 0, y: 100 },
+        { x: -10, y: 50 },
+      ]),
+    ).toBeNull();
+  });
+});
+
+describe('smoothQuad', () => {
+  const frame = { width: 300, height: 400 };
+  const at = (dx: number): Quad => [
+    { x: 50 + dx, y: 50 },
+    { x: 250 + dx, y: 50 },
+    { x: 250 + dx, y: 350 },
+    { x: 50 + dx, y: 350 },
+  ];
+
+  it('shows the first sighting as it is, and nothing once the page is gone', () => {
+    expect(smoothQuad(null, at(0), frame)).toEqual(at(0));
+    expect(smoothQuad(at(0), null, frame)).toBeNull();
+  });
+
+  it('eases a small jitter', () => {
+    expect((smoothQuad(at(0), at(4), frame) as Quad)[0].x).toBeCloseTo(52);
+  });
+
+  it('follows a real move at once', () => {
+    expect(smoothQuad(at(0), at(80), frame)).toEqual(at(80));
+  });
+});
+
+describe('auto-capture re-arm', () => {
+  const frame = { width: 300, height: 400 };
+  const page: Quad = [
+    { x: 50, y: 50 },
+    { x: 250, y: 50 },
+    { x: 250, y: 350 },
+    { x: 50, y: 350 },
+  ];
+  const nudged = page.map((p) => ({ x: p.x + 3, y: p.y - 2 })) as unknown as Quad;
+  const moved = page.map((p) => ({ x: p.x + 90, y: p.y })) as unknown as Quad;
+
+  it('stays armed until a capture', () => {
+    expect(nextCaptureArm(ARMED_CAPTURE, page, frame).armed).toBe(true);
+    expect(nextCaptureArm(ARMED_CAPTURE, null, frame).armed).toBe(true);
+  });
+
+  it('stays disarmed while the captured page is still lying there', () => {
+    let arm = disarmCapture(page);
+    for (let i = 0; i < 20; i += 1) arm = nextCaptureArm(arm, i % 2 ? nudged : page, frame);
+    expect(arm.armed).toBe(false);
+  });
+
+  it('re-arms once the page has been taken away', () => {
+    let arm = disarmCapture(page);
+    for (let i = 0; i < DEFAULT_REARM.absentDetections - 1; i += 1) {
+      arm = nextCaptureArm(arm, null, frame);
+      expect(arm.armed).toBe(false);
+    }
+    expect(nextCaptureArm(arm, null, frame).armed).toBe(true);
+  });
+
+  it('does not count single missed detections between sightings as the page leaving', () => {
+    let arm = disarmCapture(page);
+    for (let i = 0; i < 10; i += 1) {
+      arm = nextCaptureArm(arm, null, frame);
+      arm = nextCaptureArm(arm, page, frame);
+    }
+    expect(arm.armed).toBe(false);
+  });
+
+  it('re-arms when a page shows up somewhere else', () => {
+    expect(nextCaptureArm(disarmCapture(page), moved, frame).armed).toBe(true);
+  });
+
+  it('learns the page when the shot had none in view', () => {
+    const arm = nextCaptureArm(disarmCapture(null), page, frame);
+    expect(arm).toEqual({ armed: false, captured: page, absent: 0 });
+    expect(nextCaptureArm(arm, nudged, frame).armed).toBe(false);
+  });
+});
+
+describe('crop loupe', () => {
+  const photo = { width: 3000, height: 4000 };
+  const box = { width: 360, height: 480 };
+
+  it('puts the dragged corner at the loupe centre, magnified', () => {
+    for (const quarter of [0, 90, 180, 270] as const) {
+      for (const straighten of [0, 12.5, -30]) {
+        const view = cropView(box, photo, quarter, straighten, 17);
+        const corner = { x: 420, y: 3650 };
+        const zoomed = loupeView(view, corner, 2.5, 55);
+        const centre = photoToView(corner, zoomed);
+        expect(centre.x).toBeCloseTo(55, 6);
+        expect(centre.y).toBeCloseTo(55, 6);
+
+        // A photo pixel next to the corner lands 2.5 times as far from it as on the stage.
+        const near = { x: 460, y: 3650 };
+        const onStage = Math.hypot(
+          photoToView(near, view).x - photoToView(corner, view).x,
+          photoToView(near, view).y - photoToView(corner, view).y,
+        );
+        const inLoupe = Math.hypot(
+          photoToView(near, zoomed).x - 55,
+          photoToView(near, zoomed).y - 55,
+        );
+        expect(inLoupe).toBeCloseTo(onStage * 2.5, 6);
+      }
+    }
+  });
+
+  it('sits above the finger, clear of it', () => {
+    expect(loupePosition({ x: 200, y: 300 }, box, 110, 40)).toEqual({ x: 145, y: 150 });
+  });
+
+  it('drops below the finger near the top of the stage', () => {
+    expect(loupePosition({ x: 200, y: 60 }, box, 110, 40)).toEqual({ x: 145, y: 100 });
+  });
+
+  it('stays on the stage at its sides', () => {
+    expect(loupePosition({ x: 10, y: 300 }, box, 110, 40).x).toBe(0);
+    expect(loupePosition({ x: 355, y: 300 }, box, 110, 40).x).toBe(250);
   });
 });

@@ -11,9 +11,14 @@ import {
   EMPTY_HOME_DASHBOARD,
   firstNameOf,
   initialsOf,
+  QUICK_SCAN_MODES,
+  quickScanParams,
+  RECENT_DOCUMENT_LIMIT,
   rowLayout,
+  vaultDashboardSummary,
 } from '../lib/home/dashboard';
 import { VAULT_CATEGORIES } from '../lib/vault/categories';
+import type { VaultDocument } from '../lib/vault/vault-index';
 
 describe('firstNameOf', () => {
   it('takes the first word of the name', () => {
@@ -154,5 +159,75 @@ describe('EMPTY_HOME_DASHBOARD', () => {
     for (const category of VAULT_CATEGORIES) {
       expect(EMPTY_HOME_DASHBOARD.documentCounts[category]).toBe(0);
     }
+  });
+});
+
+/** A vault index entry with fake ids and no real document details. */
+function vaultDocument(
+  n: number,
+  createdAt: string,
+  extra: Partial<VaultDocument> = {},
+): VaultDocument {
+  return {
+    id: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
+    createdAt,
+    source: 'scanner',
+    pages: [{ mimeType: 'image/jpeg' }],
+    ...extra,
+  };
+}
+
+describe('vaultDashboardSummary', () => {
+  it('counts documents per category, leaving out the unfiled', () => {
+    const { documentCounts } = vaultDashboardSummary([
+      vaultDocument(1, '2026-01-01T00:00:00.000Z', { category: 'identity' }),
+      vaultDocument(2, '2026-01-02T00:00:00.000Z', { category: 'identity' }),
+      vaultDocument(3, '2026-01-03T00:00:00.000Z', { category: 'form_asset' }),
+      vaultDocument(4, '2026-01-04T00:00:00.000Z'),
+    ]);
+    expect(documentCounts).toEqual({ identity: 2, academic: 0, certificate: 0, form_asset: 1 });
+  });
+
+  it('lists the newest documents first, at most the limit', () => {
+    const documents = [1, 5, 3, 2, 4, 6].map((day) =>
+      vaultDocument(day, `2026-03-0${day}T10:00:00.000Z`),
+    );
+    const { recent } = vaultDashboardSummary(documents);
+    expect(recent).toHaveLength(RECENT_DOCUMENT_LIMIT);
+    expect(recent.map((document) => document.createdAt.slice(8, 10))).toEqual([
+      '06',
+      '05',
+      '04',
+      '03',
+    ]);
+  });
+
+  it('keeps the index order between documents saved at the same moment', () => {
+    const at = '2026-03-01T10:00:00.000Z';
+    const { recent } = vaultDashboardSummary([vaultDocument(1, at), vaultDocument(2, at)], 2);
+    expect(recent.map((document) => document.id.slice(-1))).toEqual(['1', '2']);
+  });
+
+  it('is empty for an empty vault', () => {
+    const { documentCounts, recent } = vaultDashboardSummary([]);
+    expect(recent).toEqual([]);
+    for (const category of VAULT_CATEGORIES) expect(documentCounts[category]).toBe(0);
+  });
+});
+
+describe('quickScanParams', () => {
+  it('opens the ordinary scanner for documents', () => {
+    expect(quickScanParams('document')).toEqual({ mode: 'single' });
+    expect(quickScanParams('multi_page')).toEqual({ mode: 'multi' });
+  });
+
+  it('opens a preset for the dedicated shortcuts', () => {
+    expect(quickScanParams('id_card')).toEqual({ preset: 'id_card' });
+    expect(quickScanParams('photo')).toEqual({ preset: 'photo' });
+    expect(quickScanParams('signature')).toEqual({ preset: 'signature' });
+  });
+
+  it('covers every quick action', () => {
+    for (const mode of QUICK_SCAN_MODES) expect(quickScanParams(mode)).toBeTruthy();
   });
 });

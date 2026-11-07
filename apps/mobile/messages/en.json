@@ -246,6 +246,18 @@
       "title": "Something went wrong",
       "captureFailed": "The photo could not be taken. Please try again.",
       "pageLimit": "A scan can have up to {max} pages. Save this one and start a new scan."
+    },
+    "presets": {
+      "idCard": {
+        "front": "Scan the front of the card",
+        "back": "Now turn the card over and scan the back"
+      },
+      "photo": {
+        "guide": "Fit the passport photo in the frame, then tap the shutter"
+      },
+      "signature": {
+        "guide": "Sign on plain white paper and fit it in the frame"
+      }
     }
   },
   "scanReview": {
@@ -286,7 +298,18 @@
     "zoomClose": "Close zoom",
     "zoomHint": "Pinch to zoom · double-tap to zoom in",
     "cropApply": "Done",
-    "retake": "Retake"
+    "retake": "Retake",
+    "sides": {
+      "front": "Front",
+      "back": "Back"
+    },
+    "quality": {
+      "blurry": "This page looks blurry. Retake it holding the phone steady.",
+      "dark": "This page is too dark. Retake it in better light, or turn on Flash.",
+      "glare": "Light is shining off this page. Tilt it or move away from the light, then retake.",
+      "keep": "Keep",
+      "keepHint": "Hides this warning and keeps the page as it is"
+    }
   },
   "saveDocument": {
     "title": "Save Document",

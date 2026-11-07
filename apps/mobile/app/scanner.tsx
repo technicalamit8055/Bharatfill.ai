@@ -1,7 +1,12 @@
 /**
  * Scanner route — the in-app document camera, a full-screen modal over the tabs. Opened from the
- * Scan tab, the Home hero and quick actions (`?mode=single|multi`), and from review to add a page
- * (`?continue=1`, which keeps the pages already taken).
+ * Scan tab, the Home hero and quick actions (`?mode=single|multi`, or `?preset=id_card|photo|
+ * signature` for the dedicated modes in `lib/scan/presets.ts`), and from review to add a page
+ * (`?continue=1`, which keeps the pages already taken, and their preset).
+ *
+ * An ID card is shot front, then back, with a prompt for each; review opens once both are in. A
+ * photo or a signature is one shot. After every shot Auto Capture holds off until the page is
+ * taken away or moved (`LiveDetection.armed`), so the page still lying there is not shot twice.
  *
  * The live preview (VisionCamera) feeds shrunken frames to OpenCV to find the page; its outline
  * is drawn over the preview, and in Auto Capture the photo is taken once the page has been held
@@ -32,15 +37,18 @@ import {
   addPhotos,
   canAddPages,
   discardSession,
+  getSession,
+  startSession,
   useCaptureSession,
 } from '../lib/scan/capture-session';
 import { steadyProgress } from '../lib/scan/geometry';
 import {
-  type CaptureMode,
-  MULTI_PAGE_LIMIT,
-  parseScanPageMode,
-  toFileUri,
-} from '../lib/scan/scan-session';
+  parseScanPreset,
+  presetCaptureMode,
+  presetPageLimit,
+  type ScanPreset,
+} from '../lib/scan/presets';
+import { type CaptureMode, parseScanPageMode, toFileUri } from '../lib/scan/scan-session';
 
 /** After a shot in multi-page mode, wait this long before auto-capturing the next page. */
 const AUTO_CAPTURE_COOLDOWN_MS = 2000;
@@ -59,14 +67,19 @@ function useAppActive(): boolean {
 export default function ScannerRoute() {
   const router = useRouter();
   const { t } = useTranslation();
-  const params = useLocalSearchParams<{ mode?: string; continue?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; preset?: string; continue?: string }>();
   const continuing = params.continue === '1';
+  /** Fixed for this camera: the preset asked for, or, when adding a page, the scan's own. */
+  const [preset] = useState<ScanPreset>(() =>
+    continuing ? getSession().preset : parseScanPreset(params.preset),
+  );
+  const pageLimit = presetPageLimit(preset);
 
   const session = useCaptureSession();
   const [multiPage, setMultiPage] = useState(
-    () => parseScanPageMode(params.mode) === 'multi' || continuing,
+    () => preset === 'document' && (parseScanPageMode(params.mode) === 'multi' || continuing),
   );
-  const [captureMode, setCaptureMode] = useState<CaptureMode>('auto');
+  const [captureMode, setCaptureMode] = useState<CaptureMode>(() => presetCaptureMode(preset));
   const [torch, setTorch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [shotCount, setShotCount] = useState(0);
@@ -74,13 +87,13 @@ export default function ScannerRoute() {
   const [cameraStarted, setCameraStarted] = useState(false);
   const cooldownUntil = useRef(0);
 
-  // A fresh scan starts a fresh session; adding a page keeps the one under review.
+  // A fresh scan starts a fresh session for its preset; adding a page keeps the one under review.
   const started = useRef(false);
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    if (!continuing) discardSession();
-  }, [continuing]);
+    if (!continuing) startSession(preset);
+  }, [continuing, preset]);
 
   const permission = useCameraPermission();
   const asked = useRef(false);
@@ -116,8 +129,8 @@ export default function ScannerRoute() {
 
   // Coming back from review with pages in hand ("Add page") means a multi-page scan.
   useEffect(() => {
-    if (isFocused && pageCount > 0) setMultiPage(true);
-  }, [isFocused, pageCount]);
+    if (preset === 'document' && isFocused && pageCount > 0) setMultiPage(true);
+  }, [isFocused, pageCount, preset]);
   const progress = steadyProgress(detection.stability, Date.now());
 
   const openReview = useCallback(
@@ -130,11 +143,9 @@ export default function ScannerRoute() {
   const capture = useCallback(async () => {
     if (busy || !cameraActive) return;
     if (!canAddPages()) {
-      Alert.alert(
-        t('scanner.errors.title'),
-        t('scanner.errors.pageLimit', { max: MULTI_PAGE_LIMIT }),
-        [{ text: t('common.ok') }],
-      );
+      Alert.alert(t('scanner.errors.title'), t('scanner.errors.pageLimit', { max: pageLimit }), [
+        { text: t('common.ok') },
+      ]);
       return;
     }
 
@@ -147,9 +158,13 @@ export default function ScannerRoute() {
       setShotCount((count) => count + 1);
       const [pageId] = addPhotos([toFileUri(photo.filePath)], 'camera');
       detection.reset();
+      detection.disarm();
       cooldownUntil.current = Date.now() + AUTO_CAPTURE_COOLDOWN_MS;
       if (retaking) openReview(pageId);
-      else if (!multiPage) openReview();
+      // An ID card waits for its back; review opens once both sides are in.
+      else if (preset === 'id_card') {
+        if (getSession().pages.length >= pageLimit) openReview();
+      } else if (!multiPage) openReview();
     } catch {
       Alert.alert(t('scanner.errors.title'), t('scanner.errors.captureFailed'), [
         { text: t('common.ok') },
@@ -157,19 +172,31 @@ export default function ScannerRoute() {
     } finally {
       setBusy(false);
     }
-  }, [busy, cameraActive, detection, multiPage, openReview, photoOutput, retaking, t]);
+  }, [
+    busy,
+    cameraActive,
+    detection,
+    multiPage,
+    openReview,
+    pageLimit,
+    photoOutput,
+    preset,
+    retaking,
+    t,
+  ]);
 
-  // Auto Capture: shoot once the page has been held steady long enough.
+  // Auto Capture: shoot once the page has been held steady long enough — and, after a shot,
+  // only once the page has been taken away or moved, so the same page is not shot twice.
   useEffect(() => {
     if (captureMode !== 'auto' || busy || !cameraActive || !detection.outline) return;
-    if (Date.now() < cooldownUntil.current) return;
+    if (!detection.armed || Date.now() < cooldownUntil.current) return;
     if (progress >= 1) void capture();
-  }, [busy, cameraActive, capture, captureMode, detection.outline, progress]);
+  }, [busy, cameraActive, capture, captureMode, detection.armed, detection.outline, progress]);
 
   const pickFromGallery = useCallback(async () => {
-    const room = retaking ? 1 : MULTI_PAGE_LIMIT - pageCount;
+    const room = retaking ? 1 : pageLimit - pageCount;
     if (room <= 0) return;
-    const several = multiPage && !retaking;
+    const several = (multiPage || preset === 'id_card') && !retaking && room > 1;
 
     const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -188,7 +215,7 @@ export default function ScannerRoute() {
     if (uris.length === 0) return;
     const [pageId] = addPhotos(uris, 'gallery');
     openReview(retaking ? pageId : undefined);
-  }, [multiPage, openReview, pageCount, retaking]);
+  }, [multiPage, openReview, pageCount, pageLimit, preset, retaking]);
 
   const close = useCallback(() => {
     const leave = () => {
@@ -214,6 +241,22 @@ export default function ScannerRoute() {
     if (permission.canRequestPermission) void permission.requestPermission();
     else void Linking.openSettings();
   }, [permission]);
+
+  /**
+   * What to put in front of the camera, for a preset. An ID card's prompt names the side the next
+   * shot is: the next one in turn, or the one a retake replaces.
+   */
+  const side = retaking
+    ? session.pages.findIndex((page) => page.id === session.retakeId)
+    : pageCount;
+  const guide =
+    preset === 'id_card'
+      ? t(side <= 0 ? 'scanner.presets.idCard.front' : 'scanner.presets.idCard.back')
+      : preset === 'photo'
+        ? t('scanner.presets.photo.guide')
+        : preset === 'signature'
+          ? t('scanner.presets.signature.guide')
+          : null;
 
   const status: ScannerStatus = !cameraActive
     ? 'starting'
@@ -249,6 +292,8 @@ export default function ScannerRoute() {
       captureMode={captureMode}
       torch={torch}
       multiPage={multiPage}
+      multiPageToggle={preset === 'document'}
+      guide={guide}
       pageCount={pageCount}
       shotCount={shotCount}
       onCaptureModeChange={setCaptureMode}

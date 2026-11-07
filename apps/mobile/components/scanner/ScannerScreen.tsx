@@ -48,6 +48,13 @@ export type ScannerScreenProps = {
   readonly captureMode: CaptureMode;
   readonly torch: boolean;
   readonly multiPage: boolean;
+  /**
+   * Whether the Multi-Page switch is offered. A preset decides its own page count, so instead
+   * the slot shows the pages taken once there are any (an ID card's front), or stays empty.
+   */
+  readonly multiPageToggle: boolean;
+  /** For a preset: what to put in front of the camera ("Scan the front of the card"). */
+  readonly guide: string | null;
   readonly pageCount: number;
   /** Changes on every shot, to play the white flash. */
   readonly shotCount: number;
@@ -74,9 +81,12 @@ export function ScannerScreen(props: ScannerScreenProps) {
     captureMode,
     torch,
     multiPage,
+    multiPageToggle,
+    guide,
     pageCount,
     shotCount,
   } = props;
+  const showPages = (multiPage || !multiPageToggle) && pageCount > 0;
 
   const flash = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -141,6 +151,13 @@ export function ScannerScreen(props: ScannerScreenProps) {
           <Text style={styles.subtitle} accessibilityLiveRegion="polite">
             {cameraReady ? t(`scanner.status.${status}`) : t('scanner.subtitle')}
           </Text>
+          {guide ? (
+            <View style={styles.guide}>
+              <Text style={styles.guideLabel} accessibilityLiveRegion="polite">
+                {guide}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {/* ---- Middle: the preview shows through; camera access prompt when needed ---- */}
@@ -202,7 +219,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
             onPress={props.onShutter}
           />
 
-          {multiPage && pageCount > 0 ? (
+          {showPages ? (
             <LabelledControl
               icon={Files}
               label={t('scanner.done', { count: pageCount })}
@@ -213,7 +230,7 @@ export function ScannerScreen(props: ScannerScreenProps) {
               onPress={props.onReview}
               large
             />
-          ) : (
+          ) : multiPageToggle ? (
             <LabelledControl
               icon={Files}
               label={t('scanner.multiPage')}
@@ -223,6 +240,8 @@ export function ScannerScreen(props: ScannerScreenProps) {
               onPress={props.onToggleMultiPage}
               large
             />
+          ) : (
+            <View style={styles.controlSpacer} />
           )}
         </View>
 
@@ -429,6 +448,25 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: 'center',
     color: palette.textSecondary,
+  },
+  guide: {
+    marginTop: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: palette.controlActiveBorder,
+    backgroundColor: palette.controlActive,
+  },
+  guideLabel: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '600',
+    textAlign: 'center',
+    color: palette.textPrimary,
+  },
+  controlSpacer: {
+    width: 64,
   },
 
   middle: {

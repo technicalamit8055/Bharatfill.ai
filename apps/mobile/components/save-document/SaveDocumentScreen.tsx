@@ -5,7 +5,8 @@
  * reminder.
  *
  * Picking a type names the document after it until the citizen types a name of their own, and
- * files it in that type's folder until they pick one. The form lives here; the route
+ * files it in that type's folder until they pick one. A preset scan (a passport photo, a signature)
+ * arrives with its type already picked. The form lives here; the route
  * (`app/save-document.tsx`) owns the capture session, notification permission and saving.
  *
  * Light-only branded artwork like the Vault tab, so it reads from `saveDocumentPalette`.
@@ -88,6 +89,8 @@ type TagNotice = 'duplicate' | 'full' | null;
 export type SaveDocumentScreenProps = {
   readonly pages: readonly SessionPage[];
   readonly saving: boolean;
+  /** The type to start on, for a scan made with a preset that knows what it is. */
+  readonly initialType: DocumentType | null;
   readonly onBack: () => void;
   readonly onEditScan: () => void;
   /** Asks for permission to notify. Resolves to whether reminders can be scheduled. */
@@ -99,6 +102,7 @@ export type SaveDocumentScreenProps = {
 export function SaveDocumentScreen({
   pages,
   saving,
+  initialType,
   onBack,
   onEditScan,
   onEnableReminder,
@@ -107,9 +111,13 @@ export function SaveDocumentScreen({
   const { t } = useTranslation();
   const [now] = useState(() => new Date());
 
-  const [title, setTitle] = useState('');
-  const [documentType, setDocumentType] = useState<DocumentType | null>(null);
-  const [category, setCategory] = useState<VaultCategoryKey | null>(null);
+  const [title, setTitle] = useState(() =>
+    initialType ? t(documentTypeLabelKey(initialType)) : '',
+  );
+  const [documentType, setDocumentType] = useState<DocumentType | null>(initialType);
+  const [category, setCategory] = useState<VaultCategoryKey | null>(() =>
+    initialType ? categoryOf(initialType) : null,
+  );
   const [categoryChosen, setCategoryChosen] = useState(false);
   const [tags, setTags] = useState<readonly string[]>([]);
   const [expiresOn, setExpiresOn] = useState<string | null>(null);

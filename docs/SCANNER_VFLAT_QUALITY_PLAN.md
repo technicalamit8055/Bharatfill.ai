@@ -333,8 +333,30 @@ against vFlat. Where the plan's numbers lost detail, the measured design replace
 - **Tests**: the pure parts (`page-lines.ts`, `paper-light.ts`, `tone-curve.ts`, `geometry.ts`,
   `exif.ts`, `luma.ts`) are unit tested in `apps/mobile/tests/scan-*.test.ts`; the OpenCV calls in
   `document-vision.ts` run only on a device.
-- **Not solved**: a page on a light, low-contrast desk may not be detected (falls back to the
-  full frame for manual cropping), curled pages are not dewarped, and fingers holding the page
-  are not removed. Large light-grey printed
+- **Low-contrast fallback** (2026-11): when nothing is found, the frame or photo is searched once
+  more after a percentile contrast stretch (`contrastStretch` in `tone-curve.ts`: 1st–99th
+  percentile to 0–255, skipped when the image already spans 170 levels). It runs only after the
+  normal search fails, so no page it found before changes. On live frames an outline found this
+  way must also pass the page-edge step test (`hasPageEdges`), since the stretch lifts wall and
+  cloth texture too.
+- **Photo quality** (`photo-quality.ts`, 2026-11): measured on an 800px grey copy inside the page.
+  Blur is edge steepness — per direction, the 90th percentile of neighbour steps above sensor
+  noise over the page's 2–98% contrast, weakest direction kept — so camera shake, which smears
+  one direction only, is caught as well as defocus. The Crété-Roffet blur metric was tried first
+  and dropped: on dense print a 9–15px smear read sharper than σ 0.8 focus blur. Calibrated on
+  synthetic print: in focus 0.98, σ 1.2 0.25 (passes), σ 2.2 0.14 and a 9px smear 0.14 (flagged);
+  limit 0.19. Dark: paper (95th percentile) under 70. Glare: ≥ 2% clipped while the median is ≤
+  230. Not judged for blur on a passport photo (soft shading is not blur).
+- **Presets** (`presets.ts`, 2026-11): an ID card is flattened to ID-1 (85.6 × 53.98 mm) when its
+  measured shape is within 12%, and its sides are laid out on A4 at 300 dpi at true size; a
+  passport photo is centre-cut to 35:45, given a capped (≤ 1.35×) levels stretch on brightness
+  only and sized to 413 × 531; a signature's ink box is found on a cleaned 800px copy, with 0.4%
+  of the ink trimmed from each end against dust, and padded 6% (at least 24px).
+- **Live outline and auto capture** (2026-11): the drawn outline eases halfway to each new
+  detection unless a corner jumps more than 6% of the diagonal; after a shot, auto capture waits
+  until the page has gone for two detections or moved more than 12% of the diagonal.
+- **Not solved**: a page on a light, low-contrast desk can still be missed when its edge is
+  under the stretch's reach (falls back to the full frame for manual cropping), curled pages are
+  not dewarped, and fingers holding the page are not removed. Large light-grey printed
   areas (a faint seal) are whitened along with shadows: raising the paper threshold from 0.62
   to 0.72 keeps them grey, but leaves half the paper in a shadow grey.

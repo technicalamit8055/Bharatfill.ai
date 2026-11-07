@@ -7,10 +7,17 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { SessionPage } from '../lib/scan/capture-session';
 import type { Quad } from '../lib/scan/geometry';
 
 const discarded: string[] = [];
 let renders = 0;
+/** What the mocked quality check reports for the next photos analysed. */
+let nextIssues: readonly string[] | null = null;
+/** The sides handed to the mocked ID-card layout, per save; and whether it should fail. */
+const composed: string[][] = [];
+let composeFails = false;
+const renderedPresets: string[] = [];
 
 vi.mock('expo-crypto', () => {
   let next = 0;
@@ -25,7 +32,15 @@ vi.mock('../lib/vault/vault-storage', () => ({
 }));
 
 vi.mock('../lib/scan/document-vision', () => ({
+  composeIdCardSheet: async (sides: readonly { uri: string }[]) => {
+    if (composeFails) throw new Error('compose failed');
+    composed.push(sides.map((side) => side.uri));
+    return { uri: 'file:///cache/sheet.jpg', width: 2480, height: 3508 };
+  },
   analysePhoto: async () => ({
+    quality: nextIssues
+      ? { sharpness: 0.1, sharpnessJudged: true, paperLevel: 200, glare: 0, issues: nextIssues }
+      : null,
     size: { width: 100, height: 140 },
     detected: true,
     quad: [
@@ -39,9 +54,10 @@ vi.mock('../lib/scan/document-vision', () => ({
     _photo: string,
     _quad: unknown,
     filter: string,
-    options: { rotation?: number; previews?: boolean } = {},
+    options: { rotation?: number; previews?: boolean; preset?: string } = {},
   ) => {
     renders += 1;
+    renderedPresets.push(options.preset ?? 'document');
     const n = renders;
     return {
       uri: `file:///cache/page-${n}-${filter}.jpg`,
@@ -70,9 +86,17 @@ async function settle(): Promise<void> {
   for (const page of session.getSession().pages) await session.processPage(page.id);
 }
 
+const vault = await import('../lib/vault/vault-storage');
+
 beforeEach(() => {
   session.discardSession();
   discarded.length = 0;
+  composed.length = 0;
+  renderedPresets.length = 0;
+  composeFails = false;
+  nextIssues = null;
+  vi.mocked(vault.saveDocument).mockReset();
+  vi.mocked(vault.saveDocument).mockResolvedValue('saved-id');
 });
 
 describe('retake', () => {
@@ -228,5 +252,159 @@ describe('crop editor result', () => {
       straighten: 0,
       quad: null,
     });
+  });
+});
+
+describe('presets', () => {
+  it('starts an ordinary document session', () => {
+    expect(session.getSession().preset).toBe('document');
+  });
+
+  it('starting a session for a preset throws away the one in progress', () => {
+    session.addPhotos(['file:///cache/a.jpg'], 'camera');
+    session.startSession('id_card');
+    expect(session.getSession()).toMatchObject({ pages: [], retakeId: null, preset: 'id_card' });
+    expect(discarded).toContain('file:///cache/a.jpg');
+  });
+
+  it('takes a front and a back for an ID card, and no more', () => {
+    session.startSession('id_card');
+    const ids = session.addPhotos(
+      ['file:///cache/front.jpg', 'file:///cache/back.jpg', 'file:///cache/extra.jpg'],
+      'gallery',
+    );
+    expect(ids).toHaveLength(2);
+    expect(discarded).toContain('file:///cache/extra.jpg');
+    expect(session.canAddPages()).toBe(false);
+
+    // A retake still fits: it replaces a side.
+    session.startRetake(ids[1] as string);
+    expect(session.canAddPages()).toBe(true);
+    expect(session.addPhotos(['file:///cache/back2.jpg'], 'camera')).toEqual([ids[1]]);
+  });
+
+  it('takes one photo for a passport photo or a signature', () => {
+    for (const preset of ['photo', 'signature'] as const) {
+      session.startSession(preset);
+      expect(
+        session.addPhotos(['file:///cache/a.jpg', 'file:///cache/b.jpg'], 'gallery'),
+      ).toHaveLength(1);
+      expect(session.canAddPages()).toBe(false);
+    }
+  });
+
+  it('starts each preset on its own filter, and processes pages for it', async () => {
+    session.startSession('photo');
+    session.addPhotos(['file:///cache/face.jpg'], 'camera');
+    expect(session.getSession().pages[0]?.filter).toBe('original');
+    await settle();
+    expect(renderedPresets).toEqual(['photo']);
+
+    session.startSession('signature');
+    session.addPhotos(['file:///cache/sign.jpg'], 'camera');
+    expect(session.getSession().pages[0]?.filter).toBe('magic');
+  });
+
+  it('goes back to an ordinary document once the session is discarded', () => {
+    session.startSession('signature');
+    session.discardSession();
+    expect(session.getSession().preset).toBe('document');
+  });
+});
+
+describe('photo quality', () => {
+  it('reports what the check found, until the warning is dismissed', async () => {
+    nextIssues = ['blurry'];
+    const [id] = session.addPhotos(['file:///cache/a.jpg'], 'camera');
+    await settle();
+    const page = () => session.getSession().pages[0] as SessionPage;
+    expect(session.pageQualityIssues(page())).toEqual(['blurry']);
+
+    session.dismissQualityWarning(id as string);
+    expect(session.pageQualityIssues(page())).toEqual([]);
+    // Dismissing changes nothing about the page itself.
+    expect(page().status).toBe('ready');
+  });
+
+  it('has nothing to report before the photo is measured, or for a good photo', async () => {
+    session.addPhotos(['file:///cache/a.jpg'], 'camera');
+    expect(session.pageQualityIssues(session.getSession().pages[0] as SessionPage)).toEqual([]);
+    await settle();
+    expect(session.pageQualityIssues(session.getSession().pages[0] as SessionPage)).toEqual([]);
+  });
+
+  it('does not judge a passport photo for blur, only for light', async () => {
+    session.startSession('photo');
+    nextIssues = ['blurry', 'glare'];
+    session.addPhotos(['file:///cache/face.jpg'], 'camera');
+    await settle();
+    expect(session.pageQualityIssues(session.getSession().pages[0] as SessionPage)).toEqual([
+      'glare',
+    ]);
+  });
+
+  it('shows the warning again for a retaken photo', async () => {
+    nextIssues = ['dark'];
+    const [id] = session.addPhotos(['file:///cache/a.jpg'], 'camera');
+    await settle();
+    session.dismissQualityWarning(id as string);
+    session.startRetake(id as string);
+    session.addPhotos(['file:///cache/a2.jpg'], 'camera');
+    await settle();
+    expect(session.pageQualityIssues(session.getSession().pages[0] as SessionPage)).toEqual([
+      'dark',
+    ]);
+  });
+});
+
+describe('saving an ID card', () => {
+  async function scanCard(): Promise<void> {
+    session.startSession('id_card');
+    session.addPhotos(['file:///cache/front.jpg', 'file:///cache/back.jpg'], 'camera');
+    await settle();
+  }
+
+  it('lays both sides on one page, saves that page and deletes the sheet', async () => {
+    await scanCard();
+    const sides = session.getSession().pages.map((page) => page.rendered?.uri);
+    await session.saveSession({ title: 'Card' });
+
+    expect(composed).toEqual([sides]);
+    expect(vault.saveDocument).toHaveBeenCalledWith(
+      [{ uri: 'file:///cache/sheet.jpg', mimeType: 'image/jpeg' }],
+      'scanner',
+      { title: 'Card' },
+    );
+    expect(discarded).toContain('file:///cache/sheet.jpg');
+    expect(session.getSession()).toMatchObject({ pages: [], preset: 'document' });
+  });
+
+  it('saves the sides as they are when the sheet cannot be drawn', async () => {
+    await scanCard();
+    composeFails = true;
+    const sides = session.getSession().pages.map((page) => page.rendered?.uri);
+    await session.saveSession();
+    expect(vault.saveDocument).toHaveBeenCalledWith(
+      sides.map((uri) => ({ uri, mimeType: 'image/jpeg' })),
+      'scanner',
+      {},
+    );
+  });
+
+  it('still deletes the sheet when sealing fails', async () => {
+    await scanCard();
+    vi.mocked(vault.saveDocument).mockRejectedValueOnce(new Error('disk full'));
+    await expect(session.saveSession()).rejects.toThrow('disk full');
+    expect(discarded).toContain('file:///cache/sheet.jpg');
+    // The scan is kept, so the citizen can try again.
+    expect(session.getSession().pages).toHaveLength(2);
+  });
+
+  it('saves an ordinary document page by page, with no sheet', async () => {
+    session.addPhotos(['file:///cache/a.jpg', 'file:///cache/b.jpg'], 'camera');
+    await settle();
+    await session.saveSession();
+    expect(composed).toEqual([]);
+    expect(vi.mocked(vault.saveDocument).mock.calls[0]?.[0]).toHaveLength(2);
   });
 });

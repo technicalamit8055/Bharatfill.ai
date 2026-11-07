@@ -292,7 +292,7 @@ What is built so far, and where it differs from this plan: §8.
 
 ## 8. Build status
 
-As of commit `e655e17` (2026-09). Code: `apps/mobile`; developer notes: `apps/mobile/README.md`.
+As of 2026-11 (after commit `e800bb9`). Code: `apps/mobile`; developer notes: `apps/mobile/README.md`.
 Release builds show only what is real; development builds fill empty screens with the mockups'
 sample content (`components/*/demo.ts(x)`), which is not listed as built below.
 
@@ -300,7 +300,17 @@ sample content (`components/*/demo.ts(x)`), which is not listed as built below.
 * **Built:** Expo app in `apps/mobile`. In-app scanner with live page outline, auto capture,
   manual shutter, torch, multi-page (24 pages) and gallery import; page crop with corner handles,
   quarter turns and a straighten dial; perspective flattening; Magic Color / Original / Grayscale /
-  Black & White filters; retake, add and delete pages.
+  Black & White filters; retake, add and delete pages; a zoom loupe on the corner being dragged.
+  A light page on a light, low-contrast desk gets a second, contrast-stretched detection pass.
+* **Built:** a photo quality check after each shot or import — blurred, too dark, or glare on a
+  laminated card — shown on review with Retake or Keep. On the phone, nothing logged.
+* **Built:** the §3 Feature 1.5 presets, opened by Home's ID Card / Photo / Signature shortcuts:
+  ID card front then back, laid out on one A4 page at true ID-1 size at 300 dpi; passport photo
+  cut to 35 × 45 mm (413 × 531 px at 300 dpi) with a gentle brightness correction only; signature
+  cleaned and cropped tight to its ink. The photo's background is left as photographed.
+* **Built:** Home reads the vault (counts per category, recent documents). The first run and the
+  chosen language are remembered on the phone (no personal data), so later launches skip
+  onboarding.
 * **Built:** categorised vault (the four §3 Feature 2 sections, mapped onto `@assistigo/core`
   `DocumentType`), with name, type, folder, tags, star, search, sort, rename, move and delete.
   Pages and index are AES-256-GCM encrypted on the phone; the key is in the platform keystore.
@@ -318,13 +328,12 @@ sample content (`components/*/demo.ts(x)`), which is not listed as built below.
   operator-created customer records; it cannot see this app's vault.
 
 ### Phase 3 — partly built
-* **Built:** Hindi + English for every screen, switchable in-app (not yet remembered between
-  launches).
+* **Built:** Hindi + English for every screen, switchable in-app and remembered between launches.
 * **Not built:** access-alert push notifications, access modes A / B / C, portal size presets.
 
 ### Other features in the spec, not built
-Passport photo, signature and ID card modes (the Home shortcuts open the ordinary scanner);
-dewarping of curled pages; finger removal; on-device OCR field extraction.
+Passport-photo background replacement; portal size presets; dewarping of curled pages; finger
+removal; on-device OCR field extraction.
 
 ### Deviations from this spec
 * **Name:** the app ships as **Bharatfill** (`app.json`, `app.name`); the splash, onboarding and

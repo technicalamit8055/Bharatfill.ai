@@ -1,6 +1,7 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { NativeModules, Platform } from 'react-native';
 
+import { readAppSettings, updateAppSettings } from '../settings/settings-storage';
 import { createTranslator, DEFAULT_LOCALE, isLocale, type Locale, type Translate } from './index';
 
 type I18nValue = {
@@ -25,12 +26,23 @@ function deviceLocale(): Locale {
   return isLocale(language) ? language : DEFAULT_LOCALE;
 }
 
+/**
+ * The language: the one the citizen picked in the app, remembered between launches
+ * (`lib/settings`), else the phone's. Read synchronously, so the first frame is already in it.
+ */
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocale] = useState<Locale>(deviceLocale);
+  const [locale, setLocaleState] = useState<Locale>(
+    () => readAppSettings().locale ?? deviceLocale(),
+  );
+
+  const setLocale = useCallback((next: Locale) => {
+    setLocaleState(next);
+    void updateAppSettings({ locale: next });
+  }, []);
 
   const value = useMemo<I18nValue>(
     () => ({ locale, t: createTranslator(locale), setLocale }),
-    [locale],
+    [locale, setLocale],
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

@@ -121,6 +121,12 @@ export const scanReviewPalette = {
   deleteCircle: '#FDE4E8',
   deleteIcon: '#E11D48',
 
+  /** The photo-quality warning: amber, its text dark enough for 4.5:1 on it. */
+  warningSurface: '#FFF6E5',
+  warningBorder: '#F6C77A',
+  warningIcon: '#B45309',
+  warningText: '#7C2D12',
+
   /** Crop editor's tool card: Rotate left / right and the straighten dial. */
   dialTick: '#CBD5E1',
   dialTickMajor: '#64748B',

@@ -16,6 +16,7 @@ import { SaveDocumentScreen } from '../components/save-document/SaveDocumentScre
 import { useTranslation } from '../lib/i18n/I18nProvider';
 import { formatDateOfBirth, MONTH_KEYS } from '../lib/profile/date-of-birth';
 import { saveSession, useCaptureSession } from '../lib/scan/capture-session';
+import { PRESET_DOCUMENT_TYPE } from '../lib/scan/presets';
 import {
   cancelExpiryReminder,
   ensureReminderPermission,
@@ -27,7 +28,7 @@ import type { DocumentDetails } from '../lib/vault/vault-index';
 export default function SaveDocumentRoute() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { pages } = useCaptureSession();
+  const { pages, preset } = useCaptureSession();
   const [saving, setSaving] = useState(false);
 
   const back = useCallback(() => {
@@ -117,6 +118,7 @@ export default function SaveDocumentRoute() {
     <SaveDocumentScreen
       pages={pages}
       saving={saving}
+      initialType={PRESET_DOCUMENT_TYPE[preset]}
       onBack={back}
       onEditScan={back}
       onEnableReminder={enableReminder}

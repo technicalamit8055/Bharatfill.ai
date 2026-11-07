@@ -3,6 +3,10 @@
  * a draggable handle on each corner. Positions are kept in upright photo pixels. The photo is
  * drawn turned by the page's quarter turns plus the straighten dial (`cropView`), so screen
  * points and finger movements are converted through the same turn and scale.
+ *
+ * While a corner is dragged, a round loupe above the finger shows the photo around that corner
+ * magnified (`loupeView`), with a cross-hair on the corner, so it can be put on the paper's
+ * edge precisely although the finger covers it.
  */
 
 import { type ComponentType, useMemo, useRef, useState } from 'react';
@@ -20,6 +24,8 @@ import {
   clampPoint,
   type CropView,
   cropView,
+  loupePosition,
+  loupeView,
   type PageRotation,
   type Point,
   photoToView,
@@ -39,6 +45,13 @@ const HANDLE_SIZE = 26;
 const HANDLE_SLOP = 18;
 /** Room between the photo and the stage's edge, so handles on the photo's edge stay whole. */
 const STAGE_INSET = HANDLE_SIZE / 2 + 4;
+/** The loupe: its size on screen, its ring, how much it magnifies, and its gap above the finger. */
+const LOUPE_SIZE = 116;
+const LOUPE_BORDER = 3;
+const LOUPE_ZOOM = 2.5;
+const LOUPE_GAP = 40;
+/** Half the cross-hair's length. */
+const CROSS_HAIR = 9;
 
 export type CropEditorProps = {
   readonly photoUri: string;
@@ -66,6 +79,8 @@ export function CropEditor({
   const [box, setBox] = useState<Size | null>(null);
   const [draft, setDraft] = useState<Quad>(quad);
   const [lastQuad, setLastQuad] = useState<Quad>(quad);
+  /** The corner being dragged, for the loupe. */
+  const [active, setActive] = useState<number | null>(null);
 
   // A new quad from outside (another page, a reset, the dial) replaces the draft.
   if (quad !== lastQuad) {
@@ -90,6 +105,7 @@ export function CropEditor({
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
           start = draftRef.current[index] as Point;
+          setActive(index);
         },
         onPanResponderMove: (_event, gesture) => {
           const current = viewRef.current;
@@ -100,8 +116,14 @@ export function CropEditor({
           next[index] = moved;
           setDraft(next);
         },
-        onPanResponderRelease: () => onChangeRef.current(draftRef.current),
-        onPanResponderTerminate: () => onChangeRef.current(draftRef.current),
+        onPanResponderRelease: () => {
+          setActive(null);
+          onChangeRef.current(draftRef.current);
+        },
+        onPanResponderTerminate: () => {
+          setActive(null);
+          onChangeRef.current(draftRef.current);
+        },
       });
     };
     return [make(0), make(1), make(2), make(3)];
@@ -124,6 +146,16 @@ export function CropEditor({
   const photoHeight = photoSize.height * view.scale;
   // Which on-screen corner each photo corner lands on after the quarter turns.
   const quarterTurns = rotation / 90;
+
+  // The loupe's scene: the same photo and crop, magnified about the dragged corner.
+  const loupeInner = LOUPE_SIZE - 2 * LOUPE_BORDER;
+  const loupe =
+    active !== null
+      ? {
+          at: loupePosition(shown[active] as Point, box, LOUPE_SIZE, LOUPE_GAP),
+          view: loupeView(view, draft[active] as Point, LOUPE_ZOOM, loupeInner / 2),
+        }
+      : null;
 
   return (
     <View style={styles.root} onLayout={onLayout}>
@@ -163,6 +195,44 @@ export function CropEditor({
           {...(responders[index] as PanResponderInstance).panHandlers}
         />
       ))}
+      {loupe ? (
+        <View pointerEvents="none" style={[styles.loupe, { left: loupe.at.x, top: loupe.at.y }]}>
+          <Image
+            source={{ uri: photoUri }}
+            resizeMode="stretch"
+            accessibilityIgnoresInvertColors
+            style={[
+              styles.photo,
+              {
+                left: loupe.view.centre.x - (photoSize.width * loupe.view.scale) / 2,
+                top: loupe.view.centre.y - (photoSize.height * loupe.view.scale) / 2,
+                width: photoSize.width * loupe.view.scale,
+                height: photoSize.height * loupe.view.scale,
+                transform: [{ rotate: `${loupe.view.degrees}deg` }],
+              },
+            ]}
+          />
+          <Svg width={loupeInner} height={loupeInner} style={StyleSheet.absoluteFill}>
+            <Polygon
+              points={draft
+                .map((p) => photoToView(p, loupe.view))
+                .map((p) => `${p.x},${p.y}`)
+                .join(' ')}
+              fill="none"
+              stroke={palette.accent}
+              strokeWidth={2}
+              strokeLinejoin="round"
+            />
+            <Path
+              d={`M${loupeInner / 2} ${loupeInner / 2 - CROSS_HAIR}V${loupeInner / 2 + CROSS_HAIR}M${
+                loupeInner / 2 - CROSS_HAIR
+              } ${loupeInner / 2}H${loupeInner / 2 + CROSS_HAIR}`}
+              stroke={palette.handle}
+              strokeWidth={1.5}
+            />
+          </Svg>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -173,6 +243,16 @@ const styles = StyleSheet.create({
   },
   photo: {
     position: 'absolute',
+  },
+  loupe: {
+    position: 'absolute',
+    width: LOUPE_SIZE,
+    height: LOUPE_SIZE,
+    borderRadius: LOUPE_SIZE / 2,
+    borderWidth: LOUPE_BORDER,
+    borderColor: palette.handle,
+    overflow: 'hidden',
+    backgroundColor: palette.background,
   },
   handle: {
     position: 'absolute',

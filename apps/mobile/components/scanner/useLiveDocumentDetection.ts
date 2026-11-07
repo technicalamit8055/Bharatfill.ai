@@ -9,6 +9,11 @@
  * The frame's own corners are converted to camera coordinates on the camera thread, while the
  * frame is still valid; that fixes the sensor-to-screen rotation for the whole frame, so the JS
  * side can place any detected point without the frame.
+ *
+ * The outline drawn is eased between detections (`smoothQuad`) so it does not jitter; the
+ * steadiness that drives auto-capture is judged on the raw detections. After a capture the route
+ * disarms auto-capture (`disarm`), and it re-arms only once the page is taken away or moved
+ * (`nextCaptureArm`), so a page still lying there is not shot twice.
  */
 
 import { useCallback, useMemo, useRef, useState, type RefObject } from 'react';
@@ -18,11 +23,16 @@ import { createSynchronizable, scheduleOnRN } from 'react-native-worklets';
 import { detectDocument } from '../../lib/scan/document-vision';
 import {
   applyFrameAffine,
+  ARMED_CAPTURE,
+  type CaptureArm,
+  disarmCapture,
   type FrameAffine,
   INITIAL_STABILITY,
+  nextCaptureArm,
   nextStability,
   type Quad,
   scaleQuad,
+  smoothQuad,
   type StabilityState,
 } from '../../lib/scan/geometry';
 import { downsampleLuma, type LumaImage, lumaStep } from '../../lib/scan/luma';
@@ -32,7 +42,6 @@ const FRAME_RESOLUTION = { width: 640, height: 480 } as const;
 
 /** Width the camera thread shrinks frames to before detection. */
 const DETECTION_WIDTH = 200;
-const debugStats = { frames: 0, found: 0 };
 
 /** Pause between detections, so the JS thread stays free for the UI. */
 const DETECTION_INTERVAL_MS = 120;
@@ -41,8 +50,12 @@ export type LiveDetection = {
   /** The page's corners in preview (screen) coordinates, or null when none is in view. */
   readonly outline: Quad | null;
   readonly stability: StabilityState;
+  /** False from a capture until the page is taken away or moved: no auto-capture meanwhile. */
+  readonly armed: boolean;
   /** Forget the current page, e.g. right after a capture. */
   readonly reset: () => void;
+  /** Hold off auto-capture until the page in view now is taken away or moved. */
+  readonly disarm: () => void;
 };
 
 export function useLiveDocumentDetection(
@@ -53,6 +66,13 @@ export function useLiveDocumentDetection(
   const [outline, setOutline] = useState<Quad | null>(null);
   const [stability, setStability] = useState<StabilityState>(INITIAL_STABILITY);
   const stabilityRef = useRef<StabilityState>(INITIAL_STABILITY);
+  const [armed, setArmed] = useState(true);
+  const armRef = useRef<CaptureArm>(ARMED_CAPTURE);
+  /** The last detection, in frame pixels, and the eased outline drawn for it. */
+  const lastFrame = useRef<{ quad: Quad | null; size: { width: number; height: number } } | null>(
+    null,
+  );
+  const smoothed = useRef<Quad | null>(null);
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
 
@@ -65,29 +85,26 @@ export function useLiveDocumentDetection(
       try {
         if (!enabledRef.current) {
           setOutline(null);
+          smoothed.current = null;
           stabilityRef.current = INITIAL_STABILITY;
           setStability(INITIAL_STABILITY);
           return;
         }
 
         const small = detectDocument(luma);
-        // TEMP diagnostic (counts only, no image data) — remove after on-device check.
-        debugStats.frames += 1;
-        if (small) debugStats.found += 1;
-        if (__DEV__ && debugStats.frames % 20 === 0) {
-          console.log(
-            `[scan-debug] frames=${debugStats.frames} found=${debugStats.found} luma=${luma.width}x${luma.height} frame=${map.size.width}x${map.size.height}`,
-          );
-        }
         const inFrame = small
           ? scaleQuad(small, map.size.width / luma.width, map.size.height / luma.height)
           : null;
+        lastFrame.current = { quad: inFrame, size: map.size };
 
+        // Eased in frame pixels, before it is placed on screen.
+        const drawn = smoothQuad(smoothed.current, inFrame, map.size);
+        smoothed.current = drawn;
         const camera = cameraRef.current;
         let onScreen: Quad | null = null;
-        if (inFrame && camera) {
+        if (drawn && camera) {
           try {
-            onScreen = inFrame.map((p) =>
+            onScreen = drawn.map((p) =>
               camera.convertCameraPointToViewPoint(applyFrameAffine(p, map)),
             ) as unknown as Quad;
           } catch {
@@ -98,6 +115,9 @@ export function useLiveDocumentDetection(
         const next = nextStability(stabilityRef.current, inFrame, map.size, Date.now());
         stabilityRef.current = next;
         setStability(next);
+        const arm = nextCaptureArm(armRef.current, inFrame, map.size);
+        armRef.current = arm;
+        setArmed(arm.armed);
         // While a brief miss is tolerated, the last outline stays up instead of flickering off.
         if (onScreen || !next.quad) setOutline(onScreen);
       } finally {
@@ -158,9 +178,15 @@ export function useLiveDocumentDetection(
 
   const reset = useCallback(() => {
     setOutline(null);
+    smoothed.current = null;
     stabilityRef.current = INITIAL_STABILITY;
     setStability(INITIAL_STABILITY);
   }, []);
 
-  return { detection: { outline, stability, reset }, frameOutput };
+  const disarm = useCallback(() => {
+    armRef.current = disarmCapture(lastFrame.current?.quad ?? null);
+    setArmed(false);
+  }, []);
+
+  return { detection: { outline, stability, armed, reset, disarm }, frameOutput };
 }

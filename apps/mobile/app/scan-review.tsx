@@ -7,6 +7,10 @@
  * the camera's close button is where a scan is thrown away. Retake returns to the camera too,
  * and the next photo replaces the page on screen; review then reopens on it (`?page=<id>`).
  *
+ * The page's photo-quality warning (`pageQualityIssues`) offers Retake, or Keep, which dismisses
+ * it.
+ * The session's preset narrows the filters and, for an ID card, names the pages Front and Back.
+ *
  * Crop edits a draft — corners, quarter turns and the straighten dial — that reaches the page
  * only on Done, so the page is processed once. Back (or the hardware back button) drops it.
  */
@@ -21,6 +25,8 @@ import { useTranslation } from '../lib/i18n/I18nProvider';
 import {
   canAddPages,
   cancelRetake,
+  dismissQualityWarning,
+  pageQualityIssues,
   removePage,
   retryPage,
   setPageCrop,
@@ -37,6 +43,7 @@ import {
   straightenedQuad,
   straightenFrame,
 } from '../lib/scan/geometry';
+import { presetFilters } from '../lib/scan/presets';
 
 /**
  * The crop being edited. `frame` is the crop as drawn over the straightened photo, so turning
@@ -54,7 +61,7 @@ const pageIdSchema = z.string().uuid();
 export default function ScanReviewRoute() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { pages } = useCaptureSession();
+  const { pages, preset } = useCaptureSession();
   const params = useLocalSearchParams<{ page?: string }>();
 
   // Opens on the page just retaken, when there is one; otherwise on the newest page.
@@ -188,6 +195,15 @@ export default function ScanReviewRoute() {
     ]);
   }, [current, t]);
 
+  const onDismissQuality = useCallback(() => {
+    if (current) dismissQualityWarning(current.id);
+  }, [current]);
+
+  const pageNames = useMemo(
+    () => (preset === 'id_card' ? [t('scanReview.sides.front'), t('scanReview.sides.back')] : null),
+    [preset, t],
+  );
+
   const onSave = useCallback(() => {
     setEdit(null);
     router.push('/save-document');
@@ -199,6 +215,10 @@ export default function ScanReviewRoute() {
       currentId={current?.id ?? null}
       crop={crop}
       canAddPage={canAddPages()}
+      filters={presetFilters(preset)}
+      pageNames={pageNames}
+      qualityIssues={current ? pageQualityIssues(current) : []}
+      onDismissQuality={onDismissQuality}
       onSelectPage={setCurrentId}
       onFilter={onFilter}
       onStartCrop={onStartCrop}

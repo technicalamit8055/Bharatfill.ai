@@ -8,15 +8,23 @@
  */
 
 import { Tabs, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 
 import { AppTabBar } from '../../components/navigation/AppTabBar';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
+import { readAppSettings, updateAppSettings } from '../../lib/settings/settings-storage';
 import { useTheme } from '../../theme';
 
 export default function TabsLayout() {
   const { navigation } = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
+
+  // Reaching the app by any path — Skip, or the end of registration — ends onboarding, so the
+  // next cold start opens here.
+  useEffect(() => {
+    if (!readAppSettings().onboardingComplete) void updateAppSettings({ onboardingComplete: true });
+  }, []);
 
   return (
     <Tabs screenOptions={navigation.header} tabBar={(props) => <AppTabBar {...props} />}>

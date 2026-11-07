@@ -543,8 +543,8 @@ the operator previews them and saves them to a new, existing or roaming customer
 ## Citizen mobile app (`apps/mobile`) ◐
 
 Spec: `docs/CITIZEN_MOBILE_APP_SPEC.md` (§8 has the build status). Everything real runs on the
-phone; the app makes no network calls and uploads nothing. Mobile suite: 35 files, 393 tests
-passing (2026-09-27).
+phone; the app makes no network calls and uploads nothing. Mobile suite: 38 files, 489 tests
+passing (2026-11-07).
 
 Built:
 
@@ -555,20 +555,27 @@ Built:
 - [x] OpenCV pipeline (`react-native-fast-opencv`): straight-edge page detection, EXIF upright,
       perspective flattening, Magic Color / Original / Grayscale / B&W with paper-only lighting,
       sharpening and a per-page tone curve (`lib/scan/`, `docs/SCANNER_VFLAT_QUALITY_PLAN.md` §6)
-- [x] Scan review: filter cards, pinch zoom, crop editor, quarter turns and ±45° straighten dial,
-      retake, add and delete page
+- [x] Scan review: filter cards, pinch zoom, crop editor with a corner loupe, quarter turns and
+      ±45° straighten dial, retake, add and delete page
+- [x] Photo quality check (blur, dark, glare) with Retake / Keep on review
+      (`lib/scan/photo-quality.ts`); low-contrast page detection fallback; steadier live outline;
+      auto capture re-arms only after the page is moved, so a page is not shot twice
+- [x] Presets from Home (`lib/scan/presets.ts`): ID card front + back on one A4 page at true size,
+      passport photo 35 × 45 mm at 300 dpi, signature cropped to its ink
 - [x] Save Document (name, type, folder, tags, expiry) into an AES-256-GCM encrypted vault with a
       keystore key and a Zod-validated encrypted index
 - [x] Vault tab (search, folders, recent, starred, sort, list/grid), Document Details (viewer,
       rename, tags, move, delete, star), export via share / save / print as multi-page PDF
-- [x] Local expiry reminders that never name the document; session language switch and About
+- [x] Local expiry reminders that never name the document; language switch (remembered) and About
+- [x] Home dashboard from the vault: counts per category, recent documents open their details
+- [x] First run remembered (`lib/settings/`): later launches skip onboarding; `eas.json` build
+      profiles for an installable APK
 
 Screens only (no backend; sample data appears only in `__DEV__` builds):
 
 - [x] Splash, onboarding, mobile-number / OTP / profile registration screens — no SMS is sent,
       no code is checked, the profile is discarded
 - [ ] Security setup / app lock (placeholder)
-- [ ] Home dashboard from real vault data
 - [ ] Connect / nearby centres / centre details (no directory or location in release builds)
 - [ ] Profile account card (signed-out in release builds)
 
@@ -580,11 +587,13 @@ Remaining:
       tables (spec §5)
 - [ ] Operator bridge in `apps/web` / `apps/extension`, consent access modes, access history
 - [ ] Centre directory, location, directions; Connect & Share
-- [ ] Photo / signature / ID presets, on-device OCR
-- [ ] Dewarping, finger removal, low-contrast detection
-- [ ] Persist language and saved centres; dark mode for branded screens
-- [ ] Replace the dev-only demo mobile number in `app/(auth)/mobile-number.tsx` with an obviously
-      fake value
+- [ ] On-device OCR; portal size presets (export under a KB limit); passport-photo background
+      replacement
+- [ ] Dewarping, finger removal
+- [ ] **On a device:** check the new OpenCV paths (low-contrast fallback, ID card sheet, photo
+      and signature presets) and the quality thresholds on real photos — tests cover only the
+      pure parts
+- [ ] Persist saved centres; dark mode for branded screens
 
 ---
 

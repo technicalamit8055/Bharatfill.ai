@@ -7,6 +7,11 @@
  * Crop swaps the stage for the crop editor on the original photo: drag the corners, turn the
  * page a quarter left or right, straighten it on the dial, then Reset or Done. Back cancels.
  *
+ * When the photo behind the page on screen looks blurred, too dark or glared
+ * (`lib/scan/photo-quality.ts`), a warning under the stage offers Retake, or Keep to dismiss it.
+ * A preset can name the pages (an ID card's Front and Back) and narrow the filters (a passport
+ * photo keeps its own look, so it shows none).
+ *
  * Presentational apart from the zoom viewer's state: `app/scan-review.tsx` owns the capture
  * session, the crop in progress and navigation. Light branded artwork like Save Document, which it leads to, so it
  * does not read from `useTheme()`.
@@ -27,6 +32,7 @@ import {
   RotateCwSquare,
   SquarePlus,
   Trash2,
+  TriangleAlert,
   Undo2,
   WandSparkles,
   ZoomIn,
@@ -46,8 +52,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTranslation } from '../../lib/i18n/I18nProvider';
 import type { SessionPage } from '../../lib/scan/capture-session';
-import { PAGE_FILTERS, type PageFilter } from '../../lib/scan/document-vision';
+import type { PageFilter } from '../../lib/scan/filters';
 import { fitContain, type PageRotation, type Quad, type Size } from '../../lib/scan/geometry';
+import type { QualityIssue } from '../../lib/scan/photo-quality';
 import { CropEditor } from './CropEditor';
 import { PageZoomViewer } from './PageZoomViewer';
 import { scanReviewPalette as palette } from './palette';
@@ -75,6 +82,13 @@ export type ScanReviewScreenProps = {
   /** Non-null while the crop editor is open. */
   readonly crop: CropDraft | null;
   readonly canAddPage: boolean;
+  /** The filters the scan's preset offers; the row is hidden when there is only one. */
+  readonly filters: readonly PageFilter[];
+  /** Names for the pages in order (an ID card's sides), instead of numbering them. */
+  readonly pageNames: readonly string[] | null;
+  /** What is wrong with the current page's photo; empty when nothing, or once kept. */
+  readonly qualityIssues: readonly QualityIssue[];
+  readonly onDismissQuality: () => void;
   readonly onSelectPage: (id: string) => void;
   readonly onFilter: (filter: PageFilter) => void;
   readonly onStartCrop: () => void;
@@ -104,6 +118,8 @@ export function ScanReviewScreen(props: ScanReviewScreenProps) {
     pages.findIndex((page) => page.id === currentId),
   );
   const page = pages[index];
+  const nameOf = (i: number): string | null => props.pageNames?.[i] ?? null;
+  const issue = props.qualityIssues[0];
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
@@ -132,7 +148,8 @@ export function ScanReviewScreen(props: ScanReviewScreenProps) {
             <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>
               {cropping
                 ? t('scanReview.cropTitle')
-                : t('scanReview.pageOf', { number: index + 1, total: pages.length })}
+                : (nameOf(index) ??
+                  t('scanReview.pageOf', { number: index + 1, total: pages.length }))}
             </Text>
             <Text numberOfLines={1} style={styles.subtitle}>
               {cropping ? t('scanReview.cropHint') : t('scanReview.subtitle')}
@@ -212,20 +229,49 @@ export function ScanReviewScreen(props: ScanReviewScreenProps) {
           </>
         ) : (
           <>
+            {/* ---- Photo quality ---- */}
+            {issue && page?.status === 'ready' ? (
+              <View style={styles.warning} accessibilityRole="alert">
+                <TriangleAlert color={palette.warningIcon} size={22} strokeWidth={2.2} />
+                <Text style={styles.warningText}>{t(`scanReview.quality.${issue}`)}</Text>
+                <View style={styles.warningActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    hitSlop={6}
+                    onPress={props.onRetake}
+                    style={({ pressed }) => pressed && styles.pressed}
+                  >
+                    <Text style={styles.warningAction}>{t('scanReview.retake')}</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityHint={t('scanReview.quality.keepHint')}
+                    hitSlop={6}
+                    onPress={props.onDismissQuality}
+                    style={({ pressed }) => pressed && styles.pressed}
+                  >
+                    <Text style={styles.warningAction}>{t('scanReview.quality.keep')}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
             {/* ---- Filters ---- */}
-            <View style={styles.filters} accessibilityRole="radiogroup">
-              {PAGE_FILTERS.map((filter) => (
-                <FilterCard
-                  key={filter}
-                  filter={filter}
-                  label={t(`scanner.filters.${filter}`)}
-                  preview={page?.previews?.[filter] ?? null}
-                  selected={page?.filter === filter}
-                  disabled={!page}
-                  onPress={() => props.onFilter(filter)}
-                />
-              ))}
-            </View>
+            {props.filters.length > 1 ? (
+              <View style={styles.filters} accessibilityRole="radiogroup">
+                {props.filters.map((filter) => (
+                  <FilterCard
+                    key={filter}
+                    filter={filter}
+                    label={t(`scanner.filters.${filter}`)}
+                    preview={page?.previews?.[filter] ?? null}
+                    selected={page?.filter === filter}
+                    disabled={!page}
+                    onPress={() => props.onFilter(filter)}
+                  />
+                ))}
+              </View>
+            ) : null}
 
             {/* ---- Pages ---- */}
             <View style={styles.strip}>
@@ -239,11 +285,14 @@ export function ScanReviewScreen(props: ScanReviewScreenProps) {
                     key={each.id}
                     page={each}
                     number={i + 1}
-                    label={t('scanReview.pageLabel', { number: i + 1 })}
-                    accessibilityLabel={t('scanReview.pageOf', {
-                      number: i + 1,
-                      total: pages.length,
-                    })}
+                    label={nameOf(i) ?? t('scanReview.pageLabel', { number: i + 1 })}
+                    accessibilityLabel={
+                      nameOf(i) ??
+                      t('scanReview.pageOf', {
+                        number: i + 1,
+                        total: pages.length,
+                      })
+                    }
                     selected={each.id === page?.id}
                     onPress={() => props.onSelectPage(each.id)}
                   />
@@ -771,6 +820,36 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     textAlign: 'center',
     color: palette.onStage,
+  },
+
+  warning: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: palette.warningBorder,
+    backgroundColor: palette.warningSurface,
+  },
+  warningText: {
+    flex: 1,
+    minWidth: 180,
+    fontSize: 14,
+    lineHeight: 19,
+    color: palette.warningText,
+  },
+  warningActions: {
+    flexDirection: 'row',
+    marginLeft: 'auto',
+    gap: 18,
+  },
+  warningAction: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: palette.brandBlue,
   },
 
   filters: {

@@ -5,7 +5,14 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { chromaCurve, DEFAULT_LEVELS, levelsCurve, pageLevels } from '../lib/scan/tone-curve';
+import {
+  chromaCurve,
+  contrastStretch,
+  DEFAULT_LEVELS,
+  levelsCurve,
+  pageLevels,
+  photoLevels,
+} from '../lib/scan/tone-curve';
 
 /** A histogram of a lighting-evened page: paper around `paper`, a little ink around `ink`. */
 function pageHistogram(paper: number, paperSpread: number, ink: number, inkShare = 0.05): number[] {
@@ -93,5 +100,75 @@ describe('chromaCurve', () => {
     }
     expect(curve[0]).toBe(0);
     expect(curve[255]).toBe(255);
+  });
+});
+
+/** A histogram with the given number of pixels at each listed level. */
+function spikes(levels: Record<number, number>): Uint32Array {
+  const histogram = new Uint32Array(256);
+  for (const [level, count] of Object.entries(levels)) histogram[Number(level)] = count;
+  return histogram;
+}
+
+describe('contrastStretch', () => {
+  it('spreads a light page on a light desk over the whole range', () => {
+    const table = contrastStretch(spikes({ 150: 4000, 190: 5000, 215: 1000 })) as Uint8Array;
+    expect(table).not.toBeNull();
+    expect(table[150]).toBe(0);
+    expect(table[215]).toBe(255);
+    // A 25-level step becomes about 100 levels.
+    expect((table[215] as number) - (table[190] as number)).toBeGreaterThan(90);
+  });
+
+  it('never reverses an order of tones', () => {
+    const table = contrastStretch(spikes({ 120: 10, 140: 50, 200: 40 })) as Uint8Array;
+    for (let i = 1; i < 256; i += 1) {
+      expect(table[i] as number).toBeGreaterThanOrEqual(table[i - 1] as number);
+    }
+  });
+
+  it('ignores the brightest and darkest specks when choosing its range', () => {
+    const table = contrastStretch(spikes({ 0: 5, 150: 5000, 200: 5000, 255: 5 })) as Uint8Array;
+    expect(table[150]).toBe(0);
+    expect(table[200]).toBe(255);
+  });
+
+  it('skips images with enough contrast already, and flat or empty ones', () => {
+    expect(contrastStretch(spikes({ 30: 3000, 220: 7000 }))).toBeNull();
+    expect(contrastStretch(spikes({ 180: 10000 }))).toBeNull();
+    expect(contrastStretch(new Uint32Array(256))).toBeNull();
+  });
+});
+
+describe('photoLevels', () => {
+  it('stretches a dull print, but only so far', () => {
+    const levels = photoLevels(spikes({ 80: 3000, 120: 4000, 160: 3000 }));
+    const gain = 255 / (levels.white - levels.black);
+    expect(gain).toBeLessThanOrEqual(1.35);
+    expect(gain).toBeGreaterThan(1.3);
+    expect(levels.black).toBeLessThanOrEqual(80);
+    expect(levels.white).toBeGreaterThanOrEqual(160);
+  });
+
+  it("uses the photo's own ends when it already has range", () => {
+    expect(photoLevels(spikes({ 10: 3000, 120: 4000, 240: 3000 }))).toEqual({
+      black: 10,
+      white: 240,
+    });
+  });
+
+  it('stays inside 0–255', () => {
+    for (const levels of [
+      photoLevels(spikes({ 5: 1000, 20: 1000 })),
+      photoLevels(spikes({ 240: 1000, 252: 1000 })),
+    ]) {
+      expect(levels.black).toBeGreaterThanOrEqual(0);
+      expect(levels.white).toBeLessThanOrEqual(255);
+      expect(levels.white).toBeGreaterThan(levels.black);
+    }
+  });
+
+  it('leaves an empty histogram alone', () => {
+    expect(photoLevels(new Uint32Array(256))).toEqual({ black: 0, white: 255 });
   });
 });

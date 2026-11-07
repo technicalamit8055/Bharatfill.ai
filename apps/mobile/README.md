@@ -27,6 +27,16 @@ npm run test:mobile                             # from the repo root
 Rebuild with `npm run android` whenever a native dependency or `app.json` plugin changes; for
 JS-only changes, Metro reloads the installed build.
 
+### Install on a phone without Metro
+
+- **Local release build:** `npx expo run:android --variant release` (from `apps/mobile`) builds
+  and installs a standalone release build on the connected phone. It is signed with the debug
+  key — fine for testing, not for the Play Store.
+- **EAS:** `eas.json` has `development` (dev client APK), `preview` (installable release APK for
+  testers, `npx eas-cli build -p android --profile preview`) and `production` (Play Store app
+  bundle) profiles. EAS builds in Expo's cloud and needs an Expo account; no project id or
+  signing secrets are committed.
+
 ## Real, sample and placeholder
 
 Development builds (`__DEV__`) fill empty screens with the design mockups' sample content so
@@ -35,7 +45,7 @@ layouts can be reviewed. Release builds never show it.
 | Area                                                            | Release build                                                                 | Dev build extra                                                                             |
 | :-------------------------------------------------------------- | :---------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------ |
 | Scanner, review, save, vault, details, export, expiry reminders | Real, on-device                                                               | Vault shows sample documents while the phone's vault is empty (`components/vault/demo.tsx`) |
-| Home                                                            | Empty dashboard: no name, counts or recent documents (not wired to the vault) | Sample dashboard (`components/home/demo.tsx`)                                               |
+| Home                                                            | Counts per category and recent documents from the vault; no name (no profile) | Sample dashboard while the vault is empty (`components/home/demo.tsx`)                      |
 | Connect / nearby centres                                        | No centres (no directory, no location)                                        | Sample centres (`components/connect/demo.tsx`)                                              |
 | Profile                                                         | Signed-out card; language picker and About work                               | Sample account (`components/profile/demo.ts`)                                               |
 | Mobile number / OTP / profile setup                             | Screens and validation only; Get OTP says SMS is not available                | A dev-only demo number walks the flow through OTP → profile → security; no code is checked  |
@@ -56,9 +66,19 @@ The whole pipeline is in-app OpenCV; no platform scanner, no cloud processing.
   `detectDocument` about 8 times a second. The outline is drawn over the preview
   (`ScanOverlay.tsx`); Auto Capture fires once the page has been held steady
   (`nextStability` / `steadyProgress` in `lib/scan/geometry.ts`), or Manual uses the shutter.
+  The drawn outline is eased between detections (`smoothQuad`); after a shot Auto Capture waits
+  until the page is taken away or moved (`nextCaptureArm`), so a page is not shot twice. When
+  nothing is found, a low-contrast frame gets a second, contrast-stretched look.
   Torch, tap-to-focus, Tips, Multi-Page (up to 24 pages, `MULTI_PAGE_LIMIT`) and Gallery import
   (HEIC arrives as JPEG) are on the same screen. Photos are 12 MP (`UHD_4_3`,
   `qualityPrioritization: 'quality'`).
+- **Presets** (`lib/scan/presets.ts`, `?preset=id_card|photo|signature`, opened by Home's
+  shortcuts): **ID card** — front, then back, each prompted; flattened to ID-1 and saved as one
+  A4 page with both sides at true size at 300 dpi (`composeIdCardSheet`; if that fails, the sides
+  are saved as two pages). **Photo** — one manual shot, cut to 35 × 45 mm at 413 × 531 px with a
+  gentle brightness correction and no document filter; the background is left as photographed.
+  **Signature** — one shot, cleaned like a document and cropped to its ink. Save Document starts
+  photos and signatures on their document type.
 - **Capture session** (`lib/scan/capture-session.ts`): the pages in progress, in memory only.
   Pages are processed one at a time; a result that went stale while computing is thrown away.
   Camera and gallery photos go through the same processing.
@@ -70,11 +90,17 @@ The whole pipeline is in-app OpenCV; no platform scanner, no cloud processing.
   Magic Color (default), Original, Grayscale, Black & White. Lighting is evened from paper only
   (`paper-light.ts`), then band-pass sharpening and a per-page tone curve (`tone-curve.ts`).
   Tuning notes: `docs/SCANNER_VFLAT_QUALITY_PLAN.md` §6.
+- **Photo quality** (`lib/scan/photo-quality.ts`): measured with the analysis, inside the page —
+  blurred (edge steepness, which also catches camera shake), too dark, or glare on a laminated
+  card. Review shows a warning with Retake or Keep. Thresholds lean towards silence; blur is not
+  judged on a passport photo. Never logged.
 - **Review** (`components/scanner/ScanReviewScreen.tsx`): page strip, filter cards, pinch-zoom
   viewer (`PageZoomViewer.tsx`, 1–5×), Crop, Delete Page, Add Page, Retake (replaces the page in
-  place), retry for a page that failed. Crop opens `CropEditor.tsx` on the original photo:
-  corner handles, quarter turns left/right and the ±45° `StraightenDial.tsx`, Reset or Done; the
-  page is processed once, on Done.
+  place), retry for a page that failed, and the photo-quality warning. Crop opens
+  `CropEditor.tsx` on the original photo: corner handles with a zoom loupe above the finger while
+  one is dragged, quarter turns left/right and the ±45° `StraightenDial.tsx`, Reset or Done; the
+  page is processed once, on Done. An ID card's pages are named Front and Back; a passport photo
+  shows no filter cards.
 - **Save Document** (`components/save-document/SaveDocumentScreen.tsx`,
   `lib/vault/save-document.ts`): name, document type (core's `DocumentType`), folder (follows the
   type until changed), up to 10 tags, optional expiry date with a reminder. Saving seals the
@@ -119,24 +145,30 @@ The whole pipeline is in-app OpenCV; no platform scanner, no cloud processing.
   `components/onboarding/`, `components/registration/`): splash → onboarding → mobile number
   (`lib/auth/phone.ts`) → OTP (`lib/auth/otp.ts`, 6 digits, 60 s) → profile setup (name, date of
   birth, gender, state, language; `lib/profile/`) → security setup → tabs. Skip goes straight into
-  the app. There is no session, so every cold start goes through splash and onboarding.
-- **Home** (`components/home/`, `lib/home/dashboard.ts`): greeting, scan hero, quick actions,
-  CSC banner (opens Connect), vault categories, recent documents. The Photo / Signature / ID Card
-  shortcuts open the ordinary scanner; there are no presets.
+  the app. Reaching the tabs once marks onboarding done (`lib/settings/`), so later cold starts go
+  splash → tabs. There is no signed-in session.
+- **App settings** (`lib/settings/`): one small JSON file in the app's document directory —
+  onboarding done, and the language picked — read synchronously at launch, written atomically.
+  No personal data; Zod-validated, and anything unreadable counts as a first launch.
+- **Home** (`app/(tabs)/index.tsx`, `components/home/`, `lib/home/dashboard.ts`): greeting, scan
+  hero, quick actions, CSC banner (opens Connect), vault categories, recent documents. Read from
+  the vault on focus: counts per category and the four newest documents, first pages decrypted
+  into memory as thumbnails; tapping one opens its details. The Photo / Signature / ID Card
+  shortcuts open the scanner presets.
 - **Connect** (`app/(tabs)/share/`, `components/connect/`, `lib/connect/`): the Connect tab,
   Nearby CSC Centers (list or map, 5 / 10 km, Open Now, service filter, name / address search)
   and a centre's details. The map is a drawn illustration with pins, not map tiles. Share sends a
   centre's public listing to the share sheet; saved centres are kept in memory only.
 - **Profile** (`components/profile/`, `lib/profile/profile-screen.ts`): account card, plan card,
-  settings list. The language picker switches `en` / `hi` for the session (not persisted; the
-  next launch starts from the device locale); About shows the app version.
+  settings list. The language picker switches `en` / `hi` and is remembered between launches
+  (else the device locale); About shows the app version.
 
 ## Layout
 
 ```text
 app/
   _layout.tsx               root stack; theme, locale and safe-area providers; modal routes
-  index.tsx                 cold start: splash → onboarding
+  index.tsx                 cold start: splash → onboarding, or tabs once onboarding is done
   (auth)/                   splash, onboarding, mobile-number, otp-verification,
                             profile-setup, security-setup
   (tabs)/
@@ -160,14 +192,16 @@ components/                 presentational screens, one folder per area, each wi
   */demo.ts(x)              dev-only sample content (vault, home, connect, profile)
 lib/                        pure logic and storage, unit tested where pure
   scan/                     capture-session, scan-session, document-vision (OpenCV),
-                            page-lines, paper-light, tone-curve, geometry, exif, luma
+                            page-lines, paper-light, tone-curve, geometry, exif, luma,
+                            photo-quality, presets, filters
   vault/                    vault-storage (encryption), vault-index (Zod), categories,
                             save-document, vault-screen, document-details, document-export,
                             scan-pdf, expiry-reminders
   auth/                     phone and OTP validation, registration steps
   profile/                  profile validation, date of birth, profile screen model
   connect/                  Connect view model, nearby search, centre details, saved centres
-  home/dashboard.ts         Home view model
+  home/dashboard.ts         Home view model, from the vault
+  settings/                 onboarding done and language: the app's own small settings
   i18n/                     en + hi, dependency-free, mirrors apps/web/lib/i18n
 theme/                      colours, presets, ThemeProvider
 messages/                   en.json, hi.json
@@ -197,12 +231,15 @@ tests/                      runs in the root vitest `mobile` project
 
 ## Tests
 
-35 test files, 393 tests (`npm run test:mobile`). They cover the pure modules — scan geometry,
-page-lines, paper-light, tone curve, EXIF / luma, capture session, scan session, scan PDF, vault
-index, categories, vault screen, save document, document details, phone, OTP, profile, date of
-birth, home dashboard, Connect / nearby search / centre details / saved centres — and the `en` /
-`hi` copy of each screen. OpenCV, the camera, encryption and the file system are not exercised by
-tests; they need a device.
+38 test files, 489 tests (`npm run test:mobile`). They cover the pure modules — scan geometry
+(including the outline smoothing, auto-capture re-arm and crop loupe), page-lines, paper-light,
+tone curve, photo quality (calibrated on synthetic blurred, smeared, dark and glared pages),
+presets (print sizes, ID card layout, signature ink box), EXIF / luma, capture session (presets,
+quality warnings, the ID card sheet), scan session, scan PDF, vault index, categories, vault
+screen, save document, document details, app settings, phone, OTP, profile, date of birth, home
+dashboard, Connect / nearby search / centre details / saved centres — and the `en` / `hi` copy of
+each screen. OpenCV, the camera, encryption and the file system are not exercised by tests; they
+need a device.
 
 ## Not built yet
 
@@ -216,10 +253,14 @@ tests; they need a device.
 - **Consent and access modes**, operator access alerts and access history (spec §3 Feature 4).
 - **Centre directory and location**: no real centres, no location permission, no directions or
   calling.
-- **Home from real data**: Home does not read the vault; release builds show an empty dashboard.
-- **Presets**: passport photo, signature, ID card front + back, portal size presets.
+- **Preset extras**: portal size presets (export under a KB limit) and passport-photo
+  background replacement.
 - **On-device OCR** / field extraction.
 - **Scan quality gaps**: curled pages are not dewarped, fingers are not removed, and a page on a
-  light low-contrast desk may not be detected (falls back to the full frame for manual cropping).
-- **Persistence of small settings**: the language choice and saved centres last one session.
+  light desk whose edge is too faint even after the contrast stretch is still missed (falls back
+  to the full frame for manual cropping).
+- **Device check**: the new OpenCV paths (low-contrast fallback, ID card sheet, photo and
+  signature presets) and the quality thresholds have only been typechecked and unit-tested on
+  synthetic images; they need a pass on real phones and real documents.
+- **Persistence of small settings**: saved centres last one session.
 - Dark mode for the branded screens (the app is light-only, `userInterfaceStyle: "light"`).

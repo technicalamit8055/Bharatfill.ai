@@ -412,6 +412,36 @@ export function viewDeltaToPhoto(delta: Point, view: CropView): Point {
   return rotatePoint({ x: delta.x / view.scale, y: delta.y / view.scale }, -view.degrees);
 }
 
+/**
+ * The crop editor's view as seen through the loupe: `zoom` times closer, with the photo pixel
+ * `point` (the corner being dragged) at the loupe's centre, `radius` from its edge. Drawing the
+ * photo and the crop with it (`photoToView`) inside the loupe gives the magnified scene.
+ */
+export function loupeView(view: CropView, point: Point, zoom: number, radius: number): CropView {
+  const scale = view.scale * zoom;
+  const turned = rotatePoint(
+    { x: point.x - view.pivot.x, y: point.y - view.pivot.y },
+    view.degrees,
+  );
+  return {
+    ...view,
+    scale,
+    centre: { x: radius - turned.x * scale, y: radius - turned.y * scale },
+  };
+}
+
+/**
+ * Where the loupe (a `size` square) sits on a `box`-sized stage while the corner at `at` (stage
+ * points) is dragged: above the finger, `gap` clear of it, so the finger never covers it; below
+ * it when there is no room above; slid sideways to stay on the stage.
+ */
+export function loupePosition(at: Point, box: Size, size: number, gap: number): Point {
+  const above = at.y - gap - size;
+  const top = above >= 0 ? above : Math.min(box.height - size, at.y + gap);
+  const left = Math.min(Math.max(0, box.width - size), Math.max(0, at.x - size / 2));
+  return { x: left, y: Math.max(0, top) };
+}
+
 /** Whether two crops are the same, give or take rounding. */
 export function sameQuad(a: Quad, b: Quad): boolean {
   return maxCornerShift(a, b) < 1e-3;
@@ -480,6 +510,129 @@ export function steadyProgress(
 ): number {
   if (state.steadySince === null) return 0;
   return Math.min(1, Math.max(0, (now - state.steadySince) / options.holdMs));
+}
+
+/**
+ * Auto-capture is disarmed by a capture and re-armed only once something changes, so the page
+ * that was just taken is not taken again while it is still lying there — a double shot in a
+ * multi-page scan, or the ID card's front taken twice before it is turned over.
+ */
+export type CaptureArm = {
+  readonly armed: boolean;
+  /** The page as it was captured, in frame pixels; null when it was shot without one in view. */
+  readonly captured: Quad | null;
+  /** Detections in a row since then that found no page. */
+  readonly absent: number;
+};
+
+export const ARMED_CAPTURE: CaptureArm = { armed: true, captured: null, absent: 0 };
+
+export type RearmOptions = {
+  /** Detections in a row without a page that count as it having been taken away. */
+  readonly absentDetections: number;
+  /**
+   * How far (a share of the frame's diagonal) a corner must be from where it was captured for
+   * the page in view to count as a different one, or as moved on purpose. Well above hand
+   * tremor (`DEFAULT_STABILITY.maxShiftRatio`).
+   */
+  readonly moveRatio: number;
+};
+
+/** About a quarter of a second without a page at ~8 detections a second. */
+export const DEFAULT_REARM: RearmOptions = { absentDetections: 2, moveRatio: 0.12 };
+
+/** The state right after a capture of `quad`. */
+export function disarmCapture(quad: Quad | null): CaptureArm {
+  return { armed: false, captured: quad, absent: 0 };
+}
+
+/**
+ * Folds one detection into the re-arm state: armed again once the page has been out of view for
+ * `absentDetections` detections in a row (lifted, turned over, swapped), or a page is seen far
+ * from where the captured one lay. The same page still lying there keeps it disarmed.
+ */
+export function nextCaptureArm(
+  arm: CaptureArm,
+  quad: Quad | null,
+  frame: Size,
+  options: RearmOptions = DEFAULT_REARM,
+): CaptureArm {
+  if (arm.armed) return arm;
+  if (!quad) {
+    const absent = arm.absent + 1;
+    return absent >= options.absentDetections ? ARMED_CAPTURE : { ...arm, absent };
+  }
+  if (!arm.captured) return { armed: false, captured: quad, absent: 0 };
+  const limit = options.moveRatio * Math.hypot(frame.width, frame.height);
+  return maxCornerShift(arm.captured, quad) > limit ? ARMED_CAPTURE : { ...arm, absent: 0 };
+}
+
+// ---- The live outline ------------------------------------------------------------------------
+
+export type SmoothingOptions = {
+  /** How far each corner moves towards the new detection per frame, 0–1. */
+  readonly alpha: number;
+  /** A move larger than this share of the frame's diagonal is a new position: no easing. */
+  readonly jumpRatio: number;
+};
+
+export const DEFAULT_SMOOTHING: SmoothingOptions = { alpha: 0.5, jumpRatio: 0.06 };
+
+/**
+ * Steadies the outline drawn over the preview. Detections a few times a second jitter by a
+ * pixel or two; easing each corner towards the new one hides that, while a real move (more than
+ * `jumpRatio` of the diagonal) is followed at once. Only for drawing: auto-capture judges the
+ * raw detections.
+ */
+export function smoothQuad(
+  previous: Quad | null,
+  next: Quad | null,
+  frame: Size,
+  options: SmoothingOptions = DEFAULT_SMOOTHING,
+): Quad | null {
+  if (!next) return null;
+  if (!previous) return next;
+  if (maxCornerShift(previous, next) > options.jumpRatio * Math.hypot(frame.width, frame.height)) {
+    return next;
+  }
+  const a = Math.min(1, Math.max(0, options.alpha));
+  return previous.map((p, i) => {
+    const q = next[i] as Point;
+    return { x: p.x + (q.x - p.x) * a, y: p.y + (q.y - p.y) * a };
+  }) as unknown as Quad;
+}
+
+// ---- Rectangles inside a page ----------------------------------------------------------------
+
+/** An axis-aligned rectangle in whole pixels. */
+export type PixelRect = {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+};
+
+/**
+ * An upright rectangle inside a convex page outline (corners ordered as `orderCorners` gives
+ * them), pulled in by `shrink` of its size towards its centre: the part of a photo that is all
+ * page, for measuring it without the desk. Null when the outline is too thin or tilted to hold
+ * one.
+ */
+export function innerRect(quad: Quad, shrink = 0): PixelRect | null {
+  const [tl, tr, br, bl] = quad;
+  const left = Math.max(tl.x, bl.x);
+  const right = Math.min(tr.x, br.x);
+  const top = Math.max(tl.y, tr.y);
+  const bottom = Math.min(bl.y, br.y);
+  const width = right - left;
+  const height = bottom - top;
+  if (!(width > 0) || !(height > 0)) return null;
+  const s = Math.min(0.49, Math.max(0, shrink));
+  const x = Math.ceil(left + (width * s) / 2);
+  const y = Math.ceil(top + (height * s) / 2);
+  const w = Math.floor(left + width - (width * s) / 2) - x;
+  const h = Math.floor(top + height - (height * s) / 2) - y;
+  return w >= 1 && h >= 1 ? { x, y, width: w, height: h } : null;
 }
 
 // ---- Mapping frame points onto the screen ----------------------------------------------------

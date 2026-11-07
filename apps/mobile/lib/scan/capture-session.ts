@@ -11,6 +11,13 @@
  * Retake marks one page (`startRetake`); the next photo taken or picked replaces that page in
  * place, keeping its position and filter, instead of being added at the end.
  *
+ * A session has a preset (`presets.ts`), chosen when the camera opens (`startSession`): it caps
+ * the pages (an ID card has a front and a back), picks the first filter, and shapes how pages are
+ * processed. An ID card's sides are laid out on one A4 page when the scan is saved.
+ *
+ * Each page carries the quality of its photo (`photo-quality.ts`, measured with the analysis);
+ * review shows its issues until the citizen retakes the page or dismisses the warning.
+ *
  * Every file a session creates is a plaintext temporary copy in the app's cache or tmp folder.
  * Saving seals the processed pages into the encrypted vault and deletes all of them; discarding
  * the session just deletes them.
@@ -23,6 +30,7 @@ import type { DocumentDetails } from '../vault/vault-index';
 import { discardIncoming, saveDocument } from '../vault/vault-storage';
 import {
   analysePhoto,
+  composeIdCardSheet,
   type FilterPreviews,
   type PageFilter,
   type PhotoAnalysis,
@@ -30,7 +38,8 @@ import {
   renderPage,
 } from './document-vision';
 import { nextRotation, type PageRotation, type Quad, sameQuad } from './geometry';
-import { MULTI_PAGE_LIMIT } from './scan-session';
+import type { QualityIssue } from './photo-quality';
+import { presetDefaultFilter, presetPageLimit, type ScanPreset } from './presets';
 
 export type PageStatus = 'pending' | 'processing' | 'ready' | 'failed';
 
@@ -58,17 +67,21 @@ export type SessionPage = {
   readonly status: PageStatus;
   /** Bumped on every change that invalidates `rendered`. */
   readonly revision: number;
+  /** The citizen chose to keep the page despite its photo's quality warning. */
+  readonly qualityDismissed: boolean;
 };
 
 export type SessionState = {
   readonly pages: readonly SessionPage[];
   /** The page the next photo replaces, while a Retake is in progress. */
   readonly retakeId: string | null;
+  /** What the scan is for: an ordinary document unless the camera was opened for a preset. */
+  readonly preset: ScanPreset;
 };
 
 export const DEFAULT_FILTER: PageFilter = 'magic';
 
-let state: SessionState = { pages: [], retakeId: null };
+let state: SessionState = { pages: [], retakeId: null, preset: 'document' };
 const listeners = new Set<() => void>();
 
 function setState(next: SessionState): void {
@@ -123,7 +136,22 @@ function retakeTarget(): SessionPage | undefined {
 /** Whether `count` more photos fit. A retake replaces a page, so one photo always fits. */
 export function canAddPages(count = 1): boolean {
   if (retakeTarget()) return count <= 1;
-  return state.pages.length + count <= MULTI_PAGE_LIMIT;
+  return state.pages.length + count <= presetPageLimit(state.preset);
+}
+
+/**
+ * What the quality check found wrong with a page's photo, for review to warn about: nothing once
+ * the citizen has dismissed the warning, or while the photo has not been measured. A passport
+ * photo is not judged for blur: the check is calibrated on print, and a sharp face, all soft
+ * shading, could read as blurred; light and glare apply to it as to any page.
+ */
+export function pageQualityIssues(
+  page: SessionPage,
+  preset: ScanPreset = state.preset,
+): readonly QualityIssue[] {
+  if (page.qualityDismissed) return [];
+  const issues = page.analysis?.quality?.issues ?? [];
+  return preset === 'photo' ? issues.filter((issue) => issue !== 'blurry') : issues;
 }
 
 // ---- Processing ----------------------------------------------------------------------------
@@ -160,6 +188,7 @@ async function processNow(id: string): Promise<void> {
     const { previews, ...rendered } = await renderPage(page.photoUri, crop, page.filter, {
       rotation: page.rotation,
       previews: wantPreviews,
+      preset: state.preset,
     });
     const current = findPage(id);
     if (!current || current.revision !== revision) {
@@ -209,6 +238,7 @@ export function addPhotos(uris: readonly string[], source: SessionPage['source']
     if (!photoUri) return [];
     discardIncoming(pageFiles(target));
     setState({
+      ...state,
       retakeId: null,
       pages: state.pages.map((page) =>
         page.id === target.id
@@ -225,6 +255,7 @@ export function addPhotos(uris: readonly string[], source: SessionPage['source']
               previewsFor: null,
               status: 'pending',
               revision: page.revision + 1,
+              qualityDismissed: false,
             }
           : page,
       ),
@@ -233,7 +264,7 @@ export function addPhotos(uris: readonly string[], source: SessionPage['source']
     return [target.id];
   }
 
-  const room = Math.max(0, MULTI_PAGE_LIMIT - state.pages.length);
+  const room = Math.max(0, presetPageLimit(state.preset) - state.pages.length);
   const accepted = uris.slice(0, room);
   discardIncoming(uris.slice(room));
 
@@ -243,7 +274,7 @@ export function addPhotos(uris: readonly string[], source: SessionPage['source']
     source,
     analysis: null,
     quad: null,
-    filter: state.pages.at(-1)?.filter ?? DEFAULT_FILTER,
+    filter: state.pages.at(-1)?.filter ?? presetDefaultFilter(state.preset),
     rotation: 0,
     straighten: 0,
     rendered: null,
@@ -251,6 +282,7 @@ export function addPhotos(uris: readonly string[], source: SessionPage['source']
     previewsFor: null,
     status: 'pending',
     revision: 0,
+    qualityDismissed: false,
   }));
   setState({ ...state, pages: [...state.pages, ...pages] });
   for (const page of pages) void processPage(page.id);
@@ -298,6 +330,11 @@ export function startRetake(id: string): void {
   if (findPage(id)) setState({ ...state, retakeId: id });
 }
 
+/** Keeps a page despite its quality warning: review stops showing it. */
+export function dismissQualityWarning(id: string): void {
+  if (findPage(id)) patchPage(id, { qualityDismissed: true });
+}
+
 /** Forgets a Retake the citizen walked away from. */
 export function cancelRetake(): void {
   if (state.retakeId !== null) setState({ ...state, retakeId: null });
@@ -318,6 +355,7 @@ export function removePage(id: string): void {
   if (!page) return;
   discardIncoming(pageFiles(page));
   setState({
+    ...state,
     pages: state.pages.filter((p) => p.id !== id),
     retakeId: state.retakeId === id ? null : state.retakeId,
   });
@@ -325,8 +363,13 @@ export function removePage(id: string): void {
 
 /** Throws the whole session away, deleting every temporary file. */
 export function discardSession(): void {
+  startSession('document');
+}
+
+/** Throws away any session in progress, deleting its files, and starts an empty one for `preset`. */
+export function startSession(preset: ScanPreset): void {
   const uris = state.pages.flatMap(pageFiles);
-  setState({ pages: [], retakeId: null });
+  setState({ pages: [], retakeId: null, preset });
   discardIncoming(uris);
 }
 
@@ -353,11 +396,29 @@ export async function saveSession(details: DocumentDetails = {}): Promise<string
     throw new SessionNotReadyError();
   }
 
-  const documentId = await saveDocument(
-    pages.map((page) => ({ uri: (page.rendered as RenderedPage).uri, mimeType: 'image/jpeg' })),
-    pages.every((page) => page.source === 'gallery') ? 'gallery' : 'scanner',
-    details,
-  );
+  const rendered = pages.map((page) => page.rendered as RenderedPage);
+  const source = pages.every((page) => page.source === 'gallery') ? 'gallery' : 'scanner';
+
+  // An ID card's sides go on one A4 page. If that cannot be drawn, the sides are saved as they
+  // are rather than losing the scan. The sheet is a plaintext copy: deleted however it ends.
+  let sheet: RenderedPage | null = null;
+  if (state.preset === 'id_card') {
+    try {
+      sheet = await composeIdCardSheet(rendered);
+    } catch {
+      sheet = null;
+    }
+  }
+  let documentId: string;
+  try {
+    documentId = await saveDocument(
+      (sheet ? [sheet] : rendered).map((page) => ({ uri: page.uri, mimeType: 'image/jpeg' })),
+      source,
+      details,
+    );
+  } finally {
+    if (sheet) discardIncoming([sheet.uri]);
+  }
   discardSession();
   return documentId;
 }

@@ -33,6 +33,7 @@ import {
   Point2f,
   Point2fVector,
   PointVector,
+  Rect,
   RetrievalModes,
   RotateFlags,
   Scalar,
@@ -41,19 +42,21 @@ import {
 } from 'react-native-fast-opencv';
 
 import { readJpegOrientation, uprightRotation } from './exif';
+import type { PageFilter } from './filters';
 import {
   DEFAULT_PLAUSIBILITY,
   flattenedSize,
   fullFrameQuad,
+  innerRect,
   insetQuad,
   isPlausibleDocument,
   orderCorners,
   pageAspect,
   type PageRotation,
+  type PixelRect,
   type Point as GeometryPoint,
   type Quad,
   quadArea,
-  rotatedSize,
   scaleQuad,
   type Size as GeometrySize,
 } from './geometry';
@@ -66,11 +69,23 @@ import {
   type Segment,
 } from './page-lines';
 import { estimatePaperLight, maxPool } from './paper-light';
-import { chromaCurve, levelsCurve, pageLevels } from './tone-curve';
+import { assessPhotoQuality, type PhotoQuality } from './photo-quality';
+import {
+  centredCrop,
+  ID_CARD_ASPECT,
+  ID_CARD_ASPECT_TOLERANCE,
+  idCardSheetLayout,
+  inkBounds,
+  padRect,
+  PASSPORT_PHOTO,
+  PASSPORT_PHOTO_ASPECT,
+  presetFilters,
+  type ScanPreset,
+  snapAspect,
+} from './presets';
+import { chromaCurve, contrastStretch, levelsCurve, pageLevels, photoLevels } from './tone-curve';
 
-/** The looks a page can be saved with. Each has copy at `scanner.filters.<filter>`. */
-export const PAGE_FILTERS = ['magic', 'original', 'grayscale', 'blackWhite'] as const;
-export type PageFilter = (typeof PAGE_FILTERS)[number];
+export { PAGE_FILTERS, type PageFilter } from './filters';
 
 /**
  * Longest side of a saved page: A4 at 300 dpi, what a flatbed scanner gives. Pages the camera
@@ -272,12 +287,53 @@ function simplifyToQuad(hull: Mat, keep: Keep): Quad | null {
   return null;
 }
 
-/** Detects a page in a shrunken camera frame. Coordinates are in that small image's pixels. */
+/** A 256-bin brightness histogram of 8-bit pixels. */
+function histogramOf(pixels: Uint8Array): Uint32Array {
+  const histogram = new Uint32Array(256);
+  for (let i = 0; i < pixels.length; i += 1) {
+    histogram[pixels[i] as number] = (histogram[pixels[i] as number] as number) + 1;
+  }
+  return histogram;
+}
+
+/**
+ * A contrast-stretched copy of a greyscale Mat (`contrastStretch`), or null when the image
+ * already spans enough range for the stretch to change little. For a second look at a frame in
+ * which nothing was found: a light page on a light desk differs from it by a few levels, below
+ * what the edge detector is tuned for, and stretched that step is several times larger.
+ */
+function stretchedCopy(gray: Mat, pixels: Uint8Array, keep: Keep): Mat | null {
+  const table = contrastStretch(histogramOf(pixels));
+  return table ? lookUp(gray, table, keep) : null;
+}
+
+/**
+ * Detects a page in a shrunken camera frame. Coordinates are in that small image's pixels. When
+ * nothing is found, a low-contrast frame gets one more look, stretched (`stretchedCopy`); that
+ * second look can only add a page, never change one the first found, and costs nothing on a
+ * frame with ordinary contrast. Stretching also lifts the texture of a plain wall or a cloth, so
+ * an outline found that way must also have paper brighter than its surroundings along every
+ * side (`hasPageEdges`), as captured photos' outlines must.
+ */
 export function detectDocument(luma: LumaImage): Quad | null {
   if (luma.width < 16 || luma.height < 16) return null;
   return withScope((keep) => {
     const gray = keep(Mat.createFromBuffer('uint8', luma.height, luma.width, 1, luma.pixels));
-    return detectInGray(gray, { width: luma.width, height: luma.height });
+    const size = { width: luma.width, height: luma.height };
+    const found = detectInGray(gray, size);
+    if (found) return found;
+    try {
+      const stretched = stretchedCopy(gray, luma.pixels, keep);
+      if (!stretched) return null;
+      const quad = detectInGray(stretched, size);
+      if (!quad) return null;
+      const blurred = keep(emptyMat());
+      OpenCV.GaussianBlur(stretched, blurred, keep(Size.create(5, 5)), 0);
+      const image = { ...size, pixels: blurred.toBuffer('uint8').buffer };
+      return hasPageEdges(quad, image) ? quad : null;
+    } catch {
+      return null;
+    }
   });
 }
 
@@ -322,7 +378,35 @@ export type PhotoAnalysis = {
   /** Where the page is. The whole photo when no page was found. */
   readonly quad: Quad;
   readonly detected: boolean;
+  /** Whether the photo is sharp and well lit enough (`photo-quality.ts`); null if not measured. */
+  readonly quality: PhotoQuality | null;
 };
+
+/** Width of the copy a photo's quality is measured on; `DEFAULT_QUALITY` is calibrated at it. */
+const QUALITY_WIDTH = 800;
+/** How far inside the page quality is measured, so the desk and the page's edge are left out. */
+const QUALITY_INSET = 0.04;
+
+/**
+ * Measures the photo's quality inside the page (`quad`, or the whole photo when none was
+ * found). Null when it cannot be measured: the check is advice, so it never stops a scan.
+ */
+function measureQuality(image: Mat, quad: Quad | null): PhotoQuality | null {
+  try {
+    const scale = Math.min(1, QUALITY_WIDTH / Math.max(1, image.cols));
+    return withGrayAt(image, scale, (gray, size) => {
+      const region: PixelRect | null = quad
+        ? innerRect(scaleQuad(quad, scale), QUALITY_INSET)
+        : null;
+      return assessPhotoQuality(
+        { width: size.width, height: size.height, pixels: gray.toBuffer('uint8').buffer },
+        region ?? undefined,
+      );
+    });
+  } catch {
+    return null;
+  }
+}
 
 /** Shrinks a BGR photo by `scale` and hands its greyscale copy, and that copy's size, to `work`. */
 function withGrayAt<T>(image: Mat, scale: number, work: (gray: Mat, size: GeometrySize) => T): T {
@@ -393,7 +477,7 @@ function scanEdges(gray: Mat, keep: Keep): { image: PageLinesImage; segments: Se
  * page filling or running off the frame; failing that, from closed outlines, as long as their
  * sides are real page edges and not a box printed on the page.
  */
-function findPageInPhoto(gray: Mat, size: GeometrySize): Quad | null {
+function searchPhoto(gray: Mat, size: GeometrySize): Quad | null {
   return withScope((keep) => {
     const { image, segments } = scanEdges(gray, keep);
     const fromLines = findPageFromLines(segments, image);
@@ -408,9 +492,28 @@ function findPageInPhoto(gray: Mat, size: GeometrySize): Quad | null {
 }
 
 /**
+ * `searchPhoto`, and when it finds nothing, the same search once more on a contrast-stretched
+ * copy (`stretchedCopy`): the light page on a light desk. Pages the first search finds are
+ * unchanged.
+ */
+function findPageInPhoto(gray: Mat, size: GeometrySize): Quad | null {
+  const found = searchPhoto(gray, size);
+  if (found) return found;
+  try {
+    return withScope((keep) => {
+      const stretched = stretchedCopy(gray, gray.toBuffer('uint8').buffer, keep);
+      return stretched ? searchPhoto(stretched, size) : null;
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Finds the page in a captured or imported photo: at the detector's tuned scale first, then
  * each side is snapped onto the straight edge it lies on at a higher resolution, so the corners
  * land on the paper's real edge. The result is inset slightly so no desk shows in the scan.
+ * The photo's quality is measured inside the page found, for review to warn about.
  */
 export async function analysePhoto(uri: string): Promise<PhotoAnalysis> {
   const scope: Releasable[] = [];
@@ -424,7 +527,14 @@ export async function analysePhoto(uri: string): Promise<PhotoAnalysis> {
 
     const coarseScale = Math.min(1, DETECTION_WIDTH / size.width);
     const coarse = withGrayAt(image, coarseScale, findPageInPhoto);
-    if (!coarse) return { size, quad: fullFrameQuad(size), detected: false };
+    if (!coarse) {
+      return {
+        size,
+        quad: fullFrameQuad(size),
+        detected: false,
+        quality: measureQuality(image, null),
+      };
+    }
 
     let quad = scaleQuad(coarse, 1 / coarseScale);
     const fineScale = Math.min(1, REFINE_WIDTH / size.width);
@@ -439,7 +549,8 @@ export async function analysePhoto(uri: string): Promise<PhotoAnalysis> {
       );
     }
 
-    return { size, quad: insetQuad(quad, AUTO_CROP_INSET), detected: true };
+    const page = insetQuad(quad, AUTO_CROP_INSET);
+    return { size, quad: page, detected: true, quality: measureQuality(image, page) };
   } finally {
     for (const object of scope.reverse()) object.release();
   }
@@ -666,8 +777,11 @@ function saveJpeg(image: Mat, prefix: string): string {
   return output.uri;
 }
 
-/** One small JPEG per filter, for the review screen's filter cards. */
-export type FilterPreviews = Readonly<Record<PageFilter, string>>;
+/**
+ * One small JPEG per filter the page's preset offers (`presetFilters`), for the review screen's
+ * filter cards; a photo has only its original look.
+ */
+export type FilterPreviews = Readonly<Partial<Record<PageFilter, string>>>;
 
 export type RenderedPage = {
   /** A JPEG in the app cache. Plaintext: it is deleted once sealed into the vault. */
@@ -683,6 +797,8 @@ export type RenderOptions = {
   readonly rotation?: PageRotation;
   /** Also write a small preview of the page in every filter. */
   readonly previews?: boolean;
+  /** What the page is for (`presets.ts`); an ordinary document page by default. */
+  readonly preset?: ScanPreset;
 };
 
 type FlatPage = {
@@ -694,10 +810,17 @@ type FlatPage = {
 
 /**
  * Warps the page inside `quad` of the photo at `photoUri` to an upright rectangle of its true
- * shape (`pageAspect`), `OUTPUT_LONG_SIDE` long. The full-size photo is released as soon as the
- * warp is done. Bicubic, so text stays sharp-edged where the page is enlarged.
+ * shape (`pageAspect`), `OUTPUT_LONG_SIDE` long. An ID card's shape is squared up to ID-1 when it
+ * is close (`snapAspect`), so the card prints at its real proportions. The full-size photo is
+ * released as soon as the warp is done. Bicubic, so text stays sharp-edged where the page is
+ * enlarged.
  */
-async function flattenPhoto(photoUri: string, quad: Quad, keep: Keep): Promise<FlatPage> {
+async function flattenPhoto(
+  photoUri: string,
+  quad: Quad,
+  preset: ScanPreset,
+  keep: Keep,
+): Promise<FlatPage> {
   const owned: Releasable[] = [];
   const own: Keep = (object) => {
     owned.push(object);
@@ -705,7 +828,11 @@ async function flattenPhoto(photoUri: string, quad: Quad, keep: Keep): Promise<F
   };
   try {
     const image = await loadUpright(photoUri, own);
-    const aspect = pageAspect(quad, { width: image.cols, height: image.rows });
+    const measured = pageAspect(quad, { width: image.cols, height: image.rows });
+    const aspect =
+      preset === 'id_card'
+        ? snapAspect(measured, ID_CARD_ASPECT, ID_CARD_ASPECT_TOLERANCE)
+        : measured;
     const out = flattenedSize(quad, OUTPUT_LONG_SIDE, MAX_UPSCALE, aspect);
     const caught = flattenedSize(quad, Number.POSITIVE_INFINITY, 1, aspect);
     const detailScale = Math.max(
@@ -742,15 +869,119 @@ async function flattenPhoto(photoUri: string, quad: Quad, keep: Keep): Promise<F
   }
 }
 
+/** `image` resized to exactly `width` × `height`, area-averaged (for shrinking). */
+function resizeTo(image: Mat, width: number, height: number, keep: Keep): Mat {
+  const sized = keep(emptyMat());
+  OpenCV.resize(
+    image,
+    sized,
+    keep(Size.create(Math.max(1, width), Math.max(1, height))),
+    0,
+    0,
+    InterpolationFlags.INTER_AREA,
+  );
+  return sized;
+}
+
+function cropTo(image: Mat, rect: PixelRect, keep: Keep): Mat {
+  const cut = keep(emptyMat());
+  OpenCV.crop(image, cut, keep(Rect.create(rect.x, rect.y, rect.width, rect.height)));
+  return cut;
+}
+
+/**
+ * The passport-photo look: the largest centred 35 × 45 mm cut of the (turned) page, at 300 dpi
+ * (`PASSPORT_PHOTO`), with a gentle levels stretch on brightness only (`photoLevels`) so a dull
+ * print or a dim room is lifted while skin keeps its tones and colour is untouched. None of the
+ * document filters' paper whitening, sharpening or ink deepening.
+ */
+function passportPhoto(page: Mat, keep: Keep): Mat {
+  return stage(keep, (own) => {
+    const cut = cropTo(
+      page,
+      centredCrop({ width: page.cols, height: page.rows }, PASSPORT_PHOTO_ASPECT),
+      own,
+    );
+    const sized = resizeTo(cut, PASSPORT_PHOTO.width, PASSPORT_PHOTO.height, own);
+    const ycrcb = own(emptyMat());
+    OpenCV.cvtColor(sized, ycrcb, ColorConversionCodes.COLOR_BGR2YCrCb);
+    const planes = own(MatVector.create());
+    OpenCV.split(ycrcb, planes);
+    const luma = own(planes.get(0));
+    const levels = photoLevels(histogramOf(luma.toBuffer('uint8').buffer));
+    const out = own(MatVector.create());
+    out.push(lookUp(luma, levelsCurve(levels, 1), own));
+    out.push(own(planes.get(1)));
+    out.push(own(planes.get(2)));
+    const merged = own(emptyMat());
+    OpenCV.merge(out, merged);
+    const bgr = own(emptyMat());
+    OpenCV.cvtColor(merged, bgr, ColorConversionCodes.COLOR_YCrCb2BGR);
+    return bgr;
+  });
+}
+
+/** Longest side of the copy a signature's ink is found on: plenty to box it, and quick. */
+const INK_SAMPLE_SIDE = 800;
+/** Room left around a trimmed signature, as a share of its size, and at least this many pixels. */
+const SIGNATURE_MARGIN = 0.06;
+const SIGNATURE_MIN_MARGIN = 24;
+
+/**
+ * Crops a finished signature page to its ink plus a margin (`inkBounds`). The ink is found on a
+ * small, cleaned copy — lighting evened and toned, so paper is white whatever filter the page
+ * was given — and the box scaled back up. A page with no ink found is left as it is.
+ */
+function trimToInk(page: Mat, singleChannel: boolean, keep: Keep): Mat {
+  const box = withScope((own) => {
+    let gray = page;
+    if (!singleChannel) {
+      gray = own(emptyMat());
+      OpenCV.cvtColor(page, gray, ColorConversionCodes.COLOR_BGR2GRAY);
+    }
+    const small = shrink(gray, INK_SAMPLE_SIDE, own);
+    const cleaned = applyToneCurve(evenOutLighting(small, own), own);
+    const found = inkBounds({
+      width: cleaned.cols,
+      height: cleaned.rows,
+      pixels: cleaned.toBuffer('uint8').buffer,
+    });
+    if (!found) return null;
+    const scale = page.cols / cleaned.cols;
+    const x = Math.floor(found.x * scale);
+    const y = Math.floor(found.y * scale);
+    return padRect(
+      {
+        x,
+        y,
+        width: Math.min(page.cols - x, Math.ceil(found.width * scale)),
+        height: Math.min(page.rows - y, Math.ceil(found.height * scale)),
+      },
+      { width: page.cols, height: page.rows },
+      SIGNATURE_MARGIN,
+      SIGNATURE_MIN_MARGIN,
+    );
+  });
+  return box ? cropTo(page, box, keep) : page;
+}
+
+/** `image` shrunk to preview size and written as a filter card's JPEG. */
+function savePreview(image: Mat, keep: Keep): string {
+  return saveJpeg(shrink(image, PREVIEW_MAX_SIDE, keep), 'scan-preview');
+}
+
 /**
  * Flattens the page inside `quad`, applies `filter` and the rotation, and writes a JPEG to the
- * app cache — plus, when asked, one small preview per filter from the same flattened page.
+ * app cache — plus, when asked, one small preview per filter the preset offers, from the same
+ * flattened page. The preset shapes the result (`presets.ts`): an ID card is squared up to
+ * ID-1, a photo is cut to 35 × 45 mm and only gently corrected, and a signature is cropped to
+ * its ink.
  */
 export async function renderPage(
   photoUri: string,
   quad: Quad,
   filter: PageFilter,
-  { rotation = 0, previews = false }: RenderOptions = {},
+  { rotation = 0, previews = false, preset = 'document' }: RenderOptions = {},
 ): Promise<RenderedPage> {
   const scope: Releasable[] = [];
   const keep = <R extends Releasable>(object: R): R => {
@@ -758,45 +989,91 @@ export async function renderPage(
     return object;
   };
   try {
-    const { flat, detailScale } = await flattenPhoto(photoUri, quad, keep);
-    const out = { width: flat.cols, height: flat.rows };
+    const { flat, detailScale } = await flattenPhoto(photoUri, quad, preset, keep);
+
+    if (preset === 'photo') {
+      const result = passportPhoto(rotate(flat, rotation, keep), keep);
+      return {
+        uri: saveJpeg(result, 'scan-page'),
+        width: result.cols,
+        height: result.rows,
+        ...(previews ? { previews: { original: savePreview(result, keep) } } : {}),
+      };
+    }
 
     let previewUris: FilterPreviews | undefined;
     if (previews) {
-      const scale = Math.min(1, PREVIEW_MAX_SIDE / Math.max(out.width, out.height));
-      const small = keep(emptyMat());
-      OpenCV.resize(
-        flat,
-        small,
-        keep(
-          Size.create(
-            Math.max(1, Math.round(out.width * scale)),
-            Math.max(1, Math.round(out.height * scale)),
-          ),
-        ),
-        0,
-        0,
-        InterpolationFlags.INTER_AREA,
-      );
+      const small = shrink(flat, PREVIEW_MAX_SIDE, keep);
       const written: Partial<Record<PageFilter, string>> = {};
-      for (const each of PAGE_FILTERS) {
+      for (const each of presetFilters(preset)) {
         written[each] = saveJpeg(
           rotate(applyFilter(small, each, 1, keep), rotation, keep),
           'scan-preview',
         );
       }
-      previewUris = written as FilterPreviews;
+      previewUris = written;
     }
 
-    const result = rotate(applyFilter(flat, filter, detailScale, keep), rotation, keep);
-    const size = rotatedSize(out, rotation);
+    let result = rotate(applyFilter(flat, filter, detailScale, keep), rotation, keep);
+    if (preset === 'signature') {
+      result = trimToInk(result, filter === 'grayscale' || filter === 'blackWhite', keep);
+    }
     return {
       uri: saveJpeg(result, 'scan-page'),
-      width: size.width,
-      height: size.height,
+      width: result.cols,
+      height: result.rows,
       ...(previewUris ? { previews: previewUris } : {}),
     };
   } finally {
     for (const object of scope.reverse()) object.release();
+  }
+}
+
+/**
+ * Lays an ID card's rendered sides (front, then back) out on one A4 page at 300 dpi, each at the
+ * card's true size (`idCardSheetLayout`) on white, and writes it as a JPEG in the app cache — a
+ * plaintext temporary file like every render, for the caller to seal and delete. Each half of
+ * the sheet is one side padded with white; the halves are stacked.
+ */
+export async function composeIdCardSheet(sides: readonly { uri: string }[]): Promise<RenderedPage> {
+  const scope: Releasable[] = [];
+  const keep = <R extends Releasable>(object: R): R => {
+    scope.push(object);
+    return object;
+  };
+  try {
+    const images: Mat[] = [];
+    for (const side of sides) images.push(await loadUpright(side.uri, keep));
+    const { sheet, placements } = idCardSheetLayout(
+      images.map((image) => ({ width: image.cols, height: image.rows })),
+    );
+
+    const half = Math.floor(sheet.height / 2);
+    const white = keep(Scalar.create(255, 255, 255));
+    const parts = keep(MatVector.create());
+    placements.forEach((place, index) => {
+      const sized = resizeTo(images[index] as Mat, place.width, place.height, keep);
+      const top = index * half;
+      // The last part runs to the sheet's foot, so the halves always add up to the whole page.
+      const bottom = index === placements.length - 1 ? sheet.height : top + half;
+      const padded = keep(emptyMat());
+      OpenCV.copyMakeBorder(
+        sized,
+        padded,
+        place.y - top,
+        bottom - (place.y + place.height),
+        place.x,
+        sheet.width - (place.x + place.width),
+        BorderTypes.BORDER_CONSTANT,
+        white,
+      );
+      parts.push(padded);
+    });
+
+    const page = keep(emptyMat());
+    OpenCV.vconcat(parts, page);
+    return { uri: saveJpeg(page, 'scan-idcard'), width: page.cols, height: page.rows };
+  } finally {
+    for (const object of scope.reverse()) releaseQuietly(object);
   }
 }

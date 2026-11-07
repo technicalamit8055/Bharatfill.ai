@@ -105,3 +105,95 @@ export function chromaCurve(deadZone: number, gain: number): Uint8Array {
   }
   return table;
 }
+
+/** The brightness below which `share` of a histogram's pixels lie, and the one above which. */
+function percentiles(histogram: ArrayLike<number>, share: number): { low: number; high: number } {
+  let total = 0;
+  for (let i = 0; i < 256; i += 1) total += histogram[i] ?? 0;
+  const limit = share * total;
+  let low = 0;
+  let seen = 0;
+  while (low < 255 && seen + (histogram[low] ?? 0) <= limit) {
+    seen += histogram[low] ?? 0;
+    low += 1;
+  }
+  let high = 255;
+  seen = 0;
+  while (high > 0 && seen + (histogram[high] ?? 0) <= limit) {
+    seen += histogram[high] ?? 0;
+    high -= 1;
+  }
+  return { low, high: Math.max(low, high) };
+}
+
+function histogramTotal(histogram: ArrayLike<number>): number {
+  let total = 0;
+  for (let i = 0; i < 256; i += 1) total += histogram[i] ?? 0;
+  return total;
+}
+
+export type ContrastStretchOptions = {
+  /** Share of pixels allowed past each end: specular glints and the darkest shadow. */
+  readonly clipShare: number;
+  /**
+   * Images already spanning this many levels between those ends gain too little from the
+   * stretch to be worth another detection pass.
+   */
+  readonly enoughRange: number;
+};
+
+export const DEFAULT_CONTRAST_STRETCH: ContrastStretchOptions = {
+  clipShare: 0.01,
+  enoughRange: 170,
+};
+
+/**
+ * A table spreading a low-contrast image across the full range: its 1st percentile to black,
+ * its 99th to white. For finding a light page on a light desk, whose edge is a step of a few
+ * levels that edge detection tuned for ordinary photos misses; stretched, the same step is
+ * several times larger. Null when the image already spans enough range (the stretch would
+ * barely change it) or holds no contrast at all.
+ */
+export function contrastStretch(
+  histogram: ArrayLike<number>,
+  options: ContrastStretchOptions = DEFAULT_CONTRAST_STRETCH,
+): Uint8Array | null {
+  if (histogramTotal(histogram) <= 0) return null;
+  const { low, high } = percentiles(histogram, options.clipShare);
+  const range = high - low;
+  if (range < 2 || range >= options.enoughRange) return null;
+  const table = new Uint8Array(256);
+  for (let i = 0; i < 256; i += 1) {
+    table[i] = Math.round(Math.min(255, Math.max(0, ((i - low) * 255) / range)));
+  }
+  return table;
+}
+
+export type PhotoLevelsOptions = {
+  /** Share of pixels allowed past each end before the black and white points. */
+  readonly clipShare: number;
+  /** The most the stretch may multiply contrast by: enough to lift a dull print, not a face. */
+  readonly maxGain: number;
+};
+
+export const DEFAULT_PHOTO_LEVELS: PhotoLevelsOptions = { clipShare: 0.005, maxGain: 1.35 };
+
+/**
+ * Gentle auto-levels for a passport photo, for `levelsCurve(levels, 1)`: the darkest and
+ * lightest half-percent go to black and white, but the contrast grows by at most `maxGain`, so a
+ * dull print or a dim room is lifted while skin keeps its tones. The extra range a capped gain
+ * leaves is shared evenly between shadows and highlights.
+ */
+export function photoLevels(
+  histogram: ArrayLike<number>,
+  options: PhotoLevelsOptions = DEFAULT_PHOTO_LEVELS,
+): Levels {
+  if (histogramTotal(histogram) <= 0) return { black: 0, white: 255 };
+  const { low, high } = percentiles(histogram, options.clipShare);
+  // Rounded up, so the gain stays at or under the cap.
+  const minRange = Math.ceil(255 / Math.max(1, options.maxGain));
+  if (high - low >= minRange) return { black: low, white: high };
+  const centre = (low + high) / 2;
+  const black = Math.round(Math.max(0, Math.min(255 - minRange, centre - minRange / 2)));
+  return { black, white: black + minRange };
+}

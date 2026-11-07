@@ -21,7 +21,7 @@ import { useTranslation } from '../../lib/i18n/I18nProvider';
  * through before SMS is wired. No OTP is sent. `__DEV__` is false in release builds, so the
  * shortcut and this number are stripped from anything shipped. Remove once SMS OTP is live.
  */
-const DEMO_NUMBER = '+919572189324';
+const DEMO_NUMBER = '+919876543210';
 
 export default function MobileNumberRoute() {
   const router = useRouter();
