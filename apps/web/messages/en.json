@@ -3349,6 +3349,14 @@
         "website": "Website"
       },
       "releases": {
+        "appCustomers": {
+          "title": "Citizen app users appear as ordinary customers",
+          "summary": "Someone who signs up in the BharatDoc app can now be found and served like any customer, once they approve.",
+          "items": {
+            "appCustomerSearch": "Search finds a citizen who uses the BharatDoc app. They approve your access with one tap in the app, then you see their profile and documents like any other customer.",
+            "appCustomerReview": "With their approval, you can review the details read from their documents and fill forms for them, without asking them to visit their original centre."
+          }
+        },
         "vaultHome": {
           "title": "Your vault on the home screen, and a photo check before you save",
           "summary": "The citizen app now shows what is really in your vault and catches unusable photos early.",

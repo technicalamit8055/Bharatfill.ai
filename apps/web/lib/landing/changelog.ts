@@ -39,6 +39,14 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: readonly ChangelogRelease[] = [
   {
+    key: 'appCustomers',
+    date: '2026-11-22',
+    items: [
+      { key: 'appCustomerSearch', tag: 'new', area: 'dashboard' },
+      { key: 'appCustomerReview', tag: 'new', area: 'dashboard' },
+    ],
+  },
+  {
     key: 'vaultHome',
     date: '2026-11-07',
     items: [
