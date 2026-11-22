@@ -52,6 +52,8 @@ export const roamingSearchResultSchema = z.object({
   mobileLast4: z.string().length(4).nullable(),
   state: z.string().max(60).nullable(),
   isLinked: z.boolean(),
+  /** Signed up in the BharatDoc app (migration 0041). Absent from older servers. */
+  fromApp: z.boolean().default(false),
 });
 export type RoamingSearchResult = z.infer<typeof roamingSearchResultSchema>;
 

@@ -15,6 +15,13 @@ import type { z } from 'zod';
 import { logger } from '../api/logger';
 import type { CitizenVaultDocumentRow } from '../supabase/database.types';
 import { VAULT_BUCKET } from './account';
+import {
+  ensureAppCustomer,
+  mirrorPendingDocuments,
+  mirrorVaultDocument,
+  removeMirror,
+  updateMirror,
+} from './app-customer';
 import type { CitizenContext } from './context';
 
 /**
@@ -48,7 +55,7 @@ export type VaultDocumentView = {
 };
 
 const COLUMNS =
-  'id, citizen_id, document_type, category, title, storage_path, mime_type, size_bytes, page_count, sha256, status, created_at, updated_at, deleted_at';
+  'id, citizen_id, document_type, category, title, storage_path, mime_type, size_bytes, page_count, sha256, status, created_at, updated_at, deleted_at, mirror_document_id';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -113,6 +120,9 @@ async function loadOwnDocument(
 }
 
 export async function listVaultDocuments(context: CitizenContext): Promise<VaultDocumentView[]> {
+  // The phone lists on every launch: a good moment to catch up on customer-side copies (0041).
+  await mirrorQuietly(context);
+
   const { data, error } = await context.admin
     .from('citizen_vault_documents')
     .select(COLUMNS)
@@ -212,7 +222,32 @@ export async function confirmUpload(
     .select(COLUMNS)
     .single();
   if (updateError) throw updateError;
-  return toView(updated as CitizenVaultDocumentRow);
+  const ready = updated as CitizenVaultDocumentRow;
+
+  // Now the operator side: the same file as a customer document, read like any upload (0041).
+  // Never fails the phone's sync — `listVaultDocuments` retries anything left behind.
+  try {
+    const customerId = await ensureAppCustomer(context.admin, context);
+    if (customerId) await mirrorVaultDocument(context.admin, context.citizenId, customerId, ready);
+  } catch (thrown) {
+    logger.warn('citizen.mirror_failed', {
+      citizenId: context.citizenId,
+      documentId: ready.id,
+      reason: thrown instanceof Error ? thrown.name : 'unknown',
+    });
+  }
+  return toView(ready);
+}
+
+async function mirrorQuietly(context: CitizenContext): Promise<void> {
+  try {
+    await mirrorPendingDocuments(context.admin, context);
+  } catch (thrown) {
+    logger.warn('citizen.mirror_catch_up_failed', {
+      citizenId: context.citizenId,
+      reason: thrown instanceof Error ? thrown.name : 'unknown',
+    });
+  }
 }
 
 export async function updateVaultDocument(
@@ -220,7 +255,7 @@ export async function updateVaultDocument(
   documentId: string,
   patch: z.output<typeof vaultDocumentUpdateSchema>,
 ): Promise<VaultDocumentView> {
-  await loadOwnDocument(context, documentId);
+  const current = await loadOwnDocument(context, documentId);
   const update: Record<string, unknown> = {};
   if (patch.title !== undefined) update.title = patch.title;
   if (patch.documentType !== undefined) {
@@ -235,10 +270,20 @@ export async function updateVaultDocument(
     .select(COLUMNS)
     .single();
   if (error) throw error;
+  if (current.mirror_document_id) {
+    await updateMirror(context.admin, current.mirror_document_id, {
+      ...(patch.title === undefined ? {} : { title: patch.title }),
+      ...(patch.documentType === undefined ? {} : { documentType: patch.documentType }),
+      mimeType: current.mime_type,
+    });
+  }
   return toView(data as CitizenVaultDocumentRow);
 }
 
-/** Hidden from every reader at once; bytes removed now (the sweep retries a failed removal). */
+/**
+ * Hidden from every reader at once; bytes removed now (the sweep retries a failed removal). The
+ * customer-side copy (0041) is removed with it.
+ */
 export async function deleteVaultDocument(
   context: CitizenContext,
   documentId: string,
@@ -249,6 +294,8 @@ export async function deleteVaultDocument(
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', row.id);
   if (error) throw error;
+
+  if (row.mirror_document_id) await removeMirror(context.admin, row.mirror_document_id);
 
   const { error: removeError } = await context.admin.storage
     .from(VAULT_BUCKET)

@@ -232,6 +232,28 @@ Citizens of the mobile app sign in by phone OTP into this project. A `before ins
 Tests: `rls-tests/citizen_vault.test.ts`, `packages/core/src/citizen-vault/citizen-vault.test.ts`,
 `apps/web/lib/citizen/secrets.test.ts`.
 
+**App accounts as customers (migration 0041).** Every app account also has a `customers` row in
+the platform organization "BharatDoc app", and each synced file is decrypted by the server and
+stored as a normal `documents` row there (plaintext in the private `customer-documents` bucket,
+same protection as an operator upload). Controls:
+
+- The organization has **no members, ever** (trigger on `organization_members`, service role
+  included), so no centre reads an app customer without a roaming grant the citizen gave
+  (app approval, 0039, or SMS OTP, 0024) — the same consent step as any other centre's customer.
+- The one extra thing a grant opens for an app customer is **reading** `document_extractions`, so
+  the operator at the counter can do the human review. Review writes go through
+  `POST /api/documents/:id/review` on the service role, after `resolveDocumentScope`
+  (`apps/web/lib/documents/scope.ts`) re-proves the grant with the caller's JWT. Other centres'
+  extractions stay closed to grant holders.
+- The citizen deleting a document or the account deletes the customer-side copy and its bytes
+  first (`apps/web/lib/citizen/app-customer.ts`).
+- The app organization keeps `ai_processing_enabled = false`, so app documents are read by the
+  local OCR only (DEVELOPMENT_RULES §1 rule 10). Turning AI reading on for them is a product and
+  legal decision.
+
+Tests: `rls-tests/citizen_app_customers.test.ts`, `apps/web/lib/citizen/app-customer.test.ts`,
+`apps/web/lib/documents/scope.test.ts`.
+
 ### Cross-operator roaming access (migration 0024)
 
 The one place a tenant's row is _meant_ to become readable to a different tenant's session, and

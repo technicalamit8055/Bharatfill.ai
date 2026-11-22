@@ -181,6 +181,20 @@ export type VaultRequestStatus = (typeof VAULT_REQUEST_STATUSES)[number];
 /** Version of the sign-up consent text the app shows. Bump when the wording changes. */
 export const CITIZEN_TERMS_VERSION = '2026-11-11';
 
+/**
+ * The platform organization that owns every BharatDoc app customer (migration 0041,
+ * `public.citizen_app_organization_id()`). It has no members: centres reach its customers only
+ * through a roaming grant the citizen gives. Keep in step with the SQL function.
+ */
+export const CITIZEN_APP_ORGANIZATION_ID = 'b4a7d0c0-a990-4c1e-8d0c-000000000001';
+
+/** Shown as the home centre of an app customer. */
+export const CITIZEN_APP_ORGANIZATION_NAME = 'BharatDoc app';
+
+export function isCitizenAppOrganization(organizationId: string | null | undefined): boolean {
+  return organizationId === CITIZEN_APP_ORGANIZATION_ID;
+}
+
 // ---------------------------------------------------------------------------
 // Input helpers
 // ---------------------------------------------------------------------------

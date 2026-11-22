@@ -12,7 +12,8 @@ import {
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { localised } from '@/lib/i18n';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient, createSupabaseServerClient } from '@/lib/supabase/server';
+import { resolveDocumentScope, type DocumentScope } from '@/lib/documents/scope';
 import { formatBytes, formatConfidence } from '@/lib/documents/format';
 import { loadProfileValuesForMatching, markProfileMatches } from '@/lib/documents/profile-match';
 import type {
@@ -46,22 +47,37 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const { t, locale } = await getTranslations();
   const supabase = await createSupabaseServerClient();
 
+  // No organization filter: a BharatDoc app customer's document (migration 0041) belongs to the
+  // app organization, and `resolveDocumentScope` decides whether this centre may review it.
   const { data } = await supabase
     .from('documents')
     .select('*')
     .eq('id', id)
-    .eq('organization_id', session.organization.id)
     .is('deleted_at', null)
     .maybeSingle();
 
   if (!data) nextNotFound();
   const document = data as DocumentRow;
 
+  let scope: DocumentScope;
+  try {
+    scope = await resolveDocumentScope({
+      supabase,
+      callerOrganizationId: session.organization.id,
+      document,
+      admin: createSupabaseAdminClient,
+    });
+  } catch {
+    nextNotFound();
+  }
+  const orgId = scope.organizationId;
+  const isAppDocument = scope.kind === 'app';
+
   const [{ data: extractionData }, { data: customerData }] = await Promise.all([
     supabase
       .from('document_extractions')
       .select('*')
-      .eq('organization_id', session.organization.id)
+      .eq('organization_id', orgId)
       .eq('document_id', id)
       .maybeSingle(),
     document.customer_id
@@ -69,19 +85,16 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           .from('customers')
           .select('id, full_name, customer_code')
           .eq('id', document.customer_id)
-          .eq('organization_id', session.organization.id)
+          .eq('organization_id', orgId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
   const extraction = extractionData as DocumentExtractionRow | null;
-  const customer = customerData as Pick<
-    CustomerRow,
-    'id' | 'full_name' | 'customer_code'
-  > | null;
+  const customer = customerData as Pick<CustomerRow, 'id' | 'full_name' | 'customer_code'> | null;
 
   const profileValues = extraction
-    ? await loadProfileValuesForMatching(supabase, session.organization.id, document.customer_id)
+    ? await loadProfileValuesForMatching(supabase, orgId, document.customer_id)
     : {};
 
   const fields: ReviewField[] = markProfileMatches(
@@ -121,10 +134,16 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           <DocumentActions
             documentId={document.id}
             canDownload={session.permissions.has('document.download')}
-            canDelete={session.permissions.has('document.delete')}
+            // The citizen owns an app document: only they delete it, from the app. Re-reading
+            // runs through the process route, which is own-centre only.
+            canDelete={!isAppDocument && session.permissions.has('document.delete')}
             // A photo or signature saved unread has nothing to read; offering "Read again" would
             // only invite sending it to the AI reader for nothing (§12.4).
-            canProcess={session.permissions.has('document.upload') && document.status !== 'stored'}
+            canProcess={
+              !isAppDocument &&
+              session.permissions.has('document.upload') &&
+              document.status !== 'stored'
+            }
           />
         </div>
       </div>

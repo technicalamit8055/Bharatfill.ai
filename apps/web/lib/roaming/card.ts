@@ -4,6 +4,7 @@ import {
   ageFromDateOfBirth,
   availableDocumentsFromValues,
   educationLevelFromValues,
+  isCitizenAppOrganization,
   maskLast4,
   maskShortName,
   type RoamingCustomerCard,
@@ -48,5 +49,6 @@ export function buildRoamingCard(row: RoamingCustomerCardRow): RoamingCustomerCa
     documentsOnFile: [...availableDocumentsFromValues(values)],
     verificationStatus: row.verification_status,
     isLinked: row.is_linked ?? false,
+    fromApp: isCitizenAppOrganization(row.home_organization_id),
   };
 }

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { send } from './send';
-import { VaultAppBox } from './VaultAppBox';
 import { AlertIcon, CheckIcon, LinkIcon, SearchIcon } from './Brand';
 import type { CustomerSummary, RoamingSearchResult } from './messages';
 
@@ -266,6 +265,8 @@ export function CustomerPicker({
                     <span className="tiny muted truncate" style={{ display: 'block' }}>
                       {customer.mobileLast4 ? `••••${customer.mobileLast4}` : ''}
                       {customer.state ? ` · ${customer.state}` : ''}
+                      {/* Signed up in the app themselves (migration 0041); otherwise identical. */}
+                      {customer.fromApp ? ' · 📱 BharatDoc app' : ''}
                     </span>
                     <button
                       type="button"
@@ -285,15 +286,6 @@ export function CustomerPicker({
                 ))}
               </div>
             )
-          ) : null}
-
-          {/*
-           * The citizen's own BharatDoc vault, offered after every network search with the same
-           * words, so it never says whether this number uses the app (design §4.1). Typing a new
-           * query unmounts it, which ends any access it opened.
-           */}
-          {roamingResults && looksLikeMobile(trimmedQuery) ? (
-            <VaultAppBox mobile={trimmedQuery} />
           ) : null}
         </>
       ) : null}

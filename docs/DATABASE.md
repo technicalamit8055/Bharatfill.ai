@@ -63,6 +63,7 @@ only consumer, in `apps/web/lib/supabase/database.types.ts`.
 | `0034_document_stored_status.sql`              | `documents.status` check gains `stored` — a photo or signature kept unread at the operator's request; nothing new stored (docs/AI_PIPELINE.md §2)                                                                  |
 | `0035_launch_leads.sql`                        | `launch_leads` — pre-launch early-access contacts (operators, never citizens); service_role only                                                                                                                    |
 | `0036_portal_credentials.sql`                  | `customer_portal_credentials` — citizen portal logins (spec §19.7a): login ID, password, security answer as row-bound AES-256-GCM ciphertext; owner/manager/operator only, no support or roaming clause; owner columns immutable |
+| `0041_citizen_app_customers.sql`               | BharatDoc app accounts become ordinary customers: platform organization `citizen_app_organization_id()` ("BharatDoc app", no members — membership refused by trigger), `citizen_accounts.customer_id`, `citizen_vault_documents.mirror_document_id`, `can_review_app_customer()`, and `document_extractions_select` opened to a live grant holder **for app-organization rows only**; backfills a customer row per existing account (docs/VAULT_BRIDGE_DESIGN.md §13) |
 
 Seed data is **separate from migrations** (`packages/database/src/seed/`), per spec §25.4.
 

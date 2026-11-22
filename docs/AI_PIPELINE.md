@@ -306,6 +306,15 @@ to `customers` **and** to `customer_field_values` with status `operator_verified
 entry. Rejecting keeps the extracted value in `customer_field_values` as `rejected` for
 traceability but never surfaces it for autofill.
 
+### BharatDoc app documents (migration 0041)
+
+A file a citizen syncs from the BharatDoc app is mirrored into a `documents` row of their app
+customer and queued for `ocr.extract` exactly like an upload (`apps/web/lib/citizen/app-customer.ts`).
+The app organization has no members, so its extractions are reviewed by the operator holding a
+live roaming grant over that customer — on the same review screen and route, which resolve the
+document's scope with `apps/web/lib/documents/scope.ts`. Such a review is audited with
+`appCustomer: true` and does not spend the centre's `ai_extraction` quota.
+
 ### Already matched fields (new document, existing customer)
 
 The extractor always reads the whole document; it is never told what the profile already holds.

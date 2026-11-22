@@ -4,6 +4,8 @@ import { getCustomerField, notFound } from '@assistigo/core';
 import { requirePermission, resolveContext } from '@/lib/api/context';
 import { handler, ok } from '@/lib/api/response';
 import { loadProfileValuesForMatching, markProfileMatches } from '@/lib/documents/profile-match';
+import { resolveDocumentScope } from '@/lib/documents/scope';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import type { DocumentExtractionRow, DocumentRow } from '@/lib/supabase/database.types';
 
 const idSchema = z.string().uuid();
@@ -36,9 +38,8 @@ export const GET = handler(
 
     const { data: documentRow, error: documentError } = await context.supabase
       .from('documents')
-      .select('id, customer_id, original_filename, document_type, status')
+      .select('id, organization_id, customer_id, original_filename, document_type, status')
       .eq('id', id)
-      .eq('organization_id', context.organization.id)
       .is('deleted_at', null)
       .maybeSingle();
 
@@ -47,13 +48,21 @@ export const GET = handler(
 
     const document = documentRow as Pick<
       DocumentRow,
-      'id' | 'customer_id' | 'original_filename' | 'document_type' | 'status'
+      'id' | 'organization_id' | 'customer_id' | 'original_filename' | 'document_type' | 'status'
     >;
+
+    // Own centre, or a BharatDoc app customer under a live grant (migration 0041).
+    const scope = await resolveDocumentScope({
+      supabase: context.supabase,
+      callerOrganizationId: context.organization.id,
+      document,
+      admin: createSupabaseAdminClient,
+    });
 
     const { data, error } = await context.supabase
       .from('document_extractions')
       .select('*')
-      .eq('organization_id', context.organization.id)
+      .eq('organization_id', scope.organizationId)
       .eq('document_id', id)
       .maybeSingle();
 
@@ -70,10 +79,13 @@ export const GET = handler(
     const row = data as DocumentExtractionRow;
     const profileValues = await loadProfileValuesForMatching(
       context.supabase,
-      context.organization.id,
+      scope.organizationId,
       document.customer_id,
     );
-    const fields = markProfileMatches(storedFieldsSchema.parse(row.extracted_fields), profileValues);
+    const fields = markProfileMatches(
+      storedFieldsSchema.parse(row.extracted_fields),
+      profileValues,
+    );
 
     return ok({
       documentId: id,

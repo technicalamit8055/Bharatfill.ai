@@ -832,6 +832,8 @@ export type CitizenAccountRow = Timestamps & {
   cloud_enabled: boolean;
   last_active_at: string;
   restore_hold_until: string | null;
+  /** The citizen's customer row in the BharatDoc app organization (0041). */
+  customer_id: string | null;
 };
 
 /** No client policy: service role only. */
@@ -871,6 +873,8 @@ export type CitizenVaultDocumentRow = Timestamps & {
   sha256: string | null;
   status: 'pending' | 'ready';
   deleted_at: string | null;
+  /** The `documents` row mirrored from this file for the citizen's customer record (0041). */
+  mirror_document_id: string | null;
 };
 
 export type VaultAccessGrantRow = {

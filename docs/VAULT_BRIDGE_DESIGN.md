@@ -34,6 +34,9 @@ Build progress (§9):
   restored phone (download + import) is not built.
 - Next: step 4 (operator bridge), then step 3's other restore paths (old-phone approval, 7-day
   hold).
+- **Changed 2026-11-22 (product owner): app accounts are ordinary customers — see §13.** It
+  supersedes D10's "no extracted fields" and §4's separate "Bharatfill Vault" box; the grant,
+  code and file routes of §4 and §6 are no longer reached from the dashboard or the extension.
 
 ---
 
@@ -50,7 +53,7 @@ Build progress (§9):
 | D7  | New phone                                  | OTP, then **any one of**: approve on the old phone · enter the 4-digit **Vault PIN** · wait a **7-day hold**                                                                                                                                                                                                                                                                                                          | Most people restore in seconds with their PIN; a lost phone + forgotten PIN still recovers                                                            |       |
 | D8  | Retention                                  | Kept **until the citizen deletes it**; deleted after **24 months with no sign-in**, with warnings at 30 and 7 days                                                                                                                                                                                                                                                                                                    | "Your documents stay until you delete them" is the simplest promise                                                                                   |   ✓   |
 | D9  | Sign-in OTP                                | **SMS** (DLT-registered Indian gateway via Supabase's Send SMS hook), Android SMS autofill, **WhatsApp fallback** ("Didn't get SMS?"); **+91 numbers only**                                                                                                                                                                                                                                                           | SMS works on every SIM; autofill means no typing; WhatsApp rescues poor SMS delivery                                                                  |       |
-| D10 | Profile data                               | **Name (as on documents) + preferred language** only. Mobile comes from sign-in. No Aadhaar, address or extracted fields in Phase 2                                                                                                                                                                                                                                                                                   | Shortest sign-up; least to protect                                                                                                                    |       |
+| D10 | Profile data (**superseded by §13**)       | **Name (as on documents) + preferred language** only. Mobile comes from sign-in. No Aadhaar, address or extracted fields in Phase 2                                                                                                                                                                                                                                                                                   | Shortest sign-up; least to protect                                                                                                                    |       |
 | D11 | Under 18                                   | **No restriction** (product owner, 2026-11-17): no age question; every account gets sync and centre access. DPDP §9 asks for verifiable parental consent for under-18s, so legal must confirm before pilot                                                                                                                                                                                                            | Students — a large share of scholarship and exam applicants — get the full app with no extra step                                                     |   ✓   |
 | D12 | Notifications                              | Expo push (FCM/APNs). Text **names the centre, never the documents**: "Sharma Cyber Cafe opened your documents"                                                                                                                                                                                                                                                                                                       | The citizen recognises the centre instantly; no caste/income certificate name on a lock screen                                                        |   ✓   |
 | D13 | Access log after account deletion          | Kept **3 years**, with the citizen link removed (centre, operator, time, document _type_ remain)                                                                                                                                                                                                                                                                                                                      | The centre's accountability record survives; the citizen's identity does not                                                                          |   ✓   |
@@ -308,6 +311,9 @@ logs or audit metadata (`redact()` gains `code`, `pin`, `phone`, `title` keys).
 
 ## 11. Before go-live — actions for the product owner
 
+- **Legal review of §13**: the server decrypting every synced document, storing a plaintext copy
+  for the citizen's customer record, and extracting fields from it — the consent text must say so.
+
 - **Legal review** of the ✓ rows in §1, the consent and notice text (Hindi + English), and
   storing identity documents in the cloud.
 - **SMS**: open a DLT-registered gateway account (sender ID + OTP template) and choose it on price;
@@ -327,3 +333,28 @@ logs or audit metadata (`redact()` gains `code`, `pin`, `phone`, `title` keys).
   `access_mode`, `is_verified`, `extracted_fields`; `operator_access_logs` becomes
   `vault_access_events` (one row per document per action).
 - §6: consent ships in Phase 2, not Phase 3 (master spec Phase 11 acceptance).
+
+## 13. App accounts are ordinary customers (migration 0041)
+
+Product owner, 2026-11-22: "an account created in the app must not differ from one created by an
+operator — all features the same." The app is a second way for a citizen to become a customer
+(sign up, scan, upload) and get their details extracted, so any centre can fill forms for them.
+
+| What                 | How                                                                                                                                                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Customer record      | Sign-up also creates a `customers` row (name, verified mobile) in the platform organization **"BharatDoc app"** (`citizen_app_organization_id()`), which has no members, ever. Accounts made before 0041 were backfilled; a later sync makes one if it is still missing. |
+| Documents            | Each confirmed sync is decrypted by the server and stored as a normal `documents` row for that customer, then read by the usual `ocr.extract` job. Photo and signature are kept unread. Rename, retype and delete in the app follow through.                             |
+| Finding them         | The usual network (roaming) search by mobile. The result is labelled "📱 BharatDoc app"; otherwise it looks like any other centre's customer.                                                                                                                            |
+| Consent              | The usual roaming grant: the citizen taps **Approve** in the app (0039), or reads out the SMS OTP (0024). Once per visit, as for any customer from another centre.                                                                                                       |
+| Extracted values     | Reviewed by the operator holding the grant, on the usual review screen (`/documents/:id`). Writes land in the app organization through the server (`resolveDocumentScope`). Not charged to the centre's extraction quota.                                                |
+| Form filling         | Unchanged roaming filling: the extension uses the reviewed profile and the documents.                                                                                                                                                                                    |
+| Deleting the account | Removes the customer row, every mirrored file and its bytes before the vault itself.                                                                                                                                                                                     |
+
+Removed: the extension's "BharatDoc app" box (`VaultAppBox`) and the dashboard's
+`VaultAccessPanel`. Still in the code but no longer reached: the operator vault routes
+(`/api/vault/*`), the extension's `VAULT_*` messages and their tests — remove in a follow-up once
+§13 has been run end to end.
+
+Open: AI reading stays off for app documents (`ai_processing_enabled = false`, rule 10) — local
+OCR only until the product owner and legal decide; the platform organization has no plan or
+storage quota of its own.

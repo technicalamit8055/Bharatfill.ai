@@ -22,6 +22,7 @@ import type {
   CitizenAccountRow as CitizenAccountDbRow,
   CitizenVaultKeyRow,
 } from '../supabase/database.types';
+import { deleteAppCustomer, ensureAppCustomer, syncAppCustomerName } from './app-customer';
 import type { CitizenContext } from './context';
 import {
   assertVaultConfigured,
@@ -133,6 +134,14 @@ export async function createCitizenAccount(
   const row = await loadAccountRow(context);
   if (!row) throw notFound('errors.vault.account_missing');
   logger.info('citizen.account_created', { citizenId: context.citizenId });
+
+  // The app account is also a customer centres can find (0041). A failure here must not undo a
+  // sign-up that worked: the next sync call makes the row instead.
+  try {
+    await ensureAppCustomer(context.admin, context);
+  } catch {
+    logger.warn('citizen.app_customer_deferred', { citizenId: context.citizenId });
+  }
   return { account: toView(row), documentKey: key.toString('base64'), deviceId: String(deviceId) };
 }
 
@@ -153,6 +162,9 @@ export async function updateCitizenAccount(
     .update(update)
     .eq('id', context.citizenId);
   if (error) throw error;
+  if (patch.displayName !== undefined) {
+    await syncAppCustomerName(context.admin, context.citizenId, patch.displayName);
+  }
 
   // Sync consent is purpose-specific (DPDP): turning it off withdraws, turning it on grants anew.
   if (patch.cloudSync !== undefined && patch.cloudSync !== current.cloud_enabled) {
@@ -308,12 +320,16 @@ export async function changeVaultPin(
 /**
  * Deletes the citizen and everything they synced (design §3.4).
  *
- * Order matters: the wrapped key goes first, so even if a later step fails every uploaded byte is
+ * Order matters: the customer record and its mirrored files go first (0041), then the wrapped
+ * key, so even if a later step fails every uploaded byte is
  * already unreadable. Then the bytes, then the auth user — whose deletion cascades to
  * citizen_accounts and every row hanging off it, while access events and consent records keep
  * their history with the citizen link nulled (0038 note 5).
  */
 export async function deleteCitizenAccount(context: CitizenContext): Promise<void> {
+  // The customer-side copy (0041) goes first: it is plaintext, unlike the vault's ciphertext.
+  await deleteAppCustomer(context.admin, context.citizenId);
+
   const { error: keyError } = await context.admin
     .from('citizen_vault_keys')
     .delete()

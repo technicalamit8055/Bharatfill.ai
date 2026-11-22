@@ -16,7 +16,13 @@ import { reviewSchema } from '@/lib/documents/schema';
 import { buildCustomerPatch } from '@/lib/customers/write-values';
 import { buildFieldValueRows } from '@/lib/customers/field-values';
 import { matchesProfileValue, profileValuesForMatching } from '@/lib/documents/profile-match';
-import type { CustomerRow, DocumentExtractionRow, DocumentRow } from '@/lib/supabase/database.types';
+import { resolveDocumentScope } from '@/lib/documents/scope';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
+import type {
+  CustomerRow,
+  DocumentExtractionRow,
+  DocumentRow,
+} from '@/lib/supabase/database.types';
 
 const idSchema = z.string().uuid();
 const storedFieldsSchema = z.array(extractedFieldSchema).catch([]);
@@ -33,6 +39,10 @@ const storedFieldsSchema = z.array(extractedFieldSchema).catch([]);
  *
  * Rejecting keeps the value in `customer_field_values` as `rejected` for traceability, and it
  * never surfaces for autofill.
+ *
+ * A BharatDoc app customer's document (migration 0041) is reviewed by the operator holding a
+ * live grant over that customer; `resolveDocumentScope` proves that, and the writes then land in
+ * the app organization through the service role. Everything else about the gate is identical.
  */
 export const POST = handler(
   'api.documents.review',
@@ -43,11 +53,12 @@ export const POST = handler(
     const id = idSchema.parse((await ctx.params).id);
     const input = await parseBody(request, reviewSchema);
 
+    // No organization filter here: `resolveDocumentScope` decides which documents this centre
+    // may review, and RLS decides which it may read at all.
     const { data: documentRow, error: documentError } = await context.supabase
       .from('documents')
-      .select('id, customer_id, document_type, status')
+      .select('id, organization_id, customer_id, document_type, status')
       .eq('id', id)
-      .eq('organization_id', context.organization.id)
       .is('deleted_at', null)
       .maybeSingle();
 
@@ -56,13 +67,22 @@ export const POST = handler(
 
     const document = documentRow as Pick<
       DocumentRow,
-      'id' | 'customer_id' | 'document_type' | 'status'
+      'id' | 'organization_id' | 'customer_id' | 'document_type' | 'status'
     >;
+
+    const scope = await resolveDocumentScope({
+      supabase: context.supabase,
+      callerOrganizationId: context.organization.id,
+      document,
+      admin: createSupabaseAdminClient,
+    });
+    const orgId = scope.organizationId;
+    const db = scope.writer;
 
     const { data: extractionRow, error: extractionError } = await context.supabase
       .from('document_extractions')
       .select('*')
-      .eq('organization_id', context.organization.id)
+      .eq('organization_id', orgId)
       .eq('document_id', id)
       .maybeSingle();
 
@@ -116,11 +136,11 @@ export const POST = handler(
 
     const customerId = document.customer_id;
 
-    const { data: customerRow, error: customerError } = await context.supabase
+    const { data: customerRow, error: customerError } = await db
       .from('customers')
       .select('*')
       .eq('id', customerId)
-      .eq('organization_id', context.organization.id)
+      .eq('organization_id', orgId)
       .is('deleted_at', null)
       .maybeSingle();
 
@@ -131,17 +151,21 @@ export const POST = handler(
 
     // Read before the write, so the audit entry can tell "already on the profile" apart from
     // genuinely new data — the review screen pre-accepts the former (lib/documents/profile-match.ts).
-    const { data: existingValueRows, error: existingValuesError } = await context.supabase
+    const { data: existingValueRows, error: existingValuesError } = await db
       .from('customer_field_values')
       .select('field_key, value_text, status')
-      .eq('organization_id', context.organization.id)
+      .eq('organization_id', orgId)
       .eq('customer_id', customerId);
 
     if (existingValuesError) throw existingValuesError;
 
     const profileValues = profileValuesForMatching(
       customer,
-      (existingValueRows ?? []) as { field_key: string; value_text: string | null; status: string }[],
+      (existingValueRows ?? []) as {
+        field_key: string;
+        value_text: string | null;
+        status: string;
+      }[],
     );
     const matchedKeys = Object.keys(accepted).filter((key) =>
       matchesProfileValue(accepted[key] ?? '', profileValues[key]),
@@ -153,7 +177,7 @@ export const POST = handler(
     // that is the step most likely to fail on a misconfigured server. Doing it before any write
     // means a missing FIELD_ENCRYPTION_KEY leaves the profile untouched rather than half-saved.
     const fieldValueRows = await buildFieldValueRows({
-      organizationId: context.organization.id,
+      organizationId: orgId,
       customerId,
       userId: context.userId,
       source: { documentId: id },
@@ -164,17 +188,17 @@ export const POST = handler(
     });
 
     if (Object.keys(patch).length > 0) {
-      const { error: updateError } = await context.supabase
+      const { error: updateError } = await db
         .from('customers')
         .update({ ...patch, updated_by: context.userId, verification_status: 'operator_verified' })
         .eq('id', customerId)
-        .eq('organization_id', context.organization.id);
+        .eq('organization_id', orgId);
 
       if (updateError) throw updateError;
     }
 
     if (fieldValueRows.length > 0) {
-      const { error: valuesError } = await context.supabase
+      const { error: valuesError } = await db
         .from('customer_field_values')
         .upsert(fieldValueRows, { onConflict: 'organization_id,customer_id,field_key' });
 
@@ -182,7 +206,7 @@ export const POST = handler(
     }
 
     const now = new Date().toISOString();
-    const { error: statusError } = await context.supabase
+    const { error: statusError } = await db
       .from('document_extractions')
       .update({
         status: Object.keys(accepted).length > 0 ? 'accepted' : 'rejected',
@@ -193,15 +217,15 @@ export const POST = handler(
         raw_text: null,
       })
       .eq('id', extraction.id)
-      .eq('organization_id', context.organization.id);
+      .eq('organization_id', orgId);
 
     if (statusError) throw statusError;
 
-    const { error: documentStatusError } = await context.supabase
+    const { error: documentStatusError } = await db
       .from('documents')
       .update({ status: 'verified' })
       .eq('id', id)
-      .eq('organization_id', context.organization.id);
+      .eq('organization_id', orgId);
 
     if (documentStatusError) throw documentStatusError;
 
@@ -218,10 +242,13 @@ export const POST = handler(
         matchedKeys,
         rejectedKeys: rejected,
         editedCount: input.decisions.filter((decision) => decision.action === 'edit').length,
+        ...(scope.kind === 'app' ? { appCustomer: true } : {}),
       },
     });
 
-    await recordUsage(context, 'ai_extraction', 1, { documentId: id });
+    // An app document was read on the platform's account, not the centre's: reviewing it does
+    // not spend the centre's extraction quota.
+    if (scope.kind === 'own') await recordUsage(context, 'ai_extraction', 1, { documentId: id });
 
     return ok({
       documentId: id,

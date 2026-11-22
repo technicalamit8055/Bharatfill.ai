@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Alert, Badge, Button, Card, Input } from '@assistigo/ui';
 import type { RoamingCustomerCard } from '@assistigo/core';
 import { useTranslations } from '@/lib/i18n/client';
-import { VaultAccessPanel } from './vault-access-panel';
 
 async function readErrorKey(response: Response): Promise<string> {
   const json = (await response.json().catch(() => null)) as {
@@ -29,8 +28,6 @@ export function RoamingLookup() {
   const [searching, setSearching] = useState(false);
   const [linkingId, setLinkingId] = useState<string | null>(null);
   const [results, setResults] = useState<RoamingCustomerCard[] | null>(null);
-  // The number the shown results are for: the app box asks about this one, not the live input.
-  const [searchedMobile, setSearchedMobile] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   async function search(event: FormEvent<HTMLFormElement>) {
@@ -48,7 +45,6 @@ export function RoamingLookup() {
       }
       const body = (await response.json()) as { data: { customers: RoamingCustomerCard[] } };
       setResults(body.data.customers);
-      setSearchedMobile(mobile.replace(/\D/g, '').slice(-10));
     } catch {
       setError('errors.internal');
     } finally {
@@ -98,7 +94,6 @@ export function RoamingLookup() {
             setResults(null);
             setError(null);
             setMobile('');
-            setSearchedMobile('');
           }}
         >
           ✕
@@ -144,6 +139,11 @@ export function RoamingLookup() {
                     <Badge tone="info" className="ml-2">
                       🌐 {t('customers.roaming.badge')}
                     </Badge>
+                    {customer.fromApp ? (
+                      <Badge tone="neutral" className="ml-2">
+                        📱 {t('customers.roaming.fromApp')}
+                      </Badge>
+                    ) : null}
                   </p>
                   <p className="truncate text-xs text-slate-500">
                     {customer.mobileLast4 ? `•••••• ${customer.mobileLast4}` : ''}
@@ -171,11 +171,6 @@ export function RoamingLookup() {
             ))}
           </ul>
         )
-      ) : null}
-
-      {/* Same box for every number: never says whether this person uses the app (§4.1). */}
-      {results !== null && searchedMobile.length === 10 ? (
-        <VaultAccessPanel mobile={searchedMobile} />
       ) : null}
     </Card>
   );

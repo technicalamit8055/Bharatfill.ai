@@ -121,6 +121,8 @@ export type RoamingCustomerCard = {
   verificationStatus: string;
   /** True once this centre has bookmarked them. Grants nothing on its own. */
   isLinked: boolean;
+  /** Signed up in the BharatDoc app themselves (migration 0041), rather than at a centre. */
+  fromApp: boolean;
 };
 
 /** The three states the UI switches on. */
