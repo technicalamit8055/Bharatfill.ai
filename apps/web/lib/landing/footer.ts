@@ -8,13 +8,15 @@
 export const FOOTER_TRUST = ['noCard', 'trusted', 'setup'] as const;
 export type FooterTrust = (typeof FOOTER_TRUST)[number];
 
-/** In-page anchors: each `href` is the `id` of a landing section, as in the header's nav. */
+/** Landing sections (each `/#id` is a section `id`, as in the header's nav), then routes. */
 export const FOOTER_PRODUCT_LINKS = [
-  { key: 'features', href: '#features' },
-  { key: 'howItWorks', href: '#how-it-works' },
-  { key: 'whereItWorks', href: '#where-it-works' },
-  { key: 'pricing', href: '#pricing' },
-  { key: 'faq', href: '#faq' },
+  { key: 'features', href: '/#features' },
+  { key: 'howItWorks', href: '/#how-it-works' },
+  { key: 'whereItWorks', href: '/#where-it-works' },
+  { key: 'pricing', href: '/#pricing' },
+  { key: 'faq', href: '/#faq' },
+  { key: 'tools', href: '/tools' },
+  { key: 'changelog', href: '/changelog' },
 ] as const;
 
 export const FOOTER_LEGAL_LINKS = [

@@ -15,9 +15,10 @@
 
 import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { Files, ScanLine, Star, StarOff, Trash2 } from 'lucide-react-native';
 import { useCallback, useRef, useState } from 'react';
-import { Alert } from 'react-native';
 
+import { showActionSheet, showDialog } from '../../lib/dialog/dialog-store';
 import { DEMO_ID_PREFIX, demoVaultItems } from '../../components/vault/demo';
 import { VaultScreen, type VaultScreenState } from '../../components/vault/VaultScreen';
 import type { Translate } from '../../lib/i18n';
@@ -133,7 +134,9 @@ export default function VaultRoute() {
         await setStarred(item.id, starred);
       } catch {
         mark(!starred);
-        Alert.alert(t('common.errorTitle'), t('vault.starFailed'), [{ text: t('common.ok') }]);
+        showDialog(t('common.errorTitle'), t('vault.starFailed'), [{ text: t('common.ok') }], {
+          tone: 'danger',
+        });
       }
     },
     [t, updateItems],
@@ -148,7 +151,9 @@ export default function VaultRoute() {
       try {
         await deleteDocument(item.id);
       } catch {
-        Alert.alert(t('common.errorTitle'), t('vault.deleteFailed'), [{ text: t('common.ok') }]);
+        showDialog(t('common.errorTitle'), t('vault.deleteFailed'), [{ text: t('common.ok') }], {
+          tone: 'danger',
+        });
       }
       await load();
     },
@@ -157,7 +162,7 @@ export default function VaultRoute() {
 
   const confirmDelete = useCallback(
     (item: VaultItem) => {
-      Alert.alert(
+      showDialog(
         t('vault.actions.deleteTitle'),
         t('vault.actions.deleteBody', { title: item.title }),
         [
@@ -168,6 +173,7 @@ export default function VaultRoute() {
             onPress: () => void remove(item),
           },
         ],
+        { icon: Trash2 },
       );
     },
     [remove, t],
@@ -175,18 +181,25 @@ export default function VaultRoute() {
 
   const documentActions = useCallback(
     (item: VaultItem) => {
-      Alert.alert(item.title, undefined, [
-        { text: t('vault.actions.cancel'), style: 'cancel' },
-        {
-          text: t(item.starred ? 'vault.actions.unstar' : 'vault.actions.star'),
-          onPress: () => void toggleStar(item),
-        },
-        {
-          text: t('vault.actions.delete'),
-          style: 'destructive',
-          onPress: () => confirmDelete(item),
-        },
-      ]);
+      showActionSheet({
+        title: item.title,
+        cancelLabel: t('vault.actions.cancel'),
+        actions: [
+          {
+            key: 'star',
+            label: t(item.starred ? 'vault.actions.unstar' : 'vault.actions.star'),
+            icon: item.starred ? StarOff : Star,
+            onPress: () => void toggleStar(item),
+          },
+          {
+            key: 'delete',
+            label: t('vault.actions.delete'),
+            icon: Trash2,
+            destructive: true,
+            onPress: () => confirmDelete(item),
+          },
+        ],
+      });
     },
     [confirmDelete, t, toggleStar],
   );
@@ -206,11 +219,26 @@ export default function VaultRoute() {
   );
 
   const more = useCallback(() => {
-    Alert.alert(t('vault.more'), undefined, [
-      { text: t('vault.actions.cancel'), style: 'cancel' },
-      { text: t('vault.actions.scan'), onPress: () => scan('single') },
-      { text: t('vault.actions.scanMulti'), onPress: () => scan('multi') },
-    ]);
+    showActionSheet({
+      title: t('vault.more'),
+      cancelLabel: t('vault.actions.cancel'),
+      actions: [
+        {
+          key: 'scan',
+          label: t('vault.actions.scan'),
+          description: t('vault.actions.scanHint'),
+          icon: ScanLine,
+          onPress: () => scan('single'),
+        },
+        {
+          key: 'scan-multi',
+          label: t('vault.actions.scanMulti'),
+          description: t('vault.actions.scanMultiHint'),
+          icon: Files,
+          onPress: () => scan('multi'),
+        },
+      ],
+    });
   }, [scan, t]);
 
   return (

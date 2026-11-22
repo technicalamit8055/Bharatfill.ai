@@ -326,7 +326,11 @@ export function isFileInput(inputType: string): boolean {
   return inputType.toLowerCase() === 'file';
 }
 
-/** Password fields are never filled: Assistigo does not store portal credentials. */
+/**
+ * Password fields are never filled by the form filler or proposed by the mapper. A saved portal
+ * login (spec §19.7a) is typed only by the extension's separate, host-checked login filler
+ * (apps/extension/src/content/login-filler.ts), never through a mapping.
+ */
 export function isPasswordField(inputType: string): boolean {
   return inputType.toLowerCase() === 'password';
 }

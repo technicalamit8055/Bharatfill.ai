@@ -115,3 +115,19 @@ export function stateOptions(locale: Locale): StateOption[] {
     (a, b) => a.label.localeCompare(b.label, locale),
   );
 }
+
+/**
+ * What cloud sign-up actually keeps (docs/VAULT_BRIDGE_DESIGN.md D10): the name as on the
+ * citizen's documents and their language. Date of birth, gender and state are not asked for.
+ */
+export type SignupProfile = { readonly fullName: string; readonly language: Locale };
+
+/** The normalised sign-up profile, or the name's error. */
+export function toSignupProfile(
+  rawName: string,
+  language: Locale,
+): { ok: true; profile: SignupProfile } | { ok: false; error: FullNameError } {
+  const error = fullNameError(rawName);
+  if (error) return { ok: false, error };
+  return { ok: true, profile: { fullName: normaliseFullName(rawName), language } };
+}

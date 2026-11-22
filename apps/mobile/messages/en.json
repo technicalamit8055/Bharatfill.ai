@@ -144,7 +144,9 @@
       "deleteTitle": "Delete this document?",
       "deleteBody": "{title} will be removed from this phone. This cannot be undone.",
       "scan": "Scan a document",
-      "scanMulti": "Scan a multi-page document"
+      "scanMulti": "Scan a multi-page document",
+      "scanHint": "Capture one page and save it to your vault",
+      "scanMultiHint": "Capture several pages as one document"
     },
     "untitled": {
       "scanner": "Scanned document",
@@ -246,6 +248,13 @@
       "title": "Something went wrong",
       "captureFailed": "The photo could not be taken. Please try again.",
       "pageLimit": "A scan can have up to {max} pages. Save this one and start a new scan."
+    },
+    "platform": {
+      "title": "Document scanner",
+      "body": "Google's scanner on this phone finds the page, flattens it and cleans off shadows and fingers. Your pages stay on this phone.",
+      "opening": "Opening the scanner…",
+      "scan": "Scan pages",
+      "useCamera": "Use the in-app camera instead"
     },
     "presets": {
       "idCard": {
@@ -499,7 +508,10 @@
       "star": "Add star",
       "unstar": "Remove star",
       "delete": "Delete",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "keepOnPhoneOnly": "Keep on this phone only",
+      "backUpToCloud": "Back up to my cloud vault",
+      "forPortal": "Export for a form"
     },
     "deleteTitle": "Delete this document?",
     "deleteBody": "{title} will be removed from this phone. This cannot be undone.",
@@ -529,6 +541,9 @@
       "sampleTitle": "Sample document",
       "sample": "This is a sample document. Scan your own to share, download or print it.",
       "unavailable": "Sharing, saving and printing need the latest version of the app. Please update it and try again."
+    },
+    "cloud": {
+      "changeFailed": "The cloud backup setting could not be changed. Please try again."
     }
   },
   "share": {
@@ -812,6 +827,34 @@
       "appearance": "Dark mode is not live yet. The app stays in light mode for now.",
       "help": "Help and support from the app is not live yet.",
       "logout": "Signing out is not live yet. Your documents stay encrypted on this phone."
+    },
+    "loggingOut": "Logging out…",
+    "leave": {
+      "failed": "That did not finish. Check your internet connection and try again.",
+      "log_out": {
+        "title": "Log out of Bharatfill?",
+        "bodyEmpty": "To sign in again on this phone, you will need your mobile number and your Vault PIN.",
+        "bodySyncedOne": "Your document on this phone is also in your cloud vault. Remove it from this phone if other people use it.\n\nKept documents can be opened by anyone who uses this phone.",
+        "bodySyncedOther": "All {count} documents on this phone are also in your cloud vault. Remove them from this phone if other people use it.\n\nKept documents can be opened by anyone who uses this phone.",
+        "bodyAtRiskOne": "1 document is only on this phone and is not in your cloud vault. Removing it deletes it for good.\n\nKept documents can be opened by anyone who uses this phone.",
+        "bodyAtRiskOther": "{lost} documents are only on this phone and are not in your cloud vault. Removing them deletes them for good.\n\nKept documents can be opened by anyone who uses this phone.",
+        "remove": "Log out and remove documents",
+        "keep": "Log out, keep documents",
+        "confirm": "Log out",
+        "doneTitle": "Logged out",
+        "doneBody": "To sign in again, use your mobile number and your Vault PIN."
+      },
+      "delete_account": {
+        "title": "Delete your account?",
+        "bodyEmpty": "Your account and everything in your cloud vault will be deleted within 24 hours. This cannot be undone.",
+        "bodyOne": "Your account and everything in your cloud vault will be deleted within 24 hours. This cannot be undone.\n\nYou also have 1 document on this phone. Remove it too, or keep it on this phone without an account?",
+        "bodyOther": "Your account and everything in your cloud vault will be deleted within 24 hours. This cannot be undone.\n\nYou also have {count} documents on this phone. Remove them too, or keep them on this phone without an account?",
+        "remove": "Delete everything",
+        "keep": "Delete account, keep phone documents",
+        "confirm": "Delete account",
+        "doneTitle": "Account deleted",
+        "doneBody": "Your account and cloud vault will be fully deleted within 24 hours."
+      }
     }
   },
   "common": {
@@ -819,7 +862,9 @@
     "loading": "Loading",
     "errorTitle": "Something went wrong",
     "ok": "OK",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "close": "Close",
+    "cancel": "Cancel"
   },
   "onboarding": {
     "brandSubtitle": "Aapka Personal Document Scanner & Sarkari Form Vault",
@@ -971,19 +1016,237 @@
     "headlineLead": "Secure Your",
     "headlineAccent": "App",
     "subtitle": "Add an app lock so only you can open your documents.",
-    "comingSoon": "Coming soon",
     "options": {
       "biometric": {
         "title": "Fingerprint or Face Unlock",
-        "body": "Open the app with your phone's own fingerprint or face unlock."
+        "body": "Use your phone's fingerprint, face or screen lock."
       },
       "pin": {
         "title": "4-Digit PIN",
         "body": "Set a PIN that only you know."
       }
     },
-    "unavailableTitle": "App lock is not ready yet",
-    "unavailableBody": "You can continue without an app lock for now.",
-    "continue": "Continue"
+    "setUp": "Set up app lock"
+  },
+  "errors": {
+    "internal": "Something went wrong. Please try again.",
+    "validation_failed": "Please check what you entered and try again.",
+    "rate_limited": "Too many tries. Please wait a few minutes and try again.",
+    "unauthenticated": "Please sign in again.",
+    "roaming_request_missing": "This request has ended or is no longer available.",
+    "vault": {
+      "unavailable": "Bharatfill Vault is not available right now. Please try again later.",
+      "mobile_invalid": "Enter a valid 10-digit Indian mobile number.",
+      "name_required": "Enter your name as it appears on your documents.",
+      "pin_format": "The Vault PIN must be 4 digits.",
+      "pin_weak": "Choose a PIN that is harder to guess — not one digit repeated or 1234.",
+      "pin_wrong": "That PIN is not right. Please try again.",
+      "pin_locked": "Too many wrong PINs. PIN unlock is paused for 24 hours — you can also approve from your old phone.",
+      "pin_disabled": "PIN unlock is switched off after too many wrong tries. Approve from your old phone, or wait 7 days.",
+      "account_exists": "This number already has a Bharatfill Vault.",
+      "account_missing": "Finish signing up to use your vault.",
+      "code_format": "The code from the customer’s app has 6 digits.",
+      "device_unknown": "This phone is not linked to your vault any more. Please sign in again.",
+      "document_missing": "That document is no longer in your cloud vault.",
+      "sync_off": "Cloud backup is off for your vault. Turn it on to keep documents in the cloud.",
+      "upload_mismatch": "A document did not upload completely. It will be sent again.",
+      "grant_missing": "This access has ended or is not available.",
+      "request_missing": "This request has ended or is not available.",
+      "lookup_limited": "Too many vault lookups. Please wait a little and try again.",
+      "code_paused": "Too many wrong codes. Code entry is paused for a while — ask the customer to approve from their app.",
+      "code_wrong": "That code is not right, or it has expired. Ask the customer for a new code.",
+      "pin_same": "The new PIN must be different from your current PIN."
+    }
+  },
+  "profileRequest": {
+    "title": "Allow access to your details?",
+    "body": "{centre} wants to use the details and documents a centre has saved for you.",
+    "purposeLabel": "Purpose",
+    "purposes": {
+      "form_filling": "Fill a form",
+      "scheme_application": "Apply for a scheme",
+      "profile_update": "Update saved details",
+      "document_access": "Use saved documents"
+    },
+    "durationLabel": "How long can they use them?",
+    "durations": {
+      "m60": "1 hour",
+      "m120": "2 hours",
+      "m240": "4 hours"
+    },
+    "warning": "Approve only if you are at this centre right now. Never approve because someone asked you on a phone call.",
+    "expiresIn": "This request ends in {minutes} min",
+    "approve": "Approve for {duration}",
+    "deny": "Deny",
+    "approvedTitle": "Access allowed",
+    "approvedBody": "{centre} can use your details for {duration}. Access ends on its own after that.",
+    "deniedTitle": "Request denied",
+    "deniedBody": "{centre} cannot use your details."
+  },
+  "cloud": {
+    "errors": {
+      "title": "Could not continue",
+      "rate_limited": "Too many codes asked for. Please wait a few minutes and try again.",
+      "invalid_code": "That code is wrong or has expired. Check the SMS, or tap Resend.",
+      "rejected": "We could not send a code to this number. Check the number and try again.",
+      "signed_out": "Please sign in again with your mobile number.",
+      "unavailable": "Bharatfill is not reachable right now. Please try again in a little while.",
+      "network": "No internet connection. Check your data or Wi-Fi and try again."
+    }
+  },
+  "vaultPin": {
+    "create": {
+      "headlineLead": "Set Your",
+      "headlineAccent": "Vault PIN",
+      "subtitle": "Choose a 4-digit PIN. You will need it to open your vault on a new phone.",
+      "pinLabel": "Vault PIN",
+      "confirmLabel": "Type the PIN again",
+      "pinHint": "Never tell your Vault PIN to anyone — not even the cyber cafe. They never need it.",
+      "syncTitle": "Keep my documents in my cloud vault",
+      "syncBody": "Encrypted copies are kept safe online, so a centre can open them when you allow it — even if your phone is at home. You can turn this off any time.",
+      "consent": "I agree to the Terms of Service and Privacy Policy, and to Bharatfill keeping my name, mobile number and the documents I sync, encrypted, until I delete them.",
+      "submit": "Create my vault"
+    },
+    "restore": {
+      "headlineLead": "Open Your Vault",
+      "headlineAccent": "On This Phone",
+      "subtitle": "This number already has a Bharatfill Vault. Enter your Vault PIN to open it here.",
+      "pinLabel": "Vault PIN",
+      "pinHint": "Someone else trying your PIN? Every wrong try shows in your vault’s access history.",
+      "otherWays": "Forgot your PIN? Soon you will be able to approve this phone from your old phone, or wait 7 days. You can still use the scanner and this phone’s own vault meanwhile.",
+      "submit": "Open my vault"
+    },
+    "errors": {
+      "incomplete": "Enter all 4 digits.",
+      "weak": "Choose a PIN that is harder to guess — not one digit repeated or 1234.",
+      "mismatch": "The two PINs do not match.",
+      "consent": "Please agree to continue.",
+      "same": "The new PIN must be different from your current PIN."
+    },
+    "change": {
+      "headlineLead": "Change Your",
+      "headlineAccent": "Vault PIN",
+      "subtitle": "Enter your current Vault PIN, then choose a new one. Every other phone signed in to your account will be signed out.",
+      "currentLabel": "Current Vault PIN",
+      "pinLabel": "New Vault PIN",
+      "confirmLabel": "Type the new PIN again",
+      "pinHint": "Did someone else set up this account for you, like a cyber cafe? Change the PIN so only you know it.",
+      "submit": "Change PIN",
+      "doneTitle": "Vault PIN changed",
+      "doneBody": "Use your new PIN from now on. Any other phone signed in to your account has been signed out."
+    }
+  },
+  "accountDetails": {
+    "title": "Personal Information",
+    "nameHint": "Write it exactly as it is on your documents.",
+    "phoneLabel": "Mobile number",
+    "phoneUnknown": "Not available right now",
+    "phoneHint": "You sign in with this number. It cannot be changed here.",
+    "save": "Save changes",
+    "savedTitle": "Saved",
+    "savedBody": "Your name has been updated.",
+    "deleteTitle": "Delete account",
+    "deleteBody": "Deletes your account and your cloud vault within 24 hours. You choose whether the documents on this phone are removed too.",
+    "delete": "Delete my account",
+    "changePinTitle": "Change Vault PIN",
+    "changePinBody": "Needed to open your vault on a new phone. Signs out your other phones."
+  },
+  "appLock": {
+    "title": "Bharatfill is locked",
+    "bodyDevice": "Unlock with your fingerprint, face or phone screen lock to open your documents.",
+    "bodyPin": "Enter your 4-digit app PIN to open your documents.",
+    "pinLabel": "App PIN",
+    "unlock": "Unlock",
+    "promptTitle": "Unlock Bharatfill",
+    "forgot": "Forgot PIN?",
+    "wrongOne": "Wrong PIN. 1 more try before you have to wait.",
+    "wrongOther": "Wrong PIN. {count} more tries before you have to wait.",
+    "wrongNoTries": "Wrong PIN.",
+    "wait": "Too many wrong PINs. Try again in {time}.",
+    "resetTitle": "Reset app lock?",
+    "resetBody": "Without your PIN, the only way back in is to remove the app lock, sign this phone out and remove every document on it. Copies in your cloud vault are not touched. This cannot be undone.",
+    "resetConfirm": "Remove documents and reset",
+    "resetDoneTitle": "App lock removed",
+    "resetDoneBody": "The documents on this phone were removed. If you use cloud backup, sign in again to reach your cloud vault.",
+    "settingsTitle": "App lock",
+    "settingsBody": "Choose how Bharatfill checks it is you before it opens your documents.",
+    "choices": {
+      "device": {
+        "title": "Fingerprint, face or screen lock",
+        "body": "Uses your phone's own lock. Recommended.",
+        "unavailable": "Set a screen lock in your phone's settings to use this."
+      },
+      "pin": {
+        "title": "4-digit app PIN",
+        "body": "For phones without a screen lock."
+      },
+      "off": {
+        "title": "No app lock",
+        "body": "Anyone who opens the app can see your documents."
+      }
+    },
+    "whenItLocks": "Bharatfill locks each time it opens, and after one minute in the background.",
+    "verifyBody": "Enter your current app PIN to change the app lock.",
+    "currentPinLabel": "Current PIN",
+    "createBody": "Choose a PIN only you know. It is not your Vault PIN or your phone's PIN.",
+    "newPinLabel": "New PIN",
+    "confirmPinLabel": "Enter it again",
+    "pinNote": "If you forget this PIN, you can unlock with your phone's screen lock if it has one. Otherwise the documents on this phone have to be removed.",
+    "setPin": "Set PIN",
+    "savedOnTitle": "App lock is on",
+    "savedOnBody": "Bharatfill will ask for it each time it opens.",
+    "savedOffTitle": "App lock is off",
+    "savedOffBody": "Anyone who opens the app on this phone can see your documents.",
+    "errors": {
+      "incomplete": "Enter all 4 digits in both boxes.",
+      "weak": "That PIN is too easy to guess. Avoid 1111 or 1234.",
+      "mismatch": "The two PINs do not match.",
+      "saveFailed": "The app lock could not be saved. Please try again."
+    }
+  },
+  "portalExport": {
+    "chooseTitle": "Which form is it for?",
+    "chooseBody": "Bharatfill makes a copy in the size and file size that portal asks for. Your saved document is not changed.",
+    "readyTitle": "Ready: {preset}",
+    "readyBody": "{size}, {width} × {height} px.",
+    "window": "The portal asks for {window}.",
+    "nameDateStamp": "This portal also wants your name and the date the photo was taken printed on it. Bharatfill does not add them; ask the centre to add them before you upload.",
+    "failedTitle": "Could not make this file",
+    "needs_crop": "This photo is a different shape from what {preset} asks for. Retake it with the Photo shortcut on Home, which frames it for forms.",
+    "too_large": "This picture cannot be made small enough for {preset} without losing too much detail. Try a fresh, plain scan."
+  },
+  "vaultRequest": {
+    "title": "Allow access to your documents?",
+    "body": "{centre} is asking to see the documents in your cloud vault.",
+    "durationLabel": "For how long",
+    "duration": {
+      "30": "30 minutes",
+      "120": "2 hours"
+    },
+    "copyTitle": "Let this centre keep a copy",
+    "copyBody": "Off: the centre can only look while access is open. On: it can save copies to its own customer file.",
+    "warning": "Only approve if you are at this centre right now and asked them to help you.",
+    "approve": "Approve",
+    "deny": "Deny",
+    "approvedTitle": "Access given",
+    "approvedBody": "{centre} can see your documents for {minutes} minutes. You can stop it any time.",
+    "deniedTitle": "Request denied",
+    "deniedBody": "{centre} cannot see your documents.",
+    "stop": "Stop",
+    "stoppedTitle": "Access stopped",
+    "stoppedBody": "{centre} can no longer see your documents."
+  },
+  "shareCode": {
+    "title": "Share with centre",
+    "subtitle": "Show a code to the operator at the counter. They type it in to see your cloud vault documents for the time you choose.",
+    "show": "Show code",
+    "newCode": "Show a new code",
+    "codeLabel": "Read this code to the operator",
+    "expiresIn": "Works for {time}, one time only",
+    "expired": "That code has expired.",
+    "warning": "Only tell this code to someone at the counter in front of you. Never share it on a phone call or message.",
+    "openNow": "Can see your documents now",
+    "minutesLeft": "{minutes} min left",
+    "signInFirst": "Sign in and open your vault on this phone to share it."
   }
 }

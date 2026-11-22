@@ -13,8 +13,14 @@
  *   results    → PATCH /api/fill-sessions/:id
  */
 
-import type { RoamingAccessView } from '@assistigo/core';
-import { ApiError, apiFetch, pairWithCode } from '../shared/api';
+import {
+  portalForUrl,
+  type PortalCredentialView,
+  type PortalLoginFill,
+  type RoamingAccessView,
+  type RoamingAppRequestView,
+} from '@assistigo/core';
+import { ApiError, apiFetch, apiFetchBytes, pairWithCode } from '../shared/api';
 import {
   fail,
   ok,
@@ -22,9 +28,14 @@ import {
   type CustomerDocument,
   type CustomerSummary,
   type Message,
+  type PortalLoginStatus,
   type RoamingSearchResult,
   type SessionState,
+  type VaultDocumentView,
+  type VaultGrantView,
+  type VaultRequestStatus,
 } from '../shared/messages';
+import type { PortalLoginResult } from '../content/login-filler';
 import {
   clearAllSensitive,
   recentCustomersStore,
@@ -107,6 +118,14 @@ async function targetTabId(sender?: chrome.runtime.MessageSender): Promise<numbe
   return sender?.tab?.id ?? (await activeTabId());
 }
 
+/*
+ * Always the top frame. The content script runs in every frame (`all_frames`), and a message
+ * with no `frameId` reaches all of them with Chrome keeping whichever reply comes first — an
+ * ad or widget iframe could answer for the whole page. The top frame reaches same-origin
+ * iframes itself (`detectFieldsInFrames`, `findElementBySignature`).
+ */
+const TOP_FRAME = { frameId: 0 } as const;
+
 /**
  * Injects the content script on demand.
  *
@@ -115,7 +134,7 @@ async function targetTabId(sender?: chrome.runtime.MessageSender): Promise<numbe
  */
 async function ensureContentScript(tabId: number): Promise<boolean> {
   try {
-    const pong = await chrome.tabs.sendMessage(tabId, { type: 'PING' });
+    const pong = await chrome.tabs.sendMessage(tabId, { type: 'PING' }, TOP_FRAME);
     if (pong) return true;
   } catch {
     // Not injected yet.
@@ -136,7 +155,7 @@ async function sendToTab<T>(tabId: number, message: Message): Promise<T | null> 
   const injected = await ensureContentScript(tabId);
   if (!injected) return null;
   try {
-    const response = (await chrome.tabs.sendMessage(tabId, message)) as
+    const response = (await chrome.tabs.sendMessage(tabId, message, TOP_FRAME)) as
       { ok: true; data: T } | { ok: false; error: string } | undefined;
     return response && response.ok ? response.data : null;
   } catch {
@@ -147,6 +166,24 @@ async function sendToTab<T>(tabId: number, message: Message): Promise<T | null> 
 // ---------------------------------------------------------------------------
 // Session
 // ---------------------------------------------------------------------------
+
+/**
+ * The selected customer, with a roaming grant that has run out shown as `locked`.
+ *
+ * The server refuses an expired grant regardless; this keeps the panel from showing an active
+ * session at `00m` with Detect still enabled. An unreadable expiry counts as expired.
+ */
+async function readSelectedCustomer(): Promise<CustomerSummary | null> {
+  const customer = await selectedCustomerStore.get<CustomerSummary>();
+  if (!customer?.isRoaming || customer.accessStatus !== 'granted') return customer;
+
+  const expiresAt = customer.grantExpiresAt ? Date.parse(customer.grantExpiresAt) : Number.NaN;
+  if (expiresAt > Date.now()) return customer;
+
+  const locked: CustomerSummary = { ...customer, accessStatus: 'locked', grantExpiresAt: null };
+  await selectedCustomerStore.set(locked);
+  return locked;
+}
 
 async function buildSessionState(): Promise<SessionState> {
   const settings = await settingsStore.get();
@@ -177,7 +214,7 @@ async function buildSessionState(): Promise<SessionState> {
       organizationId: me.organization.id,
       role: me.membership.role,
       canFill: me.permissions.includes('fill.run'),
-      selectedCustomer: await selectedCustomerStore.get<CustomerSummary>(),
+      selectedCustomer: await readSelectedCustomer(),
       locale: settings.locale ?? me.organization.locale,
     };
   } catch {
@@ -577,6 +614,91 @@ async function listCustomerDocuments(customerId: string): Promise<CustomerDocume
 }
 
 // ---------------------------------------------------------------------------
+// Portal login vault (spec §19.7a; docs/EXTENSION.md § Portal login)
+// ---------------------------------------------------------------------------
+
+/** The tab's current URL. Readable because the extension holds host permissions for http(s). */
+async function tabUrl(tabId: number): Promise<string | null> {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return tab.url ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function portalLoginStatus(
+  sender?: chrome.runtime.MessageSender,
+): Promise<PortalLoginStatus> {
+  const none: PortalLoginStatus = { portal: null, unavailable: null, credential: null };
+
+  const tabId = await targetTabId(sender);
+  const url = tabId === null ? null : await tabUrl(tabId);
+  const portal = url ? portalForUrl(url) : null;
+  if (!portal) return none;
+
+  const summary = { key: portal.key, name: portal.name.en };
+  const customer = await readSelectedCustomer();
+  if (!customer) return { portal: summary, unavailable: 'no_customer', credential: null };
+  // The vault is home-centre only (migration 0036): a roaming grant does not reach it.
+  if (customer.isRoaming) return { portal: summary, unavailable: 'roaming', credential: null };
+
+  try {
+    const { credentials } = await apiFetch<{ credentials: PortalCredentialView[] }>(
+      `/api/customers/${customer.id}/portal-credentials`,
+    );
+    const saved = credentials.find((credential) => credential.portalKey === portal.key);
+    if (!saved) return { portal: summary, unavailable: 'not_saved', credential: null };
+    return {
+      portal: summary,
+      unavailable: null,
+      credential: { loginIdHint: saved.loginIdHint, hasPassword: saved.hasPassword },
+    };
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 403) {
+      return { portal: summary, unavailable: 'no_permission', credential: null };
+    }
+    throw error;
+  }
+}
+
+/**
+ * The one-click login. The portal is decided from the tab's own URL, here and again on the
+ * server; the content script then checks its own location before typing. The values pass
+ * through this worker in memory and are never written to storage.
+ */
+async function fillPortalLogin(
+  sender?: chrome.runtime.MessageSender,
+): Promise<PortalLoginResult | { error: string }> {
+  const tabId = await targetTabId(sender);
+  if (tabId === null) return { error: 'no_active_tab' };
+
+  const url = await tabUrl(tabId);
+  const portal = url ? portalForUrl(url) : null;
+  if (!url || !portal) return { error: 'portal_not_allowed' };
+
+  const customer = await readSelectedCustomer();
+  if (!customer) return { error: 'no_customer_selected' };
+  if (customer.isRoaming) return { error: 'roaming_not_supported' };
+
+  const fill = await apiFetch<PortalLoginFill>('/api/portal-credentials/login-fill', {
+    method: 'POST',
+    body: JSON.stringify({ customerId: customer.id, pageUrl: url }),
+  });
+  if (fill.portalKey !== portal.key) return { error: 'portal_not_allowed' };
+
+  const result = await sendToTab<PortalLoginResult>(tabId, {
+    type: 'APPLY_PORTAL_LOGIN',
+    loginId: fill.loginId,
+    password: fill.password,
+    // The worker's own catalogue, not the server's echo: both name the same hosts, and this
+    // way a tampered response cannot widen where the password may be typed.
+    hosts: [...portal.hosts],
+  });
+  return result ?? { error: 'login_fill_failed' };
+}
+
+// ---------------------------------------------------------------------------
 // Message routing
 // ---------------------------------------------------------------------------
 
@@ -597,7 +719,12 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
 
     case 'OPEN_DASHBOARD': {
       const { dashboardUrl } = await settingsStore.get();
-      await chrome.tabs.create({ url: `${dashboardUrl}${message.path ?? '/dashboard'}` });
+      const url = `${dashboardUrl}${message.path ?? '/dashboard'}`;
+      // The schema already insists on one leading slash; this is the backstop.
+      if (originOf(url) === null || originOf(url) !== originOf(dashboardUrl)) {
+        return fail('invalid_path');
+      }
+      await chrome.tabs.create({ url });
       return ok({ opened: true });
     }
 
@@ -620,6 +747,48 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       );
       return ok(results);
     }
+
+    // ---- The citizen's BharatDoc vault (design §4). parseMessage already refused tabs. ----
+    case 'VAULT_REQUEST': {
+      const result = await apiFetch<{ requestId: string; expiresAt: string }>('/api/vault/lookup', {
+        method: 'POST',
+        body: JSON.stringify({ mobile: message.mobile }),
+      });
+      return ok(result);
+    }
+
+    case 'VAULT_REQUEST_STATUS':
+      return ok(await apiFetch<VaultRequestStatus>(`/api/vault/requests/${message.requestId}`));
+
+    case 'VAULT_UNLOCK': {
+      const result = await apiFetch<{ grant: VaultGrantView }>('/api/vault/unlock', {
+        method: 'POST',
+        body: JSON.stringify({ mobile: message.mobile, code: message.code }),
+      });
+      return ok(result);
+    }
+
+    case 'VAULT_LIST_DOCUMENTS':
+      return ok(
+        await apiFetch<{ grant: VaultGrantView; documents: VaultDocumentView[] }>(
+          `/api/vault/grants/${message.grantId}/documents`,
+        ),
+      );
+
+    /*
+     * Decrypted by the server, carried to the side panel as base64 and shown from memory. No
+     * download, no chrome.storage, no file on disk (design §4.3, "zero local residuals").
+     */
+    case 'VAULT_VIEW_DOCUMENT': {
+      const file = await apiFetchBytes(
+        `/api/vault/grants/${message.grantId}/documents/${message.documentId}/file?purpose=viewed`,
+      );
+      return ok({ mimeType: file.mimeType, dataBase64: bytesToBase64(file.bytes) });
+    }
+
+    case 'VAULT_END_GRANT':
+      await apiFetch<null>(`/api/vault/grants/${message.grantId}/end`, { method: 'POST' });
+      return ok(null);
 
     case 'GET_ROAMING_ACCESS': {
       const access = await apiFetch<RoamingAccessView>(
@@ -679,7 +848,7 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
 
       // The selected customer, if it is still this one, moves from locked to granted so the
       // side panel's fill controls light up without a round trip to GET_SESSION.
-      const current = await selectedCustomerStore.get<CustomerSummary>();
+      const current = await readSelectedCustomer();
       if (current?.id === message.customerId) {
         await selectedCustomerStore.set({
           ...current,
@@ -690,10 +859,45 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       return ok(response.session);
     }
 
+    case 'REQUEST_ROAMING_APPROVAL': {
+      const result = await apiFetch<{ requestId: string; expiresAt: string }>(
+        `/api/customers/${message.customerId}/roaming/app-request`,
+        { method: 'POST', body: JSON.stringify({ purpose: message.purpose }) },
+      );
+      return ok(result);
+    }
+
+    case 'GET_ROAMING_APPROVAL': {
+      const view = await apiFetch<RoamingAppRequestView>(
+        `/api/customers/${message.customerId}/roaming/app-request/${message.requestId}`,
+      );
+
+      // Approved in the app: unlock the selected customer exactly as a verified OTP does.
+      if (view.status === 'approved') {
+        const current = await readSelectedCustomer();
+        if (current?.id === message.customerId) {
+          await selectedCustomerStore.set({
+            ...current,
+            accessStatus: 'granted',
+            grantExpiresAt: view.session.expiresAt,
+          });
+        }
+      }
+      return ok(view);
+    }
+
+    case 'CANCEL_ROAMING_APPROVAL': {
+      await apiFetch(
+        `/api/customers/${message.customerId}/roaming/app-request/${message.requestId}`,
+        { method: 'DELETE' },
+      );
+      return ok({});
+    }
+
     case 'REVOKE_ROAMING_SESSION': {
       await apiFetch(`/api/customers/${message.customerId}/roaming/revoke`, { method: 'POST' });
 
-      const current = await selectedCustomerStore.get<CustomerSummary>();
+      const current = await readSelectedCustomer();
       if (current?.id === message.customerId) {
         await selectedCustomerStore.set({
           ...current,
@@ -711,54 +915,9 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       const injected = await ensureContentScript(tabId);
       if (!injected) return fail('detection_failed');
 
-      let detection = await sendToTab<DetectionPayload>(tabId, { type: 'DETECT_FIELDS' });
-
-      // Aggregate fields from all subframes if available
-      try {
-        if (chrome.webNavigation?.getAllFrames) {
-          const frames = await chrome.webNavigation.getAllFrames({ tabId });
-          if (frames && frames.length > 1) {
-            const allFields: DetectionPayload['fields'] = detection?.fields
-              ? [...detection.fields]
-              : [];
-            let mainPageContext = detection?.page;
-
-            for (const frame of frames) {
-              if (frame.frameId === 0) continue;
-              try {
-                const response = (await chrome.tabs.sendMessage(
-                  tabId,
-                  { type: 'DETECT_FIELDS' },
-                  { frameId: frame.frameId },
-                )) as { ok: true; data: DetectionPayload } | undefined;
-                if (response?.ok && response.data) {
-                  if (!mainPageContext || (!mainPageContext.title && response.data.page.title)) {
-                    mainPageContext = response.data.page;
-                  }
-                  const subFields = response.data.fields.map((f, idx) => ({
-                    ...f,
-                    frame: frame.frameId,
-                    order: allFields.length + idx,
-                  }));
-                  allFields.push(...subFields);
-                }
-              } catch {
-                // Subframe unreadable or script not loaded
-              }
-            }
-
-            if (allFields.length > 0 || mainPageContext) {
-              detection = {
-                page: mainPageContext ?? { origin: '', path: '', title: null, blockedFrames: 0 },
-                fields: allFields,
-              };
-            }
-          }
-        }
-      } catch {
-        // Fallback to top frame detection
-      }
-
+      // The top frame's detector already walks same-origin iframes; cross-origin ones are
+      // reported in `page.blockedFrames`, never read.
+      const detection = await sendToTab<DetectionPayload>(tabId, { type: 'DETECT_FIELDS' });
       if (!detection) return fail('detection_failed');
 
       stateFor(tabId).detection = detection;
@@ -770,7 +929,7 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       if (tabId === null) return fail('no_active_tab');
 
       const state = stateFor(tabId);
-      const customer = await selectedCustomerStore.get<CustomerSummary>();
+      const customer = await readSelectedCustomer();
       if (!state.detection) return fail('no_detection');
       if (!customer) return fail('no_customer_selected');
 
@@ -826,39 +985,6 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       };
 
       const response = await sendToTab<{ results: FillResult[] }>(tabId, outbound);
-
-      // If elements were in subframes and top-frame missed them, attempt fill across subframes
-      if (response && response.results) {
-        const missingSignatures = response.results
-          .filter((r) => r.action === 'failed' && r.error === 'element_not_found')
-          .map((r) => r.signature);
-
-        if (missingSignatures.length > 0 && chrome.webNavigation?.getAllFrames) {
-          try {
-            const frames = await chrome.webNavigation.getAllFrames({ tabId });
-            if (frames) {
-              for (const frame of frames) {
-                if (frame.frameId === 0) continue;
-                const subResponse = (await chrome.tabs
-                  .sendMessage(tabId, outbound, { frameId: frame.frameId })
-                  .catch(() => null)) as { ok: true; data: { results: FillResult[] } } | null;
-                if (subResponse?.ok && subResponse.data.results) {
-                  for (const subRes of subResponse.data.results) {
-                    if (subRes.action === 'filled' || subRes.error !== 'element_not_found') {
-                      const idx = response.results.findIndex(
-                        (r) => r.signature === subRes.signature,
-                      );
-                      if (idx >= 0) response.results[idx] = subRes;
-                    }
-                  }
-                }
-              }
-            }
-          } catch {
-            // Ignore subframe execution errors
-          }
-        }
-      }
 
       if (!response) return fail('fill_failed');
 
@@ -920,8 +1046,10 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
     case 'CREATE_APPLICATION': {
       const tabId = await targetTabId(sender);
       const state = tabId === null ? null : stateFor(tabId);
-      const customer = await selectedCustomerStore.get<CustomerSummary>();
+      const customer = await readSelectedCustomer();
       if (!customer) return fail('no_customer_selected');
+      // A grant never covers `applications` (migration 0024); the server would answer 404.
+      if (customer.isRoaming) return fail('roaming_application_unsupported');
 
       if (state?.activeApplicationId) {
         return ok({ id: state.activeApplicationId, existing: true });
@@ -983,7 +1111,7 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
      * when the truth is "the citizen has not consented yet".
      */
     case 'LIST_CUSTOMER_DOCUMENTS': {
-      const customer = await selectedCustomerStore.get<CustomerSummary>();
+      const customer = await readSelectedCustomer();
       if (!customer) return fail('no_customer_selected');
       if (customer.id !== message.customerId) return fail('customer_not_selected');
       if (customer.isRoaming && customer.accessStatus !== 'granted') {
@@ -1016,6 +1144,14 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
         }).catch(() => undefined);
       }
       return ok(null);
+    }
+
+    case 'GET_PORTAL_LOGIN':
+      return ok(await portalLoginStatus(sender));
+
+    case 'FILL_PORTAL_LOGIN': {
+      const result = await fillPortalLogin(sender);
+      return 'error' in result ? fail(result.error) : ok(result);
     }
 
     default:

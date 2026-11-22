@@ -12,7 +12,7 @@
  * Values arrive here, are typed into the page, and are not retained afterwards.
  */
 
-import { classifyField, isSubmitControl } from '@assistigo/form-engine/safety';
+import { classifyField, isPasswordField, isSubmitControl } from '@assistigo/form-engine/safety';
 import { fileMatchesAccept } from '@assistigo/form-engine/documents';
 import type {
   FileFillInstruction,
@@ -20,7 +20,15 @@ import type {
   FillInstruction,
   FillResult,
 } from '@assistigo/form-engine/types';
-import { FIELD_SELECTOR, collectCustomOptionElements, fieldSignature } from './detector';
+import {
+  FIELD_SELECTOR,
+  collectCustomOptionElements,
+  fieldSignature,
+  isHtmlElement,
+  isInputElement,
+  isSelectElement,
+  isTextAreaElement,
+} from './detector';
 
 export const DEPENDENT_WAIT_MS = 3000;
 const DEPENDENT_POLL_MS = 75;
@@ -33,8 +41,8 @@ type FillableElement = HTMLElement;
  * value on the next render. Going through the prototype's native setter makes the framework's
  * own change detection fire.
  */
-function setNativeValue(element: HTMLElement, value: string): void {
-  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
+export function setNativeValue(element: HTMLElement, value: string): void {
+  if (isInputElement(element) || isTextAreaElement(element) || isSelectElement(element)) {
     const prototype = Object.getPrototypeOf(element) as object;
     const descriptor = Object.getOwnPropertyDescriptor(prototype, 'value');
 
@@ -55,7 +63,7 @@ function setNativeValue(element: HTMLElement, value: string): void {
   }
 }
 
-function dispatchInputEvents(element: Element): void {
+export function dispatchInputEvents(element: Element): void {
   element.dispatchEvent(new Event('focus', { bubbles: true }));
   element.dispatchEvent(new Event('input', { bubbles: true }));
   element.dispatchEvent(new Event('change', { bubbles: true }));
@@ -252,13 +260,13 @@ function fillTextLike(
   value: string,
   inputType: string,
 ): FillResult['action'] {
-  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+  if (isInputElement(element) || isTextAreaElement(element)) {
     // The element's own type is the truth about what it accepts; the instruction only says what
     // the mapper thought it was looking at.
-    const effectiveType = element instanceof HTMLInputElement ? element.type : inputType;
+    const effectiveType = isInputElement(element) ? element.type : inputType;
     let formatted = formatValueForInputType(value, effectiveType);
 
-    if (element instanceof HTMLInputElement && element.type === 'range') {
+    if (isInputElement(element) && element.type === 'range') {
       const clamped = clampToRange(element, formatted);
       if (clamped === null) return 'failed';
       formatted = clamped;
@@ -307,7 +315,7 @@ async function fillSelect(
 ): Promise<FillResult> {
   const signature = element.dataset.assistigoSignature ?? '';
 
-  if (element instanceof HTMLSelectElement) {
+  if (isSelectElement(element)) {
     if (element.multiple) {
       const wantedValues = value.split(/[,|]/).map((v) => normalise(v));
       element.focus();
@@ -347,7 +355,7 @@ async function fillSelect(
   const wanted = normalise(value);
 
   element.focus();
-  if (element instanceof HTMLInputElement) {
+  if (isInputElement(element)) {
     setNativeValue(element, value);
     dispatchInputEvents(element);
   }
@@ -362,7 +370,7 @@ async function fillSelect(
     // Last, loosest pass, mirroring findOption(): only for values long enough to be distinctive.
     optionNodes.find((opt) => wanted.length > 3 && normalise(opt.textContent ?? '').includes(wanted));
 
-  if (match instanceof HTMLElement && !isUnsafeClickTarget(match)) {
+  if (match && isHtmlElement(match) && !isUnsafeClickTarget(match)) {
     match.click();
     dispatchInputEvents(element);
     return { signature, action: 'filled' };
@@ -370,7 +378,7 @@ async function fillSelect(
 
   dispatchInputEvents(element);
 
-  if (element instanceof HTMLInputElement) {
+  if (isInputElement(element)) {
     // A combobox backed by a real text input: the typed value is itself the fill, whether or not
     // the page offered a matching suggestion.
     return { signature, action: element.value === value ? 'filled' : 'failed' };
@@ -389,7 +397,7 @@ function fillCheckable(element: HTMLElement, value: string): FillResult['action'
   const wanted = normalise(value);
   const isFalse = ['false', 'no', '0', 'off'].includes(wanted);
 
-  if (element instanceof HTMLInputElement && element.type === 'checkbox') {
+  if (isInputElement(element) && element.type === 'checkbox') {
     const shouldCheck = !isFalse && ['true', 'yes', '1', 'on', normalise(element.value)].includes(wanted);
     if (element.checked === shouldCheck) return 'filled';
     element.click();
@@ -408,7 +416,7 @@ function fillCheckable(element: HTMLElement, value: string): FillResult['action'
   }
 
   // Radio button handling
-  if (element instanceof HTMLInputElement && element.type === 'radio') {
+  if (isInputElement(element) && element.type === 'radio') {
     const matchesValue = normalise(element.value) === wanted;
     const label = element.labels?.[0]?.textContent ?? '';
     const matchesLabel =
@@ -481,6 +489,26 @@ function fillCheckable(element: HTMLElement, value: string): FillResult['action'
  * that mutated between detection and fill cannot redirect a value into a different field.
  */
 export function findElementBySignature(doc: Document, signature: string): FillableElement | null {
+  const own = findInDocument(doc, signature, 0);
+  if (own) return own;
+
+  // Same numbering as `detectFieldsInFrames`: same-origin frame `i` is frame `i + 1`, so a field
+  // the detector found inside an iframe is looked for in that iframe and nowhere else.
+  const frames = Array.from(doc.querySelectorAll('iframe'));
+  for (let index = 0; index < frames.length; index += 1) {
+    let inner: Document | null = null;
+    try {
+      inner = (frames[index] as HTMLIFrameElement).contentDocument;
+    } catch {
+      // Cross-origin: never detected from here, so never filled from here either.
+    }
+    const element = inner ? findInDocument(inner, signature, index + 1) : null;
+    if (element) return element;
+  }
+  return null;
+}
+
+function findInDocument(doc: Document, signature: string, frame: number): FillableElement | null {
   const forms = Array.from(doc.forms);
   const formOf = new Map<Element, number>();
   forms.forEach((form, index) => {
@@ -493,7 +521,7 @@ export function findElementBySignature(doc: Document, signature: string): Fillab
   for (let index = 0; index < elements.length; index += 1) {
     const element = elements[index];
     if (!element) continue;
-    if (fieldSignature(element, formOf.get(element) ?? -1, index, 0) === signature) {
+    if (fieldSignature(element, formOf.get(element) ?? -1, index, frame) === signature) {
       return element as FillableElement;
     }
   }
@@ -566,6 +594,18 @@ export async function applyFill(
       continue;
     }
 
+    // The form filler never types a password, whatever it is told. A portal login is typed only
+    // by the separate, host-checked login filler (./login-filler.ts, spec §19.7a); this keeps a
+    // forged or mis-mapped instruction from reaching a password box through the ordinary path.
+    if (isInputElement(element) && isPasswordField(element.type)) {
+      results.push({
+        signature: instruction.signature,
+        action: 'skipped',
+        skipReason: 'unsupported_type',
+      });
+      continue;
+    }
+
     if (element.hasAttribute('disabled')) {
       results.push({ signature: instruction.signature, action: 'skipped', skipReason: 'disabled' });
       continue;
@@ -578,7 +618,7 @@ export async function applyFill(
     // --- write -------------------------------------------------------------
     const role = element.getAttribute('role')?.toLowerCase() ?? '';
     const isNativeTextControl =
-      element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement;
+      isInputElement(element) || isTextAreaElement(element);
 
     try {
       const isRichText =
@@ -596,7 +636,7 @@ export async function applyFill(
       }
 
       if (
-        element instanceof HTMLSelectElement ||
+        isSelectElement(element) ||
         ['select-one', 'select-multiple', 'combobox', 'listbox'].includes(instruction.inputType) ||
         ['combobox', 'listbox', 'select'].includes(role)
       ) {
@@ -608,7 +648,7 @@ export async function applyFill(
       }
 
       if (
-        (element instanceof HTMLInputElement && ['checkbox', 'radio'].includes(element.type)) ||
+        (isInputElement(element) && ['checkbox', 'radio'].includes(element.type)) ||
         ['checkbox', 'radio', 'switch'].includes(instruction.inputType) ||
         ['checkbox', 'radio', 'switch'].includes(role)
       ) {
@@ -730,7 +770,7 @@ export function attachFiles(
 
     // The signature was recomputed from the live DOM, but a page can still have swapped what
     // sits at that position since detection — so the element type is checked here too.
-    if (!(element instanceof HTMLInputElement) || element.type.toLowerCase() !== 'file') {
+    if (!isInputElement(element) || element.type.toLowerCase() !== 'file') {
       results.push({
         signature: instruction.signature,
         action: 'skipped',

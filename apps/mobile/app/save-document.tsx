@@ -8,10 +8,12 @@
  * again; if only the reminder fails the document is still saved and the citizen is told.
  */
 
+import { BellOff } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Linking } from 'react-native';
+import { Linking } from 'react-native';
 
+import { showDialog } from '../lib/dialog/dialog-store';
 import { SaveDocumentScreen } from '../components/save-document/SaveDocumentScreen';
 import { useTranslation } from '../lib/i18n/I18nProvider';
 import { formatDateOfBirth, MONTH_KEYS } from '../lib/profile/date-of-birth';
@@ -44,17 +46,25 @@ export default function SaveDocumentRoute() {
   const enableReminder = useCallback(async () => {
     try {
       if (await ensureReminderPermission()) return true;
-      Alert.alert(t('saveDocument.reminder.deniedTitle'), t('saveDocument.reminder.deniedBody'), [
-        { text: t('saveDocument.reminder.notNow'), style: 'cancel' },
-        {
-          text: t('saveDocument.reminder.openSettings'),
-          onPress: () => void Linking.openSettings(),
-        },
-      ]);
+      showDialog(
+        t('saveDocument.reminder.deniedTitle'),
+        t('saveDocument.reminder.deniedBody'),
+        [
+          { text: t('saveDocument.reminder.notNow'), style: 'cancel' },
+          {
+            text: t('saveDocument.reminder.openSettings'),
+            onPress: () => void Linking.openSettings(),
+          },
+        ],
+        { tone: 'warning', icon: BellOff },
+      );
     } catch {
-      Alert.alert(t('common.errorTitle'), t('saveDocument.reminder.permissionFailed'), [
-        { text: t('common.ok') },
-      ]);
+      showDialog(
+        t('common.errorTitle'),
+        t('saveDocument.reminder.permissionFailed'),
+        [{ text: t('common.ok') }],
+        { tone: 'danger' },
+      );
     }
     return false;
   }, [t]);
@@ -96,9 +106,12 @@ export default function SaveDocumentRoute() {
       } catch {
         if (reminderId) await cancelExpiryReminder(reminderId);
         setSaving(false);
-        Alert.alert(t('scanner.errors.title'), t('scanReview.saveFailed'), [
-          { text: t('common.ok') },
-        ]);
+        showDialog(
+          t('scanner.errors.title'),
+          t('scanReview.saveFailed'),
+          [{ text: t('common.ok') }],
+          { tone: 'danger' },
+        );
         return;
       }
 
@@ -106,9 +119,12 @@ export default function SaveDocumentRoute() {
       router.dismissAll();
       router.push({ pathname: '/scan-result', params: { id: documentId } });
       if (reminderFailed) {
-        Alert.alert(t('saveDocument.reminder.failedTitle'), t('saveDocument.reminder.failed'), [
-          { text: t('common.ok') },
-        ]);
+        showDialog(
+          t('saveDocument.reminder.failedTitle'),
+          t('saveDocument.reminder.failed'),
+          [{ text: t('common.ok') }],
+          { tone: 'warning', icon: BellOff },
+        );
       }
     },
     [router, scheduleReminder, t],

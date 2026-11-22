@@ -32,7 +32,7 @@ export function demoVaultItems(now: Date, t: Translate): VaultItem[] {
       mimeType: 'image/jpeg',
       sizeBytes: 2.4 * MB,
       starred: true,
-      thumbnail: { kind: 'asset', source: require('../../assets/home/thumb-aadhaar.png') },
+      thumbnail: { kind: 'asset', source: require('../../assets/home/thumb-aadhaar.jpg') },
     },
     {
       id: `${DEMO_ID_PREFIX}photo`,
@@ -44,7 +44,7 @@ export function demoVaultItems(now: Date, t: Translate): VaultItem[] {
       mimeType: 'image/jpeg',
       sizeBytes: 1.2 * MB,
       starred: false,
-      thumbnail: { kind: 'asset', source: require('../../assets/home/thumb-photo.png') },
+      thumbnail: { kind: 'asset', source: require('../../assets/home/thumb-photo.jpg') },
     },
     {
       id: `${DEMO_ID_PREFIX}marksheet`,
@@ -56,7 +56,7 @@ export function demoVaultItems(now: Date, t: Translate): VaultItem[] {
       mimeType: 'image/jpeg',
       sizeBytes: 1.8 * MB,
       starred: false,
-      thumbnail: { kind: 'asset', source: require('../../assets/home/thumb-marksheet.png') },
+      thumbnail: { kind: 'asset', source: require('../../assets/home/thumb-marksheet.jpg') },
     },
     {
       id: `${DEMO_ID_PREFIX}signature`,
@@ -68,7 +68,7 @@ export function demoVaultItems(now: Date, t: Translate): VaultItem[] {
       mimeType: 'image/png',
       sizeBytes: 0.3 * MB,
       starred: true,
-      thumbnail: { kind: 'asset', source: require('../../assets/home/thumb-signature.png') },
+      thumbnail: { kind: 'asset', source: require('../../assets/home/thumb-signature.jpg') },
     },
     {
       id: `${DEMO_ID_PREFIX}pan`,

@@ -9,16 +9,16 @@
  * Development builds show the mockups' sample centres (`components/connect/demo.tsx`) so the
  * layout can be reviewed full.
  *
- * Sharing documents with an operator, the access history and help requests (spec §3 Features 3
- * and 4) are not built: what an operator can see, and how the citizen approves it, is a privacy
- * decision still to be made. Those taps say so plainly; no citizen data is read or sent.
+ * Share Document opens the counter code (`code.tsx`, design §4.2) in cloud builds. The access
+ * history and help requests are not built; those taps say so plainly and send nothing.
  */
 
+import { CircleHelp } from 'lucide-react-native';
 import { useIsFocused, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useMemo } from 'react';
-import { Alert } from 'react-native';
 
+import { showDialog } from '../../../lib/dialog/dialog-store';
 import { ConnectScreen } from '../../../components/connect/ConnectScreen';
 import { demoNearbyCentres } from '../../../components/connect/demo';
 import {
@@ -27,6 +27,7 @@ import {
   NO_NEARBY_CENTRES,
 } from '../../../lib/connect/connect-screen';
 import type { NearbyView } from '../../../lib/connect/nearby-search';
+import { cloudConfig } from '../../../lib/cloud/config';
 import { useTranslation } from '../../../lib/i18n/I18nProvider';
 
 export default function ConnectRoute() {
@@ -38,7 +39,7 @@ export default function ConnectRoute() {
 
   const comingSoon = useCallback(
     (bodyKey: string) => {
-      Alert.alert(t('common.comingSoon'), t(bodyKey), [{ text: t('common.ok') }]);
+      showDialog(t('common.comingSoon'), t(bodyKey), [{ text: t('common.ok') }], { tone: 'brand' });
     },
     [t],
   );
@@ -51,15 +52,19 @@ export default function ConnectRoute() {
   );
 
   const handleHelp = useCallback(() => {
-    Alert.alert(t('connect.about.title'), t('connect.about.body'), [{ text: t('common.ok') }]);
+    showDialog(t('connect.about.title'), t('connect.about.body'), [{ text: t('common.ok') }], {
+      icon: CircleHelp,
+    });
   }, [t]);
 
   const handleAction = useCallback(
     (action: ConnectAction) => {
       if (action === 'find_nearby') openNearby();
+      // Cloud builds: a 6-digit code the citizen reads out at the counter (design §4.2).
+      else if (action === 'share_document' && cloudConfig()) router.push('/share/code');
       else comingSoon(`connect.unavailable.${action}`);
     },
-    [comingSoon, openNearby],
+    [comingSoon, openNearby, router],
   );
 
   const handleViewMap = useCallback(() => openNearby({ view: 'map' }), [openNearby]);

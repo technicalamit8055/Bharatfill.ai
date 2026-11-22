@@ -22,14 +22,11 @@ const RENDERED_KEYS = [
   'securitySetup.headlineLead',
   'securitySetup.headlineAccent',
   'securitySetup.subtitle',
-  'securitySetup.comingSoon',
   'securitySetup.options.biometric.title',
   'securitySetup.options.biometric.body',
   'securitySetup.options.pin.title',
   'securitySetup.options.pin.body',
-  'securitySetup.unavailableTitle',
-  'securitySetup.unavailableBody',
-  'securitySetup.continue',
+  'securitySetup.setUp',
 ];
 
 function lookup(dictionary: unknown, key: string): unknown {

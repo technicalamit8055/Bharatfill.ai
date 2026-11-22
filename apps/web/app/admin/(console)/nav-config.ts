@@ -134,7 +134,7 @@ export const CONSOLE_NAV: ConsoleNavGroup[] = [
         labelKey: 'admin.nav.launchLeads',
         permission: 'platform.leads.view',
         icon: Megaphone,
-        keywords: 'early access waitlist diwali whatsapp leads export',
+        keywords: 'early access waitlist christmas whatsapp leads export',
       },
     ],
   },

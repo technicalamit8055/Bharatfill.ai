@@ -15,11 +15,13 @@
  * only on Done, so the page is processed once. Back (or the hardware back button) drops it.
  */
 
+import { Trash2 } from 'lucide-react-native';
 import { useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, BackHandler } from 'react-native';
+import { BackHandler } from 'react-native';
 import { z } from 'zod';
 
+import { showDialog } from '../lib/dialog/dialog-store';
 import { type CropDraft, ScanReviewScreen } from '../components/scanner/ScanReviewScreen';
 import { useTranslation } from '../lib/i18n/I18nProvider';
 import {
@@ -189,10 +191,19 @@ export default function ScanReviewRoute() {
 
   const onDeletePage = useCallback(() => {
     if (!current) return;
-    Alert.alert(t('scanReview.deleteTitle'), t('scanReview.deleteBody'), [
-      { text: t('scanResult.cancel'), style: 'cancel' },
-      { text: t('scanResult.delete'), style: 'destructive', onPress: () => removePage(current.id) },
-    ]);
+    showDialog(
+      t('scanReview.deleteTitle'),
+      t('scanReview.deleteBody'),
+      [
+        { text: t('scanResult.cancel'), style: 'cancel' },
+        {
+          text: t('scanResult.delete'),
+          style: 'destructive',
+          onPress: () => removePage(current.id),
+        },
+      ],
+      { icon: Trash2 },
+    );
   }, [current, t]);
 
   const onDismissQuality = useCallback(() => {

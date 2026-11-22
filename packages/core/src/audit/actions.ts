@@ -132,6 +132,41 @@ export const AUDIT_ACTIONS = define([
     sensitivity: 'critical',
     description: 'Sensitive field revealed',
   },
+  // --- portal credential vault (0036, spec §19.7a) ------------------------------
+  // `metadata` carries the portal key and which parts changed — never a login ID, password or
+  // security answer.
+  {
+    action: 'customer.portal_credential_saved',
+    entityType: 'customer',
+    sensitivity: 'sensitive',
+    description: 'Portal login saved to the customer vault',
+  },
+  {
+    action: 'customer.portal_credential_deleted',
+    entityType: 'customer',
+    sensitivity: 'sensitive',
+    description: 'Portal login removed from the customer vault',
+  },
+  {
+    action: 'customer.portal_credential_revealed',
+    entityType: 'customer',
+    sensitivity: 'critical',
+    description: 'Portal login detail revealed',
+  },
+  {
+    // The extension typed the login ID and password into an allow-listed portal page.
+    // `metadata.host` is the portal host, which is public; the page path is not kept.
+    action: 'customer.portal_login_filled',
+    entityType: 'customer',
+    sensitivity: 'critical',
+    description: 'Portal login filled by the extension',
+  },
+  {
+    action: 'customer.portal_credential_slip_issued',
+    entityType: 'customer',
+    sensitivity: 'critical',
+    description: 'Portal login slip printed or sent to the customer',
+  },
   {
     action: 'customer.exported',
     entityType: 'customer',
@@ -162,6 +197,18 @@ export const AUDIT_ACTIONS = define([
     description: 'Consent OTP sent to a roaming customer',
   },
   {
+    action: 'customer.roaming_approval_requested',
+    entityType: 'customer',
+    sensitivity: 'sensitive',
+    description: 'Roaming customer asked to approve access in the BharatDoc app',
+  },
+  {
+    action: 'customer.roaming_approval_denied',
+    entityType: 'customer',
+    sensitivity: 'normal',
+    description: 'Roaming customer denied access in the BharatDoc app',
+  },
+  {
     // Critical: this is the moment another centre's citizen record becomes readable here.
     action: 'customer.roaming_access_granted',
     entityType: 'customer_access_grant',
@@ -179,6 +226,50 @@ export const AUDIT_ACTIONS = define([
     entityType: 'customer_access_grant',
     sensitivity: 'normal',
     description: 'Roaming access session expired on its timer',
+  },
+
+  // --- Citizen Vault bridge (migration 0038, docs/VAULT_BRIDGE_DESIGN.md) ------
+  // The centre's side of the story. The citizen's side — which documents were opened — is
+  // vault_access_events, which the citizen can read. Neither ever carries the mobile number,
+  // the code, the citizen's name or a document title.
+  {
+    // Every lookup, including one for a number with no vault: a run of these is fishing.
+    action: 'vault.lookup',
+    entityType: 'vault_access_request',
+    sensitivity: 'sensitive',
+    description: 'Asked a citizen for vault access by mobile number',
+  },
+  {
+    action: 'vault.unlock_failed',
+    entityType: 'vault_access_request',
+    sensitivity: 'sensitive',
+    description: 'Wrong or expired citizen share code entered',
+  },
+  {
+    // Critical: the moment a citizen's documents become readable at this counter.
+    action: 'vault.grant_created',
+    entityType: 'vault_access_grant',
+    sensitivity: 'critical',
+    description: 'Citizen granted this operator time-limited access to their vault',
+  },
+  {
+    action: 'vault.grant_ended',
+    entityType: 'vault_access_grant',
+    sensitivity: 'normal',
+    description: 'Operator finished with a citizen vault before it expired',
+  },
+  {
+    action: 'vault.document_opened',
+    entityType: 'vault_access_grant',
+    sensitivity: 'sensitive',
+    description: 'A citizen vault document was viewed or attached',
+  },
+  {
+    // Critical: a copy now lives in this centre's own records, under its own retention.
+    action: 'vault.copy_saved',
+    entityType: 'document',
+    sensitivity: 'critical',
+    description: 'A citizen vault document was copied into a customer file with consent',
   },
 
   // --- documents -----------------------------------------------------------

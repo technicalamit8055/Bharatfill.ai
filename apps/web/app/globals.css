@@ -840,3 +840,60 @@
     @apply hover:translate-y-0;
   }
 }
+
+/*
+ * Portal login slip (spec §19.7a). Rendered by portal-logins-card.tsx only for the print dialog
+ * and removed straight after. While `printing-credential-slip` is on <body>, the slip is the only
+ * thing printed, sized for a 58/80 mm counter thermal printer.
+ */
+#credential-slip {
+  display: none;
+}
+
+@media print {
+  body.printing-credential-slip * {
+    visibility: hidden;
+  }
+
+  body.printing-credential-slip #credential-slip,
+  body.printing-credential-slip #credential-slip * {
+    visibility: visible;
+  }
+
+  body.printing-credential-slip #credential-slip {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 72mm;
+    padding: 2mm;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11pt;
+    line-height: 1.35;
+    color: #000;
+    background: #fff;
+  }
+
+  #credential-slip .slip-title {
+    font-weight: 700;
+    font-size: 12pt;
+  }
+
+  #credential-slip .slip-value {
+    font-weight: 700;
+    font-size: 14pt;
+    letter-spacing: 0.05em;
+    word-break: break-all;
+    margin-bottom: 1.5mm;
+  }
+
+  #credential-slip .slip-small {
+    font-size: 8.5pt;
+  }
+
+  #credential-slip hr {
+    border: 0;
+    border-top: 1px dashed #000;
+    margin: 2mm 0;
+  }
+}

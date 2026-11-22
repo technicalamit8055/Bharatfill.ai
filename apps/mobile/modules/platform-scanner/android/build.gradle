@@ -1,0 +1,25 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'ai.bharatfill'
+version = '0.1.0'
+
+android {
+  namespace "ai.bharatfill.platformscanner"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+}
+
+dependencies {
+  // Google's document scanner, run by Google Play services on the phone: the scanning UI and
+  // its models are downloaded by Play services, so the APK does not grow. Pages are processed
+  // on the phone and never uploaded; the library does send Google API usage metrics (see
+  // docs/CITIZEN_MOBILE_APP_SPEC.md §8).
+  implementation 'com.google.android.gms:play-services-mlkit-document-scanner:16.0.0'
+  // For the Play services availability check before the scanner is offered.
+  implementation 'com.google.android.gms:play-services-base:18.5.0'
+}

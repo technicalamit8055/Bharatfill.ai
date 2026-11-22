@@ -13,11 +13,12 @@
  * nothing is read, sent or shared. Bookmarks are kept in memory only (`lib/connect/saved-centres`).
  */
 
+import { CircleHelp } from 'lucide-react-native';
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useMemo } from 'react';
-import { Alert } from 'react-native';
 
+import { showDialog } from '../../../lib/dialog/dialog-store';
 import { demoNearbyCentres } from '../../../components/connect/demo';
 import { NearbyCentresScreen } from '../../../components/connect/NearbyCentresScreen';
 import { type NearbyCentre, NO_NEARBY_CENTRES } from '../../../lib/connect/connect-screen';
@@ -36,7 +37,7 @@ export default function NearbyCentresRoute() {
 
   const comingSoon = useCallback(
     (bodyKey: string) => {
-      Alert.alert(t('common.comingSoon'), t(bodyKey), [{ text: t('common.ok') }]);
+      showDialog(t('common.comingSoon'), t(bodyKey), [{ text: t('common.ok') }], { tone: 'brand' });
     },
     [t],
   );
@@ -47,7 +48,9 @@ export default function NearbyCentresRoute() {
   }, [router]);
 
   const handleHelp = useCallback(() => {
-    Alert.alert(t('connect.about.title'), t('connect.about.body'), [{ text: t('common.ok') }]);
+    showDialog(t('connect.about.title'), t('connect.about.body'), [{ text: t('common.ok') }], {
+      icon: CircleHelp,
+    });
   }, [t]);
 
   const toggleBookmark = useCallback((centre: NearbyCentre) => {

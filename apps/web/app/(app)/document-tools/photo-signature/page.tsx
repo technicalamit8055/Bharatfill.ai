@@ -1,8 +1,6 @@
-import Image from 'next/image';
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import { findPreset } from '@assistigo/document-tools';
 import { PhotoSignatureEditor } from '@/components/document-tools/photo-signature-editor';
+import { PhotoSignatureHeader } from '@/components/document-tools/tool-headers';
 import { requirePagePermission } from '@/lib/auth/session';
 import { loadCustomerOptions } from '@/lib/document-tools/customer-options';
 import { getTranslations } from '@/lib/i18n/server';
@@ -34,52 +32,15 @@ export default async function PhotoSignaturePage({
   // preset; the editor needs to open in the matching mode or the preset picker filters it out.
   const resolvedPreset = preset ? findPreset(preset) : null;
 
-  const header = (
-    <div className="flex items-center justify-between gap-4">
-      <div className="min-w-0">
-        <Link
-          href="/document-tools"
-          className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-800"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-          {t('documentTools.title')}
-        </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-[28px]">
-            {t('documentTools.hub.photoSignature.title')}
-          </h1>
-          <span className="rounded-md bg-violet-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-violet-700">
-            {t('documentTools.studio.beta')}
-          </span>
-        </div>
-        <p className="mt-1.5 max-w-xl text-sm text-slate-600">
-          {t('documentTools.hub.photoSignature.description')}
-        </p>
-      </div>
-
-      {/*
-        * Stock artwork of a made-up person, shot on white; `mix-blend-multiply` drops the white
-        * so it sits on the page background. The frame crops the artwork's empty margins.
-        */}
-      <div
-        aria-hidden
-        className="relative hidden h-[130px] w-[230px] shrink-0 select-none overflow-hidden md:block lg:h-[150px] lg:w-[270px]"
-      >
-        <Image
-          src="/document-tools/photo-studio-header-vignette.png"
-          alt=""
-          fill
-          priority
-          sizes="270px"
-          className="object-cover mix-blend-multiply"
-        />
-      </div>
-    </div>
-  );
-
   return (
     <PhotoSignatureEditor
-      header={header}
+      header={
+        <PhotoSignatureHeader
+          t={t}
+          backHref="/document-tools"
+          backLabel={t('documentTools.title')}
+        />
+      }
       customers={customers}
       defaultCustomerId={validCustomerId}
       defaultPresetCode={preset ?? null}

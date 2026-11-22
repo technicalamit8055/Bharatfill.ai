@@ -78,6 +78,7 @@ beforeEach(() => {
     tabs: {
       onRemoved: { addListener: () => undefined },
       query: vi.fn().mockResolvedValue([{ id: TAB_ID }]),
+      create: vi.fn().mockResolvedValue({ id: TAB_ID + 1 }),
       sendMessage: vi.fn(async (_tabId: number, message: { type: string }) => {
         if (message.type === 'PING') return { ok: true, data: { alive: true } };
         if (message.type === 'DETECT_FIELDS') {
@@ -100,8 +101,6 @@ beforeEach(() => {
     scripting: { executeScript: vi.fn().mockResolvedValue([]) },
     sidePanel: { setPanelBehavior: vi.fn().mockResolvedValue(undefined) },
     storage: { session: fakeStorageArea(), local: fakeStorageArea() },
-    // Deliberately no `webNavigation`: the subframe sweep is guarded on it and is not what
-    // either test here is about.
   });
 });
 
@@ -288,4 +287,82 @@ describe('REQUEST_MAPPING — carries the application id forward across stages',
     const [body] = requestBodiesTo('/api/forms/map');
     expect(body).not.toHaveProperty('applicationId');
   });
+});
+
+describe('CREATE_APPLICATION — roaming customers', () => {
+  it('refuses before reaching the server, even with a live grant', async () => {
+    await seedSession();
+    await sessionStorage().set({
+      selectedCustomer: {
+        id: CUSTOMER_ID,
+        displayName: 'Pritam Kumar',
+        customerCode: null,
+        mobileLast4: '4321',
+        isRoaming: true,
+        accessStatus: 'granted',
+        grantExpiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+      },
+    });
+
+    const response = await dispatch({ type: 'CREATE_APPLICATION', title: 'Income certificate' });
+
+    // A grant never covers `applications` (migration 0024); the server would only answer 404.
+    expect(response).toMatchObject({ ok: false, error: 'roaming_application_unsupported' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('page messages go to the top frame only', () => {
+  it('addresses DETECT_FIELDS to frame 0, so an iframe cannot answer for the page', async () => {
+    await seedSession();
+
+    await dispatch({ type: 'DETECT_FIELDS' });
+
+    const sendMessage = (
+      globalThis as unknown as {
+        chrome: { tabs: { sendMessage: ReturnType<typeof vi.fn> } };
+      }
+    ).chrome.tabs.sendMessage;
+    expect(sendMessage).toHaveBeenCalled();
+    for (const call of sendMessage.mock.calls) {
+      expect(call[2]).toEqual({ frameId: 0 });
+    }
+  });
+});
+
+describe('OPEN_DASHBOARD — stays on the dashboard', () => {
+  function tabsCreate(): ReturnType<typeof vi.fn> {
+    return (globalThis as unknown as { chrome: { tabs: { create: ReturnType<typeof vi.fn> } } })
+      .chrome.tabs.create;
+  }
+
+  it('opens an application on the dashboard from the "View" link', async () => {
+    const response = await dispatch({
+      type: 'OPEN_DASHBOARD',
+      path: `/applications/${APPLICATION_ID}`,
+    });
+
+    expect(response).toMatchObject({ ok: true });
+    expect(tabsCreate()).toHaveBeenCalledWith({
+      url: `http://localhost:3000/applications/${APPLICATION_ID}`,
+    });
+  });
+
+  it.each([
+    '@evil.example/',
+    '//evil.example/',
+    String.raw`/\evil.example/`,
+    'applications/x',
+    '.evil.example',
+  ])(
+    'refuses %s, which would leave the dashboard origin',
+    async (path) => {
+      await import('../src/background/index');
+      const reply = vi.fn();
+      messageListener?.({ type: 'OPEN_DASHBOARD', path }, { id: EXTENSION_ID }, reply);
+
+      expect(reply).toHaveBeenCalledWith(expect.objectContaining({ ok: false }));
+      expect(tabsCreate()).not.toHaveBeenCalled();
+    },
+  );
 });

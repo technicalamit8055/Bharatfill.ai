@@ -2,14 +2,11 @@
  * Profile tab view model: the account card, the settings rows in display order and the small
  * pure helpers the screen needs.
  *
- * Nothing fills a profile from real data yet — sign-in and the saved profile are not live (see
- * the Profile route). Keeping the shape here means the account store only has to produce a
- * `ProfileAccount` when it lands; the screen does not change.
- *
- * Only `full_name`, `phone_number` and `avatar_url` have a home in the spec
- * (`docs/CITIZEN_MOBILE_APP_SPEC.md` §5.1). Email and the plan are optional so the screen can
- * show the mockup in development without the app claiming fields — or a paid tier — the product
- * owner has not signed off. Everything here is PII: read for display only, never logged.
+ * Signed in, `signedInProfile` builds the card from the cloud account (`lib/cloud/account.ts`):
+ * the name and the number it signed in with — all the account keeps
+ * (docs/VAULT_BRIDGE_DESIGN.md D10). Email and the plan stay optional so development builds can
+ * still show the mockup's sample account without the app claiming fields — or a paid tier — the
+ * product owner has not signed off. Everything here is PII: read for display only, never logged.
  */
 
 import { formatE164ForDisplay, indianMobileSchema } from '../auth/phone';
@@ -50,6 +47,27 @@ export type ProfileState =
   | { readonly status: 'signed_in'; readonly account: ProfileAccount };
 
 export const SIGNED_OUT_PROFILE: ProfileState = { status: 'signed_out' };
+
+/**
+ * The card for a signed-in citizen, from what the cloud account holds (design D10: a name and a
+ * language — no email, photo or plan). The number came through OTP, so it is verified whenever
+ * it is known. Either may be missing while offline; the card then leaves that line out.
+ */
+export function signedInProfile(input: {
+  readonly displayName: string | null;
+  readonly phoneNumber: string | null;
+}): ProfileState {
+  return {
+    status: 'signed_in',
+    account: {
+      fullName: input.displayName ?? '',
+      phoneNumber: input.phoneNumber ?? '',
+      phoneVerified: input.phoneNumber !== null,
+      email: null,
+      plan: null,
+    },
+  };
+}
 
 /** "+91 98765 43210", or null when the digits are not a valid Indian mobile number. */
 export function phoneLineOf(phoneNumber: string): string | null {

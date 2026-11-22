@@ -157,21 +157,26 @@ const MENU_DISMISS_MS = Platform.OS === 'ios' ? 320 : 0;
 export function MenuSheet({ title, closeLabel, items, onClose }: MenuSheetProps) {
   return (
     <SheetFrame title={title} closeLabel={closeLabel} onClose={onClose}>
-      {items.map(({ key, label, icon: Icon, destructive, onPress }) => {
-        const color = destructive ? palette.deleteText : palette.textPrimary;
+      {items.map(({ key, label, icon: Icon, destructive, onPress }, position) => {
+        const color = destructive ? palette.deleteText : palette.heading;
+        const tile = destructive ? palette.menuTileDanger : palette.menuTile;
         return (
-          <Pressable
-            key={key}
-            accessibilityRole="button"
-            onPress={() => {
-              onClose();
-              setTimeout(onPress, MENU_DISMISS_MS);
-            }}
-            style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
-          >
-            <Icon color={destructive ? palette.deleteText : palette.rowIcon} size={22} />
-            <Text style={[styles.menuLabel, { color }]}>{label}</Text>
-          </Pressable>
+          <View key={key}>
+            {position > 0 ? <View style={styles.menuDivider} /> : null}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                onClose();
+                setTimeout(onPress, MENU_DISMISS_MS);
+              }}
+              style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
+            >
+              <View style={[styles.menuTile, { backgroundColor: tile.background }]}>
+                <Icon color={tile.icon} size={21} strokeWidth={2.1} />
+              </View>
+              <Text style={[styles.menuLabel, { color }]}>{label}</Text>
+            </Pressable>
+          </View>
         );
       })}
     </SheetFrame>
@@ -252,15 +257,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    minHeight: 52,
-    paddingHorizontal: 10,
-    borderRadius: 12,
+    minHeight: 60,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 16,
   },
   menuRowPressed: {
     backgroundColor: palette.menuPressed,
   },
+  menuTile: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 66,
+    backgroundColor: palette.menuDivider,
+  },
   menuLabel: {
     flex: 1,
     fontSize: 16,
+    fontWeight: '600',
   },
 });

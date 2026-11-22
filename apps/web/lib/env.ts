@@ -148,6 +148,13 @@ const serverSchema = z.object({
    * refused before any request is made.
    */
   SCRAPER_ALLOWED_HOSTS: optionalString(z.string()),
+  /**
+   * Citizen Vault master key (migration 0038, docs/VAULT_BRIDGE_DESIGN.md §5): base64, 32 bytes.
+   * Wraps every citizen's document key; the Vault PIN and lookup HMAC keys are derived from it
+   * under fixed labels. Fails closed: unset means citizen sign-up and every vault route refuse
+   * with `errors.vault.unavailable` rather than storing anything unprotected.
+   */
+  VAULT_MASTER_KEY: optionalString(z.string().min(1)),
 });
 
 export type PublicEnv = z.infer<typeof publicSchema>;

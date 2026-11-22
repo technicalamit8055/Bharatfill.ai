@@ -56,11 +56,36 @@ const vaultDocumentSchema = z.object({
   expiresOn: z.string().regex(ISO_DATE).optional(),
   /** The local notification scheduled for `expiresOn`, so deleting the document cancels it. */
   reminderId: z.string().min(1).max(200).optional(),
+  /** "Keep on this phone only": never uploaded to the cloud vault (design §3.2). */
+  phoneOnly: z.boolean().optional(),
+  /**
+   * The cloud copy of this document, once synced: its server id and the type and title it was
+   * last synced with, so a later rename or retype is noticed and sent (`lib/cloud/sync-plan.ts`).
+   */
+  cloud: z
+    .object({
+      id: z.string().uuid(),
+      title: z.string().min(1).max(120),
+      documentType: z.enum(DOCUMENT_TYPES),
+    })
+    .optional(),
 });
 
 const vaultIndexSchema = z.object({
   version: z.literal(VAULT_INDEX_VERSION),
   documents: z.array(vaultDocumentSchema),
+  /**
+   * Cloud copies still to delete: documents deleted, or switched to phone-only, after syncing.
+   * Kept until the server confirms, so going offline never leaves a copy behind.
+   */
+  cloudDeletes: z.array(z.string().uuid()).max(1000).optional(),
+  /**
+   * The cloud account this phone's vault syncs with, set on the first sync. Sync refuses to run
+   * for any other account, so a second person signing in on the same phone never has the first
+   * person's documents uploaded into their vault. Cleared only when the vault is detached from
+   * the cloud (account deleted) or emptied.
+   */
+  cloudAccountId: z.string().uuid().optional(),
 });
 
 export type VaultDocument = z.infer<typeof vaultDocumentSchema>;
@@ -149,8 +174,128 @@ export function withDetails(index: VaultIndex, id: string, change: DetailsChange
   };
 }
 
+/** Removes a document; a synced one leaves its cloud copy queued for deletion. */
 export function withoutDocument(index: VaultIndex, id: string): VaultIndex {
-  return { ...index, documents: index.documents.filter((document) => document.id !== id) };
+  const removed = index.documents.find((document) => document.id === id);
+  const next = { ...index, documents: index.documents.filter((document) => document.id !== id) };
+  return removed?.cloud ? withCloudDeleteQueued(next, removed.cloud.id) : next;
+}
+
+// ---- Cloud sync state (docs/VAULT_BRIDGE_DESIGN.md §3.2) ------------------------------------
+
+function withCloudDeleteQueued(index: VaultIndex, cloudId: string): VaultIndex {
+  const queue = index.cloudDeletes ?? [];
+  return queue.includes(cloudId) ? index : { ...index, cloudDeletes: [...queue, cloudId] };
+}
+
+/** Records that a document's cloud copy now matches `cloud`. */
+export function withCloudSynced(
+  index: VaultIndex,
+  id: string,
+  cloud: NonNullable<VaultDocument['cloud']>,
+): VaultIndex {
+  return {
+    ...index,
+    documents: index.documents.map((document) =>
+      document.id === id ? vaultDocumentSchema.parse({ ...document, cloud }) : document,
+    ),
+  };
+}
+
+/**
+ * Turns "Keep on this phone only" on or off. Turning it on for a synced document forgets its
+ * cloud copy here and queues that copy for deletion.
+ */
+export function withPhoneOnly(index: VaultIndex, id: string, phoneOnly: boolean): VaultIndex {
+  const target = index.documents.find((document) => document.id === id);
+  if (!target) return index;
+  const { cloud, ...rest } = target;
+  const updated: VaultDocument = phoneOnly
+    ? { ...rest, phoneOnly: true }
+    : { ...target, phoneOnly: false };
+  const next = {
+    ...index,
+    documents: index.documents.map((document) => (document.id === id ? updated : document)),
+  };
+  return phoneOnly && cloud ? withCloudDeleteQueued(next, cloud.id) : next;
+}
+
+/**
+ * An upload finished. If the document was deleted or made phone-only while it uploaded, the new
+ * cloud copy is queued for deletion instead of being recorded — never left behind.
+ */
+export function withUploadFinished(
+  index: VaultIndex,
+  id: string,
+  cloud: NonNullable<VaultDocument['cloud']>,
+): VaultIndex {
+  const document = index.documents.find((candidate) => candidate.id === id);
+  if (!document || document.phoneOnly) return withCloudDeleteQueued(index, cloud.id);
+  return withCloudSynced(index, id, cloud);
+}
+
+/** The server confirmed a queued cloud copy is gone (or was never there). */
+export function withCloudDeleteDone(index: VaultIndex, cloudId: string): VaultIndex {
+  const queue = (index.cloudDeletes ?? []).filter((queued) => queued !== cloudId);
+  return { ...index, cloudDeletes: queue };
+}
+
+/** The server no longer has this document's cloud copy: forget it, so it is uploaded again. */
+export function withCloudForgotten(index: VaultIndex, id: string): VaultIndex {
+  return {
+    ...index,
+    documents: index.documents.map((document) => {
+      if (document.id !== id || !document.cloud) return document;
+      const { cloud: _gone, ...rest } = document;
+      return rest;
+    }),
+  };
+}
+
+/**
+ * Whether `userId` may sync this vault: the account it is bound to, or any account when it is
+ * not bound yet. Indexes written before the binding existed are unbound, so the first account
+ * to sync after the update claims them; only one account could have synced them.
+ */
+export function canSyncAs(index: VaultIndex, userId: string): boolean {
+  return index.cloudAccountId === undefined || index.cloudAccountId === userId;
+}
+
+/** Binds the vault to `userId`; a vault bound to another account is left as it is. */
+export function withCloudAccount(index: VaultIndex, userId: string): VaultIndex {
+  if (!canSyncAs(index, userId) || index.cloudAccountId === userId) return index;
+  return { ...index, cloudAccountId: userId };
+}
+
+/**
+ * Cuts the vault loose from the cloud after the account is deleted: the cloud copies are gone
+ * with it, so every document forgets its copy, nothing stays queued, and the binding is
+ * cleared. What is left is the plain on-phone vault; a later account starts from scratch.
+ */
+export function withCloudDetached(index: VaultIndex): VaultIndex {
+  const { cloudDeletes: _queue, cloudAccountId: _account, ...rest } = index;
+  return {
+    ...rest,
+    documents: index.documents.map((document) => {
+      if (!document.cloud) return document;
+      const { cloud: _gone, ...kept } = document;
+      return kept;
+    }),
+  };
+}
+
+/**
+ * What Log out tells the citizen before they choose whether to keep the documents on this
+ * phone: how many there are, and how many exist only here (phone-only, or not synced yet) and
+ * would be lost for good if removed.
+ */
+export type PhoneVaultSummary = { readonly total: number; readonly onlyOnPhone: number };
+
+export function phoneVaultSummary(index: VaultIndex): PhoneVaultSummary {
+  const onlyOnPhone = index.documents.filter(
+    (document) => document.phoneOnly === true || !document.cloud,
+  ).length;
+  return { total: index.documents.length, onlyOnPhone };
 }
 
 export function findDocument(index: VaultIndex, id: string): VaultDocument | null {

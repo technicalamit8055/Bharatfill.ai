@@ -12,10 +12,17 @@
  * only change what is on screen, and the exports explain that they are samples.
  */
 
+import { Download, FileCheck2, Tag, Trash2 } from 'lucide-react-native';
+import {
+  formatDimension,
+  formatKb,
+  formatSizeWindow,
+  type RequirementPreset,
+} from '@assistigo/document-tools';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert } from 'react-native';
+
 import { z } from 'zod';
 
 import {
@@ -23,6 +30,7 @@ import {
   DocumentDetailsScreen,
   type ExportAction,
 } from '../components/document-details/DocumentDetailsScreen';
+import { showActionSheet, showDialog } from '../lib/dialog/dialog-store';
 import type { DocumentPage } from '../components/document-details/DocumentPageViewer';
 import { DEMO_ID_PREFIX, demoVaultItems } from '../components/vault/demo';
 import { useTranslation } from '../lib/i18n/I18nProvider';
@@ -42,6 +50,12 @@ import {
   printDocument,
   shareDocument,
 } from '../lib/vault/document-export';
+import {
+  type PortalExportResult,
+  renderForPortal,
+  sharePortalExport,
+} from '../lib/vault/portal-export';
+import { portalPresetsFor, presetName } from '../lib/vault/portal-presets';
 import { removeTag } from '../lib/vault/save-document';
 import type { DetailsChange, VaultDocument } from '../lib/vault/vault-index';
 import type { VaultItem } from '../lib/vault/vault-screen';
@@ -50,9 +64,11 @@ import {
   documentSizeBytes,
   getDocument,
   readPageDataUri,
+  setPhoneOnly,
   setStarred,
   updateDetails,
 } from '../lib/vault/vault-storage';
+import { cloudConfig } from '../lib/cloud/config';
 
 const documentIdSchema = z.union([
   z.string().uuid(),
@@ -69,6 +85,10 @@ type Shown = {
   readonly pageCount: number;
   readonly mimeType: VaultItem['mimeType'];
   readonly sizeBytes: number | null;
+  /** "Keep on this phone only"; null when this build has no cloud vault or for samples. */
+  readonly phoneOnly: boolean | null;
+  /** The document can be exported to a portal preset (a single photo or signature). */
+  readonly forPortal: boolean;
 };
 
 type Load =
@@ -94,7 +114,7 @@ function applyChange(shown: Shown, change: DetailsChange): Shown {
 
 export default function DocumentDetailsRoute() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const params = useLocalSearchParams<{ id?: string }>();
 
   const parsedId = documentIdSchema.safeParse(params.id);
@@ -120,6 +140,8 @@ export default function DocumentDetailsRoute() {
               status: 'ready',
               shown: {
                 ...item,
+                phoneOnly: null,
+                forPortal: false,
                 tags: [
                   ...(item.tag ? [item.tag] : []),
                   ...(item.category ? [t(`home.vault.categories.${item.category}`)] : []),
@@ -157,6 +179,9 @@ export default function DocumentDetailsRoute() {
           pageCount: document.pages.length,
           mimeType: firstPage?.mimeType ?? 'image/jpeg',
           sizeBytes: sizeOf(document),
+          phoneOnly: cloudConfig() ? document.phoneOnly === true : null,
+          forPortal:
+            portalPresetsFor(document.documentType ?? null, document.pages.length).length > 0,
         };
         const pages: DocumentPage[] = document.pages.map(() => ({ kind: 'loading' }));
         setLoad({ status: 'ready', shown, pages: [...pages] });
@@ -209,6 +234,8 @@ export default function DocumentDetailsRoute() {
         sizeBytes: shown.sizeBytes,
         imageFormat: imageExportName(shown.pageCount, shown.mimeType),
         starred: shown.starred,
+        phoneOnly: shown.phoneOnly,
+        forPortal: shown.forPortal,
         pages,
       },
     };
@@ -229,7 +256,7 @@ export default function DocumentDetailsRoute() {
 
   const showError = useCallback(
     (key: string) => {
-      Alert.alert(t('common.errorTitle'), t(key), [{ text: t('common.ok') }]);
+      showDialog(t('common.errorTitle'), t(key), [{ text: t('common.ok') }], { tone: 'danger' });
     },
     [t],
   );
@@ -244,6 +271,18 @@ export default function DocumentDetailsRoute() {
     } catch {
       setShown((current) => ({ ...current, starred: !starred }));
       showError('vault.starFailed');
+    }
+  }, [documentId, isDemo, setShown, showError, shown]);
+
+  const togglePhoneOnly = useCallback(async () => {
+    if (!shown || shown.phoneOnly === null || !documentId || isDemo) return;
+    const phoneOnly = !shown.phoneOnly;
+    setShown((current) => ({ ...current, phoneOnly }));
+    try {
+      await setPhoneOnly(documentId, phoneOnly);
+    } catch {
+      setShown((current) => ({ ...current, phoneOnly: !phoneOnly }));
+      showError('documentDetails.cloud.changeFailed');
     }
   }, [documentId, isDemo, setShown, showError, shown]);
 
@@ -267,7 +306,7 @@ export default function DocumentDetailsRoute() {
   const confirmRemoveTag = useCallback(
     (tag: string) => {
       if (!shown) return;
-      Alert.alert(
+      showDialog(
         t('documentDetails.tag.removeTitle'),
         t('documentDetails.tag.removeBody', { tag }),
         [
@@ -278,6 +317,7 @@ export default function DocumentDetailsRoute() {
             onPress: () => void change({ tags: removeTag(shown.tags, tag) }),
           },
         ],
+        { icon: Tag },
       );
     },
     [change, shown, t],
@@ -296,7 +336,7 @@ export default function DocumentDetailsRoute() {
       }
       back();
     };
-    Alert.alert(
+    showDialog(
       t('documentDetails.deleteTitle'),
       t('documentDetails.deleteBody', { title: shown.title }),
       [
@@ -307,6 +347,7 @@ export default function DocumentDetailsRoute() {
           onPress: () => void remove(),
         },
       ],
+      { icon: Trash2 },
     );
   }, [back, documentId, isDemo, showError, shown, t]);
 
@@ -315,7 +356,7 @@ export default function DocumentDetailsRoute() {
       const document = record.current;
       if (!shown || busy !== null) return;
       if (isDemo || !document) {
-        Alert.alert(t('documentDetails.errors.sampleTitle'), t('documentDetails.errors.sample'), [
+        showDialog(t('documentDetails.errors.sampleTitle'), t('documentDetails.errors.sample'), [
           { text: t('common.ok') },
         ]);
         return;
@@ -337,10 +378,11 @@ export default function DocumentDetailsRoute() {
                 shown.title,
                 exportFormat(shown.pageCount, shown.mimeType, kind).extension,
               );
-              Alert.alert(
+              showDialog(
                 t('documentDetails.downloaded.title'),
                 t('documentDetails.downloaded.body', { file: fileName }),
                 [{ text: t('common.ok') }],
+                { tone: 'success', icon: Download },
               );
             }
             break;
@@ -357,6 +399,92 @@ export default function DocumentDetailsRoute() {
     [busy, isDemo, showError, shown, t],
   );
 
+  /** Renders the page for one preset, says what came out, and offers the share sheet. */
+  const exportForPreset = useCallback(
+    async (document: VaultDocument, preset: RequirementPreset) => {
+      const name = presetName(preset, locale);
+      setBusy('share');
+      let result: PortalExportResult;
+      try {
+        result = await renderForPortal(document, preset);
+      } catch {
+        showError('documentDetails.errors.share');
+        return;
+      } finally {
+        setBusy(null);
+      }
+
+      if (!result.ok) {
+        showDialog(
+          t('portalExport.failedTitle'),
+          t(`portalExport.${result.reason}`, { preset: name }),
+          [{ text: t('common.ok') }],
+          { tone: 'warning' },
+        );
+        return;
+      }
+
+      const window = formatSizeWindow({
+        ...(preset.minBytes !== undefined ? { minBytes: preset.minBytes } : {}),
+        ...(preset.maxBytes !== undefined ? { maxBytes: preset.maxBytes } : {}),
+      });
+      const lines = [
+        t('portalExport.readyBody', {
+          size: formatKb(result.bytes.length),
+          width: result.width,
+          height: result.height,
+        }),
+        ...(window ? [t('portalExport.window', { window })] : []),
+        ...(preset.requiresNameDateStamp ? [t('portalExport.nameDateStamp')] : []),
+      ];
+      const ready = result;
+      showDialog(
+        t('portalExport.readyTitle', { preset: name }),
+        lines.join('\n\n'),
+        [
+          {
+            text: t('documentDetails.actions.share'),
+            onPress: () =>
+              void sharePortalExport(ready, name).catch((error: unknown) => {
+                if (error instanceof ExportUnavailableError)
+                  showError('documentDetails.errors.unavailable');
+                else if (!isCancellation(error)) showError('documentDetails.errors.share');
+              }),
+          },
+          { text: t('common.cancel'), style: 'cancel' },
+        ],
+        { tone: 'success', icon: FileCheck2 },
+      );
+    },
+    [locale, showError, t],
+  );
+
+  const exportForPortal = useCallback(() => {
+    const document = record.current;
+    if (!document || busy !== null) return;
+    const presets = portalPresetsFor(document.documentType ?? null, document.pages.length);
+    if (presets.length === 0) return;
+    showActionSheet({
+      title: t('portalExport.chooseTitle'),
+      message: t('portalExport.chooseBody'),
+      cancelLabel: t('common.cancel'),
+      actions: presets.map((preset) => ({
+        key: preset.code,
+        label: presetName(preset, locale),
+        description: [
+          formatSizeWindow({
+            ...(preset.minBytes !== undefined ? { minBytes: preset.minBytes } : {}),
+            ...(preset.maxBytes !== undefined ? { maxBytes: preset.maxBytes } : {}),
+          }),
+          formatDimension(preset),
+        ]
+          .filter((part): part is string => part !== null)
+          .join(' · '),
+        onPress: () => void exportForPreset(document, preset),
+      })),
+    });
+  }, [busy, exportForPreset, locale, t]);
+
   return (
     <>
       <StatusBar style="dark" />
@@ -365,7 +493,9 @@ export default function DocumentDetailsRoute() {
         busy={busy}
         onBack={back}
         onToggleStar={() => void toggleStar()}
+        onTogglePhoneOnly={() => void togglePhoneOnly()}
         onExport={(action, kind) => void runExport(action, kind)}
+        onExportForPortal={exportForPortal}
         onRename={(title) => void change({ title })}
         onChangeTags={(tags) => void change({ tags })}
         onRemoveTag={confirmRemoveTag}

@@ -25,6 +25,8 @@ digital personal data under India's DPDP Act 2023 and DPDP Rules 2025.
 | Visiting centre reading another's citizen   | Citizen-read OTP → 12 h-max grant naming one user; linking alone grants nothing              |
 | Internal staff reading customer records     | Panel reads counts only via three service-role RPCs; records still need a support grant      |
 | Console reached with a dashboard session    | Separate portal sign-in mints a signed, 12 h, user- and portal-bound console session         |
+| Citizen (phone) account acting as a centre  | Active membership only for a confirmed-email, non-anonymous, non-`citizen` principal (0037)  |
+| billing_admin reading files via Storage API | Storage read policy admits only the roles that may read document rows (0037)                 |
 
 ## 2. Tenancy and RLS
 
@@ -167,6 +169,69 @@ it stages is live until a human approves it in the review queue.
 
 RLS is verified by `packages/database/rls-tests`, which must pass before pilot (spec §23.3).
 
+### Operator principals (migration 0037)
+
+Citizen phone sign-in for the Citizen Vault bridge will put citizens in the same `auth.users`
+as operators, and `create_organization` is granted to `authenticated`. So an **active**
+`organization_members` row may belong only to an operator principal, enforced by the
+`organization_members_operator_principal` trigger (insert, and update of `user_id` / `status`):
+the auth user has a confirmed email, is not anonymous, and is not tagged
+`app_metadata.principal = 'citizen'` (writable only by the service role). The trigger, not the
+RPCs, carries the check, so `create_organization`, `accept_invitation` and service-role inserts
+are all covered; a refused `create_organization` rolls its organization back. A phone-only
+account fails on the first rule. `is_operator_principal()` is not granted to any client role.
+Tests: `rls-tests/operator_principal.test.ts`.
+
+The same migration narrowed the 0010 Storage read policy from `is_org_member()` to the roles
+that may read `documents` / `document_derivatives` / `document_drop_files` (owner, manager,
+operator, viewer). Before it, a `billing_admin` could list and download every customer file under
+their organization's prefix while being unable to read a single document row.
+
+### Citizen Vault (migration 0038, docs/VAULT_BRIDGE_DESIGN.md)
+
+Citizens of the mobile app sign in by phone OTP into this project. A `before insert` trigger on
+`auth.users` tags every phone-only sign-up `app_metadata.principal = 'citizen'`;
+`is_citizen_principal()` also treats any phone-only account as a citizen, and
+`citizen_accounts` refuses a row for anyone else. Citizen routes resolve
+`apps/web/lib/citizen/context.ts` (bearer token, `getUser()`, citizen principal, else 404).
+
+- **No operator policy on any citizen table** — not for owners, not with a live grant. A centre
+  reads documents only through the server file route, which writes `vault_access_events` before it
+  sends a byte; a `SELECT` policy could not. Citizens select their own rows; **nobody writes
+  directly** — citizen routes write with the service role after resolving the citizen.
+- **Secrets, no policy for any client role:** `citizen_vault_keys` (wrapped document key, PIN HMAC
+  and failure counters), `vault_access_challenges` (share-code HMACs), `vault_unlock_attempts`.
+- **Time boxes are CHECKs:** grant ≤ 2 h, share code ≤ 15 min, access request ≤ 15 min.
+- **Append-only history:** a trigger refuses update/delete on `vault_access_events` for every
+  role, service role included, except the foreign-key cascade nulling a link (design D13).
+- **Storage:** bucket `citizen-vault`, private, `application/octet-stream` only (the phone
+  encrypts before upload), **no `storage.objects` policy for `authenticated`**.
+- **Keys:** `VAULT_MASTER_KEY` wraps one random AES-256 key per citizen (AAD `<citizen_id>:vault_key`)
+  and derives the PIN and mobile HMAC keys (`apps/web/lib/citizen/secrets.ts`). Unset → every
+  vault route fails closed (`errors.vault.unavailable`). Account deletion destroys the wrapped key
+  first, so synced bytes are unreadable even if their removal fails.
+- **Vault PIN** (restore on a new phone): weak PINs refused at sign-up; 5 wrong in a row → 24 h
+  lock; 10 wrong over the account's life → the PIN path is off (recycled-number guard). Each wrong
+  PIN is an event the citizen can see.
+- **Sync** (`/api/citizen/documents*`): the phone encrypts each document (AES-256-GCM, AAD
+  `<citizen_id>:<document_id>:vault_document`, format v1 in `@assistigo/core`) and PUTs the
+  ciphertext to a short-lived signed upload URL for `citizen/<citizen>/<document>`; the server
+  never handles plaintext. Confirm re-reads the object and checks length and SHA-256, removing
+  row and bytes on mismatch. Every sync call carries `x-bharatfill-device`, checked against a
+  live `citizen_devices` row of this citizen; only those calls count as account activity, so an
+  OTP sign-in alone (e.g. a recycled number) never resets the restore inactivity guard. A cloud
+  copy is deleted only on an explicit delete or "phone only" — never because a phone lacks it.
+- `citizen_id_for_mobile()` and `create_citizen_account()` are service-role only.
+- Permission `vault.access`: owner, manager, operator. Viewer and billing_admin hold none.
+- Never logged: the phone, the citizen's name, document titles, the PIN, share codes, keys
+  (`redact()` drops `vault_pin`, `share_code`, `display_name`, `document_title`, `wrapped_key`,
+  `data_key`). Log lines carry citizen and grant ids only.
+- Under-18 citizens are not restricted (product owner, 2026-11-17). DPDP §9 requires verifiable
+  parental consent for a child's data; **legal review before pilot**.
+
+Tests: `rls-tests/citizen_vault.test.ts`, `packages/core/src/citizen-vault/citizen-vault.test.ts`,
+`apps/web/lib/citizen/secrets.test.ts`.
+
 ### Cross-operator roaming access (migration 0024)
 
 The one place a tenant's row is _meant_ to become readable to a different tenant's session, and
@@ -301,6 +366,8 @@ functions, `list_my_auth_sessions()` and `revoke_my_auth_session(id)`, both scop
 | Preview staged drop file |   ✓   |       ✓       |    ✓     |    –     |       –       |
 | Discard drop session     |   ✓   |       ✓       |    –     |    –     |       –       |
 | Run fill session         |   ✓   |       ✓       |    ✓     |    –     |       –       |
+| Portal logins: save/edit/remove (`credential.manage`) | ✓ | ✓ | ✓ | – | – |
+| Portal logins: reveal, one-click login, slip (`credential.use`) | ✓ | ✓ | ✓ | – | – |
 | Create/edit applications |   ✓   |       ✓       |    ✓     |    –     |       –       |
 | Manage members / roles   |   ✓   | ✓ (not owner) |    –     |    –     |       –       |
 | Manage billing           |   ✓   |       –       |    –     |    –     |       ✓       |
@@ -358,6 +425,7 @@ another row and still decrypt:
 | Ciphertext                                          | AAD                              |
 | --------------------------------------------------- | -------------------------------- |
 | `customer_field_values.value_encrypted` (PAN, bank) | organization, customer and field |
+| `customer_portal_credentials.*_encrypted` (0036)    | organization, customer, row and part (`login_id` / `password` / `security_answer`) |
 | `organization_ai_settings.api_key_encrypted` (0017) | `<org id>:ai_vendor_api_key`     |
 | `platform_channel_settings.*_encrypted` (0023)      | channel-scoped                   |
 | `extension_pairing_codes.session_payload` (0012)    | the pairing code's hash          |
@@ -432,6 +500,7 @@ Recorded in `audit_logs` with sensitivity `normal | sensitive | critical`:
 | organization    | `organization.created` / `updated` / `security_updated` / `ai_settings_updated` / `deleted`                                                                                                                                                                                                                                                                                                                                  |
 | customers       | `customer.created` / `updated` / `deleted` / `sensitive_revealed` / `exported`                                                                                                                                                                                                                                                                                                                                               |
 | roaming (0024)  | `customer.roaming_lookup` / `roaming_linked` / `roaming_otp_requested` / `roaming_access_granted` / `roaming_access_revoked` / `roaming_access_expired`                                                                                                                                                                                                                                                                      |
+| vault (0038)    | `vault.lookup` / `unlock_failed` / `grant_created` / `grant_ended` / `document_opened` / `copy_saved` — catalogued now; written by the operator bridge routes (Phase 2 step 4). The citizen-facing record is `vault_access_events`. |
 | documents       | `document.uploaded` / `downloaded` / `deleted`, `extraction.completed` / `accepted` / `rejected`, `derivative.created`                                                                                                                                                                                                                                                                                                       |
 | walk-in drop    | `drop_session.created` / `converted` / `discarded`, `drop_file.previewed`, `drop_file.saved_to_roaming`                                                                                                                                                                                                                                                                                                                      |
 | form filling    | `fill_session.started` / `completed`, `form_report.created`, `adapter.updated`                                                                                                                                                                                                                                                                                                                                               |
@@ -496,6 +565,24 @@ Hard-coded refusals in `packages/form-engine/src/safety.ts`:
 
 These are covered by regression tests that must never be deleted.
 
+### Portal credential vault (spec §19.7a, migration 0036)
+
+The one sanctioned form of credential automation, decided by the product owner on 2026-11-07.
+It stores the logins that open a citizen's government accounts, so every layer is narrow:
+
+| Layer | Control |
+| --- | --- |
+| Storage | Login ID, password, security answer are AES-256-GCM ciphertext bound to row + part (§4 Encryption). The list API returns only a masked hint and `hasPassword` / `hasSecurityAnswer`. |
+| Access | `credential.manage` / `credential.use`: owner, manager, operator. RLS has no viewer, support-access or roaming clause; `loadOwnCustomer` pins every route to the caller's own organization. |
+| Taking a secret out | Three routes only, each a `critical` audit entry naming portal + part, never the value, with `cache-control: no-store`: `POST …/portal-credentials/:id/reveal` (one part per call), `POST /api/portal-credentials/login-fill`, `POST …/portal-credentials/:id/slip`. |
+| Where a password may be typed | `portalForUrl()` — `https:`, default port, no `user:pass@`, host equal to or a dot-boundary subdomain of a catalogue host (all `.gov.in` / `.nic.in`). Checked by the background worker on the tab URL, by the server on the submitted URL (the caller cannot name the portal), and by the content script on its own `location` before typing. |
+| What is typed | Login ID and password into the top document only. No click, no submit, no Enter; CAPTCHA and OTP boxes are never written (`apps/extension/tests/portal-login.test.ts`). The form filler's own refusal of password fields is unchanged and now also re-checked on the live element. |
+| In the extension | Values pass through the service worker in memory to one `APPLY_PORTAL_LOGIN` message and are never written to `chrome.storage`. The side panel never receives them. |
+| Dashboard | A revealed part is shown for 30 s, then dropped. A printed slip exists in the DOM only for the print dialog. |
+| WhatsApp slip | Sent only to `customers.mobile` from the platform's WhatsApp number, by explicit operator action. It transits Meta's Cloud API (accepted by the product owner); printing is the alternative. |
+| Generator | Random from Web Crypto (`Word@1234` shape, ~36 bits, no 0/O/1/l/I). Never derived from the citizen. |
+| Logs | `redact()` also drops `username`, `login_id`, `security_answer`, `roll_number` keys. |
+
 ## 9. Support access
 
 Internal staff cannot read customer data by default. A row in `support_access_grants`
@@ -519,7 +606,12 @@ time-boxed, org-approved, and every use writes an audit entry.
 
 - [ ] RLS tests pass for every tenant table
 - [ ] Cross-organization access denied in tests
-- [ ] `billing_admin` cannot read documents
+- [ ] `billing_admin` cannot read documents — rows or Storage bytes (0037)
+- [ ] Migration 0037 applied and `rls-tests/operator_principal.test.ts` passes before phone
+      sign-in is enabled for the citizen app
+- [ ] Migration 0038 applied and `rls-tests/citizen_vault.test.ts` passes; `VAULT_MASTER_KEY`
+      set, backed up, distinct from `FIELD_ENCRYPTION_KEY`
+- [ ] Legal review: citizen cloud vault, consent text (Hindi + English), under-18 citizens (DPDP §9)
 - [ ] Storage bucket is private; signed URL expiry ≤ 300 s
 - [ ] No PII appears in application logs during a full QA pass
 - [ ] Sensitive reveal writes an audit entry
@@ -535,5 +627,10 @@ time-boxed, org-approved, and every use writes an audit entry.
 - [ ] Migration 0030 applied, and `rls-tests/tenant_management.test.ts` passes against it
 - [ ] MFA required for console sign-in (§2, "Console sign-in")
 - [ ] Safety regression tests (captcha/otp/payment/submit) pass
+- [ ] Migration 0036 applied; `rls-tests/portal_credentials.test.ts` and
+      `apps/extension/tests/portal-login.test.ts` pass
+- [ ] Portal login hosts in `packages/core/src/portal-credentials/portals.ts` verified against each
+      live portal, and a generated password accepted by each
+- [ ] Legal review of storing citizen portal passwords (DPDP consent wording) before pilot
 - [ ] `FIELD_ENCRYPTION_KEY` set, and rotation procedure documented
 - [ ] Backup and restore verified

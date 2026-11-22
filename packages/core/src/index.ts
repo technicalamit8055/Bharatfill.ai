@@ -22,6 +22,10 @@ export * from './customers/duplicates';
 
 export * from './roaming';
 
+export * from './portal-credentials';
+
+export * from './citizen-vault';
+
 export * from './documents/types';
 
 export * from './document-drop';

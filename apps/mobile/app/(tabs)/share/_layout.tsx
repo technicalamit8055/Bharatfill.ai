@@ -12,6 +12,7 @@ export default function ConnectStackLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="nearby" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="centre" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="code" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }

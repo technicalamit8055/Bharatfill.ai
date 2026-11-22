@@ -9,7 +9,7 @@
 
 import { LogOut, Settings } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTranslation } from '../../lib/i18n/I18nProvider';
@@ -34,11 +34,16 @@ export type ProfileScreenProps = {
   readonly appVersion: string | null;
   readonly onOpenSettings: () => void;
   readonly onOpenAccount: () => void;
-  readonly onChangePhoto: () => void;
+  /** Omitted hides the camera badge (the account keeps no photo). */
+  readonly onChangePhoto?: () => void;
   readonly onUpgrade: () => void;
   /** Every row except Language, which the screen handles. */
   readonly onSelect: (item: Exclude<ProfileMenuItem, 'language'>) => void;
   readonly onLogOut: () => void;
+  /** Whether Log out is offered; defaults to signed in. */
+  readonly canLogOut?: boolean;
+  /** Log out is running: the button shows progress and ignores taps. */
+  readonly loggingOut?: boolean;
 };
 
 export function ProfileScreen({
@@ -51,6 +56,8 @@ export function ProfileScreen({
   onUpgrade,
   onSelect,
   onLogOut,
+  canLogOut = state.status === 'signed_in',
+  loggingOut = false,
 }: ProfileScreenProps) {
   const { t, locale, setLocale } = useTranslation();
   const [languageOpen, setLanguageOpen] = useState(false);
@@ -134,16 +141,22 @@ export function ProfileScreen({
             }}
           />
 
-          {state.status === 'signed_in' ? (
+          {canLogOut ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('profile.logout')}
+              accessibilityState={{ busy: loggingOut, disabled: loggingOut }}
+              disabled={loggingOut}
               onPress={onLogOut}
               style={({ pressed }) => [styles.logout, pressed && styles.pressed]}
             >
-              <LogOut color={palette.logoutText} size={24} strokeWidth={2.1} />
+              {loggingOut ? (
+                <ActivityIndicator color={palette.logoutText} />
+              ) : (
+                <LogOut color={palette.logoutText} size={24} strokeWidth={2.1} />
+              )}
               <Text numberOfLines={1} style={styles.logoutLabel}>
-                {t('profile.logout')}
+                {t(loggingOut ? 'profile.loggingOut' : 'profile.logout')}
               </Text>
             </Pressable>
           ) : null}

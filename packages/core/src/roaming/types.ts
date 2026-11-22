@@ -37,12 +37,13 @@ export const ROAMING_PURPOSE_LABELS: Record<RoamingPurpose, { en: string; hi: st
 /**
  * How consent was proved.
  *
- * Only `otp` is wired today. `qr_consent` and `biometric` exist in the check constraint and here
- * so that adding one later is a new code path rather than a migration on a table that already
- * holds live consent records — but nothing in the product mints them yet, and a grant that
- * claims one would be a bug.
+ * `otp` (a code read off the citizen's phone) and `app_approval` (the citizen tapped Approve in
+ * the BharatDoc app, migration 0039) are wired. `qr_consent` and `biometric` exist in the check
+ * constraint and here so that adding one later is a new code path rather than a migration on a
+ * table that already holds live consent records — but nothing in the product mints them yet, and
+ * a grant that claims one would be a bug.
  */
-export const ROAMING_AUTH_METHODS = ['otp', 'qr_consent', 'biometric'] as const;
+export const ROAMING_AUTH_METHODS = ['otp', 'qr_consent', 'biometric', 'app_approval'] as const;
 export type RoamingAuthMethod = (typeof ROAMING_AUTH_METHODS)[number];
 
 export const ROAMING_GRANT_STATUSES = ['active', 'expired', 'revoked'] as const;
@@ -76,6 +77,16 @@ export const ROAMING_OTP_MAX_ATTEMPTS = 5;
 
 /** Digits in the code. Six, because it is read aloud across a counter. */
 export const ROAMING_OTP_LENGTH = 6;
+
+/**
+ * How long a request to the BharatDoc app waits for the citizen (migration 0039). Longer than a
+ * code, because the citizen may have to find and unlock their phone first.
+ */
+export const ROAMING_APP_REQUEST_TTL_MINUTES = 10;
+
+/** What a request to the BharatDoc app can come to. */
+export const ROAMING_APP_REQUEST_STATUSES = ['pending', 'approved', 'denied', 'expired'] as const;
+export type RoamingAppRequestStatus = (typeof ROAMING_APP_REQUEST_STATUSES)[number];
 
 // ---------------------------------------------------------------------------
 // The pre-consent card
@@ -191,6 +202,42 @@ export const roamingOtpRequestSchema = z.object({
   channel: z.enum(ROAMING_OTP_CHANNELS).default('whatsapp'),
 });
 export type RoamingOtpRequestInput = z.infer<typeof roamingOtpRequestSchema>;
+
+/**
+ * Ask the citizen to approve in the BharatDoc app. No duration: the citizen picks it on their
+ * phone (migration 0039 note 1), so a client that sends one is ignored rather than obeyed.
+ */
+export const roamingAppRequestSchema = z.object({
+  purpose: z.enum(ROAMING_PURPOSES).default('form_filling'),
+  targetSchemeSlug: z
+    .string()
+    .trim()
+    .max(80)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'schemes.invalid_slug')
+    .optional(),
+});
+export type RoamingAppRequestInput = z.infer<typeof roamingAppRequestSchema>;
+
+/** The citizen's answer in the app: how long the centre may use their profile. */
+export const roamingAppDecisionSchema = z.object({
+  durationMinutes: z.union([z.literal(60), z.literal(120), z.literal(240)]),
+});
+export type RoamingAppDecisionInput = z.infer<typeof roamingAppDecisionSchema>;
+
+/** What the operator's poll of a request answers with. */
+export type RoamingAppRequestView =
+  | { status: 'pending'; requestId: string; expiresAt: string }
+  | { status: 'approved'; requestId: string; session: RoamingSessionView }
+  | { status: 'denied' | 'expired'; requestId: string };
+
+/** A pending request as the citizen's app shows it: who is asking and why. Nothing else. */
+export type CitizenProfileRequestView = {
+  id: string;
+  centreName: string;
+  purpose: RoamingPurpose;
+  expiresAt: string;
+  createdAt: string;
+};
 
 export const roamingOtpVerifySchema = z.object({
   /** Digits only. Spaces are stripped because the message shows the code as "849 201". */

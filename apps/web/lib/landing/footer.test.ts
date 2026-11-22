@@ -113,8 +113,9 @@ describe('landing footer catalogue', () => {
     }
   });
 
-  it('points product links at landing sections, legal links at routes, profiles off-site', () => {
-    for (const { href } of FOOTER_PRODUCT_LINKS) expect(href).toMatch(/^#[a-z-]+$/);
+  it('points product links at landing sections or routes, legal links at routes, profiles off-site', () => {
+    // `/#section` rather than `#section`, so the links still work from pages other than home.
+    for (const { href } of FOOTER_PRODUCT_LINKS) expect(href).toMatch(/^\/(#[a-z-]+|[a-z-]+)$/);
     for (const { href } of FOOTER_LEGAL_LINKS) expect(href).toMatch(/^\/legal\/[a-z-]+$/);
     for (const { href } of FOOTER_SOCIALS) expect(new URL(href).protocol).toBe('https:');
   });

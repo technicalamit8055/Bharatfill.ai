@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { Badge, Button, type Tone } from '@assistigo/ui';
 import { formatInr } from '@assistigo/core';
@@ -120,52 +119,33 @@ function SchemeRow({
   locale: 'en' | 'hi';
   t: Translate;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const upcoming = match.lifecycleStatus === 'upcoming';
   // An upcoming scheme sends the pre-collect list; an open one sends the pitch to apply now.
   const wa = mobile ? whatsappLink(mobile, match.outreachMessage[locale]) : null;
+  const missingDocs = match.documentChecklist.filter((item) => item.state !== 'ready').length;
+  const detailsId = `scheme-details-${match.slug}`;
 
+  // Compact by default: what an operator decides on (name, benefit, window, fee, what is
+  // missing) and the buttons stay visible; the description and the full checklist fold away.
   return (
-    <li className="rounded-lg border border-slate-200 p-3 transition-colors hover:border-slate-300">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-slate-900">{match.title}</h3>
-          <p className="mt-0.5 text-xs text-slate-500">{match.shortDescription}</p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-          <LifecycleBadge match={match} t={t} />
-          <Badge tone="success">{match.benefitHighlight}</Badge>
-        </div>
+    <li className="rounded-xl border border-slate-200 p-3 transition-colors hover:border-slate-300">
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="min-w-0 text-sm font-semibold leading-snug text-slate-900">{match.title}</h3>
+        <Badge tone="success" className="shrink-0">
+          {match.benefitHighlight}
+        </Badge>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-        <span>{match.portalName}</span>
-        <span aria-hidden>·</span>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+        <LifecycleBadge match={match} t={t} />
         <span>{t('schemes.feeLabel', { amount: formatInr(match.estimatedFee) ?? '—' })}</span>
-        {match.appliedRelaxationYears > 0 ? (
-          <>
-            <span aria-hidden>·</span>
-            <span className="text-emerald-700">
-              {t('schemes.relaxationApplied', { years: match.appliedRelaxationYears })}
-            </span>
-          </>
+        {missingDocs > 0 ? (
+          <span className="text-amber-700">
+            {t('schemes.docsMissingShort', { count: missingDocs })}
+          </span>
         ) : null}
       </div>
-
-      {match.documentChecklist.length > 0 ? (
-        <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-          {match.documentChecklist.map((item) => (
-            <li
-              key={item.key}
-              className={`flex items-center gap-1 text-xs ${
-                item.state === 'ready' ? 'text-slate-600' : 'text-amber-700'
-              }`}
-            >
-              <CheckIcon ok={item.state === 'ready'} />
-              {item.label}
-            </li>
-          ))}
-        </ul>
-      ) : null}
 
       {match.missingRequirements.length > 0 ? (
         <p className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
@@ -175,7 +155,44 @@ function SchemeRow({
         </p>
       ) : null}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      {expanded ? (
+        <div id={detailsId} className="mt-2 space-y-2 border-t border-slate-100 pt-2">
+          <p className="text-xs text-slate-600">{match.shortDescription}</p>
+          <p className="text-xs text-slate-500">
+            {match.portalName}
+            {match.appliedRelaxationYears > 0 ? (
+              <span className="text-emerald-700">
+                {' · '}
+                {t('schemes.relaxationApplied', { years: match.appliedRelaxationYears })}
+              </span>
+            ) : null}
+          </p>
+          {match.documentChecklist.length > 0 ? (
+            <ul className="flex flex-wrap gap-x-3 gap-y-1">
+              {match.documentChecklist.map((item) => (
+                <li
+                  key={item.key}
+                  className={`flex items-center gap-1 text-xs ${
+                    item.state === 'ready' ? 'text-slate-600' : 'text-amber-700'
+                  }`}
+                >
+                  <CheckIcon ok={item.state === 'ready'} />
+                  {item.label}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <Link
+            href={`/schemes/${match.slug}?customer=${customerId}`}
+            className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+          >
+            {t('schemes.viewDetails')}
+            <ForwardIcon className="h-3 w-3" />
+          </Link>
+        </div>
+      ) : null}
+
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
         {/* Nothing here submits anything. "Apply now" opens the government form for the operator
             to fill and submit by hand (master spec §14.6), and an unopened window has no form to
             open yet — so it offers the document run instead. */}
@@ -192,15 +209,16 @@ function SchemeRow({
               {t(upcoming ? 'schemes.preCollectDocuments' : 'schemes.whatsappPitch')}
             </Button>
           </a>
-        ) : (
-          <span className="text-xs text-slate-400">{t('schemes.noMobile')}</span>
-        )}
-        <Link
-          href={`/schemes/${match.slug}?customer=${customerId}`}
-          className="text-xs text-slate-500 underline-offset-2 hover:underline"
+        ) : null}
+        <button
+          type="button"
+          onClick={() => setExpanded((open) => !open)}
+          aria-expanded={expanded}
+          aria-controls={detailsId}
+          className="ml-auto text-xs font-medium text-slate-500 hover:text-slate-800"
         >
-          {t('schemes.viewDetails')}
-        </Link>
+          {expanded ? t('schemes.showLess') : t('schemes.showMore')}
+        </button>
       </div>
     </li>
   );
@@ -210,11 +228,14 @@ export function CustomerSchemesWidget({
   customerId,
   mobile,
   report,
+  headerAction,
 }: {
   customerId: string;
   /** Used only to build a `wa.me` link the operator clicks; never sent to our servers. */
   mobile: string | null;
   report: SchemeReportView;
+  /** Rendered at the right of the heading — the drawer's close button. */
+  headerAction?: ReactNode;
 }) {
   const { t, locale } = useI18n();
 
@@ -257,7 +278,11 @@ export function CustomerSchemesWidget({
   if (opportunityCount === 0) {
     return (
       <WidgetShell>
-        <WidgetHeading title={t('schemes.widgetTitle')} browseLabel={t('schemes.browseAll')} />
+        <WidgetHeading
+          title={t('schemes.widgetTitle')}
+          browseLabel={t('schemes.browseAll')}
+          action={headerAction}
+        />
         <TabEmpty title={t('schemes.noneEligible')} description={t('schemes.noneEligibleHelp')} />
       </WidgetShell>
     );
@@ -269,6 +294,12 @@ export function CustomerSchemesWidget({
     actionable: t('schemes.tabActionable', { count: report.actionableMissingDocs.length }),
   };
 
+  const TAB_SHORT: Record<TabKey, string> = {
+    active: t('schemes.tabActiveShort'),
+    upcoming: t('schemes.tabUpcomingShort'),
+    actionable: t('schemes.tabActionableShort'),
+  };
+
   const TAB_EMPTY: Record<TabKey, { title: string; description?: string }> = {
     active: { title: t('schemes.tabActiveEmpty'), description: t('schemes.tabActiveEmptyHelp') },
     upcoming: { title: t('schemes.tabUpcomingEmpty') },
@@ -278,6 +309,7 @@ export function CustomerSchemesWidget({
   return (
     <WidgetShell>
       <WidgetHeading
+        action={headerAction}
         browseLabel={t('schemes.browseAll')}
         title={t('schemes.opportunityCount', { count: opportunityCount })}
         subtitle={t('schemes.feePotential', {
@@ -286,31 +318,16 @@ export function CustomerSchemesWidget({
       />
 
       {pitchText ? (
-        <div className="relative mt-4 overflow-hidden rounded-xl border border-brand-100 bg-gradient-to-r from-brand-50 via-sky-50 to-sky-100/70 p-4 md:pr-56">
-          {/*
-            * The megaphone-and-checklist artwork, right of the pitch. A JPEG on white, so
-            * `mix-blend-multiply` lets the tinted panel show through its background. Decorative,
-            * and hidden below `md` where the pitch needs the whole width.
-            */}
-          <Image
-            src="/customers/say-this-megaphone.png"
-            alt=""
-            aria-hidden
-            width={180}
-            height={134}
-            className="pointer-events-none absolute bottom-1 right-6 hidden h-20 w-auto select-none object-contain mix-blend-multiply md:block"
-          />
-
-          <div className="flex items-start justify-between gap-3">
+        <div className="mt-4 rounded-xl border border-brand-100 bg-gradient-to-r from-brand-50 via-sky-50 to-sky-100/70 p-3">
+          <div className="flex items-center justify-between gap-3">
             <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-brand-700">
               <PitchIcon className="h-4 w-4" />
               {t('schemes.pitchLabel')}
             </span>
-            {/* Top right of the whole panel on wide screens, clear of the artwork. */}
             <div
               role="group"
               aria-label={t('schemes.pitchLanguage')}
-              className="flex items-center gap-1 md:absolute md:right-4 md:top-3"
+              className="flex items-center gap-1"
             >
               {(['hi', 'en'] as const).map((option) => (
                 <button
@@ -335,7 +352,7 @@ export function CustomerSchemesWidget({
           <button
             type="button"
             onClick={copyPitch}
-            className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 hover:text-brand-800"
+            className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 hover:text-brand-800"
           >
             {copied ? <CopiedIcon className="h-3.5 w-3.5" /> : <CopyIcon className="h-3.5 w-3.5" />}
             {copied ? t('schemes.pitchCopied') : t('schemes.copyPitch')}
@@ -346,65 +363,78 @@ export function CustomerSchemesWidget({
       <div
         role="tablist"
         aria-label={t('schemes.widgetTitle')}
-        className="mt-4 flex flex-wrap gap-2 border-b border-slate-200"
+        className="mt-3 grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1"
       >
-        {tabs.map(({ key }) => (
+        {tabs.map(({ key, rows: tabRows }) => (
           <button
             key={key}
             type="button"
             role="tab"
             aria-selected={tab === key}
+            title={TAB_LABELS[key]}
             onClick={() => setTab(key)}
-            className={`-mb-px border-b-2 px-4 py-2.5 text-sm transition-colors ${
+            className={`flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors ${
               tab === key
-                ? 'border-brand-600 font-semibold text-brand-700'
-                : 'border-transparent font-medium text-slate-500 hover:text-slate-800'
+                ? 'bg-white text-brand-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            {TAB_LABELS[key]}
+            <span className="truncate">{TAB_SHORT[key]}</span>
+            <span
+              className={`rounded-full px-1.5 leading-5 ${
+                tab === key ? 'bg-brand-50 text-brand-700' : 'bg-white/70 text-slate-500'
+              }`}
+            >
+              {tabRows.length}
+            </span>
           </button>
         ))}
       </div>
 
-      {rows.length === 0 ? (
-        <TabEmpty title={TAB_EMPTY[tab].title} description={TAB_EMPTY[tab].description} />
-      ) : (
-        <ul className="mt-3 space-y-2">
-          {rows.map((match) => (
-            <SchemeRow
-              key={match.slug}
-              match={match}
-              customerId={customerId}
-              mobile={mobile}
-              locale={pitchLocale}
-              t={t}
-            />
-          ))}
-        </ul>
-      )}
+      {/* The only part that scrolls: in the sidebar the heading, pitch and tabs stay put while
+          the list moves under them. */}
+      <div className="-mx-5 mt-3 min-h-0 flex-1 overflow-y-auto px-5 pb-1">
+        {rows.length === 0 ? (
+          <TabEmpty title={TAB_EMPTY[tab].title} description={TAB_EMPTY[tab].description} />
+        ) : (
+          <ul className="space-y-2">
+            {rows.map((match) => (
+              <SchemeRow
+                key={match.slug}
+                match={match}
+                customerId={customerId}
+                mobile={mobile}
+                locale={pitchLocale}
+                t={t}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
 
-      <p className="mt-3 text-xs text-slate-400">{t('schemes.verifyNotice')}</p>
+      {mobile ? null : <p className="mt-2 text-xs text-slate-400">{t('schemes.noMobile')}</p>}
+      <p className="mt-2 text-xs text-slate-400">{t('schemes.verifyNotice')}</p>
     </WidgetShell>
   );
 }
 
 function WidgetShell({ children }: { children: ReactNode }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">{children}</section>
-  );
+  return <section className="flex h-full min-h-0 flex-1 flex-col p-5">{children}</section>;
 }
 
 function WidgetHeading({
   title,
   subtitle,
   browseLabel,
+  action,
 }: {
   title: string;
   subtitle?: string;
   browseLabel: string;
+  action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="-mx-5 -mt-5 flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
       <div className="flex min-w-0 items-start gap-3">
         <OpportunitiesIcon className="mt-0.5 h-6 w-6 shrink-0 text-brand-600" />
         <div>
@@ -412,13 +442,16 @@ function WidgetHeading({
           {subtitle ? <p className="mt-0.5 text-sm text-slate-600">{subtitle}</p> : null}
         </div>
       </div>
-      <Link
-        href="/schemes"
-        className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800"
-      >
-        {browseLabel}
-        <ForwardIcon className="h-3.5 w-3.5" />
-      </Link>
+      <div className="flex shrink-0 items-center gap-2">
+        <Link
+          href="/schemes"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800"
+        >
+          {browseLabel}
+          <ForwardIcon className="h-3.5 w-3.5" />
+        </Link>
+        {action}
+      </div>
     </div>
   );
 }

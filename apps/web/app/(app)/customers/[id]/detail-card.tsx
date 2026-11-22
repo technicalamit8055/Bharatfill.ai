@@ -21,7 +21,28 @@ export const PROFILE_EDIT_PARAM = 'edit';
 /** The element the profile cards sit in, for the header link to scroll to. */
 export const PROFILE_ANCHOR = 'profile';
 
-export type DetailTone = 'brand' | 'violet' | 'emerald' | 'amber' | 'rose' | 'sky' | 'orange' | 'slate';
+/**
+ * The customer page's tabs. Here rather than in the client `customer-tabs.tsx` for the same
+ * reason as `PROFILE_EDIT_PARAM`: the server page reads them to pick the initial tab.
+ */
+export const CUSTOMER_TABS = [
+  'profile',
+  'documents',
+  'applications',
+  'logins',
+  'activity',
+] as const;
+export type CustomerTab = (typeof CUSTOMER_TABS)[number];
+
+/** The query parameter that remembers the open tab. */
+export const TAB_PARAM = 'tab';
+
+export function isCustomerTab(value: string | null | undefined): value is CustomerTab {
+  return (CUSTOMER_TABS as readonly string[]).includes(value ?? '');
+}
+
+export type DetailTone =
+  'brand' | 'violet' | 'emerald' | 'amber' | 'rose' | 'sky' | 'orange' | 'slate';
 
 const BUBBLE_TONES: Record<DetailTone, string> = {
   brand: 'bg-brand-50 text-brand-600',

@@ -21,7 +21,8 @@ const BADGE_SIZE = 34;
 export type ProfileAccountCardProps = {
   readonly state: ProfileState;
   readonly onOpen: () => void;
-  readonly onChangePhoto: () => void;
+  /** Omitted hides the camera badge. */
+  readonly onChangePhoto?: () => void;
 };
 
 export function ProfileAccountCard({ state, onOpen, onChangePhoto }: ProfileAccountCardProps) {
@@ -68,15 +69,17 @@ export function ProfileAccountCard({ state, onOpen, onChangePhoto }: ProfileAcco
             <User color={palette.avatarText} size={40} strokeWidth={2} />
           )}
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('profile.changePhoto')}
-          hitSlop={6}
-          onPress={onChangePhoto}
-          style={({ pressed }) => [styles.badge, pressed && styles.pressed]}
-        >
-          <Camera color={palette.onBrand} size={17} strokeWidth={2.2} />
-        </Pressable>
+        {onChangePhoto ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('profile.changePhoto')}
+            hitSlop={6}
+            onPress={onChangePhoto}
+            style={({ pressed }) => [styles.badge, pressed && styles.pressed]}
+          >
+            <Camera color={palette.onBrand} size={17} strokeWidth={2.2} />
+          </Pressable>
+        ) : null}
       </View>
 
       <Pressable

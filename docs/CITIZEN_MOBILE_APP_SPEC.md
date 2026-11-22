@@ -260,6 +260,9 @@ create table operator_access_logs (
 
 What is built so far, and where it differs from this plan: §8.
 
+**Phase 2 and 3 are designed in `docs/VAULT_BRIDGE_DESIGN.md` (2026-11-11), which supersedes
+§3 Feature 4 (access modes, alerts) and §5 (schema) of this document for the bridge.**
+
 ### Phase 1: Standalone Scanner & Vault MVP
 * Scaffold `apps/mobile` using React Native (Expo).
 * Integrate Google ML Kit Document Scanner for high-speed edge detection, auto-crop, and color enhancement.
@@ -292,7 +295,7 @@ What is built so far, and where it differs from this plan: §8.
 
 ## 8. Build status
 
-As of 2026-11 (after commit `e800bb9`). Code: `apps/mobile`; developer notes: `apps/mobile/README.md`.
+As of 2026-11-22 (after commit `99daad7`, plus the account and app-lock work of that date). Code: `apps/mobile`; developer notes: `apps/mobile/README.md`.
 Release builds show only what is real; development builds fill empty screens with the mockups'
 sample content (`components/*/demo.ts(x)`), which is not listed as built below.
 
@@ -302,6 +305,13 @@ sample content (`components/*/demo.ts(x)`), which is not listed as built below.
   quarter turns and a straighten dial; perspective flattening; Magic Color / Original / Grayscale /
   Black & White filters; retake, add and delete pages; a zoom loupe on the corner being dragged.
   A light page on a light, low-contrast desk gets a second, contrast-stretched detection pass.
+* **Built (not yet checked on a phone):** on Android, an ordinary document scan opens Google's
+  ML Kit Document Scanner (§4, full mode: neural page detection, flattening, shadow, stain and
+  finger clean-up, gallery import, up to 24 pages) through a local native module
+  (`apps/mobile/modules/platform-scanner`). Its pages join review already cropped and are not
+  searched again; they start on the Original filter. Without Play services, on iOS, or if the
+  scanner will not open, the in-app camera is used; the ID card, photo and signature presets
+  always use it.
 * **Built:** a photo quality check after each shot or import — blurred, too dark, or glare on a
   laminated card — shown on review with Retake or Keep. On the phone, nothing logged.
 * **Built:** the §3 Feature 1.5 presets, opened by Home's ID Card / Photo / Signature shortcuts:
@@ -316,32 +326,57 @@ sample content (`components/*/demo.ts(x)`), which is not listed as built below.
   Pages and index are AES-256-GCM encrypted on the phone; the key is in the platform keystore.
 * **Built:** multi-page PDF and single-image export through the system share sheet, a folder the
   citizen picks, or the print dialog.
-* **Not built:** biometric / PIN app lock (registration step 3 is a placeholder).
+* **Built (not yet checked on a phone):** app lock — the phone's fingerprint / face / screen
+  lock, or a 4-digit app PIN for phones without one (salted hash in the keystore, separate from
+  the Vault PIN). Locks on cold start and after a minute in the background; wrong PINs make the
+  citizen wait (30 s doubling to an hour) but never erase anything. Set from registration step 3
+  (offline builds) or Profile → Security.
 
-### Phase 2 — not built
-* The mobile-number, OTP and profile-setup screens exist with input validation, but no SMS is
-  sent, no code is checked and the profile is discarded. Wiring Supabase phone auth needs
-  product-owner sign-off.
-* No cloud sync: nothing leaves the phone. No `citizen_accounts` / `citizen_vault_documents` /
-  `operator_access_logs` tables (§5). The operator dashboard's cross-centre mobile-number lookup
+### Phase 2 — partly built, switched off by default
+Designed in `docs/VAULT_BRIDGE_DESIGN.md`, which replaces §5's schema (migration 0038).
+Everything below runs only in builds that set the three `EXPO_PUBLIC_*` cloud values; without
+them the app is offline-only and nothing leaves the phone.
+* **Built (not yet run against a live SMS sender):** phone OTP sign-in through Supabase Auth,
+  sign-up (name + language + Vault PIN + consent), Vault PIN restore on a new phone.
+* **Built (not yet run on a phone):** document sync — each document encrypted on the phone and
+  uploaded; rename, move and delete follow; "Keep on this phone only" per document. The vault
+  is bound to the one account it syncs with, so another person signing in on the same phone
+  never receives the first person's documents.
+* **Built:** Profile shows the signed-in name and number; Personal Information edits the name;
+  Log out and Delete account each ask whether the documents on the phone are removed or kept
+  (design D16).
+* **Not built:** restore by old-phone approval or the 7-day hold; bringing synced documents back
+  onto a restored phone; the sync sweep (needs the jobs scheduler); the app's share-code,
+  in-app approval and access-history screens (the server routes for them are built — design
+  §6). The operator dashboard's cross-centre lookup
   (roaming customers, `apps/web/app/(app)/customers/roaming-lookup.tsx`) searches
   operator-created customer records; it cannot see this app's vault.
 
 ### Phase 3 — partly built
 * **Built:** Hindi + English for every screen, switchable in-app and remembered between launches.
-* **Not built:** access-alert push notifications, access modes A / B / C, portal size presets.
+* **Built (not yet run on real photos):** portal size presets for photos and signatures —
+  Document Details → More → Export for a form.
+* **Not built:** access-alert push notifications, access modes A / B / C.
 
 ### Other features in the spec, not built
-Passport-photo background replacement; portal size presets; dewarping of curled pages; finger
-removal; on-device OCR field extraction.
+Passport-photo background replacement; dewarping of curled pages; finger
+removal in the in-app camera (Google's scanner does its own); on-device OCR field extraction.
 
 ### Deviations from this spec
 * **Name:** the app ships as **Bharatfill** (`app.json`, `app.name`); the splash, onboarding and
   sign-in artwork spell the wordmark **BharatDoc**, which is also the name used in
   `docs/SCANNER_VFLAT_QUALITY_PLAN.md`.
-* **Scanner engine:** not the ML Kit Document Scanner. The camera is `react-native-vision-camera`
-  and all detection and clean-up is in-app OpenCV (`react-native-fast-opencv`,
-  `apps/mobile/lib/scan/`); see `docs/SCANNER_VFLAT_QUALITY_PLAN.md` §6.
+* **Scanner engine:** the ML Kit Document Scanner for ordinary document scans on Android phones
+  with Google Play services; everywhere else — iOS, phones without Play services, and the ID
+  card, photo and signature presets — the in-app camera (`react-native-vision-camera`) with
+  in-app OpenCV detection and clean-up (`react-native-fast-opencv`, `apps/mobile/lib/scan/`);
+  see `docs/SCANNER_VFLAT_QUALITY_PLAN.md` §6. Imported photos inside the in-app flow and the
+  crop editor also use the OpenCV pipeline.
+* **Privacy (needs product-owner sign-off before release):** ML Kit processes pages on the phone
+  and never uploads them, but the library (through Google Play services and its bundled Google
+  Data Transport client) sends Google API usage and performance metrics, and Play services
+  downloads the scanner module on first use. This is the first Google traffic tied to the app;
+  the Play Store data-safety form and the privacy policy must say so.
 * **Local storage:** encrypted files plus an encrypted, Zod-validated JSON index, not SQLite /
   WatermelonDB. Styling uses React Native `StyleSheet` with theme tokens, not NativeWind.
 * **Added beyond §3:** local expiry reminders (an on-device notification before a document's

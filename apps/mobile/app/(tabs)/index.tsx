@@ -17,8 +17,8 @@
 import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useRef, useState } from 'react';
-import { Alert } from 'react-native';
 
+import { showDialog } from '../../lib/dialog/dialog-store';
 import { demoHomeDashboard } from '../../components/home/demo';
 import { HomeDashboardScreen } from '../../components/home/HomeDashboardScreen';
 import {
@@ -95,7 +95,7 @@ export default function HomeRoute() {
 
   const comingSoon = useCallback(
     (bodyKey: string) => {
-      Alert.alert(t('common.comingSoon'), t(bodyKey), [{ text: t('common.ok') }]);
+      showDialog(t('common.comingSoon'), t(bodyKey), [{ text: t('common.ok') }], { tone: 'brand' });
     },
     [t],
   );

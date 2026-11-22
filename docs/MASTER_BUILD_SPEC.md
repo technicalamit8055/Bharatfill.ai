@@ -1974,6 +1974,45 @@ Assistigo must not:
 - Scrape protected data.
 - Enable credential stuffing.
 - Fill payment credentials automatically in MVP.
+- Automate credentials beyond the narrow portal login of §19.7a.
+
+### 19.7a Customer Portal Credential Vault and One-Click Login
+
+**Product decision, 2026-11-07.** This section relaxes the earlier blanket ban on credential
+automation (§28.1) for one case, under the conditions below. Everything else in §19.7 still holds.
+
+**Problem.** Exam and citizen portals key a candidate to one permanent registration — SSC OTR,
+UPSC OTR, UPPSC OTR, BPSC OTR, Rajasthan SSO ID, Haryana Parivar Pehchan Patra. Candidates forget
+the registration number, password and security answers, and "Forgot password" sends an OTP to a
+mobile number they may no longer have. Operators lose 15–20 minutes per candidate.
+
+**Scope.**
+
+1. **Credential locker on the customer profile.** Per portal: registration / login ID, password,
+   security question and answer, and linked application / roll numbers. One entry per catalogued
+   portal per customer; an `other` entry may repeat but has no one-click login.
+2. **One-click login in the extension.** On an allow-listed portal login page, the side panel offers
+   "Log in as [customer]". On the operator's click it fills the login ID and password.
+3. **Password generator and slip.** Generates a random password the portal will accept, and issues
+   a slip to the citizen: printed on the counter's thermal printer, or sent as a WhatsApp message
+   to the mobile number on the customer's own record.
+
+**Conditions (non-negotiable).**
+
+- Login fill happens only on the operator's click, only on `https:` pages of allow-listed
+  government hosts (exact host or subdomain), and never submits. The operator solves the CAPTCHA
+  and presses the portal's own login button. No OTP is read or entered.
+- The form filler still never fills a password field; only the separate, host-checked login
+  filler types a saved password.
+- Login ID, password and security answer are AES-256-GCM ciphertext bound to their row and column.
+  The list view never carries a secret. Each reveal, login fill and slip is a separate `critical`
+  audit entry that records the portal and the part, never the value.
+- Owner, manager and operator of the customer's own centre only. No viewer, billing admin, support
+  access grant or cross-centre roaming grant reaches the vault.
+- Generated passwords are random and never derived from the citizen's name or date of birth.
+- The WhatsApp slip goes only to the mobile on the customer's record, from the platform's WhatsApp
+  number, and passes through Meta's Cloud API. The operator chooses it per slip; printing is the
+  alternative.
 
 ---
 
@@ -2495,7 +2534,9 @@ These rules apply to Claude Code, Antigravity, and any future coding agent.
 - Keep tasks small.
 - Write tests for critical business rules.
 - Run tests before claiming completion.
-- Do not add auto-submit, CAPTCHA bypass, OTP automation, or credential automation.
+- Do not add auto-submit, CAPTCHA bypass, OTP automation, or credential automation. The single
+  exception is the portal login vault of §19.7a (product decision 2026-11-07): operator-clicked,
+  allow-listed `https:` portal hosts only, never submitting.
 - Full Aadhaar may be stored, with customer consent; it stays high-risk (always reviewed, masked on display, never logged).
 - Do not use real citizen data in development.
 - Do not copy competitor branding, code, text, layouts, or proprietary assets.
@@ -3224,6 +3265,7 @@ These are intentional decisions made during implementation. They are not bugs.
 | — | Walk-in document drop via QR, WhatsApp, and Telegram (migrations 0022–0023, 0025) | Needed for operators to receive citizen documents before cloud vault bridge is live |
 | — | Cross-operator roaming access (migrations 0024–0025) | Needed for operators at different centres to share customer records with consent OTP |
 | — | Super Admin panel at `/admin` | Internal platform tooling built alongside operator phases, not as a separate phase |
+| §28.1: no credential automation | Portal credential vault and one-click login (migration 0036, §19.7a) | Product owner decision 2026-11-07: forgotten OTR/SSO logins cost operators 15–20 min per candidate |
 
 ---
 

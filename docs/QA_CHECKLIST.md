@@ -142,6 +142,29 @@ Needs two demo organizations with a fake customer registered at org A.
 - [ ] Grant, OTP and revoke appear in the audit trail
 - [ ] Walk-in drop "save to roaming customer" inserts files only and queues no extraction
 
+## Scenario 10a — Portal login vault
+
+Use a fake customer and a throwaway test login only — never a real candidate's credentials.
+
+1. On the customer profile, Portal logins → Add login → SSC; enter a login ID; press Generate
+2. Save; reveal the login ID, then the password; wait 30 s
+3. Print slip; Send on WhatsApp (with and without WhatsApp configured)
+4. Open `https://ssc.gov.in/` login in Chrome with the customer selected in the side panel; press
+   Log in as …
+5. Repeat step 4 on a non-portal https page and on a look-alike host (local test page)
+
+- [ ] The list never shows the full login ID or password until revealed, and a reveal hides itself
+      after 30 s
+- [ ] Generated passwords look like `Word@1234`, never contain the customer's name or birth year
+- [ ] The slip prints alone on a thermal-width page; the WhatsApp copy reaches only the customer's
+      own number; a missing number or unconfigured WhatsApp gives a clear error
+- [ ] On the portal, login ID and password are filled; the CAPTCHA box is empty; nothing is
+      submitted; the panel says to solve the CAPTCHA
+- [ ] On any other page the card does not appear, and nothing is typed
+- [ ] A viewer sees no Portal logins card; a roaming centre sees none for the customer
+- [ ] Save, reveal, fill and slip each appear in the activity log, with no value in the details
+- [ ] No login ID or password appears in console logs, network error bodies or server logs
+
 ## Scenario 11 — Aadhaar handling
 
 Use a synthetic 12-digit test value only.
@@ -162,8 +185,14 @@ On a dev build with fake documents only.
 2. Save it with a type, folder, tags and an expiry date
 3. Find it in the Vault, open Document Details, rename it, export as PDF
 4. Switch to Hindi
+5. On an Android phone with Play services: scan with Google's document scanner (opens from Scan),
+   retake a page, add a page, back out of it with pages taken; then the same scan with Play
+   services disabled, which must fall back to the in-app camera
 
-- [ ] The app makes no network requests during scan, save or export
+- [ ] The app makes no network requests during scan, save or export, other than Google Play
+      services' own ML Kit traffic (scanner module download, API usage metrics); no page image
+      leaves the phone
+- [ ] Google's scanner leaves no page files in the cache after the scan is saved or discarded
 - [ ] Vault files on disk are encrypted; no plaintext scan copies are left behind
 - [ ] The exported PDF has one page per scan at the chosen filter
 - [ ] The expiry reminder text does not name the document

@@ -27,6 +27,7 @@ import {
 import { send } from '../shared/send';
 import { CustomerPicker } from '../shared/CustomerPicker';
 import { RoamingAuthBanner } from '../shared/RoamingAuthBanner';
+import { PortalLoginCard } from './PortalLoginCard';
 import { DocumentPreviewModal, type PreviewTarget } from './DocumentPreviewModal';
 import { AutoFitCard, useAutoFits, type FitTarget } from './AutoFitCard';
 import {
@@ -820,7 +821,11 @@ export function ReviewPanel() {
       type: 'CREATE_APPLICATION',
       title: detection?.page.title?.slice(0, 160) ?? 'Application',
     });
-    if (response.ok) setActiveApplicationId(response.data.id);
+    if (!response.ok) {
+      setError('Could not save the application. The fill itself is unaffected.');
+      return;
+    }
+    setActiveApplicationId(response.data.id);
   };
 
   // Re-checks the paired session and, if a page has already been read, re-reads it — so a
@@ -1053,6 +1058,10 @@ export function ReviewPanel() {
             onChange={() => void refreshSession()}
           />
         ) : null}
+
+        {/* Renders only on an allow-listed portal login page (spec §19.7a). */}
+        <PortalLoginCard customer={session.selectedCustomer} />
+
 
         {/*
          * Available before the page has even been read: an operator often wants to check what
@@ -1787,6 +1796,16 @@ export function ReviewPanel() {
                   View
                 </button>
               </div>
+            ) : session.selectedCustomer?.isRoaming ? (
+              /*
+               * A roaming grant unlocks the citizen's profile and files, never applications
+               * (migration 0024): the row would belong to their home centre, which a visiting
+               * centre cannot write to, and the server answers 404.
+               */
+              <p className="small muted">
+                This customer is registered at another centre, so the application can&rsquo;t be
+                saved here. Note the portal&rsquo;s reference number for your own records.
+              </p>
             ) : (
               <button
                 type="button"

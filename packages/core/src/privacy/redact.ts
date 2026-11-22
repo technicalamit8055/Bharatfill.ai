@@ -19,6 +19,13 @@ const SENSITIVE_KEY_PATTERNS = [
   'otp',
   'password',
   'passwd',
+  'username',
+  'login_id',
+  'loginid',
+  'security_answer',
+  'securityanswer',
+  'roll_number',
+  'rollnumber',
   'secret',
   'token',
   'apikey',
@@ -56,6 +63,20 @@ const SENSITIVE_KEY_PATTERNS = [
   'licence',
   'license',
   'ration',
+  // Citizen Vault (0038). Not bare 'pin'/'code'/'title': those substrings would also swallow
+  // harmless keys such as `mappingCount` or `reasonCode`.
+  'vault_pin',
+  'vaultpin',
+  'share_code',
+  'sharecode',
+  'display_name',
+  'displayname',
+  'document_title',
+  'documenttitle',
+  'wrapped_key',
+  'wrappedkey',
+  'data_key',
+  'datakey',
 ] as const;
 
 /** Keys that are safe and useful to keep verbatim even though they might match above. */

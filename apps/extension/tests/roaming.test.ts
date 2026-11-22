@@ -275,3 +275,218 @@ describe('VERIFY_ROAMING_OTP', () => {
     expect(response).toMatchObject({ ok: false, messageKey: 'errors.roaming_otp_incorrect' });
   });
 });
+
+describe('roaming grant expiry', () => {
+  function selectRoamingCustomer(grantExpiresAt: string | null) {
+    const chromeGlobal = (
+      globalThis as unknown as { chrome: { storage: { session: StorageArea } } }
+    ).chrome;
+    return chromeGlobal.storage.session.set({
+      selectedCustomer: {
+        id: CUSTOMER_ID,
+        displayName: 'Pritam Kumar',
+        customerCode: null,
+        mobileLast4: '4321',
+        isRoaming: true,
+        accessStatus: 'granted',
+        grantExpiresAt,
+      },
+    });
+  }
+
+  function mockMe() {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith('/api/me')) {
+        return jsonResponse({
+          organization: { id: 'org-1', name: 'Demo Centre', locale: 'en' },
+          membership: { role: 'operator' },
+          permissions: ['fill.run'],
+        });
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+  }
+
+  it('reports an expired grant as locked, so the panel stops offering Detect', async () => {
+    await seedSession();
+    await selectRoamingCustomer(new Date(Date.now() - 60_000).toISOString());
+    mockMe();
+
+    const response = (await dispatch({ type: 'GET_SESSION' })) as {
+      ok: true;
+      data: { selectedCustomer: { accessStatus: string; grantExpiresAt: string | null } };
+    };
+
+    expect(response.data.selectedCustomer).toMatchObject({
+      accessStatus: 'locked',
+      grantExpiresAt: null,
+    });
+  });
+
+  it('refuses the customer vault once the grant has run out', async () => {
+    await seedSession();
+    await selectRoamingCustomer(new Date(Date.now() - 60_000).toISOString());
+
+    const response = await dispatch({ type: 'LIST_CUSTOMER_DOCUMENTS', customerId: CUSTOMER_ID });
+
+    expect(response).toMatchObject({ ok: false, error: 'roaming_access_locked' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('treats an unreadable expiry as expired', async () => {
+    await seedSession();
+    await selectRoamingCustomer('not-a-date');
+    mockMe();
+
+    const response = (await dispatch({ type: 'GET_SESSION' })) as {
+      ok: true;
+      data: { selectedCustomer: { accessStatus: string } };
+    };
+
+    expect(response.data.selectedCustomer.accessStatus).toBe('locked');
+  });
+
+  it('leaves a live grant alone', async () => {
+    await seedSession();
+    const expiresAt = new Date(Date.now() + 30 * 60_000).toISOString();
+    await selectRoamingCustomer(expiresAt);
+    mockMe();
+
+    const response = (await dispatch({ type: 'GET_SESSION' })) as {
+      ok: true;
+      data: { selectedCustomer: { accessStatus: string; grantExpiresAt: string | null } };
+    };
+
+    expect(response.data.selectedCustomer).toMatchObject({
+      accessStatus: 'granted',
+      grantExpiresAt: expiresAt,
+    });
+  });
+});
+
+describe('BharatDoc app approval (migration 0039)', () => {
+  const REQUEST_ID = '33333333-3333-4333-8333-333333333333';
+
+  it('asks for approval with no duration — the citizen picks it in the app', async () => {
+    await seedSession();
+    const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ requestId: REQUEST_ID, expiresAt }));
+
+    const response = await dispatch({
+      type: 'REQUEST_ROAMING_APPROVAL',
+      customerId: CUSTOMER_ID,
+      purpose: 'form_filling',
+    });
+
+    expect(response).toMatchObject({ ok: true, data: { requestId: REQUEST_ID, expiresAt } });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`http://localhost:3000/api/customers/${CUSTOMER_ID}/roaming/app-request`);
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body).toEqual({ purpose: 'form_filling' });
+    expect(body).not.toHaveProperty('durationMinutes');
+  });
+
+  it('unlocks the selected customer once the citizen approves', async () => {
+    await seedSession();
+    const chromeGlobal = (
+      globalThis as unknown as { chrome: { storage: { session: StorageArea } } }
+    ).chrome;
+    await chromeGlobal.storage.session.set({
+      selectedCustomer: {
+        id: CUSTOMER_ID,
+        displayName: 'Test R.',
+        customerCode: null,
+        mobileLast4: '0000',
+        isRoaming: true,
+        accessStatus: 'locked',
+        grantExpiresAt: null,
+      },
+    });
+
+    const expiresAt = new Date(Date.now() + 4 * 60 * 60_000).toISOString();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        status: 'approved',
+        requestId: REQUEST_ID,
+        session: {
+          grantId: '22222222-2222-4222-8222-222222222222',
+          purpose: 'form_filling',
+          targetSchemeSlug: null,
+          authMethod: 'app_approval',
+          grantedAt: new Date().toISOString(),
+          expiresAt,
+        },
+      }),
+    );
+
+    const response = await dispatch({
+      type: 'GET_ROAMING_APPROVAL',
+      customerId: CUSTOMER_ID,
+      requestId: REQUEST_ID,
+    });
+
+    expect(response).toMatchObject({ ok: true, data: { status: 'approved' } });
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      `http://localhost:3000/api/customers/${CUSTOMER_ID}/roaming/app-request/${REQUEST_ID}`,
+    );
+    const stored = await chromeGlobal.storage.session.get('selectedCustomer');
+    expect(stored.selectedCustomer).toMatchObject({
+      accessStatus: 'granted',
+      grantExpiresAt: expiresAt,
+    });
+  });
+
+  it('leaves the customer locked while the request is pending', async () => {
+    await seedSession();
+    const chromeGlobal = (
+      globalThis as unknown as { chrome: { storage: { session: StorageArea } } }
+    ).chrome;
+    await chromeGlobal.storage.session.set({
+      selectedCustomer: {
+        id: CUSTOMER_ID,
+        displayName: 'Test R.',
+        customerCode: null,
+        mobileLast4: '0000',
+        isRoaming: true,
+        accessStatus: 'locked',
+        grantExpiresAt: null,
+      },
+    });
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        status: 'pending',
+        requestId: REQUEST_ID,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    );
+
+    await dispatch({
+      type: 'GET_ROAMING_APPROVAL',
+      customerId: CUSTOMER_ID,
+      requestId: REQUEST_ID,
+    });
+
+    const stored = await chromeGlobal.storage.session.get('selectedCustomer');
+    expect(stored.selectedCustomer).toMatchObject({ accessStatus: 'locked' });
+  });
+
+  it('cancels a request with DELETE', async () => {
+    await seedSession();
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    const response = await dispatch({
+      type: 'CANCEL_ROAMING_APPROVAL',
+      customerId: CUSTOMER_ID,
+      requestId: REQUEST_ID,
+    });
+
+    expect(response).toMatchObject({ ok: true });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      `http://localhost:3000/api/customers/${CUSTOMER_ID}/roaming/app-request/${REQUEST_ID}`,
+    );
+    expect(init.method).toBe('DELETE');
+  });
+});

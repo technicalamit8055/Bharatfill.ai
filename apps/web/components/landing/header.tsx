@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
@@ -10,35 +10,64 @@ import { BharatfillLogo } from './bharatfill-logo';
 import { LaunchCta } from './launch-dialog';
 
 const NAV_LINKS = [
-  { href: '#features', labelKey: 'landing.header.nav.features' },
-  { href: '#how-it-works', labelKey: 'landing.header.nav.howItWorks' },
-  { href: '#where-it-works', labelKey: 'landing.header.nav.whereItWorks' },
-  { href: '#pricing', labelKey: 'landing.header.nav.pricing' },
-  { href: '#faq', labelKey: 'landing.header.nav.faq' },
+  { href: '/#features', labelKey: 'landing.header.nav.features' },
+  { href: '/#how-it-works', labelKey: 'landing.header.nav.howItWorks' },
+  { href: '/#where-it-works', labelKey: 'landing.header.nav.whereItWorks' },
+  { href: '/#pricing', labelKey: 'landing.header.nav.pricing' },
+  { href: '/tools', labelKey: 'landing.header.nav.tools' },
+  { href: '/#faq', labelKey: 'landing.header.nav.faq' },
 ] as const;
 
+/*
+ * Layout (checked in en and hi; Hindi labels are the widest):
+ *   < 1280px  logo + install button + menu toggle; links, language and sign-in live in the panel.
+ *   ≥ 1280px  full row. The logo steps down so the six links, language, sign-in and the full
+ *             install button fit inside max-w-7xl (aligned with the page sections below), with
+ *             the links centred in whatever space is left. max-w-7xl caps the row, so it is the
+ *             same width on every larger screen.
+ */
 export function Header() {
   const t = useTranslations();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMenuOpen(false);
+    };
+    // The panel is xl:hidden, so close it when the viewport grows into the desktop row.
+    const desktop = window.matchMedia('(min-width: 1280px)');
+    const onDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) setIsMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    desktop.addEventListener('change', onDesktop);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      desktop.removeEventListener('change', onDesktop);
+    };
+  }, [isMenuOpen]);
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200/80 bg-white/90 backdrop-blur-xl transition-all shadow-sm">
-      <div className="mx-auto flex h-20 sm:h-24 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-20 sm:h-24 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         {/* Brand Logo */}
         <Link href="/" className="group flex items-center shrink-0 py-1">
           {/* Below 360px the full-height logo leaves no room for the Hindi install button. */}
           <BharatfillLogo height={56} className="min-[360px]:hidden" />
           <BharatfillLogo height={72} className="hidden min-[360px]:flex sm:hidden" />
-          <BharatfillLogo height={96} className="hidden sm:flex" />
+          <BharatfillLogo height={88} className="hidden sm:flex xl:hidden" />
+          {/* Shares the row with every link from here, so it steps down until there is room. */}
+          <BharatfillLogo height={72} className="hidden xl:flex" />
         </Link>
 
         {/* Navigation Links */}
-        <nav className="hidden items-center gap-6 xl:flex 2xl:gap-9">
+        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-5 xl:flex">
           {NAV_LINKS.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="text-[15px] font-medium text-slate-700 transition-colors hover:text-[#0066FF] whitespace-nowrap"
+              className="text-sm font-medium text-slate-700 transition-colors hover:text-[#0066FF] whitespace-nowrap"
             >
               {t(link.labelKey)}
             </a>
@@ -52,7 +81,7 @@ export function Header() {
           </div>
           <Link
             href="/sign-in"
-            className="hidden h-10 items-center rounded-xl border border-slate-200 bg-slate-50 px-5 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-blue-300 hover:text-[#0066FF] xl:inline-flex whitespace-nowrap"
+            className="hidden h-10 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-blue-300 hover:text-[#0066FF] xl:inline-flex whitespace-nowrap"
           >
             {t('landing.header.signIn')}
           </Link>
@@ -99,33 +128,35 @@ export function Header() {
         </div>
       </div>
 
-      {/* Mobile Nav Panel */}
+      {/* Mobile Nav Panel — scrolls on short landscape phones instead of running off-screen. */}
       {isMenuOpen && (
         <nav
           id="mobile-nav-menu"
-          className="border-t border-slate-200 bg-white px-4 py-4 shadow-lg xl:hidden"
+          className="max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain border-t border-slate-200 bg-white px-4 py-4 shadow-lg sm:max-h-[calc(100dvh-6rem)] sm:px-6 lg:px-8 xl:hidden"
         >
-          <div className="flex flex-col gap-1">
-            {NAV_LINKS.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                onClick={() => setIsMenuOpen(false)}
-                className="rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#0066FF]"
-              >
-                {t(link.labelKey)}
-              </a>
-            ))}
-            <div className="mt-2 px-3">
-              <LocaleSwitcher />
+          <div className="mx-auto flex max-w-3xl flex-col gap-1">
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+              {NAV_LINKS.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setIsMenuOpen(false)}
+                  className="rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#0066FF]"
+                >
+                  {t(link.labelKey)}
+                </a>
+              ))}
             </div>
-            <Link
-              href="/sign-in"
-              onClick={() => setIsMenuOpen(false)}
-              className="mt-2 rounded-lg border border-slate-200 px-3 py-2.5 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#0066FF]"
-            >
-              {t('landing.header.signIn')}
-            </Link>
+            <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 px-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <LocaleSwitcher />
+              <Link
+                href="/sign-in"
+                onClick={() => setIsMenuOpen(false)}
+                className="rounded-lg border border-slate-200 px-5 py-2.5 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#0066FF]"
+              >
+                {t('landing.header.signIn')}
+              </Link>
+            </div>
           </div>
         </nav>
       )}

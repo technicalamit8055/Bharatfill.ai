@@ -44,7 +44,12 @@ export function AddProfileInfo({
   const showTabs = canPaste && canUpload;
 
   return (
-    <DetailCard icon={AddDetailsIcon} tone="rose" title={t('customers.paste.title')}>
+    <DetailCard
+      id="add-details"
+      icon={AddDetailsIcon}
+      tone="rose"
+      title={t('customers.paste.title')}
+    >
       {showTabs ? (
         <div
           role="tablist"

@@ -15,6 +15,7 @@
 import { parseMessage, type Message } from '../shared/messages';
 import { collectPageContext, detectFieldsInFrames, isBlockedPage } from './detector';
 import { applyFill, attachFiles } from './filler';
+import { fillPortalLogin } from './login-filler';
 
 const MARKER_ATTRIBUTE = 'data-assistigo-extension';
 
@@ -64,6 +65,22 @@ function handleMessage(
         .then((results) => sendResponse({ ok: true, data: { results } }))
         .catch(() => sendResponse({ ok: false, error: 'fill_failed' }));
       return true;
+    }
+
+    case 'APPLY_PORTAL_LOGIN': {
+      // Top frame only (§ Portal login). The worker addresses frame 0; an iframe instance that
+      // somehow receives this anyway stays out of it.
+      if (window.top !== window) {
+        sendResponse({ ok: false, error: 'not_top_frame' });
+        return undefined;
+      }
+      const result = fillPortalLogin(document, window.location, {
+        loginId: message.loginId,
+        password: message.password,
+        hosts: message.hosts,
+      });
+      sendResponse({ ok: true, data: result });
+      return undefined;
     }
 
     default:

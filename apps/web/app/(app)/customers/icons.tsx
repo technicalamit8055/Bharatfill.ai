@@ -29,12 +29,15 @@ import {
   History,
   House,
   IdCard,
+  KeyRound,
   Landmark,
   MapPin,
   Megaphone,
+  MessageCircle,
   Pencil,
   Phone,
   Plus,
+  Printer,
   Search,
   ShieldCheck,
   StickyNote,
@@ -44,6 +47,7 @@ import {
   User,
   UserPlus,
   Users,
+  WandSparkles,
   Zap,
 } from 'lucide-react';
 
@@ -107,3 +111,9 @@ export const ApplicationsIcon = icon(ClipboardList);
 export const FillSessionsIcon = icon(FileCheck2);
 export const ActivityIcon = icon(History);
 export const NotesIcon = icon(StickyNote);
+
+// Portal credential vault (spec §19.7a)
+export const PortalLoginIcon = icon(KeyRound);
+export const PrintIcon = icon(Printer);
+export const WhatsappIcon = icon(MessageCircle);
+export const GenerateIcon = icon(WandSparkles);

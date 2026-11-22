@@ -90,3 +90,33 @@ describe('role permissions', () => {
     expect(() => assertCan('operator', 'fill.run')).not.toThrow();
   });
 });
+
+describe('portal credential vault (spec §19.7a)', () => {
+  it('lets the counter roles manage and use saved portal logins', () => {
+    for (const role of ['owner', 'manager', 'operator'] as const) {
+      expect(can(role, 'credential.manage'), role).toBe(true);
+      expect(can(role, 'credential.use'), role).toBe(true);
+    }
+  });
+
+  it('keeps viewers and billing admins away from citizen passwords', () => {
+    for (const role of ['viewer', 'billing_admin'] as const) {
+      expect(can(role, 'credential.manage'), role).toBe(false);
+      expect(can(role, 'credential.use'), role).toBe(false);
+    }
+  });
+});
+
+describe('citizen vault bridge (0038)', () => {
+  it('lets the counter roles ask a citizen for vault access', () => {
+    for (const role of ['owner', 'manager', 'operator'] as const) {
+      expect(can(role, 'vault.access'), role).toBe(true);
+    }
+  });
+
+  it('never lets a viewer or billing admin reach a citizen vault', () => {
+    for (const role of ['viewer', 'billing_admin'] as const) {
+      expect(can(role, 'vault.access'), role).toBe(false);
+    }
+  });
+});

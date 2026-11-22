@@ -6,7 +6,9 @@
  * Only paper counts towards the estimate: a cell is paper when it is nearly as bright as the
  * brightest paper around it. Everything else — text, black banners, passport photos, stamps —
  * is filled in from the paper around it, so a large dark area cannot drag the estimate down
- * and leave a bright halo or a washed-out grey where it should be black.
+ * and leave a bright halo or a washed-out grey where it should be black. Light print is as
+ * bright as a shadow, so it is told apart by its shape instead: a crisp-edged island inside the
+ * page (`printedPatches`).
  *
  * Pure, so it is unit tested.
  */
@@ -37,6 +39,21 @@ export function maxPool(image: GrayImage, factor: number): GrayImage {
     }
   }
   return { width, height, pixels };
+}
+
+/**
+ * How many pixels a side of a copy `side` long `maxPool` should fold into one cell to leave a
+ * grid about `gridSide` long. At least 2, so a copy already at grid size still loses its text.
+ *
+ * The finer the copy pooled from, the finer the marks the estimate sees through: the brightest
+ * pixel of a block is the paper between a seal's rings or a stamp's strokes as long as the copy
+ * still shows that paper, so the mark never darkens the estimate and is not divided out with
+ * the shadows. Averaged down to grid size first, the same mark is a flat grey patch that looks
+ * like one.
+ */
+export function poolFactor(side: number, gridSide: number): number {
+  if (!(side > 0) || !(gridSide > 0)) return 2;
+  return Math.max(2, Math.round(side / gridSide));
 }
 
 /**
@@ -139,6 +156,30 @@ export type PaperLightOptions = {
   readonly nearSigma: number;
   /** Blur that fills large gaps (banners, photos) from paper further away. */
   readonly farSigma: number;
+  /**
+   * Paper-bright cells under this share of the brightest paper around them are dim: a shadow,
+   * or a light printed area (a faint seal, a shaded table row, a photo's pale backdrop). Which
+   * of the two is decided patch by patch (`printedPatches`).
+   */
+  readonly dimShare: number;
+  /**
+   * Neighbouring dim cells whose brightness differs by more than this share of the brighter one
+   * belong to different patches: the edge of a seal lying in a shadow. A share, so the same
+   * edge counts the same in shadow as in light.
+   */
+  readonly seam: number;
+  /** A drop of more than this share of the brighter cell, within one cell, is a crisp step. */
+  readonly crispStep: number;
+  /**
+   * A dim patch is print when at least this share of its border with paper is a crisp step.
+   * Print ends at a line; a shadow fades over many cells. Well under 1, as a seal's edge cuts
+   * through cells and blurs some of its steps.
+   */
+  readonly crispShare: number;
+  /** A dim patch this close to the page's edge (a share of the longest side) is a shadow. */
+  readonly edgeMargin: number;
+  /** A dim patch covering more than this share of the page is a shadow. */
+  readonly maxPrintShare: number;
 };
 
 export const DEFAULT_PAPER_LIGHT: PaperLightOptions = {
@@ -146,7 +187,92 @@ export const DEFAULT_PAPER_LIGHT: PaperLightOptions = {
   paperShare: 0.62,
   nearSigma: 0.012,
   farSigma: 0.1,
+  dimShare: 0.92,
+  seam: 0.03,
+  crispStep: 0.06,
+  crispShare: 0.5,
+  edgeMargin: 0.01,
+  maxPrintShare: 0.25,
 };
+
+/**
+ * Marks (with 1) the dim cells that are print, not shadow. Both are a little darker than the
+ * paper around them, so brightness alone cannot tell them apart; their shape can. Dim cells are
+ * grouped into patches, a crisp step between two neighbours (`seam`) keeping them apart, so a
+ * seal lying in a shadow is a patch of its own. A patch is print when it is an island inside the
+ * page whose edge is crisp: a seal, a shaded table row or a photo's pale backdrop stops at a
+ * line. A shadow fades out over many cells, or is cast from outside the page and so reaches its
+ * edge. A patch walled in by ink on every side (a face inside a dark photo) is print too.
+ *
+ * When in doubt a patch stays a shadow and is whitened, as every dim patch was before this
+ * check. Taking a shadow for print leaves it only as much darker as the step at its edge, which
+ * for anything but a hard-edged shadow lying wholly inside the page is next to nothing.
+ *
+ * `values` is each cell's brightness and `ratio` that as a share of the brightest paper around
+ * it.
+ */
+function printedPatches(
+  values: Float32Array,
+  ratio: Float32Array,
+  width: number,
+  height: number,
+  options: PaperLightOptions,
+): Uint8Array {
+  const total = width * height;
+  const print = new Uint8Array(total);
+  const seen = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  const isDim = (i: number) => {
+    const r = ratio[i] as number;
+    return r >= options.paperShare && r < options.dimShare;
+  };
+  const margin = Math.max(1, Math.round(options.edgeMargin * Math.max(width, height)));
+  const maxCells = options.maxPrintShare * total;
+
+  for (let start = 0; start < total; start += 1) {
+    if (seen[start] === 1 || !isDim(start)) continue;
+    let head = 0;
+    let tail = 0;
+    queue[tail] = start;
+    tail += 1;
+    seen[start] = 1;
+    let atEdge = false;
+    // The patch's border with paper, in cell sides, and how many of them are a crisp step up.
+    let border = 0;
+    let crisp = 0;
+
+    while (head < tail) {
+      const i = queue[head] as number;
+      head += 1;
+      const x = i % width;
+      const y = (i - x) / width;
+      if (x < margin || y < margin || x >= width - margin || y >= height - margin) atEdge = true;
+      const own = values[i] as number;
+      for (let side = 0; side < 4; side += 1) {
+        const nx = x + (side === 0 ? -1 : side === 1 ? 1 : 0);
+        const ny = y + (side === 2 ? -1 : side === 3 ? 1 : 0);
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const n = ny * width + nx;
+        const other = values[n] as number;
+        if (isDim(n) && Math.abs(other - own) <= options.seam * Math.max(other, own)) {
+          if (seen[n] === 0) {
+            seen[n] = 1;
+            queue[tail] = n;
+            tail += 1;
+          }
+        } else if ((ratio[n] as number) >= options.paperShare) {
+          border += 1;
+          if (other - own > options.crispStep * other) crisp += 1;
+        }
+      }
+    }
+
+    if (atEdge || tail > maxCells) continue;
+    if (border > 0 && crisp < options.crispShare * border) continue;
+    for (let k = 0; k < tail; k += 1) print[queue[k] as number] = 1;
+  }
+  return print;
+}
 
 /**
  * How much the far estimate counts where there is paper nearby. Small, so the near estimate
@@ -172,10 +298,16 @@ export function estimatePaperLight(
     height,
     Math.max(1, Math.round(options.neighbourhood * side)),
   );
+  const ratio = new Float32Array(values.length);
+  for (let i = 0; i < values.length; i += 1) {
+    ratio[i] = (values[i] as number) / Math.max(1, localMax[i] as number);
+  }
+  const print = printedPatches(values, ratio, width, height, options);
+
   const masked = new Float32Array(values.length);
   const mask = new Float32Array(values.length);
   for (let i = 0; i < values.length; i += 1) {
-    if ((values[i] as number) >= options.paperShare * (localMax[i] as number)) {
+    if ((ratio[i] as number) >= options.paperShare && print[i] === 0) {
       mask[i] = 1;
       masked[i] = values[i] as number;
     }

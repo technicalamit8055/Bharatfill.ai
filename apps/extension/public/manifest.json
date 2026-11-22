@@ -50,8 +50,6 @@
     }
   ],
 
-  "optional_host_permissions": ["http://*/*", "https://*/*"],
-
   "externally_connectable": {
     "matches": [
       "http://localhost:3000/*",

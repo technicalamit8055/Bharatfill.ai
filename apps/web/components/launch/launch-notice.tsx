@@ -32,7 +32,7 @@ export function LaunchNotice({
       <div className="relative">
         {/* Decoration only: the heading and body say everything the picture does. */}
         <Image
-          src="/launch/diwali-tech-launch.webp"
+          src="/launch/christmas-tech-launch.webp"
           alt=""
           aria-hidden
           width={960}

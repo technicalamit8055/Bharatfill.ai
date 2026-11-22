@@ -47,6 +47,7 @@ import {
   withDetails,
   withDocument,
   withoutDocument,
+  withPhoneOnly,
   withStarred,
 } from './vault-index';
 
@@ -178,6 +179,32 @@ async function writeIndex(index: VaultIndex, key: AESEncryptionKey): Promise<voi
   await pending.move(indexFile(), { overwrite: true });
 }
 
+// ---- Change signal ------------------------------------------------------------------------
+
+const changeListeners = new Set<() => void>();
+
+/**
+ * Called after the citizen saves, renames, moves, stars, deletes or changes the sync setting of a
+ * document — so cloud sync can follow — never with what changed. Returns an unsubscribe.
+ * Sync's own bookkeeping (`updateVaultIndex`) does not signal, so a sync cannot wake itself.
+ */
+export function onVaultChanged(listener: () => void): () => void {
+  changeListeners.add(listener);
+  return () => {
+    changeListeners.delete(listener);
+  };
+}
+
+function signalVaultChanged(): void {
+  for (const listener of changeListeners) {
+    try {
+      listener();
+    } catch {
+      // A listener's failure is its own; the change itself already succeeded.
+    }
+  }
+}
+
 // ---- Public API ---------------------------------------------------------------------------
 
 export type IncomingPage = {
@@ -251,6 +278,7 @@ export async function saveDocument(
       await exclusive(async () =>
         writeIndex(withDocument(await readIndexForUpdate(key), document), key),
       );
+      signalVaultChanged();
       return id;
     } catch (error) {
       if (directory.exists) directory.delete();
@@ -304,6 +332,7 @@ export function documentSizeBytes(document: VaultDocument): number | null {
 export async function setStarred(id: string, starred: boolean): Promise<void> {
   const key = await vaultKey();
   await exclusive(async () => writeIndex(withStarred(await readIndex(key), id, starred), key));
+  signalVaultChanged();
 }
 
 /** Renames, moves or re-tags a document. Returns it as saved; null when it no longer exists. */
@@ -312,11 +341,13 @@ export async function updateDetails(
   change: DetailsChange,
 ): Promise<VaultDocument | null> {
   const key = await vaultKey();
-  return exclusive(async () => {
+  const saved = await exclusive(async () => {
     const index = withDetails(await readIndex(key), id, change);
     await writeIndex(index, key);
     return findDocument(index, id);
   });
+  signalVaultChanged();
+  return saved;
 }
 
 /** Deletes the document's pages and index entry, and cancels its expiry reminder if it has one. */
@@ -331,4 +362,70 @@ export async function deleteDocument(id: string): Promise<void> {
   const directory = documentDirectory(id);
   if (directory.exists) directory.delete();
   if (removed?.reminderId) await cancelExpiryReminder(removed.reminderId);
+  signalVaultChanged();
+}
+
+/**
+ * Removes every document from this phone — pages, index entries and expiry reminders — for Log
+ * out and Delete account when the citizen chooses "remove from this phone". Cloud copies are
+ * not touched. The vault key stays; it protects nothing once the files are gone, and the next
+ * save reuses it.
+ *
+ * The index is reset to empty and unbound, so the next person to sign in here starts clean —
+ * except that with `keepPendingCloudDeletes`, cloud deletions still queued (documents deleted
+ * while offline) are kept with the account binding, so they go through the next time that
+ * account syncs here instead of leaving a deleted document in the cloud.
+ */
+export async function clearVault(options: { keepPendingCloudDeletes: boolean }): Promise<void> {
+  const key = await vaultKey();
+  const removed = await exclusive(async () => {
+    const index = await readIndexForUpdate(key);
+    const pending = options.keepPendingCloudDeletes ? (index.cloudDeletes ?? []) : [];
+    await writeIndex(
+      pending.length > 0 && index.cloudAccountId
+        ? { ...EMPTY_VAULT_INDEX, cloudDeletes: pending, cloudAccountId: index.cloudAccountId }
+        : EMPTY_VAULT_INDEX,
+      key,
+    );
+    return index.documents;
+  });
+
+  for (const document of removed) {
+    const directory = documentDirectory(document.id);
+    if (directory.exists) directory.delete();
+    if (document.reminderId) {
+      try {
+        await cancelExpiryReminder(document.reminderId);
+      } catch {
+        // A reminder that will not cancel still never names the document; carry on.
+      }
+    }
+  }
+  signalVaultChanged();
+}
+
+/**
+ * "Keep on this phone only". Turning it on for a synced document queues its cloud copy for
+ * deletion; turning it off lets the next sync upload the document.
+ */
+export async function setPhoneOnly(id: string, phoneOnly: boolean): Promise<void> {
+  const key = await vaultKey();
+  await exclusive(async () => writeIndex(withPhoneOnly(await readIndex(key), id, phoneOnly), key));
+  signalVaultChanged();
+}
+
+// ---- Cloud sync state (docs/VAULT_BRIDGE_DESIGN.md §3.2) -----------------------------------
+
+/** The whole index, read for the sync planner. */
+export async function readVaultIndex(): Promise<VaultIndex> {
+  return readIndex(await vaultKey());
+}
+
+/**
+ * Applies one sync-state change (`withCloudSynced`, `withCloudDeleteDone`, …) to the index under
+ * the same lock as every other write, so a sync never loses a save or rename made meanwhile.
+ */
+export async function updateVaultIndex(change: (index: VaultIndex) => VaultIndex): Promise<void> {
+  const key = await vaultKey();
+  await exclusive(async () => writeIndex(change(await readIndex(key)), key));
 }

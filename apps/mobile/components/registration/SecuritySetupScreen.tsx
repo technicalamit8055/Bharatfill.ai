@@ -1,12 +1,13 @@
 /**
- * Security setup — "Secure Your App", step 3 of registration. PLACEHOLDER.
+ * Security setup — "Secure Your App", step 3 of registration in offline builds (cloud builds
+ * show the Vault PIN screen here instead).
  *
- * No mockup has been supplied for this step yet, so this keeps the registration look (back and
- * "Skip for now", brand block and ribbon, the stepper on step 3, the skyline footer) and shows
- * the app-lock methods the spec lists (CITIZEN_MOBILE_APP_SPEC §3 Feature 2: fingerprint, face
- * unlock or a 4-digit PIN) as "coming soon". Nothing here sets up a lock: that needs the
- * local-authentication and secure-store modules and a decision on how the PIN is kept.
- * Replace the body with the real design once it exists.
+ * Keeps the registration look (back and "Skip for now", brand block and ribbon, the stepper on
+ * step 3, the skyline footer) and shows the two app-lock methods the spec lists
+ * (CITIZEN_MOBILE_APP_SPEC §3 Feature 2): the phone's fingerprint / face / screen lock, or a
+ * 4-digit app PIN. Either card, or Set up app lock, opens the App lock screen
+ * (`app/security.tsx`), which saves the choice and carries on into the app. No mockup has been
+ * supplied for this step yet.
  *
  * Light-only branded artwork like the rest of registration, so it does not read from
  * `useTheme()`.
@@ -14,7 +15,7 @@
 
 import { StatusBar } from 'expo-status-bar';
 import type { LucideIcon } from 'lucide-react-native';
-import { ChevronLeft, ChevronRight, Clock, Fingerprint, KeyRound } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Fingerprint, KeyRound } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -36,10 +37,11 @@ const LOCK_METHODS: readonly { readonly key: 'biometric' | 'pin'; readonly icon:
 export type SecuritySetupScreenProps = {
   readonly onBack: () => void;
   readonly onSkip: () => void;
-  readonly onContinue: () => void;
+  /** Opens App lock set-up (`/security?from=setup`), which goes on into the app when done. */
+  readonly onSetUp: () => void;
 };
 
-export function SecuritySetupScreen({ onBack, onSkip, onContinue }: SecuritySetupScreenProps) {
+export function SecuritySetupScreen({ onBack, onSkip, onSetUp }: SecuritySetupScreenProps) {
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
 
@@ -102,16 +104,17 @@ export function SecuritySetupScreen({ onBack, onSkip, onContinue }: SecuritySetu
             </Text>
             <Text style={styles.subtitle}>{t('securitySetup.subtitle')}</Text>
 
-            {/* ---- Lock methods (not available yet) ---- */}
+            {/* ---- Lock methods: each opens App lock set-up ---- */}
             {LOCK_METHODS.map(({ key, icon: Icon }) => {
               const title = t(`securitySetup.options.${key}.title`);
               const body = t(`securitySetup.options.${key}.body`);
               return (
-                <View
+                <Pressable
                   key={key}
-                  style={styles.method}
-                  accessible
-                  accessibilityLabel={`${title}. ${body} ${t('securitySetup.comingSoon')}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${title}. ${body}`}
+                  onPress={onSetUp}
+                  style={({ pressed }) => [styles.method, pressed && styles.pressed]}
                 >
                   <View style={styles.methodBadge}>
                     <Icon color={palette.brandBlue} size={26} strokeWidth={2} />
@@ -119,35 +122,20 @@ export function SecuritySetupScreen({ onBack, onSkip, onContinue }: SecuritySetu
                   <View style={styles.methodCopy}>
                     <Text style={styles.methodTitle}>{title}</Text>
                     <Text style={styles.methodBody}>{body}</Text>
-                    <View style={styles.pill}>
-                      <Text style={styles.pillLabel}>{t('securitySetup.comingSoon')}</Text>
-                    </View>
                   </View>
-                </View>
+                  <ChevronRight color={palette.navIcon} size={22} strokeWidth={2} />
+                </Pressable>
               );
             })}
-
-            {/* ---- Notice ---- */}
-            <View
-              style={styles.notice}
-              accessible
-              accessibilityLabel={`${t('securitySetup.unavailableTitle')}. ${t('securitySetup.unavailableBody')}`}
-            >
-              <Clock color={palette.textSecondary} size={22} strokeWidth={2} />
-              <View style={styles.noticeCopy}>
-                <Text style={styles.noticeTitle}>{t('securitySetup.unavailableTitle')}</Text>
-                <Text style={styles.noticeBody}>{t('securitySetup.unavailableBody')}</Text>
-              </View>
-            </View>
 
             {/* ---- CTA ---- */}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={t('securitySetup.continue')}
-              onPress={onContinue}
+              accessibilityLabel={t('securitySetup.setUp')}
+              onPress={onSetUp}
               style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
             >
-              <Text style={styles.ctaLabel}>{t('securitySetup.continue')}</Text>
+              <Text style={styles.ctaLabel}>{t('securitySetup.setUp')}</Text>
               <View style={styles.ctaIcon}>
                 <ChevronRight color={palette.ctaLabel} size={24} strokeWidth={2.4} />
               </View>
@@ -247,46 +235,6 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: palette.textSecondary,
   },
-  pill: {
-    alignSelf: 'flex-start',
-    marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: palette.sheetDivider,
-  },
-  pillLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: palette.textMuted,
-  },
-
-  notice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 22,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.cardBorder,
-    backgroundColor: palette.cardSurface,
-  },
-  noticeCopy: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  noticeTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: palette.textPrimary,
-  },
-  noticeBody: {
-    marginTop: 2,
-    fontSize: 13,
-    lineHeight: 18,
-    color: palette.textSecondary,
-  },
-
   cta: {
     height: 56,
     marginTop: 22,

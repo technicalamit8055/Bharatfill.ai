@@ -181,14 +181,19 @@ Remaining:
 - [ ] **Product owner:** keep or drop the all-pages `host_permissions` + always-on content script
       before any Web Store build (spec §15.2); the stale "on-demand injection" comment in
       `content/index.ts` goes either way
-- [ ] `chrome.webNavigation` is called but the permission is not declared, so the sub-frame path
-      never runs — declare it or remove the code
+- [x] Removed the dead `chrome.webNavigation` sub-frame sweep (no new permission). Page messages
+      go to the top frame only, and same-origin iframe fields now actually fill (the filler only
+      looked in frame 0, and `instanceof` failed on the frame's own-realm elements)
 - [ ] **Product owner (billing):** "Re-fill skipped" re-PATCHes the same fill session, overwriting
       its counts, duplicating `fill_session_fields` rows and recording a second `fill` usage unit
-- [ ] "Save as an application" fails silently for roaming customers (`POST /api/applications`
-      404s on a non-home customer)
-- [ ] Roaming grant expiry is only checked by the server; the panel keeps showing "granted"
-- [ ] Validate the `OPEN_DASHBOARD` `path` (require a leading `/`)
+- [x] "Save as an application" no longer fails silently for roaming customers: the panel explains
+      why, and the worker refuses before calling the API
+- [ ] **Product owner:** should a visiting centre be able to record an application for a roaming
+      customer at all, and in which organization would that row live?
+- [x] Roaming grant expiry is checked in the worker too: an expired grant reads as `locked`, so
+      the panel stops showing "granted" and disables Detect
+- [x] `OPEN_DASHBOARD` `path` must start with a single `/`, and the worker checks the final URL
+      stays on the dashboard origin
 - [ ] Move hard-coded English strings in `ReviewPanel` / `RoamingAuthBanner` / `CustomerPicker`
       to `en` + `hi` keys
 - [ ] UI tests for the multi-stage panel
@@ -294,6 +299,17 @@ Done:
       for the tool editors.
 - [x] `/document-tools` hub and four editors — Photo & Signature Studio, Passport Photo Grid,
       PVC Card & Aadhaar Mask, PDF Studio — under `apps/web/app/(app)/document-tools/`.
+- [x] PDF bundle (`/document-tools/pdf-bundle`, linked from PDF Studio): pick a customer and a
+      document set, and their stored documents are merged in order into one PDF, then compressed
+      to a target KB. `bundles.ts` holds the sets, the size ladder and `matchBundleSlots`
+      (verified first, then newest, never one file twice). `buildPdfBundle` in `browser/pdf.ts`
+      puts photos on A4 at ~200 DPI, copies PDF pages losslessly and compresses once for the
+      whole bundle. Bytes are fetched only when the operator presses Build, through the audited
+      signed-URL route. e-Aadhaar passwords stay in memory. The result saves as a `pdf_studio`
+      derivative with `presetCode: null`.
+      Sets carry **no portal names**: we found no BPSC or UP Scholarship notice stating a
+      combined-PDF order or size, and NSP rejects combined files. Add portal-named sets only
+      against a published notice.
 - [x] `POST /api/derivatives/upload-intent`, `POST /api/derivatives` (magic-byte + size
       re-verification before the row is written, orphaned object cleanup on insert failure),
       `GET /api/derivatives`, `DELETE /api/derivatives/:id`, `POST /api/derivatives/:id/signed-url`.
@@ -304,6 +320,20 @@ Done:
       print, or printed until a meaningful redaction box covers the number band — enforced by
       `isMeaningfulRedaction`, not a checkbox the operator could skip.
 - [x] `en` + `hi` strings for the whole surface, including per-preset Hindi portal/label/notes.
+- [x] Free public tools (`/tools`, product-owner request 2026-11-22): the four editors mounted
+      without a session at search-friendly URLs — `/tools/photo-signature-resizer`,
+      `/passport-photo-maker`, `/pvc-card-maker`, `/pdf-merge-compress` — inside the landing
+      header/footer, as a marketing and SEO entry point. No new processing path: the editors
+      already run entirely in the browser, and a guest page makes no API call. What needs an
+      account stays behind one: `GuestToolAccess` turns the output panel's save-to-customer box
+      into a "Create free account / Sign in" prompt, and the PDF bundle (stored customer
+      documents) links to `/sign-in?next=/document-tools/pdf-bundle`. Sign-up buttons go through
+      `LaunchCta`, so they open the early-access dialog while `SIGNUPS_ENABLED=off`. "Signed in"
+      on a public page is a display hint from the auth cookie's name only (`looksSignedIn`), never
+      an access decision. The Aadhaar mask gate applies unchanged. Each page carries canonical,
+      Open Graph and schema.org `WebApplication`/`FAQPage` data; `app/sitemap.ts` and
+      `app/robots.ts` list the public pages only. The dashboard tool headers and hub grid moved to
+      shared components (`tool-headers.tsx`, `tool-card-grid.tsx`) so both copies stay identical.
 - [x] Full `en`/`hi` verified with `npm run typecheck`, `npm run lint`, `npm test` (708 tests) and
       `npm run build:web`.
 
@@ -507,9 +537,45 @@ customer's consent OTP, get time-boxed read access. `docs/DATABASE.md` (0024, 00
       pre-consent eligibility preview, active banner; extension support (Phase 4)
 - [x] Tests: `rls-tests/roaming_access.test.ts`, `packages/core/src/roaming/grants.test.ts`,
       extension `roaming.test.ts`
+- [x] Consent by approval in the BharatDoc app (migration 0039, 2026-11-22): the operator picks
+      "BharatDoc app" or "OTP" in the extension; in app mode there is no duration picker — the
+      citizen sees the centre and purpose in the app, picks 1 h / 2 h / 4 h and taps Approve or
+      Deny; the panel polls and unlocks. Delivered only to the account whose verified sign-in
+      number is the customer's mobile (re-checked on approve); operator's view is identical
+      whether or not the customer uses the app. Grant `auth_method = 'app_approval'`.
+      `apps/web/lib/roaming/app-approval.ts` (+ test), `POST/GET/DELETE …/roaming/app-request`,
+      `/api/citizen/profile-requests[/:id/approve|deny]`, extension `RoamingAuthBanner`,
+      app `components/access/ProfileRequestHost.tsx` (polls every 6 s while open; push is Phase 3)
+- [ ] App approval: dashboard `roaming-auth-modal` still offers OTP only; RLS test for
+      `customer_access_requests`; works only once app phone sign-in has a live SMS sender
 - [ ] **Product owner:** OTP goes over WhatsApp only; SMS vendor not chosen
 - [ ] Schedule `expire_roaming_access_grants()`
 - [ ] Run the roaming RLS suite against a live Supabase (needs Docker)
+
+## Portal credential vault and one-click login ◐
+
+Product owner decision 2026-11-07 (spec §19.7a): keep citizens' OTR/SSO logins on the customer
+profile and fill them on the portal's login page, so operators stop losing 15–20 minutes to
+"Forgot password". `docs/SECURITY.md` §8 "Portal credential vault" has the controls.
+
+- [x] Spec §19.7 / §19.7a / §28.1 and DEVELOPMENT_RULES rule 11 updated for the decision
+- [x] `packages/core/src/portal-credentials/` — portal catalogue (SSC, UPSC, UPPSC, BPSC, Rajasthan
+      SSO, Haryana PPP, other), strict host allow-list, password generator + policy check, schemas
+- [x] Migration 0036 `customer_portal_credentials` — row-bound ciphertext, home-centre-only RLS
+- [x] Routes: list/create, update/delete, per-part reveal, slip (print / WhatsApp),
+      `POST /api/portal-credentials/login-fill`; `credential.manage` / `credential.use`; five audit
+      actions
+- [x] Dashboard "Portal logins" card: masked list, 30 s reveal, generator, thermal slip print,
+      WhatsApp send
+- [x] Extension "Log in as [customer]" card + `login-filler.ts`; form filler now refuses password
+      boxes on the live element too
+- [x] Tests: core `portal-credentials.test.ts`, `lib/portal-credentials/rows.test.ts`, extension
+      `portal-login.test.ts`, `rls-tests/portal_credentials.test.ts`
+- [ ] Run `portal_credentials.test.ts` against a live Supabase (needs Docker) and apply 0036
+- [ ] Verify each catalogue host and that each portal accepts a generated password
+- [ ] **Product owner / legal:** consent wording for storing a citizen's portal password (DPDP);
+      WhatsApp slip needs a Meta-approved template outside the 24-hour customer-service window
+- [ ] Chrome Web Store listing: disclose credential handling
 
 ## Walk-in document drop ◐
 
@@ -543,8 +609,8 @@ the operator previews them and saves them to a new, existing or roaming customer
 ## Citizen mobile app (`apps/mobile`) ◐
 
 Spec: `docs/CITIZEN_MOBILE_APP_SPEC.md` (§8 has the build status). Everything real runs on the
-phone; the app makes no network calls and uploads nothing. Mobile suite: 38 files, 489 tests
-passing (2026-11-07).
+phone; the app makes no network calls and uploads nothing (Google Play services' ML Kit traffic
+aside, see below). Mobile suite: 45 files, 617 tests passing (2026-11-22).
 
 Built:
 
@@ -555,6 +621,10 @@ Built:
 - [x] OpenCV pipeline (`react-native-fast-opencv`): straight-edge page detection, EXIF upright,
       perspective flattening, Magic Color / Original / Grayscale / B&W with paper-only lighting,
       sharpening and a per-page tone curve (`lib/scan/`, `docs/SCANNER_VFLAT_QUALITY_PLAN.md` §6)
+- [x] Google ML Kit Document Scanner for ordinary document scans on Android
+      (`lib/scan/platform-scanner.ts`, native module `modules/platform-scanner`): opens from
+      Scan, add page and retake; pages skip the page search and start on Original; falls back to
+      the in-app camera without Play services or on iOS; presets keep the in-app camera
 - [x] Scan review: filter cards, pinch zoom, crop editor with a corner loupe, quarter turns and
       ±45° straighten dial, retake, add and delete page
 - [x] Photo quality check (blur, dark, glare) with Retake / Keep on review
@@ -575,20 +645,52 @@ Screens only (no backend; sample data appears only in `__DEV__` builds):
 
 - [x] Splash, onboarding, mobile-number / OTP / profile registration screens — no SMS is sent,
       no code is checked, the profile is discarded
-- [ ] Security setup / app lock (placeholder)
 - [ ] Connect / nearby centres / centre details (no directory or location in release builds)
-- [ ] Profile account card (signed-out in release builds)
+- [x] Profile account card, Personal Information (edit name), Log out and Delete account —
+      both ask what happens to the documents on the phone (design D16); cloud builds only
 
 Remaining:
 
-- [ ] **Product owner:** Supabase phone OTP sign-in and what citizen profile data is stored
-- [ ] Biometric / PIN app lock
-- [ ] Cloud sync and the `citizen_accounts` / `citizen_vault_documents` / `operator_access_logs`
-      tables (spec §5)
-- [ ] Operator bridge in `apps/web` / `apps/extension`, consent access modes, access history
+- [x] **Product owner:** phone OTP sign-in and citizen profile data — decided 2026-11-11/17
+      (`docs/VAULT_BRIDGE_DESIGN.md` §1: SMS + WhatsApp fallback; name + language only; no age gate)
+- [ ] **Product owner:** DLT-registered SMS gateway account; `VAULT_MASTER_KEY` provisioned;
+      legal review of the cloud vault (design §11)
+- [ ] **Product owner:** accept ML Kit's Google usage-metrics traffic for the platform scanner,
+      and update the Play data-safety form and privacy policy (`CITIZEN_MOBILE_APP_SPEC.md` §8)
+- [ ] **On a device:** the platform scanner — open, cancel, retake, add page, 24-page cap, gallery
+      import, cache clean-up, and fallback with Play services disabled
+- [x] App lock: phone fingerprint / face / screen lock or a 4-digit app PIN, relock after a
+      minute away, wrong-PIN waits, Forgot PIN (`lib/security/`, `app/security.tsx`)
+- [ ] **On a device:** app lock — with and without biometrics, no screen lock (PIN only), relock
+      after Google's scanner and the share sheet, Forgot PIN reset
+- [x] Hide the app's screen in Android's recent-apps preview (Android 13+,
+      `modules/private-screen`; screenshots still allowed so citizens can keep a copy)
+- [x] Vault bound to the one cloud account it syncs with: a second person signing in on the same
+      phone never has the first person's documents uploaded into their vault
+- [x] Citizen vault schema (migration 0038), core rules, citizen account + PIN-restore API
+      (`/api/citizen/account`, `/api/citizen/restore/pin`) — run `test:rls` against it
+- [x] Citizen app sign-in / sign-up wired to Supabase phone auth and the account API, Vault PIN
+      restore on a new phone (`apps/mobile/lib/cloud/`) — off unless the build sets the
+      `EXPO_PUBLIC_*` values
+- [ ] **On a device:** phone OTP sign-in, sign-up, restore against a live SMS sender (or test OTPs)
+- [ ] Restore by old-phone approval and the 7-day hold (design §3.3)
+- [x] Cloud sync (design §3.2): upload intent, encrypted upload, confirm, rename, delete,
+      "Keep on this phone only" — not yet run on a device
+- [ ] Sync sweep: unconfirmed uploads and failed byte deletions (needs the jobs scheduler)
+- [ ] Bring synced documents back onto a restored phone
+- [x] Bridge API (design §6): operator lookup, share-code unlock, request status, grant
+      documents, file (access event written before any byte), End; citizen share code,
+      approve / deny, access overview, Stop (`apps/web/lib/vault/`, `lib/citizen/access.ts`,
+      unit-tested in `lib/vault/bridge.test.ts`)
+- [ ] Bridge screens: share-code and approve / deny in the app (Realtime), access history and
+      Stop; dashboard vault section; extension `vault_document` attachments; save-to-customer;
+      consent access modes — design: `docs/VAULT_BRIDGE_DESIGN.md`
 - [ ] Centre directory, location, directions; Connect & Share
-- [ ] On-device OCR; portal size presets (export under a KB limit); passport-photo background
-      replacement
+- [x] Portal size presets for photos and signatures: Document Details → More → Export for a
+      form (`lib/vault/portal-presets.ts`, `portal-export.ts`, presets from `document-tools`)
+- [ ] **On a device:** Export for a form on real photos and signatures — size within the
+      portal's KB window, framing, DPI
+- [ ] On-device OCR; passport-photo background replacement
 - [ ] Dewarping, finger removal
 - [ ] **On a device:** check the new OpenCV paths (low-contrast fallback, ID card sheet, photo
       and signature presets) and the quality thresholds on real photos — tests cover only the

@@ -14,12 +14,8 @@ import {
 } from '@assistigo/document-tools';
 import { useTranslations } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/documents/format';
-import {
-  downloadBytes,
-  previewBytes,
-  printImage,
-  saveDerivative,
-} from '@/lib/document-tools/save';
+import { downloadBytes, previewBytes, printImage, saveDerivative } from '@/lib/document-tools/save';
+import { AccountGate, useToolAccess } from './tool-access';
 import { ToolSection } from './tool-shell';
 
 export type ToolOutput = {
@@ -89,6 +85,7 @@ export function OutputPanel({
   className?: string;
 }) {
   const t = useTranslations();
+  const access = useToolAccess();
   const [customerId, setCustomerId] = useState<string>(defaultCustomerId ?? '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
@@ -102,9 +99,7 @@ export function OutputPanel({
       setPreviewUrl(null);
       return;
     }
-    const url = URL.createObjectURL(
-      new Blob([output.bytes.slice()], { type: output.mimeType }),
-    );
+    const url = URL.createObjectURL(new Blob([output.bytes.slice()], { type: output.mimeType }));
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [output]);
@@ -173,11 +168,7 @@ export function OutputPanel({
             {previewUrl ? (
               <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded border border-slate-200 bg-slate-50">
                 {/* operator's own machine; next/image would try to optimise it on the server. */}
-                <img
-                  src={previewUrl}
-                  alt=""
-                  className="max-h-full max-w-full object-contain"
-                />
+                <img src={previewUrl} alt="" className="max-h-full max-w-full object-contain" />
               </div>
             ) : (
               <div
@@ -278,44 +269,51 @@ export function OutputPanel({
             </div>
           ) : null}
 
-          <div className="space-y-2 border-t border-slate-100 pt-3">
-            <label className="block text-xs font-medium text-slate-700">
-              {t('documentTools.output.saveTo')}
-            </label>
-            <Select
-              value={customerId}
-              onChange={(event) => setCustomerId(event.target.value)}
-              className="py-1.5 text-sm"
-              aria-label={t('documentTools.output.saveTo')}
-            >
-              <option value="">{t('documentTools.output.noCustomer')}</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.label}
-                </option>
-              ))}
-            </Select>
-
-            {saveBlockedReason ? (
-              <Alert tone="warning">{t(saveBlockedReason)}</Alert>
-            ) : (
-              <Button
-                size="sm"
-                variant="secondary"
-                loading={saving}
-                onClick={save}
-                className="w-full"
+          {access.mode === 'guest' ? (
+            // A public /tools page: no session to save with, so the box becomes the way in.
+            <AccountGate
+              title={t('publicTools.gate.saveTitle')}
+              body={t('publicTools.gate.saveBody')}
+              className="mt-1"
+            />
+          ) : (
+            <div className="space-y-2 border-t border-slate-100 pt-3">
+              <label className="block text-xs font-medium text-slate-700">
+                {t('documentTools.output.saveTo')}
+              </label>
+              <Select
+                value={customerId}
+                onChange={(event) => setCustomerId(event.target.value)}
+                className="py-1.5 text-sm"
+                aria-label={t('documentTools.output.saveTo')}
               >
-                {saving ? null : <UserPlus className="h-3.5 w-3.5" aria-hidden />}
-                {t('documentTools.output.save')}
-              </Button>
-            )}
+                <option value="">{t('documentTools.output.noCustomer')}</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.label}
+                  </option>
+                ))}
+              </Select>
 
-            {saved ? (
-              <Alert tone="success">{t('documentTools.output.saved')}</Alert>
-            ) : null}
-            {error ? <Alert tone="danger">{t(error)}</Alert> : null}
-          </div>
+              {saveBlockedReason ? (
+                <Alert tone="warning">{t(saveBlockedReason)}</Alert>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={saving}
+                  onClick={save}
+                  className="w-full"
+                >
+                  {saving ? null : <UserPlus className="h-3.5 w-3.5" aria-hidden />}
+                  {t('documentTools.output.save')}
+                </Button>
+              )}
+
+              {saved ? <Alert tone="success">{t('documentTools.output.saved')}</Alert> : null}
+              {error ? <Alert tone="danger">{t(error)}</Alert> : null}
+            </div>
+          )}
 
           {recipeSteps.length > 0 ? (
             <details className="border-t border-slate-100 pt-2">

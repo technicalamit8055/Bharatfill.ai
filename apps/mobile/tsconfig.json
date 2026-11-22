@@ -23,6 +23,9 @@
       ],
       "@assistigo/core/*": [
         "../../packages/core/src/*"
+      ],
+      "@assistigo/document-tools": [
+        "../../packages/document-tools/src/index.ts"
       ]
     }
   },

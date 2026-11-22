@@ -16,9 +16,10 @@ import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ChevronLeft, SearchX } from 'lucide-react-native';
 import { useCallback, useMemo } from 'react';
-import { Alert, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { showDialog } from '../../../lib/dialog/dialog-store';
 import { CentreDetailsScreen } from '../../../components/connect/CentreDetailsScreen';
 import { demoNearbyCentres } from '../../../components/connect/demo';
 import { connectPalette as palette } from '../../../components/connect/palette';
@@ -42,7 +43,7 @@ export default function CentreDetailsRoute() {
 
   const comingSoon = useCallback(
     (bodyKey: string) => {
-      Alert.alert(t('common.comingSoon'), t(bodyKey), [{ text: t('common.ok') }]);
+      showDialog(t('common.comingSoon'), t(bodyKey), [{ text: t('common.ok') }], { tone: 'brand' });
     },
     [t],
   );
@@ -57,9 +58,12 @@ export default function CentreDetailsRoute() {
     try {
       await Share.share({ title: centre.name, message: shareMessage(centre, t) });
     } catch {
-      Alert.alert(t('common.errorTitle'), t('connect.centre.shareFailed'), [
-        { text: t('common.ok') },
-      ]);
+      showDialog(
+        t('common.errorTitle'),
+        t('connect.centre.shareFailed'),
+        [{ text: t('common.ok') }],
+        { tone: 'danger' },
+      );
     }
   }, [centre, t]);
 

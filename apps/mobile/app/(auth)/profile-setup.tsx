@@ -3,45 +3,60 @@
  * `components/registration/ProfileSetupScreen.tsx`; this route owns navigation and what
  * happens to the finished profile.
  *
- * Saving the profile is not wired yet. The spec's `citizen_accounts` table has only
- * `full_name`; storing date of birth, gender and state is a new sensitive-data decision that
- * needs product-owner sign-off. Until then Continue says so plainly — except in development
- * builds, where it continues the demo walk-through to security setup — and the profile is
- * discarded either way: it is not stored, logged or sent anywhere. The preferred language is
- * the one exception — the screen applies it to the app as soon as it is picked.
+ * The profile is just a name and a language (docs/VAULT_BRIDGE_DESIGN.md D10). Cloud builds
+ * keep it in memory (`lib/cloud/registration-draft.ts`) and go on to the Vault PIN step, which
+ * creates the account. Offline builds say saving is not available — except in development,
+ * where the demo walk-through continues — and discard it.
  */
 
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
-import { Alert } from 'react-native';
 
+import { showDialog } from '../../lib/dialog/dialog-store';
 import { ProfileSetupScreen } from '../../components/registration/ProfileSetupScreen';
+import { cloudConfig } from '../../lib/cloud/config';
+import { clearRegistrationDraft, setRegistrationDraft } from '../../lib/cloud/registration-draft';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
+import type { SignupProfile } from '../../lib/profile/profile';
 
 export default function ProfileSetupRoute() {
   const router = useRouter();
   const { t } = useTranslation();
 
   const handleBack = useCallback(() => {
+    clearRegistrationDraft();
     if (router.canGoBack()) router.back();
     else router.replace('/(auth)/mobile-number');
   }, [router]);
 
   const handleSkip = useCallback(() => {
+    clearRegistrationDraft();
     router.replace('/(tabs)');
   }, [router]);
 
-  const handleContinue = useCallback(() => {
-    // Development-only demo: carry on to security setup (step 3) so the flow can be walked
-    // through. The profile is still discarded.
-    if (__DEV__) {
-      router.push('/(auth)/security-setup');
-      return;
-    }
-    Alert.alert(t('profileSetup.saveUnavailableTitle'), t('profileSetup.saveUnavailableBody'), [
-      { text: t('registration.ok') },
-    ]);
-  }, [router, t]);
+  const handleContinue = useCallback(
+    (profile: SignupProfile) => {
+      if (cloudConfig()) {
+        setRegistrationDraft({
+          displayName: profile.fullName,
+          preferredLocale: profile.language,
+        });
+        router.push('/(auth)/security-setup');
+        return;
+      }
+      if (__DEV__) {
+        router.push('/(auth)/security-setup');
+        return;
+      }
+      showDialog(
+        t('profileSetup.saveUnavailableTitle'),
+        t('profileSetup.saveUnavailableBody'),
+        [{ text: t('registration.ok') }],
+        { tone: 'warning' },
+      );
+    },
+    [router, t],
+  );
 
   return <ProfileSetupScreen onBack={handleBack} onSkip={handleSkip} onContinue={handleContinue} />;
 }

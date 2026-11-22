@@ -35,7 +35,14 @@ export function DeleteCustomerButton({ customerId }: { customerId: string }) {
 
   if (!confirming) {
     return (
-      <Button variant="danger" size="sm" onClick={() => setConfirming(true)}>
+      // Quiet until confirming: a solid red button beside "Edit customer" was the loudest thing in
+      // the header and easy to hit by mistake. The confirm step below stays solid red.
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setConfirming(true)}
+        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+      >
         <DeleteIcon className="mr-1.5 h-4 w-4" />
         {t('common.delete')}
       </Button>

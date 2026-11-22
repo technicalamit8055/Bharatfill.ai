@@ -116,11 +116,11 @@
     "consentAnd": "and the",
     "consentPrivacy": "Privacy Policy",
     "consentSuffix": "",
-    "signupsClosed": "New accounts open when Bharatfill launches this Diwali. If you already have an account, please sign in."
+    "signupsClosed": "New accounts open when Bharatfill launches this Christmas. If you already have an account, please sign in."
   },
   "launch": {
-    "pill": "Launching this Diwali",
-    "title": "Bharatfill arrives this Diwali",
+    "pill": "Launching this Christmas",
+    "title": "Bharatfill arrives this Christmas",
     "body": "We are putting the final touches on the Chrome extension. New accounts open on launch day.",
     "offerLead": "Be among the first 100 Cyber Cafés & CSC operators to get",
     "offerHighlight": "1 Month of Unlimited AI Form Autofill Free.",
@@ -392,7 +392,23 @@
       "verifyAndUnlock": "Verify & unlock",
       "activeUntil": "Roaming access active: {remaining} remaining",
       "endSession": "Lock & end session",
-      "tabRoamingCount": "Roaming customers ({count})"
+      "tabRoamingCount": "Roaming customers ({count})",
+      "app": {
+        "title": "BharatDoc app",
+        "help": "If this customer uses the BharatDoc app, send a request to their app, or ask them to open Share → Centre and read you the 6-digit code.",
+        "sendRequest": "Send request to app",
+        "or": "or",
+        "codeLabel": "Code from the customer’s app",
+        "codePlaceholder": "6-digit code",
+        "openWithCode": "Open",
+        "waiting": "Request sent. Ask the customer to open the BharatDoc app and tap Approve.",
+        "declined": "No approval came. The customer can try again, or read you the code from the app.",
+        "openFor": "Open for {minutes} min",
+        "done": "Done",
+        "noDocuments": "The customer has no documents in their cloud vault.",
+        "pages": "{count} page(s)",
+        "view": "View"
+      }
     },
     "heroSubtitle": "Manage your customers, view details, and help them with form filling and applications.",
     "addedOn": "Added on",
@@ -437,7 +453,38 @@
       "copyValue": "Copy {label}",
       "auditDetails": "Details",
       "applicationsEmptyHelp": "All form applications for this customer will appear here.",
-      "fillSessionsEmptyHelp": "Track when forms were filled for this customer."
+      "fillSessionsEmptyHelp": "Track when forms were filled for this customer.",
+      "tabs": {
+        "label": "Customer sections",
+        "profile": "Profile",
+        "documents": "Documents",
+        "applications": "Applications",
+        "logins": "Portal logins",
+        "activity": "Activity",
+        "opportunities": "Opportunities"
+      },
+      "missingTitle": "Not added yet ({count})",
+      "missingHelp": "Tap a section to fill it in.",
+      "nextSteps": {
+        "title": "What to do next",
+        "subtitle": "Follow these steps for this customer, in order.",
+        "progress": "{done} of {total} done",
+        "view": "View",
+        "profileTitle": "Complete the profile",
+        "profileDone": "Key details are filled in",
+        "profileMissing": "{count} key sections missing",
+        "profileAction": "Paste or upload details",
+        "documentsTitle": "Collect documents",
+        "documentsDone": "{count} uploaded",
+        "documentsTodo": "No documents yet",
+        "documentsAction": "Upload document",
+        "applicationsTitle": "Start an application",
+        "applicationsDone": "{count} started",
+        "applicationsTodo": "No applications yet"
+      },
+      "opportunitiesButton": "{count} opportunities",
+      "opportunitiesNone": "Schemes",
+      "opportunitiesUpTo": "up to {amount}"
     },
     "activity": {
       "created": "Customer profile created",
@@ -447,6 +494,58 @@
       "updatedFields": "{count} profile fields updated",
       "revealed": "A hidden field was viewed",
       "revealedField": "{field} was viewed"
+    },
+    "portalLogins": {
+      "title": "Portal logins",
+      "subtitle": "Saved OTR and SSO logins. The extension can fill them on the portal’s login page.",
+      "add": "Add login",
+      "empty": "No portal logins saved yet.",
+      "emptyHelp": "Save the candidate’s SSC, UPSC or state OTR login so you never need “Forgot password” again.",
+      "portal": "Portal",
+      "portalLabel": "Portal name",
+      "loginId": "Login ID",
+      "password": "Password",
+      "generate": "Generate",
+      "generateHelp": "A random password the portal will accept. Set it on the portal first, then save it here.",
+      "keepPassword": "Leave blank to keep the saved password.",
+      "keepLoginId": "Leave blank to keep the saved login ID ({hint}).",
+      "clearPassword": "Remove saved password",
+      "securityQuestion": "Security question",
+      "securityAnswer": "Security answer",
+      "keepAnswer": "Leave blank to keep the saved answer.",
+      "linkedApplications": "Linked applications",
+      "linkedLabel": "Exam / application",
+      "linkedNumber": "Roll / application no.",
+      "addLinked": "Add application",
+      "remove": "Remove",
+      "hide": "Hide",
+      "noPassword": "No password saved",
+      "passwordSaved": "Password saved {date}",
+      "lastUsed": "Last used {date}",
+      "oneClick": "One-click login in the extension",
+      "vaultOnly": "Stored only — no one-click login",
+      "printSlip": "Print slip",
+      "sendWhatsapp": "Send on WhatsApp",
+      "sent": "Sent to the customer’s WhatsApp.",
+      "confirmDelete": "Remove this login?",
+      "policyWarning": "The portal may not accept this password: {issues}.",
+      "privacyNote": "Logins are encrypted. Every view, fill and slip is recorded in the activity log.",
+      "issues": {
+        "too_short": "too short",
+        "too_long": "too long",
+        "needs_upper": "needs a capital letter",
+        "needs_lower": "needs a small letter",
+        "needs_digit": "needs a number",
+        "needs_special": "needs a symbol (@ # $)",
+        "has_whitespace": "has a space"
+      },
+      "slip": {
+        "title": "{portal} login",
+        "candidate": "Candidate",
+        "keepPrivate": "Keep this private. Nobody from the portal or Bharatfill will ever call you to ask for it.",
+        "whatsappTitle": "Bharatfill — your {portal} login",
+        "printed": "Printed {date}"
+      }
     }
   },
   "applications": {
@@ -816,7 +915,13 @@
           "benefitFamilies": "For eligible low-income families"
         }
       }
-    }
+    },
+    "tabActiveShort": "Ready",
+    "tabUpcomingShort": "Soon",
+    "tabActionableShort": "Need docs",
+    "showMore": "More",
+    "showLess": "Less",
+    "docsMissingShort": "{count} docs missing"
   },
   "fillSessions": {
     "title": "Fill sessions",
@@ -956,9 +1061,16 @@
       "customer.roaming_lookup": "Looked up a customer across the network",
       "customer.roaming_linked": "Roaming customer linked to this counter",
       "customer.roaming_otp_requested": "Consent code sent to a roaming customer",
+      "customer.roaming_approval_requested": "Roaming customer asked to approve in the BharatDoc app",
+      "customer.roaming_approval_denied": "Roaming customer denied access in the BharatDoc app",
       "customer.roaming_access_granted": "Roaming access granted",
       "customer.roaming_access_revoked": "Roaming access ended",
-      "customer.roaming_access_expired": "Roaming access expired"
+      "customer.roaming_access_expired": "Roaming access expired",
+      "customer.portal_credential_saved": "Portal login saved",
+      "customer.portal_credential_deleted": "Portal login removed",
+      "customer.portal_credential_revealed": "Portal login detail viewed",
+      "customer.portal_login_filled": "Portal login filled by the extension",
+      "customer.portal_credential_slip_issued": "Portal login slip printed or sent"
     }
   },
   "settings": {
@@ -1225,6 +1337,8 @@
     "roaming_link_same_org": "This customer is already registered at your own centre.",
     "roaming_no_mobile_on_file": "This customer has no mobile number on file to send a code to.",
     "roaming_otp_rate_limited": "Too many codes have been requested for this customer recently. Please wait a few minutes and try again.",
+    "roaming_app_request_rate_limited": "Too many approval requests have been sent to this customer recently. Please wait a few minutes and try again.",
+    "roaming_request_missing": "This approval request has ended or is not available.",
     "roaming_whatsapp_not_configured": "WhatsApp is not configured for this deployment. Contact support.",
     "roaming_sms_not_configured": "SMS is not available yet. Please use WhatsApp instead.",
     "roaming_otp_send_failed": "The code could not be sent. Please try again.",
@@ -1233,7 +1347,37 @@
     "roaming_otp_incorrect": "That code is not correct. Please check and try again.",
     "roaming_no_active_session": "There is no active roaming session to end.",
     "console_session_required": "Sign in to the console to continue.",
-    "organization_suspended": "This centre’s access has been paused by Bharatfill. Contact support to restore it."
+    "organization_suspended": "This centre’s access has been paused by Bharatfill. Contact support to restore it.",
+    "portal_credential_exists": "This customer already has a saved login for that portal. Edit it instead.",
+    "portal_credential_unreadable": "This saved login could not be read. Save it again.",
+    "portal_credential_missing": "No saved login for this portal.",
+    "portal_login_host_not_allowed": "That page is not an allow-listed portal login page.",
+    "portal_slip_whatsapp_not_configured": "WhatsApp is not set up yet. Print the slip instead.",
+    "portal_slip_send_failed": "The WhatsApp message could not be sent. Print the slip instead.",
+    "portal_slip_no_mobile": "This customer has no mobile number on file.",
+    "vault": {
+      "unavailable": "Bharatfill Vault is not available right now. Please try again later.",
+      "mobile_invalid": "Enter a valid 10-digit Indian mobile number.",
+      "name_required": "Enter your name as it appears on your documents.",
+      "pin_format": "The Vault PIN must be 4 digits.",
+      "pin_weak": "Choose a PIN that is harder to guess — not one digit repeated or 1234.",
+      "pin_wrong": "That PIN is not right. Please try again.",
+      "pin_locked": "Too many wrong PINs. PIN unlock is paused for 24 hours — you can also approve from your old phone.",
+      "pin_disabled": "PIN unlock is switched off after too many wrong tries. Approve from your old phone, or wait 7 days.",
+      "account_exists": "This number already has a Bharatfill Vault.",
+      "account_missing": "Finish signing up to use your vault.",
+      "code_format": "The code from the customer’s app has 6 digits.",
+      "device_unknown": "This phone is not linked to your vault any more. Please sign in again.",
+      "document_missing": "That document is no longer in your cloud vault.",
+      "sync_off": "Cloud backup is off for your vault. Turn it on to keep documents in the cloud.",
+      "upload_mismatch": "A document did not upload completely. It will be sent again.",
+      "grant_missing": "This access has ended or is not available.",
+      "request_missing": "This request has ended or is not available.",
+      "lookup_limited": "Too many vault lookups. Please wait a little and try again.",
+      "code_paused": "Too many wrong codes. Code entry is paused for a while — ask the customer to approve from their app.",
+      "code_wrong": "That code is not right, or it has expired. Ask the customer for a new code.",
+      "pin_same": "The new PIN must be different from your current PIN."
+    }
   },
   "privacy": {
     "sensitiveNotice": "Sensitive value. Revealing it is recorded in the audit log.",
@@ -1702,6 +1846,44 @@
       "image_to_pdf": "Converted to PDF",
       "rasterise": "Redrawn as images",
       "decrypt": "Unlocked"
+    },
+    "bundle": {
+      "title": "PDF bundle",
+      "description": "Put several of a customer's documents into one PDF, in the order the portal asks, under its size limit.",
+      "openFromStudio": "Build one PDF from a customer's stored documents",
+      "customer": "Customer",
+      "chooseCustomer": "Choose a customer",
+      "customerHint": "Documents come from this customer's file. Nothing is uploaded to build the PDF.",
+      "loadingDocuments": "Loading documents…",
+      "set": "Document set",
+      "setHint": "A starting order. Check the portal's upload box for the exact documents, order and size limit.",
+      "custom": "Custom",
+      "documents": "Documents, in order",
+      "documentsHint": "Untick a document to leave it out. Use the arrows to change the order.",
+      "notOnFile": "Not on file for this customer",
+      "uploadMissing": "Upload a document",
+      "chooseDocument": "Choose a document",
+      "otherDocuments": "Other documents",
+      "include": "Include",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "remove": "Remove",
+      "addDocument": "Add a document type",
+      "empty": "Choose a document set, or add a document type.",
+      "targetSize": "Size limit",
+      "targetHint": "Leave blank for no limit.",
+      "build": "Build PDF",
+      "building": "Building PDF…",
+      "summary": "{documents} documents · {pages} pages",
+      "privacy": "Opening each document is recorded in the audit log, the same as a download. The PDF is built in this browser.",
+      "passwordFor": "{name} is password protected. Enter its password to include it.",
+      "imagePagesNote": "Photos and scans are placed on A4 pages.",
+      "errors": {
+        "listFailed": "Could not load this customer's documents. Try again.",
+        "fetchFailed": "Could not open one of the documents. Try again.",
+        "nothingSelected": "Tick at least one document that is on file.",
+        "noPermission": "Your role cannot open customer documents. Ask an admin."
+      }
     }
   },
   "admin": {
@@ -2695,7 +2877,8 @@
         "howItWorks": "How It Works",
         "whereItWorks": "Where It Works",
         "pricing": "Pricing",
-        "faq": "FAQ"
+        "faq": "FAQ",
+        "tools": "Free Tools"
       },
       "signIn": "Sign In",
       "addToChrome": "Add to Chrome — Free",
@@ -3087,7 +3270,9 @@
         "howItWorks": "How It Works",
         "whereItWorks": "Where It Works",
         "pricing": "Pricing Plans",
-        "faq": "FAQ"
+        "faq": "FAQ",
+        "tools": "Free Tools",
+        "changelog": "Changelog"
       },
       "legal": {
         "title": "Legal & Compliance",
@@ -3108,11 +3293,280 @@
       },
       "copyright": "© {year} Bharatfill.ai. All rights reserved.",
       "disclaimer": "Bharatfill is an independent software tool. It is not affiliated with, endorsed by, or connected to any government department or official portal."
+    },
+    "changelog": {
+      "meta": {
+        "title": "Changelog — Bharatfill",
+        "description": "What is new in Bharatfill: every improvement to the dashboard, the Chrome extension, document tools and the citizen app."
+      },
+      "eyebrow": "Changelog",
+      "title": "What's new in Bharatfill",
+      "subtitle": "Every improvement to the dashboard, the Chrome extension, document tools and the citizen app, newest first.",
+      "back": "Back to home",
+      "ui": {
+        "filtersLabel": "Filter changes",
+        "searchLabel": "Search changes",
+        "searchPlaceholder": "Search, e.g. upload, SSC, scanner",
+        "searchHint": "Press / to search",
+        "clearSearch": "Clear search",
+        "areaLabel": "Area",
+        "tagLabel": "Type",
+        "all": "All",
+        "results": "{changes} of {total} changes",
+        "clearFilters": "Clear filters",
+        "emptyTitle": "No changes match",
+        "emptyBody": "Try another word, or clear the filters to see every change.",
+        "expandAll": "Expand all",
+        "collapseAll": "Collapse all",
+        "itemCount": {
+          "one": "1 change",
+          "other": "{count} changes"
+        },
+        "copyLink": "Copy link to this release",
+        "copied": "Link copied"
+      },
+      "tags": {
+        "new": "New",
+        "improved": "Improved",
+        "fixed": "Fixed"
+      },
+      "areas": {
+        "dashboard": "Dashboard",
+        "extension": "Chrome extension",
+        "documentTools": "Document tools",
+        "citizenApp": "Citizen app",
+        "website": "Website"
+      },
+      "releases": {
+        "vaultHome": {
+          "title": "Your vault on the home screen, and a photo check before you save",
+          "summary": "The citizen app now shows what is really in your vault and catches unusable photos early.",
+          "items": {
+            "homeVault": "Home shows the documents saved in your vault, with a count for each category and your newest files. Tap one to open it.",
+            "photoQuality": "The scanner checks each page for blur, darkness and glare, and lets you retake it or keep it before saving.",
+            "scanPresets": "New scan presets for ID cards, photos and signatures, a steadier page outline and better edge detection on low-contrast paper."
+          }
+        },
+        "liveDomain": {
+          "title": "Extension connects to the live dashboard",
+          "summary": "Pair the Chrome extension with your account at bharatfillai.in.",
+          "items": {
+            "pairLive": "The Chrome extension can now pair with the live dashboard at bharatfillai.in."
+          }
+        },
+        "earlyAccess": {
+          "title": "Early access is open",
+          "summary": "Centres can register interest ahead of the public launch.",
+          "items": {
+            "signUp": "Leave your details on the website to be among the first centres onboarded when Bharatfill launches."
+          }
+        },
+        "smartUploads": {
+          "title": "Smarter document uploads",
+          "summary": "The extension picks the right file for each upload box and fixes its size for you.",
+          "items": {
+            "autoMatch": "When a customer document clearly fits an upload box on the portal, it is selected for you. You can still change it.",
+            "autoFit": "A file outside the portal's size or format limits is resized or converted automatically, and each box shows its limits, for example \"Between 50 KB and 200 KB\".",
+            "alreadyMatched": "When reviewing a document, fields that already match the customer's verified profile are accepted and tucked away, so you only check what is new.",
+            "storedStatus": "Photos and signatures are marked Saved straight away instead of waiting to be read.",
+            "sscEducation": "SSC Education Details now fill from the customer's education level."
+          }
+        },
+        "freshLook": {
+          "title": "A fresh look",
+          "summary": "A redesigned dashboard, website and sign-in screens.",
+          "items": {
+            "dashboard": "A cleaner dashboard layout across every screen.",
+            "landing": "A new website that works well on phones, tablets and desktops.",
+            "signIn": "Refreshed sign-in, sign-up and extension connect screens."
+          }
+        },
+        "citizenPreview": {
+          "title": "Citizen app preview",
+          "summary": "A first look at the phone app for keeping your own documents ready.",
+          "items": {
+            "scanner": "Scan documents with your phone camera. The app finds the page edges and captures it when it is steady.",
+            "vault": "Keep scans in a private vault on your phone, in English or Hindi, with reminders for documents that need renewing.",
+            "centres": "Find a nearby service centre that can help with your application."
+          }
+        },
+        "multiStage": {
+          "title": "Multi-page forms and document picking",
+          "summary": "Long portal forms and document uploads take fewer steps.",
+          "items": {
+            "multiStage": "After you press the portal's own Proceed button, the extension carries on filling the next page of the same application.",
+            "documentPicker": "Pick a customer's document right from the extension, preview it, then attach it to the portal's upload box.",
+            "dropPreview": "Walk-in drop files can be previewed, downloaded, and saved to an existing customer or a roaming customer."
+          }
+        },
+        "roaming": {
+          "title": "Roaming customers and walk-in drop",
+          "summary": "Serve customers registered at another centre, and collect documents from their phones.",
+          "items": {
+            "roaming": "Help a customer registered at another centre, with the customer's consent, for a limited time only. You can check scheme eligibility before access is granted.",
+            "roamingExtension": "Roaming customers can be found and filled from the Chrome extension too.",
+            "walkInDrop": "Customers scan a QR code at your counter and upload documents from their own phone. Print a counter standee from the dashboard."
+          }
+        },
+        "schemes": {
+          "title": "Schemes and vacancies",
+          "summary": "See what is open and who it is for.",
+          "items": {
+            "schemes": "Browse open schemes and vacancies with their application windows, and see which of your customers may be eligible."
+          }
+        },
+        "directUpload": {
+          "title": "Direct uploads and better reading",
+          "summary": "Fewer steps to get a document into a customer profile.",
+          "items": {
+            "upload": "Upload a document straight to a customer's profile from the dashboard.",
+            "openDashboard": "Open the dashboard in a new tab from the extension side panel.",
+            "reading": "More reliable reading of text from uploaded documents."
+          }
+        },
+        "dashboardRevamp": {
+          "title": "New dashboard, applications and document tools",
+          "summary": "Track applications and prepare photos and PDFs without leaving Bharatfill.",
+          "items": {
+            "dashboard": "A redesigned home dashboard with live counts and recent customers.",
+            "applications": "Track each application from start to finish, with status, a document checklist and filters.",
+            "documentTools": "Document tools: a Photo & Signature studio, a passport photo grid, PDF tools and a PVC card maker, with size presets for common exam portals."
+          }
+        },
+        "newLogo": {
+          "title": "New logo and editable customer details",
+          "summary": "A new brand mark and quicker profile fixes.",
+          "items": {
+            "logo": "The new Bharatfill logo across the website, dashboard and extension.",
+            "editCustomer": "Edit a customer's details right from their profile, and refresh lists with one tap."
+          }
+        },
+        "customerCrm": {
+          "title": "Customer records",
+          "summary": "The foundation: one place for every customer you serve.",
+          "items": {
+            "customers": "Add customers once and find them again by name or mobile number. You are warned before creating a duplicate.",
+            "languages": "Use the whole dashboard in English or Hindi, and switch at any time.",
+            "phones": "Works on phones and tablets as well as desktops."
+          }
+        }
+      }
     }
   },
   "suspended": {
     "title": "Access paused",
     "body": "Bharatfill has paused access for {name}. The dashboard and the browser extension are unavailable until it is restored.",
     "dataSafe": "Nothing has been deleted. Your customers, documents and applications are kept exactly as they were. Contact Bharatfill support to restore access."
+  },
+  "publicTools": {
+    "meta": {
+      "title": "Free document tools for photos, signatures & PDFs",
+      "description": "Free online tools for exam and government forms: resize photos and signatures to portal sizes, make passport photo sheets, print PVC cards and compress PDFs. No sign-up."
+    },
+    "hub": {
+      "eyebrow": "Free · No sign-up needed",
+      "title": "Free document tools for online forms",
+      "subtitle": "Resize photos and signatures to exam-portal sizes, make passport photo sheets, lay out PVC cards and merge or compress PDFs. Everything runs in your browser — nothing is uploaded."
+    },
+    "benefits": {
+      "free": "Free, no account needed",
+      "private": "Files stay on your device",
+      "presets": "Presets for SSC, UPSC, NTA, IBPS & more",
+      "print": "Print-ready sheets"
+    },
+    "back": "Free tools",
+    "steps": {
+      "heading": "How it works"
+    },
+    "account": {
+      "eyebrow": "Free account",
+      "title": "Do more with a free Bharatfill account",
+      "body": "The tools stay free either way. An account adds the parts that need a safe place to keep files — and the form autofill Bharatfill is built for.",
+      "signUp": "Create free account",
+      "signIn": "Sign in",
+      "openDashboard": "Open in your dashboard",
+      "locked": "Account needed",
+      "features": {
+        "save": {
+          "title": "Save to customer profiles",
+          "body": "Keep every prepared photo, signature and PDF with the customer it belongs to."
+        },
+        "bundle": {
+          "title": "PDF bundle",
+          "body": "Merge a customer's saved documents into one PDF under a portal's size limit."
+        },
+        "autofill": {
+          "title": "Form autofill",
+          "body": "Fill supported online forms from a saved profile with the Chrome extension — you check every field and submit it yourself."
+        },
+        "track": {
+          "title": "Application tracking",
+          "body": "Follow every application from draft to approval in one place."
+        }
+      }
+    },
+    "gate": {
+      "saveTitle": "Save a copy to a customer profile",
+      "saveBody": "Your file is ready — download it above. To keep a copy on a customer's profile, create a free account or sign in.",
+      "saveSignedIn": "You're signed in. Open this tool in your dashboard to save copies to customer profiles.",
+      "bundle": "Needs a free account — it uses documents saved to a customer's profile."
+    },
+    "faq": {
+      "heading": "Frequently asked questions",
+      "free": {
+        "q": "Are these tools really free?",
+        "a": "Yes. Every tool here works without an account and without payment. A free account only adds features that keep files for you, like saving to customer profiles and PDF bundles."
+      },
+      "upload": {
+        "q": "Are my photos and documents uploaded?",
+        "a": "No. Cropping, resizing, compressing and page edits all happen in your browser, on your device. Nothing is sent to Bharatfill unless you sign in and choose to save a copy."
+      },
+      "presets": {
+        "q": "Will the portal accept my file?",
+        "a": "The presets follow each portal's published or commonly reported limits, and the size meter shows whether your file fits. Always check the current notice for your exam or scheme before you upload."
+      },
+      "account": {
+        "q": "When do I need an account?",
+        "a": "Only to save prepared files to customer profiles, build a PDF bundle from saved documents, autofill forms and track applications."
+      }
+    },
+    "tools": {
+      "photoSignature": {
+        "metaTitle": "Photo & Signature Resizer for Exam Forms — Free Online",
+        "metaDescription": "Resize photos and signatures to SSC, UPSC, NTA, IBPS and railway portal sizes. Hit an exact KB limit and clean up signatures — free, no sign-up.",
+        "heading": "Photo & signature resizer",
+        "description": "Crop to an exam-portal preset, clean up a signature and hit an exact KB size — free, in your browser.",
+        "stepOne": "Choose a photo or signature from your device.",
+        "stepTwo": "Pick the exam or portal preset, then crop and adjust.",
+        "stepThree": "Download a file that fits the portal's size and KB limits."
+      },
+      "passportGrid": {
+        "metaTitle": "Passport Size Photo Maker — Print 4, 8, 12 or 16 Photos",
+        "metaDescription": "Make a printable sheet of passport-size photos on 4×6 or A4 paper with cut marks. Choose 4, 8, 12 or 16 copies — free, no sign-up, nothing uploaded.",
+        "heading": "Passport size photo maker",
+        "description": "Lay out 4, 8, 12 or 16 passport-size photos on 4×6 or A4 paper, ready to print and cut.",
+        "stepOne": "Choose a photo from your device.",
+        "stepTwo": "Pick the photo size, the paper and the number of copies.",
+        "stepThree": "Download or print the sheet, then cut along the marks."
+      },
+      "pvcCard": {
+        "metaTitle": "PVC Card Maker & Aadhaar Masking — Free Print Layout",
+        "metaDescription": "Lay out the front and back of an ID card for PVC printing, unlock an e-Aadhaar PDF and mask the Aadhaar number — free, in your browser, nothing uploaded.",
+        "heading": "PVC card maker & Aadhaar masking",
+        "description": "Lay out a card's front and back for printing, unlock an e-Aadhaar PDF and mask the number before you print.",
+        "stepOne": "Open the e-Aadhaar PDF or card images from your device.",
+        "stepTwo": "Line up the front and back, and mask the Aadhaar number.",
+        "stepThree": "Download or print the card layout."
+      },
+      "pdfStudio": {
+        "metaTitle": "Merge, Split & Compress PDF to KB — Free Online PDF Tool",
+        "metaDescription": "Merge, split, reorder, rotate and compress PDFs to a portal's size limit, right in your browser. Free, no sign-up, and your files are never uploaded.",
+        "heading": "Merge, split & compress PDF",
+        "description": "Merge, split, reorder, rotate and compress PDFs to a portal's size limit — free, in your browser.",
+        "stepOne": "Add one or more PDFs from your device.",
+        "stepTwo": "Merge, split, reorder or rotate the pages.",
+        "stepThree": "Compress to the size limit and download."
+      }
+    }
   }
 }

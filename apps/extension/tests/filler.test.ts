@@ -13,7 +13,7 @@ import {
   findElementBySignature,
 } from '../src/content/filler';
 import { installFileApis } from './file-input-shim';
-import { detectFields } from '../src/content/detector';
+import { detectFields, detectFieldsInFrames } from '../src/content/detector';
 
 function render(html: string): Document {
   document.body.innerHTML = html;
@@ -492,6 +492,90 @@ describe('filler — signature resolution', () => {
     const signature = signatureOf(doc, 'full_name');
     render(`<form><input name="something_else" /></form>`);
     expect(findElementBySignature(document, signature)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Same-origin iframes: the detector reads them as frame `i + 1`, so the filler must find them
+// there — with elements from the frame's own realm, where `instanceof HTMLInputElement` is false.
+// ---------------------------------------------------------------------------
+
+/** Renders `outer` in the page and `inner` inside its first, same-origin iframe. */
+function renderWithFrame(outer: string, inner: string): { doc: Document; frameDoc: Document } {
+  document.body.innerHTML = `${outer}<iframe></iframe>`;
+  const frameDoc = document.querySelector('iframe')!.contentDocument!;
+  frameDoc.body.innerHTML = inner;
+  return { doc: document, frameDoc };
+}
+
+function framedSignatureOf(doc: Document, name: string, frame: number): string {
+  const field = detectFieldsInFrames(doc).find(
+    (candidate) => candidate.name === name && candidate.frame === frame,
+  );
+  if (!field) throw new Error(`no detected field named ${name} in frame ${frame}`);
+  return field.signature;
+}
+
+describe('filler — same-origin iframes', () => {
+  it('fills a text input inside an iframe', async () => {
+    const { doc, frameDoc } = renderWithFrame('', `<form><input name="full_name" /></form>`);
+    const input = frameDoc.querySelector('input')!;
+    // The point of the test: this element is not an instance of the page's own constructor.
+    expect(input instanceof HTMLInputElement).toBe(false);
+
+    const events: string[] = [];
+    input.addEventListener('input', () => events.push('input'));
+    input.addEventListener('change', () => events.push('change'));
+
+    const results = await applyFill(doc, [
+      { signature: framedSignatureOf(doc, 'full_name', 1), value: 'Amit Kumar', inputType: 'text' },
+    ]);
+
+    expect(results[0]?.action).toBe('filled');
+    expect(input.value).toBe('Amit Kumar');
+    expect(events).toEqual(['input', 'change']);
+  });
+
+  it('selects a dropdown option inside an iframe', async () => {
+    const { doc, frameDoc } = renderWithFrame(
+      '',
+      `<form><select name="state"><option value="">Select</option><option value="BR">Bihar</option></select></form>`,
+    );
+
+    const results = await applyFill(doc, [
+      { signature: framedSignatureOf(doc, 'state', 1), value: 'BR', inputType: 'select' },
+    ]);
+
+    expect(results[0]?.action).toBe('filled');
+    expect(frameDoc.querySelector('select')!.value).toBe('BR');
+  });
+
+  it('keeps a page field and a framed field of the same name apart', async () => {
+    const { doc, frameDoc } = renderWithFrame(
+      `<form><input name="mobile" /></form>`,
+      `<form><input name="mobile" /></form>`,
+    );
+
+    await applyFill(doc, [
+      { signature: framedSignatureOf(doc, 'mobile', 1), value: '9000000000', inputType: 'text' },
+    ]);
+
+    expect(frameDoc.querySelector('input')!.value).toBe('9000000000');
+    expect(doc.querySelector('input')!.value).toBe('');
+  });
+
+  it('still refuses a captcha inside an iframe', async () => {
+    const { doc, frameDoc } = renderWithFrame(
+      '',
+      `<form><label for="x">Enter captcha</label><input id="x" name="captcha" /></form>`,
+    );
+
+    const results = await applyFill(doc, [
+      { signature: framedSignatureOf(doc, 'captcha', 1), value: '123456', inputType: 'text' },
+    ]);
+
+    expect(results[0]).toMatchObject({ action: 'skipped', skipReason: 'captcha_field' });
+    expect(frameDoc.querySelector('input')!.value).toBe('');
   });
 });
 

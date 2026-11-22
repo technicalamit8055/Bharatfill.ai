@@ -21,6 +21,15 @@ export const PERMISSIONS = [
   // different acts: linking is a note to self, authenticating reaches into another tenant.
   'customer.roaming_link',
   'customer.roaming_authenticate',
+  // portal credential vault (migration 0036, spec §19.7a). Split in two: `manage` writes what is
+  // stored (and lists it, masked); `use` takes a secret back out — reveal, one-click login,
+  // slip — and every use is a critical audit entry.
+  'credential.manage',
+  'credential.use',
+  // Citizen Vault bridge (migration 0038, docs/VAULT_BRIDGE_DESIGN.md): ask a citizen for access
+  // by mobile number and, once they approve or read out their share code, open and attach their
+  // synced documents. Counter roles only — every use puts the citizen in the loop.
+  'vault.access',
   // documents
   'document.view',
   'document.upload',
@@ -62,6 +71,9 @@ const OPERATOR_PERMISSIONS: readonly Permission[] = [
   'customer.reveal_sensitive',
   'customer.roaming_link',
   'customer.roaming_authenticate',
+  'credential.manage',
+  'credential.use',
+  'vault.access',
   'document.view',
   'document.upload',
   'document.download',

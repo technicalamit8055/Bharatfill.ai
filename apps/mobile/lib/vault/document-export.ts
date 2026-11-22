@@ -122,6 +122,45 @@ async function writePdf(uris: readonly string[], file: File): Promise<void> {
   await new File(printed.uri).move(file);
 }
 
+export type SyncFile = {
+  readonly bytes: Uint8Array;
+  readonly mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+};
+
+/**
+ * The document as the one file cloud sync uploads (`lib/cloud/sync-plan.ts` `syncFileKind`), in
+ * memory: a lone JPEG/PNG/WebP page as itself, otherwise the same PDF Share would make. Only the
+ * print-module fallback touches disk, in the export folder, and that copy is deleted at once.
+ * The bytes returned are plaintext; the caller encrypts them before anything leaves the phone.
+ */
+export async function buildSyncFile(
+  document: VaultDocument,
+  kind: 'image' | 'pdf',
+): Promise<SyncFile> {
+  const uris = await pageDataUris(document);
+  const first = document.pages[0];
+  if (kind === 'image' && first && first.mimeType !== 'image/heic' && uris[0]) {
+    return { bytes: decodeBase64(base64Of(uris[0])), mimeType: first.mimeType };
+  }
+
+  const pages = uris.map((uri) => decodeBase64(base64Of(uri)));
+  if (scanPdfPages(pages)) return { bytes: buildScanPdf(pages), mimeType: 'application/pdf' };
+
+  const Print = await loadPrint();
+  const printed = new File(
+    (await Print.printToFileAsync({ html: printableHtml(uris), ...A4 })).uri,
+  );
+  try {
+    return { bytes: await printed.bytes(), mimeType: 'application/pdf' };
+  } finally {
+    try {
+      printed.delete();
+    } catch {
+      // The OS clears the cache folder on its own.
+    }
+  }
+}
+
 /**
  * Writes the document as one file in the export folder: a PDF for a booklet or when `kind` asks
  * for one, else the page's own image.
@@ -171,6 +210,38 @@ export async function shareDocument(
   } finally {
     clearExports();
   }
+}
+
+/**
+ * Opens the share sheet with a JPEG made in memory (Export for a form, `portal-export.ts`):
+ * written once into the export folder and deleted as soon as the sheet closes, like Share.
+ */
+export async function shareJpegBytes(
+  bytes: Uint8Array,
+  fileName: string,
+  dialogTitle: string,
+): Promise<void> {
+  const Sharing = await loadSharing();
+  if (!(await Sharing.isAvailableAsync())) throw new Error('Sharing is not available.');
+  try {
+    clearExports();
+    const directory = exportDirectory();
+    directory.create({ intermediates: true, idempotent: true });
+    const file = new File(directory, fileName);
+    file.write(bytes);
+    await Sharing.shareAsync(file.uri, {
+      mimeType: 'image/jpeg',
+      UTI: 'public.jpeg',
+      dialogTitle,
+    });
+  } finally {
+    clearExports();
+  }
+}
+
+/** One page decrypted into memory, as base64 — for Export for a form. */
+export async function pageBase64(document: VaultDocument, pageIndex: number): Promise<string> {
+  return base64Of(await readPageDataUri(document, pageIndex));
 }
 
 /**

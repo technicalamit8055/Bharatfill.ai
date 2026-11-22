@@ -301,9 +301,21 @@ against vFlat. Where the plan's numbers lost detail, the measured design replace
   second.
 - **Lighting** (`paper-light.ts`): estimated from paper only, with dark areas (banners, photos)
   filled from surrounding paper. A cell is paper when it is at least 0.62 × the brightest paper
-  within 20% of the page around it. Estimated on a ~256px grid (a 512px copy, 2× max-pooled), and
-  divided so paper lands at 220, not 255, leaving its grain for the tone curve to measure. The
-  plan's 96px closing still washed out large ID-card photos.
+  within 20% of the page around it. Estimated on a ~256px grid, and divided so paper lands at
+  220, not 255, leaving its grain for the tone curve to measure. The plan's 96px closing still
+  washed out large ID-card photos.
+- **Light print against shadow** (`paper-light.ts`, 2026-11): a faint seal and a shadow are
+  equally dim, so brightness cannot tell them apart. Two cues do. (1) The grid is max-pooled
+  from a 1536px copy (`poolFactor`), not a 512px one: the brightest pixel of a cell is then
+  still the paper between a seal's rings, hatching or halftone dots, so line-art marks stay out
+  of the estimate. On synthetic pages the old sampling lifted such ink by 8–21 levels; now 0.
+  (2) A solid dim patch is print when it is an island inside the page with a crisp edge
+  (`printedPatches`): at least half its border with paper drops more than 6% within one cell. A
+  shadow fades over many cells or reaches the page's edge, and stays whitened, as does any patch
+  over a quarter of the page. Dim cells more than 3% apart are separate patches, so a seal lying
+  in a shadow is judged on its own. Measured on a synthetic page with sensor noise: an edge up
+  to ~2.4 mm wide reads as print, one fading over ~5 mm or more as shadow. This also keeps
+  shaded table rows and a photo's pale backdrop. Not yet checked on a device.
 - **Tone curve** (`tone-curve.ts`): fitted per page from its histogram, not fixed at 85/195. White
   point: 3 half-widths below the paper's histogram peak, clamped to 160–250. Black point: the
   darkest 0.5% of pixels, at most 0.45 × the white point. Gamma 1.3 between them deepens thin
@@ -355,8 +367,18 @@ against vFlat. Where the plan's numbers lost detail, the measured design replace
 - **Live outline and auto capture** (2026-11): the drawn outline eases halfway to each new
   detection unless a corner jumps more than 6% of the diagonal; after a shot, auto capture waits
   until the page has gone for two detections or moved more than 12% of the diagonal.
+- **Platform scanner** (`platform-scanner.ts`, 2026-11): on Android phones with Google Play
+  services, ordinary document scans go through Google's ML Kit Document Scanner (full mode),
+  which detects the page with a neural model and cleans shadows, stains and fingers — the cases
+  this pipeline's straight-edge search and paper-only lighting cannot reach. Its pages skip the
+  page search (`analysePhoto(uri, { findPage: false })`: a search on a cropped page locks onto a
+  printed box) and start on Original, since Magic Color on top re-sharpens and re-tones an
+  already cleaned page. The in-app pipeline stays for presets, iOS, phones without Play
+  services, and anything the citizen switches to. A request to go back to the plan's fixed
+  85 / 195 curve and 96px closing was declined: both were measured and replaced above.
 - **Not solved**: a page on a light, low-contrast desk can still be missed when its edge is
   under the stretch's reach (falls back to the full frame for manual cropping), curled pages are
-  not dewarped, and fingers holding the page are not removed. Large light-grey printed
-  areas (a faint seal) are whitened along with shadows: raising the paper threshold from 0.62
-  to 0.72 keeps them grey, but leaves half the paper in a shadow grey.
+  not dewarped, and fingers holding the page are not removed. Light print is still
+  whitened with the shadows when it cannot be told from one by shape: a seal a shadow's edge
+  runs across, one touching the page's edge, a soft-edged watermark, or a tint over more than a
+  quarter of the page. A hard-edged shadow lying wholly inside the page is now left grey.

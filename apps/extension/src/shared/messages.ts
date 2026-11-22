@@ -112,7 +112,16 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('DISCONNECT') }),
   z.object({ type: z.literal('SEARCH_CUSTOMERS'), query: z.string().max(120) }),
   z.object({ type: z.literal('SELECT_CUSTOMER'), customer: customerSummarySchema }),
-  z.object({ type: z.literal('OPEN_DASHBOARD'), path: z.string().max(200).optional() }),
+  z.object({
+    type: z.literal('OPEN_DASHBOARD'),
+    // One leading slash, never two (or `/\`, which browsers read the same): the path is appended
+    // to the dashboard URL, and `@host` or `//host` there would open some other site.
+    path: z
+      .string()
+      .max(200)
+      .regex(/^\/(?![/\\])/)
+      .optional(),
+  }),
 
   /**
    * Cross-centre roaming (migration 0024). Reachable from `CustomerPicker` when a local search
@@ -136,7 +145,47 @@ export const messageSchema = z.discriminatedUnion('type', [
     customerId: z.string().uuid(),
     otp: z.string().min(4).max(8),
   }),
+  /**
+   * The alternative to the OTP: ask the citizen to approve in the BharatDoc app (migration 0039).
+   * No duration — the citizen picks it on their phone. GET polls; CANCEL stops waiting.
+   */
+  z.object({
+    type: z.literal('REQUEST_ROAMING_APPROVAL'),
+    customerId: z.string().uuid(),
+    purpose: roamingPurposeSchema.default('form_filling'),
+  }),
+  z.object({
+    type: z.literal('GET_ROAMING_APPROVAL'),
+    customerId: z.string().uuid(),
+    requestId: z.string().uuid(),
+  }),
+  z.object({
+    type: z.literal('CANCEL_ROAMING_APPROVAL'),
+    customerId: z.string().uuid(),
+    requestId: z.string().uuid(),
+  }),
   z.object({ type: z.literal('REVOKE_ROAMING_SESSION'), customerId: z.string().uuid() }),
+
+  /**
+   * The citizen's own BharatDoc vault (docs/VAULT_BRIDGE_DESIGN.md §4). Side panel only — the
+   * worker refuses these from a tab. Same words whatever the number: the answers never say
+   * whether this person uses the app until they approve or read out a code.
+   */
+  z.object({ type: z.literal('VAULT_REQUEST'), mobile: z.string().regex(/^\d{10}$/) }),
+  z.object({ type: z.literal('VAULT_REQUEST_STATUS'), requestId: z.string().uuid() }),
+  z.object({
+    type: z.literal('VAULT_UNLOCK'),
+    mobile: z.string().regex(/^\d{10}$/),
+    code: z.string().regex(/^\d{6}$/),
+  }),
+  z.object({ type: z.literal('VAULT_LIST_DOCUMENTS'), grantId: z.string().uuid() }),
+  /** Bytes come back as base64 for an in-memory preview; nothing is written anywhere. */
+  z.object({
+    type: z.literal('VAULT_VIEW_DOCUMENT'),
+    grantId: z.string().uuid(),
+    documentId: z.string().uuid(),
+  }),
+  z.object({ type: z.literal('VAULT_END_GRANT'), grantId: z.string().uuid() }),
 
   /** side panel → background → content */
   z.object({ type: z.literal('DETECT_FIELDS') }),
@@ -242,7 +291,66 @@ export const messageSchema = z.discriminatedUnion('type', [
 
   /** side panel → background → offscreen. Drops a fitted copy the operator will not use. */
   z.object({ type: z.literal('DISCARD_AUTO_FIT'), token: z.string().uuid() }),
+
+  /**
+   * Portal login vault (spec §19.7a; docs/EXTENSION.md § Portal login).
+   *
+   * side panel → background. Is the active tab an allow-listed portal login page, and does the
+   * selected customer have a saved login for it? Answers with masked metadata only.
+   */
+  z.object({ type: z.literal('GET_PORTAL_LOGIN') }),
+
+  /**
+   * side panel → background. The operator pressed "Log in as …". Carries nothing: the background
+   * worker reads the tab URL and the selected customer itself, so the panel cannot aim a
+   * password at a page of its choosing.
+   */
+  z.object({ type: z.literal('FILL_PORTAL_LOGIN') }),
+
+  /**
+   * background → content (top frame only). The one message that carries a portal password. It
+   * travels once, per click, and the content script re-checks its own location against `hosts`
+   * before typing anything (src/content/login-filler.ts).
+   */
+  z.object({
+    type: z.literal('APPLY_PORTAL_LOGIN'),
+    loginId: z.string().min(1).max(120),
+    password: z.string().min(1).max(128).nullable(),
+    hosts: z.array(z.string().min(1).max(253)).min(1).max(10),
+  }),
 ]);
+
+/** What `GET_PORTAL_LOGIN` answers. No secret: the login ID appears only as its masked hint. */
+export type PortalLoginStatus = {
+  /** The portal this tab belongs to, or null when it is not an allow-listed login page. */
+  portal: { key: string; name: string } | null;
+  /** Why no login can be offered on a recognised portal page. */
+  unavailable: 'no_customer' | 'roaming' | 'no_permission' | 'not_saved' | null;
+  credential: { loginIdHint: string; hasPassword: boolean } | null;
+};
+
+/** Vault messages are for extension pages (side panel, popup) only, never a content script. */
+export const VAULT_MESSAGE_TYPES: ReadonlySet<string> = new Set([
+  'VAULT_REQUEST',
+  'VAULT_REQUEST_STATUS',
+  'VAULT_UNLOCK',
+  'VAULT_LIST_DOCUMENTS',
+  'VAULT_VIEW_DOCUMENT',
+  'VAULT_END_GRANT',
+]);
+
+export type VaultGrantView = { id: string; minutesLeft: number; live: boolean };
+export type VaultDocumentView = {
+  id: string;
+  documentType: string;
+  title: string;
+  mimeType: string;
+  pageCount: number;
+};
+export type VaultRequestStatus =
+  | { status: 'pending'; expiresAt: string }
+  | { status: 'approved'; grant: VaultGrantView }
+  | { status: 'denied' | 'expired' };
 
 export type Message = z.infer<typeof messageSchema>;
 export type MessageType = Message['type'];
@@ -259,7 +367,10 @@ export type MessageResponse<T = unknown> =
 export function parseMessage(raw: unknown, sender?: chrome.runtime.MessageSender): Message | null {
   if (sender && sender.id !== chrome.runtime.id) return null;
   const parsed = messageSchema.safeParse(raw);
-  return parsed.success ? parsed.data : null;
+  if (!parsed.success) return null;
+  // A content script runs in a tab; the vault is opened from the side panel alone.
+  if (VAULT_MESSAGE_TYPES.has(parsed.data.type) && sender?.tab) return null;
+  return parsed.data;
 }
 
 export function ok<T>(data: T): MessageResponse<T> {

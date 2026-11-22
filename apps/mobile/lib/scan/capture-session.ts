@@ -9,7 +9,8 @@
  * filter or rotated the page — is thrown away.
  *
  * Retake marks one page (`startRetake`); the next photo taken or picked replaces that page in
- * place, keeping its position and filter, instead of being added at the end.
+ * place, keeping its position and filter (a platform scan's goes to Original), instead of being
+ * added at the end.
  *
  * A session has a preset (`presets.ts`), chosen when the camera opens (`startSession`): it caps
  * the pages (an ID card has a front and a back), picks the first filter, and shapes how pages are
@@ -17,6 +18,10 @@
  *
  * Each page carries the quality of its photo (`photo-quality.ts`, measured with the analysis);
  * review shows its issues until the citizen retakes the page or dismisses the warning.
+ *
+ * A page from Google's document scanner (`platform` source, `platform-scanner.ts`) arrives
+ * already cropped, flattened and cleaned: it is not searched for a page again, and it starts on
+ * the Original filter so that clean-up is not done twice. The citizen can still pick another.
  *
  * Every file a session creates is a plaintext temporary copy in the app's cache or tmp folder.
  * Saving seals the processed pages into the encrypted vault and deletes all of them; discarding
@@ -47,7 +52,8 @@ export type SessionPage = {
   readonly id: string;
   /** The original photo, upright only via EXIF. */
   readonly photoUri: string;
-  readonly source: 'camera' | 'gallery';
+  /** `platform`: Google's document scanner, which hands over the page already cropped. */
+  readonly source: 'camera' | 'gallery' | 'platform';
   readonly analysis: PhotoAnalysis | null;
   /** The crop, in upright photo pixels. Starts as the detected page (or the whole photo). */
   readonly quad: Quad | null;
@@ -80,6 +86,9 @@ export type SessionState = {
 };
 
 export const DEFAULT_FILTER: PageFilter = 'magic';
+
+/** A platform-scanned page is already cleaned: shown as it came, unless the citizen picks. */
+export const PLATFORM_FILTER: PageFilter = 'original';
 
 let state: SessionState = { pages: [], retakeId: null, preset: 'document' };
 const listeners = new Set<() => void>();
@@ -174,7 +183,7 @@ async function processNow(id: string): Promise<void> {
   try {
     let { analysis, quad } = page;
     if (!analysis) {
-      analysis = await analysePhoto(page.photoUri);
+      analysis = await analysePhoto(page.photoUri, { findPage: page.source !== 'platform' });
       quad = quad ?? analysis.quad;
       if (!findPage(id)) return;
       patchPage(id, { analysis, quad });
@@ -246,6 +255,7 @@ export function addPhotos(uris: readonly string[], source: SessionPage['source']
               ...page,
               photoUri,
               source,
+              filter: source === 'platform' ? PLATFORM_FILTER : page.filter,
               analysis: null,
               quad: null,
               rotation: 0,
@@ -274,7 +284,10 @@ export function addPhotos(uris: readonly string[], source: SessionPage['source']
     source,
     analysis: null,
     quad: null,
-    filter: state.pages.at(-1)?.filter ?? presetDefaultFilter(state.preset),
+    filter:
+      source === 'platform'
+        ? PLATFORM_FILTER
+        : (state.pages.at(-1)?.filter ?? presetDefaultFilter(state.preset)),
     rotation: 0,
     straighten: 0,
     rendered: null,

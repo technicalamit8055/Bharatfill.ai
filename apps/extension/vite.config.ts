@@ -20,6 +20,10 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      '@assistigo/core/portal-credentials/hosts': path.resolve(
+        root,
+        '../../packages/core/src/portal-credentials/hosts.ts',
+      ),
       '@assistigo/core': path.resolve(root, '../../packages/core/src/index.ts'),
       '@assistigo/form-engine/types': path.resolve(root, '../../packages/form-engine/src/types.ts'),
       '@assistigo/form-engine/documents': path.resolve(

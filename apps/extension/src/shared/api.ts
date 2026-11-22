@@ -90,6 +90,33 @@ export async function apiFetch<T>(
   return body.data;
 }
 
+/** Like `apiFetch`, for a route that answers with a file: the bytes and their type. */
+export async function apiFetchBytes(
+  path: string,
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const session = await currentSession();
+  if (!session) throw new ApiError(401, 'errors.unauthenticated');
+  const { dashboardUrl } = await settingsStore.get();
+  const response = await fetch(`${dashboardUrl}${path}`, {
+    headers: { authorization: `Bearer ${session.accessToken}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    let messageKey = 'errors.internal';
+    try {
+      const body = (await response.json()) as { error?: { messageKey?: string } };
+      messageKey = body.error?.messageKey ?? messageKey;
+    } catch {
+      // Not JSON: nothing useful to pass on.
+    }
+    throw new ApiError(response.status, messageKey);
+  }
+  return {
+    bytes: new Uint8Array(await response.arrayBuffer()),
+    mimeType: response.headers.get('content-type') ?? 'application/octet-stream',
+  };
+}
+
 /** Exchanges a short-lived pairing code minted by the signed-in dashboard (docs/EXTENSION.md §3). */
 export async function pairWithCode(code: string): Promise<StoredSession> {
   const { dashboardUrl } = await settingsStore.get();

@@ -61,6 +61,8 @@ only consumer, in `apps/web/lib/supabase/database.types.ts`.
 | `0032_parent_names_hi.sql`                     | `customers.father_name_hi`, `customers.mother_name_hi` — Devanagari spellings beside the English `father_name` / `mother_name`; no backfill (docs/FORM_ENGINE.md §7a)                                             |
 | `0033_vertex_ai_vendor.sql`                    | `organization_ai_settings` checks widened: `provider` gains `vertex`, `wire_format` gains `vertex_generate_content` (Vertex AI express mode); nothing new stored (docs/AI_PIPELINE.md §2)                         |
 | `0034_document_stored_status.sql`              | `documents.status` check gains `stored` — a photo or signature kept unread at the operator's request; nothing new stored (docs/AI_PIPELINE.md §2)                                                                  |
+| `0035_launch_leads.sql`                        | `launch_leads` — pre-launch early-access contacts (operators, never citizens); service_role only                                                                                                                    |
+| `0036_portal_credentials.sql`                  | `customer_portal_credentials` — citizen portal logins (spec §19.7a): login ID, password, security answer as row-bound AES-256-GCM ciphertext; owner/manager/operator only, no support or roaming clause; owner columns immutable |
 
 Seed data is **separate from migrations** (`packages/database/src/seed/`), per spec §25.4.
 
@@ -335,6 +337,25 @@ service role touches it, behind a `platform.team.manage` check in the admin API.
   back to `WHATSAPP_*` / `TELEGRAM_*` when a row is missing, disabled, or missing its token — so
   an existing env-configured deployment is unaffected until a Super Admin explicitly saves one.
 
+### `customer_portal_credentials` — the portal login vault (0036)
+
+Logins to citizens' government portals (SSC/UPSC/UPPSC/BPSC OTR, Rajasthan SSO, Haryana PPP),
+kept on the customer so an operator can log back in and the extension can fill the login page
+(spec §19.7a; docs/EXTENSION.md § Portal login).
+
+- **Secrets are ciphertext.** `login_id_encrypted`, `password_encrypted` and
+  `security_answer_encrypted` are written only by `apps/web/lib/portal-credentials/rows.ts`, with
+  AAD `<org>:<customer>:<credential id>:portal_credential:<part>` — a value cannot be moved to
+  another row, customer or column and still decrypt. The row id is chosen by the API before the
+  insert for that reason.
+- **Clear columns are deliberately non-secret.** `login_id_hint` (last three characters),
+  `security_question`, `linked_applications` (exam label + roll/application number, ≤ 20).
+- **One row per catalogued portal per customer** (partial unique index); `other` may repeat, needs
+  a `portal_label`, and has no one-click login because it has no allow-listed host.
+- **RLS:** owner/manager/operator of the row's organization, for all four verbs. No viewer, no
+  billing admin, no `has_support_access`, no roaming grant clause. An insert must name a customer
+  of the same organization. `organization_id` / `customer_id` cannot be changed by an update.
+
 ### `fill_session_fields`
 
 Stores `proposed_value_preview` — a **masked, truncated** preview (e.g. `Am… K…`,
@@ -464,6 +485,7 @@ non-loopback URL) with two organizations, one member per role in each. `npm run 
 | `tenant_management.test.ts` | 0030: an owner can neither set nor clear their own suspension but can still edit ordinary fields; a reason is required even from the service role; tenants cannot create or edit a `manual` subscription; `platform_tenant_detail()` and the five-argument `platform_tenant_rows()` refused to tenant sessions; the detail RPC returns no phone or email |
 | `roaming_access.test.ts` | 0024/0025: no access before a grant; a link grants nothing; pre-auth card only via the service-role RPC; a grant opens the four tables to the grant holder only, never `document_extractions` or writes to the customer row; expiry and revocation deny on their own; 12-hour ceiling and self-link rejection; the single 0025 document insert and all of its refusals |
 | `sessions.test.ts`       | 0031: a user lists only their own sessions with exactly one current; neither a same-centre owner nor another centre can revoke them; the current session and unknown ids return `false`; anon refused; a revoked session can neither refresh nor pass `getUser()` |
+| `portal_credentials.test.ts` | 0036: owner/manager/operator read their own centre's rows; viewer, billing admin and every role in another centre read none — including one holding a live roaming grant for the customer; no cross-centre insert or customer re-parenting; plaintext login ID, duplicate portal and `other` without a label refused |
 
 Not yet covered: `document_drop_sessions` / `document_drop_files` (0022) and
 `platform_channel_settings` (0023). The suite needs Docker for `supabase start`.

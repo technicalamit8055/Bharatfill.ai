@@ -95,6 +95,28 @@ export function fieldSignature(
   return hash(parts.join('|'));
 }
 
+/*
+ * Tag checks rather than `instanceof`: a same-origin frame's elements belong to another realm,
+ * so `isInputElement(element)` is false for every field inside an iframe.
+ */
+const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
+
+export function isHtmlElement(element: Element): element is HTMLElement {
+  return element.namespaceURI === XHTML_NAMESPACE;
+}
+
+export function isInputElement(element: Element): element is HTMLInputElement {
+  return isHtmlElement(element) && element.localName === 'input';
+}
+
+export function isTextAreaElement(element: Element): element is HTMLTextAreaElement {
+  return isHtmlElement(element) && element.localName === 'textarea';
+}
+
+export function isSelectElement(element: Element): element is HTMLSelectElement {
+  return isHtmlElement(element) && element.localName === 'select';
+}
+
 function styleOf(element: Element): CSSStyleDeclaration | null {
   const view = element.ownerDocument?.defaultView;
   if (!view) return null;
@@ -127,7 +149,7 @@ function isJsdomDocument(doc: Document | null | undefined): boolean {
  * widgets, which otherwise surface as phantom document-attachment cards).
  */
 export function isElementVisible(element: Element): boolean {
-  if (element instanceof HTMLElement && element.hidden) return false;
+  if (isHtmlElement(element) && element.hidden) return false;
   if (element.getAttribute('type') === 'hidden') return false;
   if (element.getAttribute('aria-hidden') === 'true') return false;
 
@@ -565,7 +587,7 @@ const BROWSER_DEFAULTED_TYPES = ['range', 'color'] as const;
 function hasValue(element: Element): boolean {
   const role = element.getAttribute('role')?.toLowerCase();
 
-  if (element instanceof HTMLInputElement) {
+  if (isInputElement(element)) {
     if (element.type === 'checkbox' || element.type === 'radio') return element.checked;
     if (element.type === 'file') return element.files !== null && element.files.length > 0;
     if ((BROWSER_DEFAULTED_TYPES as readonly string[]).includes(element.type)) {
@@ -573,8 +595,8 @@ function hasValue(element: Element): boolean {
     }
     return element.value.trim() !== '';
   }
-  if (element instanceof HTMLTextAreaElement) return element.value.trim() !== '';
-  if (element instanceof HTMLSelectElement) {
+  if (isTextAreaElement(element)) return element.value.trim() !== '';
+  if (isSelectElement(element)) {
     // A multi-select has no placeholder first option to discount; nothing selected is the empty state.
     if (element.multiple) return element.selectedOptions.length > 0;
     return element.value.trim() !== '' && element.selectedIndex > 0;

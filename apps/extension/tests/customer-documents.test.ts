@@ -88,8 +88,6 @@ beforeEach(() => {
     scripting: { executeScript: vi.fn().mockResolvedValue([]) },
     sidePanel: { setPanelBehavior: vi.fn().mockResolvedValue(undefined) },
     storage: { session: fakeStorageArea(), local: fakeStorageArea() },
-    // Deliberately no `webNavigation`: the subframe sweep is guarded on it, and this test is
-    // about the attachment path rather than about frames.
   });
 });
 

@@ -27,7 +27,13 @@
         }
       ],
       "expo-secure-store",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Bharatfill uses Face ID to unlock the app, so only you can open your documents."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

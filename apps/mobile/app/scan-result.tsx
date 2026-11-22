@@ -4,11 +4,13 @@
  * `components/scanner/ScanResultScreen.tsx`.
  */
 
+import { Trash2 } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+
 import { z } from 'zod';
 
+import { showDialog } from '../lib/dialog/dialog-store';
 import { type ScanResultState, ScanResultScreen } from '../components/scanner/ScanResultScreen';
 import { useTranslation } from '../lib/i18n/I18nProvider';
 import { deleteDocument, getDocument, readPageDataUri } from '../lib/vault/vault-storage';
@@ -71,22 +73,30 @@ export default function ScanResultRoute() {
 
   const confirmDelete = useCallback(() => {
     if (!documentId) return;
-    Alert.alert(t('scanResult.deleteTitle'), t('scanResult.deleteBody'), [
-      { text: t('scanResult.cancel'), style: 'cancel' },
-      {
-        text: t('scanResult.delete'),
-        style: 'destructive',
-        onPress: () => {
-          void deleteDocument(documentId)
-            .then(done)
-            .catch(() => {
-              Alert.alert(t('common.errorTitle'), t('scanResult.deleteFailed'), [
-                { text: t('common.ok') },
-              ]);
-            });
+    showDialog(
+      t('scanResult.deleteTitle'),
+      t('scanResult.deleteBody'),
+      [
+        { text: t('scanResult.cancel'), style: 'cancel' },
+        {
+          text: t('scanResult.delete'),
+          style: 'destructive',
+          onPress: () => {
+            void deleteDocument(documentId)
+              .then(done)
+              .catch(() => {
+                showDialog(
+                  t('common.errorTitle'),
+                  t('scanResult.deleteFailed'),
+                  [{ text: t('common.ok') }],
+                  { tone: 'danger' },
+                );
+              });
+          },
         },
-      },
-    ]);
+      ],
+      { icon: Trash2 },
+    );
   }, [documentId, done, t]);
 
   return (

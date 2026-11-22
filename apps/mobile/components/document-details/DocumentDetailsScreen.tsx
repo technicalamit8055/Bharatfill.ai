@@ -12,10 +12,12 @@
 import {
   CalendarDays,
   ChevronLeft,
+  CloudUpload,
   Download,
   Ellipsis,
   EllipsisVertical,
   File,
+  FileCheck2,
   FileImage,
   FileText,
   Folder,
@@ -26,6 +28,7 @@ import {
   Printer,
   Share2,
   ShieldCheck,
+  Smartphone,
   Star,
   Tag,
   Trash2,
@@ -74,6 +77,13 @@ export type DocumentDetailsView = {
    */
   readonly imageFormat: string | null;
   readonly starred: boolean;
+  /**
+   * "Keep on this phone only" (docs/VAULT_BRIDGE_DESIGN.md §3.2). Null hides the choice: this
+   * build has no cloud vault, or the document is a sample.
+   */
+  readonly phoneOnly: boolean | null;
+  /** Offer Export for a form: a single photo or signature with portal presets. */
+  readonly forPortal: boolean;
   readonly pages: readonly DocumentPage[];
 };
 
@@ -92,8 +102,11 @@ export type DocumentDetailsScreenProps = {
   readonly busy: ExportAction | null;
   readonly onBack: () => void;
   readonly onToggleStar: () => void;
+  readonly onTogglePhoneOnly: () => void;
   /** `kind` is what the citizen picked for a single image; a booklet is always a PDF. */
   readonly onExport: (action: ExportAction, kind: ExportKind) => void;
+  /** Opens the portal preset list; the route renders and shares the file. */
+  readonly onExportForPortal: () => void;
   /** A name already normalised and different from the current one. */
   readonly onRename: (title: string) => void;
   readonly onChangeTags: (tags: readonly string[]) => void;
@@ -111,7 +124,9 @@ export function DocumentDetailsScreen({
   busy,
   onBack,
   onToggleStar,
+  onTogglePhoneOnly,
   onExport,
+  onExportForPortal,
   onRename,
   onChangeTags,
   onRemoveTag,
@@ -212,12 +227,36 @@ export function DocumentDetailsScreen({
       icon: FolderInput,
       onPress: () => setSheet('move'),
     },
+    ...(document.forPortal
+      ? [
+          {
+            key: 'portal',
+            label: t('documentDetails.menu.forPortal'),
+            icon: FileCheck2,
+            onPress: onExportForPortal,
+          },
+        ]
+      : []),
     {
       key: 'star',
       label: t(document.starred ? 'documentDetails.menu.unstar' : 'documentDetails.menu.star'),
       icon: Star,
       onPress: onToggleStar,
     },
+    ...(document.phoneOnly === null
+      ? []
+      : [
+          {
+            key: 'phoneOnly',
+            label: t(
+              document.phoneOnly
+                ? 'documentDetails.menu.backUpToCloud'
+                : 'documentDetails.menu.keepOnPhoneOnly',
+            ),
+            icon: document.phoneOnly ? CloudUpload : Smartphone,
+            onPress: onTogglePhoneOnly,
+          },
+        ]),
     {
       key: 'delete',
       label: t('documentDetails.menu.delete'),

@@ -28,15 +28,27 @@ config.resolver.nodeModulesPaths = [
 // chose not to hoist (expo-router -> color -> color-string -> simple-swizzle -> is-arrayish).
 // Pinning the few packages that must be singletons gets the same protection without blinding
 // the resolver to the rest of the tree.
-const singletons = ['react', 'react-dom', 'react-native'];
+//
+// Native view packages are singletons too: two JS copies each register the same native view
+// ("Tried to register two views with the same name RNCSafeAreaProvider"). The root expo-router
+// install pulls its own hoisted react-native-safe-area-context / react-native-screens, so these
+// are resolved as if imported from the app — the copy autolinking compiled into the binary.
+const singletons = [
+  'react',
+  'react-dom',
+  'react-native',
+  'react-native-safe-area-context',
+  'react-native-screens',
+];
 
-config.resolver.extraNodeModules = singletons.reduce(
-  (acc, name) => ({
-    ...acc,
-    [name]: path.resolve(projectRoot, 'node_modules', name),
-  }),
-  {},
-);
+const appOrigin = path.join(projectRoot, 'package.json');
+const isSingleton = (moduleName) =>
+  singletons.some((name) => moduleName === name || moduleName.startsWith(`${name}/`));
+
+config.resolver.resolveRequest = (context, moduleName, platform) =>
+  isSingleton(moduleName)
+    ? context.resolveRequest({ ...context, originModulePath: appOrigin }, moduleName, platform)
+    : context.resolveRequest(context, moduleName, platform);
 
 // Keep walking parent `node_modules` from whichever file is being resolved. npm does not hoist
 // everything — expo-router's `is-arrayish` stays nested under simple-swizzle — and without this

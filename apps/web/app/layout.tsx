@@ -3,6 +3,7 @@ import { Kalam, Outfit, Plus_Jakarta_Sans, Noto_Sans_Devanagari } from 'next/fon
 import './globals.css';
 import { I18nProvider } from '@/lib/i18n/client';
 import { getLocale } from '@/lib/i18n/server';
+import { siteUrl } from '@/lib/document-tools/structured-data';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -35,6 +36,8 @@ const hand = Kalam({
 });
 
 export const metadata: Metadata = {
+  // Resolves relative canonical and Open Graph URLs (the public /tools pages set both).
+  metadataBase: siteUrl(),
   title: {
     default: 'Bharatfill — AI form filling for CSCs and cyber cafes',
     template: '%s · Bharatfill',

@@ -8,6 +8,9 @@
     "paths": {
       "@/*": ["./src/*"],
       "@assistigo/core": ["../../packages/core/src/index.ts"],
+      "@assistigo/core/portal-credentials/hosts": [
+        "../../packages/core/src/portal-credentials/hosts.ts"
+      ],
       "@assistigo/form-engine": ["../../packages/form-engine/src/index.ts"],
       "@assistigo/form-engine/types": ["../../packages/form-engine/src/types.ts"],
       "@assistigo/form-engine/safety": ["../../packages/form-engine/src/safety.ts"],

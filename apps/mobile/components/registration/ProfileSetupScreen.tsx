@@ -3,29 +3,25 @@
  *
  * Layout follows the approved profile artwork: back and "Skip for now", the brand block with
  * the "Digital Bharat Stronger Citizens" ribbon on the right, the four-step progress stepper
- * on step 2, the headline, five fields (full name, date of birth, gender, state, preferred
- * language), the "safe with us" card, Continue, and the monument skyline closing the page.
+ * on step 2, the headline, the fields, the "safe with us" card, Continue, and the monument
+ * skyline closing the page.
+ *
+ * Two fields only — the name as on the citizen's documents, and their language. The artwork's
+ * date of birth, gender and state are not asked for: the cloud vault keeps nothing else
+ * (docs/VAULT_BRIDGE_DESIGN.md D10), and asking for data that is then thrown away is worse than
+ * a shorter form.
  *
  * Light-only branded artwork like the rest of registration, so it does not read from
  * `useTheme()`. Everything scrolls inside a keyboard-avoiding view.
  *
  * Picking a preferred language switches the app to it straight away, so the rest of the form
  * reads in that language. The screen never stores or logs the profile: Continue hands a
- * validated `CitizenProfile` to `onContinue` and leaves what happens next to the route.
+ * validated `SignupProfile` to `onContinue` and leaves what happens next to the route.
  */
 
-import type { IndianStateCode } from '@assistigo/core';
 import { StatusBar } from 'expo-status-bar';
-import {
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-  Languages,
-  MapPin,
-  ShieldCheck,
-  User,
-} from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight, Languages, ShieldCheck, User } from 'lucide-react-native';
+import { useState } from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -41,22 +37,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LOCALES } from '../../lib/i18n';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
-import { formatDateOfBirth, MAX_AGE_YEARS, MONTH_KEYS } from '../../lib/profile/date-of-birth';
 import {
-  type CitizenProfile,
   FULL_NAME_MAX_LENGTH,
   type FullNameError,
-  type ProfileDraft,
-  type ProfileErrors,
-  type ProfileGender,
-  profileErrors,
-  stateOptions,
-  toCitizenProfile,
+  fullNameError,
+  type SignupProfile,
+  toSignupProfile,
 } from '../../lib/profile/profile';
 import { BrandHeader } from './BrandHeader';
-import { DateOfBirthSheet } from './DateOfBirthSheet';
 import { DigitalBharatRibbon } from './DigitalBharatRibbon';
-import { GenderSelector } from './GenderSelector';
 import { IconSelectField, IconTextField } from './IconFields';
 import { OptionSheet } from './OptionSheet';
 import { registrationPalette as palette } from './palette';
@@ -73,20 +62,11 @@ const NAME_ERROR_KEYS: Record<FullNameError, string> = {
   invalid_characters: 'profileSetup.errors.nameInvalid',
 };
 
-const DOB_ERROR_KEYS: Record<NonNullable<ProfileErrors['dateOfBirth']>, string> = {
-  missing: 'profileSetup.errors.dobMissing',
-  invalid: 'profileSetup.errors.dobInvalid',
-  future: 'profileSetup.errors.dobFuture',
-  too_old: 'profileSetup.errors.dobTooOld',
-};
-
-type Sheet = 'dateOfBirth' | 'state' | 'language';
-
 export type ProfileSetupScreenProps = {
   readonly onBack: () => void;
   readonly onSkip: () => void;
   /** Receives the validated, normalised profile. */
-  readonly onContinue: (profile: CitizenProfile) => void;
+  readonly onContinue: (profile: SignupProfile) => void;
 };
 
 export function ProfileSetupScreen({ onBack, onSkip, onContinue }: ProfileSetupScreenProps) {
@@ -94,41 +74,26 @@ export function ProfileSetupScreen({ onBack, onSkip, onContinue }: ProfileSetupS
   const { width } = useWindowDimensions();
 
   const [fullName, setFullName] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState<string | null>(null);
-  const [gender, setGender] = useState<ProfileGender | null>(null);
-  const [stateCode, setStateCode] = useState<IndianStateCode | null>(null);
   const [attempted, setAttempted] = useState(false);
-  const [openSheet, setOpenSheet] = useState<Sheet | null>(null);
+  const [languageSheetOpen, setLanguageSheetOpen] = useState(false);
 
-  const draft: ProfileDraft = {
-    fullName,
-    dateOfBirth,
-    gender,
-    state: stateCode,
-    language: locale,
-  };
-  const errors: ProfileErrors = attempted ? profileErrors(draft, new Date()) : {};
+  const nameError = attempted ? fullNameError(fullName) : null;
 
-  const states = useMemo(() => stateOptions(locale), [locale]);
   const languages = LOCALES.map((value) => ({
     value,
     label: t(`profileSetup.languages.${value}`),
   }));
-  const monthNames = MONTH_KEYS.map((key) => t(`profileSetup.months.${key}`));
 
-  const dateOfBirthLabel = dateOfBirth ? formatDateOfBirth(dateOfBirth, monthNames) : null;
-  const stateLabel = states.find((option) => option.value === stateCode)?.label ?? null;
-
-  const openPicker = (sheet: Sheet) => {
+  const openLanguages = () => {
     Keyboard.dismiss();
-    setOpenSheet(sheet);
+    setLanguageSheetOpen(true);
   };
-  const closePicker = () => setOpenSheet(null);
+  const closeLanguages = () => setLanguageSheetOpen(false);
 
   const submit = () => {
     setAttempted(true);
-    const profile = toCitizenProfile(draft, new Date());
-    if (profile) onContinue(profile);
+    const result = toSignupProfile(fullName, locale);
+    if (result.ok) onContinue(result.profile);
   };
 
   const headlineSize = Math.max(24, Math.min(30, width * 0.07));
@@ -211,53 +176,13 @@ export function ProfileSetupScreen({ onBack, onSkip, onContinue }: ProfileSetupS
                 textContentType="name"
                 returnKeyType="done"
                 maxLength={FULL_NAME_MAX_LENGTH}
-                hasError={errors.fullName !== undefined}
+                hasError={nameError !== null}
               />
-              {errors.fullName ? (
+              {nameError ? (
                 <FieldError
-                  message={t(NAME_ERROR_KEYS[errors.fullName], { max: FULL_NAME_MAX_LENGTH })}
+                  message={t(NAME_ERROR_KEYS[nameError], { max: FULL_NAME_MAX_LENGTH })}
                 />
               ) : null}
-
-              {/* ---- Date of birth ---- */}
-              <Text style={styles.fieldLabel}>{t('profileSetup.dobLabel')}</Text>
-              <IconSelectField
-                icon={Calendar}
-                label={t('profileSetup.dobLabel')}
-                value={dateOfBirthLabel}
-                placeholder={t('profileSetup.dobPlaceholder')}
-                onPress={() => openPicker('dateOfBirth')}
-                hasError={errors.dateOfBirth !== undefined}
-              />
-              {errors.dateOfBirth ? (
-                <FieldError
-                  message={t(DOB_ERROR_KEYS[errors.dateOfBirth], { max: MAX_AGE_YEARS })}
-                />
-              ) : null}
-
-              {/* ---- Gender ---- */}
-              <Text style={styles.fieldLabel}>{t('profileSetup.genderLabel')}</Text>
-              <GenderSelector
-                value={gender}
-                onChange={setGender}
-                label={t('profileSetup.genderLabel')}
-                hasError={errors.gender !== undefined}
-              />
-              {errors.gender ? (
-                <FieldError message={t('profileSetup.errors.genderMissing')} />
-              ) : null}
-
-              {/* ---- State ---- */}
-              <Text style={styles.fieldLabel}>{t('profileSetup.stateLabel')}</Text>
-              <IconSelectField
-                icon={MapPin}
-                label={t('profileSetup.stateLabel')}
-                value={stateLabel}
-                placeholder={t('profileSetup.statePlaceholder')}
-                onPress={() => openPicker('state')}
-                hasError={errors.state !== undefined}
-              />
-              {errors.state ? <FieldError message={t('profileSetup.errors.stateMissing')} /> : null}
 
               {/* ---- Preferred language ---- */}
               <Text style={styles.fieldLabel}>{t('profileSetup.languageLabel')}</Text>
@@ -266,7 +191,7 @@ export function ProfileSetupScreen({ onBack, onSkip, onContinue }: ProfileSetupS
                 label={t('profileSetup.languageLabel')}
                 value={t(`profileSetup.languages.${locale}`)}
                 placeholder={t('profileSetup.languageLabel')}
-                onPress={() => openPicker('language')}
+                onPress={openLanguages}
               />
 
               {/* ---- Trust card ---- */}
@@ -309,28 +234,15 @@ export function ProfileSetupScreen({ onBack, onSkip, onContinue }: ProfileSetupS
         </KeyboardAvoidingView>
       </SafeAreaView>
 
-      {/* ---- Pickers ---- */}
-      {openSheet === 'dateOfBirth' ? (
-        <DateOfBirthSheet value={dateOfBirth} onConfirm={setDateOfBirth} onClose={closePicker} />
-      ) : null}
-      {openSheet === 'state' ? (
-        <OptionSheet
-          title={t('profileSetup.statePlaceholder')}
-          closeLabel={t('profileSetup.sheet.close')}
-          options={states}
-          selected={stateCode}
-          onSelect={setStateCode}
-          onClose={closePicker}
-        />
-      ) : null}
-      {openSheet === 'language' ? (
+      {/* ---- Language picker ---- */}
+      {languageSheetOpen ? (
         <OptionSheet
           title={t('profileSetup.languageLabel')}
           closeLabel={t('profileSetup.sheet.close')}
           options={languages}
           selected={locale}
           onSelect={setLocale}
-          onClose={closePicker}
+          onClose={closeLanguages}
         />
       ) : null}
     </View>

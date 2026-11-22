@@ -523,7 +523,9 @@ Native controls (`text`, `email`, `tel`, `number`, `search`, `url`, `date`, `dat
 `<select multiple>`), `[contenteditable]` rich text, and the ARIA roles a component library uses
 when it rebuilds a control out of divs (`combobox`, `listbox`, `select`, `checkbox`, `radio`,
 `switch`, `slider`, `spinbutton`, `textbox`). `password`, `file` and every submit-shaped control
-stay out, as do CAPTCHA, OTP and payment fields regardless of type (§5 above).
+stay out, as do CAPTCHA, OTP and payment fields regardless of type (§5 above). `applyFill`
+re-checks the password rule on the live element too. A saved portal login (spec §19.7a) is typed
+by the extension's separate login filler (docs/EXTENSION.md §5a), never through a mapping.
 
 Three rules follow from writing to widgets rather than plain text boxes:
 

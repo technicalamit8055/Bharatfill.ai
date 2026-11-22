@@ -18,6 +18,8 @@ let nextIssues: readonly string[] | null = null;
 const composed: string[][] = [];
 let composeFails = false;
 const renderedPresets: string[] = [];
+/** Per photo analysed, whether the page was searched for (`findPage`). */
+const searchedForPage: boolean[] = [];
 
 vi.mock('expo-crypto', () => {
   let next = 0;
@@ -37,19 +39,22 @@ vi.mock('../lib/scan/document-vision', () => ({
     composed.push(sides.map((side) => side.uri));
     return { uri: 'file:///cache/sheet.jpg', width: 2480, height: 3508 };
   },
-  analysePhoto: async () => ({
-    quality: nextIssues
-      ? { sharpness: 0.1, sharpnessJudged: true, paperLevel: 200, glare: 0, issues: nextIssues }
-      : null,
-    size: { width: 100, height: 140 },
-    detected: true,
-    quad: [
-      { x: 0, y: 0 },
-      { x: 100, y: 0 },
-      { x: 100, y: 140 },
-      { x: 0, y: 140 },
-    ],
-  }),
+  analysePhoto: async (_uri: string, options: { findPage?: boolean } = {}) => {
+    searchedForPage.push(options.findPage ?? true);
+    return {
+      quality: nextIssues
+        ? { sharpness: 0.1, sharpnessJudged: true, paperLevel: 200, glare: 0, issues: nextIssues }
+        : null,
+      size: { width: 100, height: 140 },
+      detected: true,
+      quad: [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+        { x: 100, y: 140 },
+        { x: 0, y: 140 },
+      ],
+    };
+  },
   renderPage: async (
     _photo: string,
     _quad: unknown,
@@ -93,10 +98,58 @@ beforeEach(() => {
   discarded.length = 0;
   composed.length = 0;
   renderedPresets.length = 0;
+  searchedForPage.length = 0;
   composeFails = false;
   nextIssues = null;
   vi.mocked(vault.saveDocument).mockReset();
   vi.mocked(vault.saveDocument).mockResolvedValue('saved-id');
+});
+
+describe('platform scanner pages', () => {
+  it('are not searched for a page again and start on the Original filter', async () => {
+    session.addPhotos(['file:///cache/cam.jpg'], 'camera');
+    session.addPhotos(['file:///cache/ml-1.jpg', 'file:///cache/ml-2.jpg'], 'platform');
+    await settle();
+
+    const pages = session.getSession().pages;
+    expect(searchedForPage).toEqual([true, false, false]);
+    expect(pages.map((page) => [page.source, page.filter])).toEqual([
+      ['camera', 'magic'],
+      ['platform', 'original'],
+      ['platform', 'original'],
+    ]);
+    expect(pages.every((page) => page.status === 'ready')).toBe(true);
+  });
+
+  it('keep the filter the citizen picks', async () => {
+    const [id] = session.addPhotos(['file:///cache/ml.jpg'], 'platform');
+    await settle();
+    session.setPageFilter(id as string, 'grayscale');
+    await settle();
+    expect(session.getSession().pages[0]?.filter).toBe('grayscale');
+  });
+
+  it('replace a page on retake, moving it to Original', async () => {
+    const [id] = session.addPhotos(['file:///cache/a.jpg'], 'camera');
+    await settle();
+    session.startRetake(id as string);
+    session.addPhotos(['file:///cache/ml.jpg'], 'platform');
+    await settle();
+    expect(session.getSession().pages[0]).toMatchObject({
+      id,
+      source: 'platform',
+      filter: 'original',
+      photoUri: 'file:///cache/ml.jpg',
+    });
+    expect(searchedForPage).toEqual([true, false]);
+    expect(discarded).toContain('file:///cache/a.jpg');
+  });
+
+  it('save as a scanner document', async () => {
+    session.addPhotos(['file:///cache/ml.jpg'], 'platform');
+    await session.saveSession();
+    expect(vi.mocked(vault.saveDocument).mock.calls[0]?.[1]).toBe('scanner');
+  });
 });
 
 describe('retake', () => {

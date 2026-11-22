@@ -36,7 +36,9 @@ Derived from master spec §15, §16, §17, §26.
 A fourth app, `apps/mobile` (Expo citizen scanner + vault, `docs/CITIZEN_MOBILE_APP_SPEC.md`), sits
 outside this picture: it is local-only today. It imports `@assistigo/core` for shared types, makes
 no `fetch` call and has no Supabase client; scans are encrypted on the device and never uploaded,
-and phone OTP sign-in is a UI shell that is not wired to Supabase Auth.
+and phone OTP sign-in is a UI shell that is not wired to Supabase Auth. On Android, document scans
+use Google's on-device ML Kit Document Scanner through Google Play services; pages stay on the
+phone, but the library sends Google API usage metrics (`CITIZEN_MOBILE_APP_SPEC.md` §8).
 
 ## 2. Stack decisions
 
@@ -310,6 +312,9 @@ apps/web/app
   suspended/            what a member of a suspended centre sees instead of the dashboard
   (public)/             no sign-in: drop/[code] (walk-in upload page), roadmap and tasks
                         (both redirect to the static public/tasks.html tracker)
+  tools/                no sign-in: free copies of the four document tools (SEO entry point);
+                        account-only parts link to sign-in (lib/document-tools/public-tools.ts)
+  sitemap.ts, robots.ts public pages only; private routes left out
   standee/print/        printable counter card, outside (app) so it prints without the shell
   api/                  route handlers
 apps/web/public/demo-forms/   static practice forms for QA

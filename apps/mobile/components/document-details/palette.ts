@@ -7,6 +7,7 @@
  * above 4.5:1 there.
  */
 
+import { dialogPalette } from '../dialog/palette';
 import { homePalette } from '../home/palette';
 import { vaultPalette } from '../vault/palette';
 
@@ -85,4 +86,8 @@ export const documentDetailsPalette = {
   fieldBorderFocused: vaultPalette.brandBlue,
   error: '#C2341D',
   menuPressed: '#F1F5F9',
+  /** More-menu icon tiles and dividers; the same look as the app's action sheets. */
+  menuTile: dialogPalette.actionTile,
+  menuTileDanger: dialogPalette.actionTileDanger,
+  menuDivider: dialogPalette.divider,
 } as const;

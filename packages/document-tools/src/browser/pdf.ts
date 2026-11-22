@@ -22,7 +22,7 @@ import {
   estimateInitialScale,
   type OutputMimeType,
 } from '../index';
-import { canvasToBlob, createCanvas, context2d, blobBytes } from './image';
+import { canvasToBlob, createCanvas, context2d, blobBytes, decodeImage } from './image';
 
 // ---------------------------------------------------------------------------
 // pdf.js loading
@@ -486,4 +486,89 @@ export async function decryptPdf(
     quality: options.quality ?? 0.85,
     password,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Bundles — several documents, in order, as one PDF under a size limit
+// ---------------------------------------------------------------------------
+
+/** One document going into a bundle. An encrypted PDF must already be decrypted. */
+export type BundlePart = { bytes: Uint8Array; mimeType: string };
+
+export type PdfBundleResult = {
+  bytes: Uint8Array;
+  pageCount: number;
+  /** Parts that were photos or scans and became A4 pages. */
+  imageParts: number;
+  /** Set when compression ran, i.e. the merged file was over the target. */
+  compression: PdfCompressionResult | null;
+};
+
+/**
+ * Longest edge a photographed page is kept at: about 200 DPI on A4, legible on any portal
+ * viewer. A 12 MP phone photo embedded at full size would cost the size budget for nothing.
+ */
+const BUNDLE_IMAGE_MAX_EDGE_PX = 2339;
+const BUNDLE_IMAGE_QUALITY = 0.85;
+
+async function imagePartToPdf(part: BundlePart): Promise<Uint8Array> {
+  // Re-encoded through a canvas rather than embedded directly: it shrinks the photo, and it is
+  // also the only way a WEBP (which pdf-lib cannot embed) gets into a PDF.
+  const image = await decodeImage(new Blob([part.bytes.slice()], { type: part.mimeType }));
+  try {
+    const scale = Math.min(1, BUNDLE_IMAGE_MAX_EDGE_PX / Math.max(image.width, image.height));
+    const canvas = createCanvas(image.width * scale, image.height * scale);
+    const context = context2d(canvas);
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image.source, 0, 0, canvas.width, canvas.height);
+    const jpeg = await blobBytes(await canvasToBlob(canvas, 'image/jpeg', BUNDLE_IMAGE_QUALITY));
+    return imagesToPdf([{ bytes: jpeg, mimeType: 'image/jpeg' }], { pageSize: 'a4' });
+  } finally {
+    image.release();
+  }
+}
+
+/**
+ * Builds the bundle: each part becomes PDF pages (a PDF's pages are copied losslessly, a photo
+ * becomes one A4 page), the pages are concatenated in the order given, and the result is
+ * compressed only if it is over `maxBytes`.
+ *
+ * Compressing once over the whole bundle rather than per part lets a small text certificate
+ * leave room for a heavy scan, rather than each part getting an equal share it may not need.
+ */
+export async function buildPdfBundle(
+  parts: readonly BundlePart[],
+  options: { maxBytes: number | null; allowRasterise: boolean },
+): Promise<PdfBundleResult> {
+  const sources: Uint8Array[] = [];
+  const refs: PageRef[] = [];
+  let imageParts = 0;
+
+  for (const part of parts) {
+    let pdfBytes: Uint8Array;
+    if (part.mimeType === 'application/pdf') {
+      pdfBytes = part.bytes;
+    } else {
+      pdfBytes = await imagePartToPdf(part);
+      imageParts += 1;
+    }
+    const sourceIndex = sources.length;
+    sources.push(pdfBytes);
+    const count = await pdfPageCount(pdfBytes);
+    for (let pageNumber = 1; pageNumber <= count; pageNumber += 1) {
+      refs.push({ sourceIndex, pageNumber });
+    }
+  }
+
+  const assembled = await assemblePdf(sources, refs);
+  if (options.maxBytes === null || assembled.byteLength <= options.maxBytes) {
+    return { bytes: assembled, pageCount: refs.length, imageParts, compression: null };
+  }
+
+  const compression = await compressPdf(assembled, {
+    maxBytes: options.maxBytes,
+    allowRasterise: options.allowRasterise,
+  });
+  return { bytes: compression.bytes, pageCount: refs.length, imageParts, compression };
 }

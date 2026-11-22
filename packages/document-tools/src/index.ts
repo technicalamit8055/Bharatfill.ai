@@ -22,3 +22,4 @@ export * from './cards';
 export * from './recipe';
 export * from './preferences';
 export * from './autofit';
+export * from './bundles';

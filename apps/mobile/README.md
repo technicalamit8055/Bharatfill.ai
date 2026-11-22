@@ -3,9 +3,10 @@
 Expo + Expo Router app for citizens: a document scanner and a personal vault that a CSC /
 cyber cafe operator can read from during form filling.
 
-Spec: `docs/CITIZEN_MOBILE_APP_SPEC.md` (build status in its §8). This is Phase 1 (§6): the
-scanner, the encrypted on-device vault and export work; sign-in, cloud sync, the operator bridge
-and consent controls do not exist yet. Scan quality work: `docs/SCANNER_VFLAT_QUALITY_PLAN.md`.
+Spec: `docs/CITIZEN_MOBILE_APP_SPEC.md` (build status in its §8). The scanner, the encrypted
+on-device vault, export and the app lock work on the phone; sign-in, cloud sync, Log out and
+Delete account are built but switched off unless the build sets the cloud values (below); the
+operator bridge and consent controls do not exist yet. Scan quality work: `docs/SCANNER_VFLAT_QUALITY_PLAN.md`.
 
 The app name is **Bharatfill** (`app.json`, `app.name` in `messages/`); the splash, onboarding
 and sign-in artwork spell the wordmark **BharatDoc** (`splash.brandPrimary` + `brandAccent`).
@@ -42,22 +43,33 @@ JS-only changes, Metro reloads the installed build.
 Development builds (`__DEV__`) fill empty screens with the design mockups' sample content so
 layouts can be reviewed. Release builds never show it.
 
-| Area                                                            | Release build                                                                 | Dev build extra                                                                             |
-| :-------------------------------------------------------------- | :---------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------ |
-| Scanner, review, save, vault, details, export, expiry reminders | Real, on-device                                                               | Vault shows sample documents while the phone's vault is empty (`components/vault/demo.tsx`) |
-| Home                                                            | Counts per category and recent documents from the vault; no name (no profile) | Sample dashboard while the vault is empty (`components/home/demo.tsx`)                      |
-| Connect / nearby centres                                        | No centres (no directory, no location)                                        | Sample centres (`components/connect/demo.tsx`)                                              |
-| Profile                                                         | Signed-out card; language picker and About work                               | Sample account (`components/profile/demo.ts`)                                               |
-| Mobile number / OTP / profile setup                             | Screens and validation only; Get OTP says SMS is not available                | A dev-only demo number walks the flow through OTP → profile → security; no code is checked  |
-| Security setup                                                  | Placeholder: app-lock methods shown as "coming soon"                          | —                                                                                           |
+| Area                                                            | Release build                                                                                                                                                                          | Dev build extra                                                                             |
+| :-------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------ |
+| Scanner, review, save, vault, details, export, expiry reminders | Real, on-device                                                                                                                                                                        | Vault shows sample documents while the phone's vault is empty (`components/vault/demo.tsx`) |
+| Home                                                            | Counts per category and recent documents from the vault; no name (no profile)                                                                                                          | Sample dashboard while the vault is empty (`components/home/demo.tsx`)                      |
+| Connect / nearby centres                                        | No centres (no directory, no location)                                                                                                                                                 | Sample centres (`components/connect/demo.tsx`)                                              |
+| Profile                                                         | Cloud builds: the signed-in name and number, Personal Information (edit name, Delete account) and Log out; otherwise the signed-out card. Language, Security (app lock) and About work | Sample account (`components/profile/demo.ts`) when no cloud is configured                   |
+| Mobile number / OTP / profile setup                             | Screens and validation only; Get OTP says SMS is not available                                                                                                                         | A dev-only demo number walks the flow through OTP → profile → security; no code is checked  |
+| Security setup                                                  | Offline builds: opens App lock set-up; cloud builds: the Vault PIN                                                                                                                     | —                                                                                           |
 
 Every tap on something not built (notifications, directions, calling, Connect & Share, access
-history, plans, log out, …) shows a "coming soon" alert; nothing is read or sent.
+history, plans, …) shows a "coming soon" alert; nothing is read or sent.
 
 ## Scanner
 
 `app/scanner.tsx` → `app/scan-review.tsx` → `app/save-document.tsx` → `app/scan-result.tsx`.
-The whole pipeline is in-app OpenCV; no platform scanner, no cloud processing.
+No cloud processing: every page is processed on the phone.
+
+- **Platform scanner** (`lib/scan/platform-scanner.ts`, native module
+  `modules/platform-scanner`, Android only): an ordinary document scan opens Google's ML Kit
+  Document Scanner (Google Play services; full mode — neural page detection, flattening, shadow,
+  stain and finger clean-up; gallery import; up to 24 pages). Its JPEGs land in the app cache
+  and go to review as `platform` pages: not searched for a page again, Original filter first.
+  Backing out with no pages leaves; with pages, `PlatformScanLauncher` offers scan again,
+  review, the in-app camera, or close. No Play services, iOS, or a scanner that fails to open →
+  the in-app camera below. The ID card, photo and signature presets always use the in-app
+  camera. The module autolinks from `modules/`; rebuild the dev build after pulling it. ML Kit
+  sends Google API usage metrics (not images) — see `docs/CITIZEN_MOBILE_APP_SPEC.md` §8.
 
 - **Camera** (`app/scanner.tsx`, `components/scanner/ScannerScreen.tsx`): a full-screen modal
   opened by the Scan tab, the Home hero and quick actions (`?mode=single|multi`). Live detection
@@ -159,9 +171,29 @@ The whole pipeline is in-app OpenCV; no platform scanner, no cloud processing.
   Nearby CSC Centers (list or map, 5 / 10 km, Open Now, service filter, name / address search)
   and a centre's details. The map is a drawn illustration with pins, not map tiles. Share sends a
   centre's public listing to the share sheet; saved centres are kept in memory only.
-- **Profile** (`components/profile/`, `lib/profile/profile-screen.ts`): account card, plan card,
-  settings list. The language picker switches `en` / `hi` and is remembered between launches
-  (else the device locale); About shows the app version.
+- **Profile** (`components/profile/`, `lib/profile/profile-screen.ts`, `lib/cloud/account.ts`):
+  account card, settings list, Log out. Signed in, the card shows the account's name and the
+  number from the session and opens Personal Information (`app/account-details.tsx`: edit the
+  name; Delete account). The language picker switches `en` / `hi`, is remembered between
+  launches (else the device locale) and, signed in, updates the account. About shows the app
+  version. No photo, email or plan (design D10).
+- **Log out / Delete account** (`lib/cloud/use-leave-account.ts`, `lib/cloud/leave-prompt.ts`;
+  design D16): both ask whether the documents on this phone are removed or kept, naming how many
+  exist only here. Log out runs a last sync (≤ 15 s) when removing, revokes the session on the
+  server and forgets this account's document key, so signing in again needs the Vault PIN.
+  Delete account keeps the phone's documents, if asked, as a plain offline vault.
+- **Vault ↔ account binding**: the vault index records the one cloud account it syncs with
+  (`cloudAccountId`, set on the first sync). Sync refuses any other account, so a second person
+  signing in on the same phone never has the first person's documents uploaded into their vault.
+- **App lock** (`app/security.tsx`, `components/security/`, `lib/security/`): the phone's own
+  fingerprint / face / screen lock (`expo-local-authentication`), or a 4-digit app PIN for phones
+  without one — a salted SHA-256 in SecureStore, separate from the Vault PIN. Locks on every cold
+  start and after a minute in the background (so Google's scanner, the photo picker and the share
+  sheet do not lock the citizen out mid-task), as a `Modal` over the whole app, which keeps its
+  place underneath. Five wrong PINs are free, then the wait doubles from 30 s up to an hour;
+  nothing is erased for wrong PINs. Changing or removing a lock asks for the current one first.
+  Forgot PIN: the phone's screen lock if it has one, otherwise a reset that removes the lock,
+  signs the phone out and removes the documents on it (cloud copies untouched).
 
 ## Layout
 
@@ -243,18 +275,35 @@ need a device.
 
 ## Not built yet
 
-- **Phone OTP sign-in** (Supabase phone auth, spec §6 Phase 2): the screens exist, but no SMS is
-  sent and no code is checked. Sending the number to an SMS provider needs product-owner sign-off.
-- **Accounts and sessions**: the profile from registration is discarded (storing date of birth,
-  gender and state needs a product-owner decision); nothing remembers a signed-in user.
-- **App lock** (biometrics / PIN): security setup is a placeholder.
-- **Cloud sync and the operator bridge**: nothing is uploaded; operators cannot look up a
-  citizen's vault by phone number.
+- **Cloud sign-in is built but switched off by default.** With the three `EXPO_PUBLIC_*` values
+  in `.env.example` set, registration is real (docs/VAULT_BRIDGE_DESIGN.md §3): phone OTP
+  through Supabase Auth (`lib/cloud/auth-client.ts`), name + language, then a 4-digit Vault PIN
+  and consent, which creates the account through `POST /api/citizen/account` and stores the
+  vault's document key in SecureStore. A number that already has a vault, on a phone without
+  its key, goes to the Vault PIN unlock (`app/(auth)/restore.tsx`). Without the values the app
+  is offline-only, as before. Needs an SMS sender on the Supabase project (or test OTPs for
+  numbers in the 99000 range) and `VAULT_MASTER_KEY` on the dashboard.
+- **Old-phone approval and the 7-day restore hold** (design §3.3): named on the restore screen,
+  not built.
+- **App lock on a device**: built and unit-tested, not yet run on a phone. Check the system
+  prompt with and without enrolled biometrics, a phone with no screen lock (app PIN only), the
+  relock after Google's scanner and the share sheet, and Forgot PIN → reset. On Android 13+ the
+  recent-apps preview is blank (`modules/private-screen`); older Android still shows it.
+- **Cloud sync is built (cloud builds, after sign-up)**: `lib/cloud/sync.ts` encrypts each
+  document with the vault's cloud key and uploads it — on launch, when the app returns to the
+  foreground, and shortly after a save, rename, move or delete. Document Details → More →
+  "Keep on this phone only" keeps one document off the cloud (and deletes a synced copy). Not
+  built: bringing synced documents back onto a restored phone.
+- **Operator bridge**: the server routes are built (`apps/web/app/api/vault/*`,
+  `/api/citizen/share-code|access|requests|grants`); the app has no share-code, approve / deny
+  or access-history screens yet, so nothing reaches an operator.
 - **Consent and access modes**, operator access alerts and access history (spec §3 Feature 4).
 - **Centre directory and location**: no real centres, no location permission, no directions or
   calling.
-- **Preset extras**: portal size presets (export under a KB limit) and passport-photo
-  background replacement.
+- **Export for a form** (built, not yet run on real photos): Document Details → More → Export
+  for a form lists the portal presets that fit a photo or signature (e.g. SSC photo 20–50 KB),
+  then frames, resizes, sets DPI and searches JPEG quality until the file is inside the KB
+  window. Not built: passport-photo background replacement.
 - **On-device OCR** / field extraction.
 - **Scan quality gaps**: curled pages are not dewarped, fingers are not removed, and a page on a
   light desk whose edge is too faint even after the contrast stretch is still missed (falls back
@@ -262,5 +311,6 @@ need a device.
 - **Device check**: the new OpenCV paths (low-contrast fallback, ID card sheet, photo and
   signature presets) and the quality thresholds have only been typechecked and unit-tested on
   synthetic images; they need a pass on real phones and real documents.
-- **Persistence of small settings**: saved centres last one session.
+- **Persistence of small settings**: saved centres last one session (worth keeping only once
+  real centres exist; store them in the encrypted vault, not the plaintext settings file).
 - Dark mode for the branded screens (the app is light-only, `userInterfaceStyle: "light"`).

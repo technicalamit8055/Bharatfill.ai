@@ -14,6 +14,10 @@ const alias = {
   'server-only': path.resolve(root, 'node_modules/next/dist/compiled/server-only/empty.js'),
   // Subpath before barrel: aliases are matched by prefix, first hit wins.
   '@assistigo/core/privacy/crypto': path.resolve(root, 'packages/core/src/privacy/crypto.ts'),
+  '@assistigo/core/portal-credentials/hosts': path.resolve(
+    root,
+    'packages/core/src/portal-credentials/hosts.ts',
+  ),
   '@assistigo/core': path.resolve(root, 'packages/core/src/index.ts'),
   '@assistigo/ai': path.resolve(root, 'packages/ai/src/index.ts'),
   '@assistigo/form-engine/types': path.resolve(root, 'packages/form-engine/src/types.ts'),

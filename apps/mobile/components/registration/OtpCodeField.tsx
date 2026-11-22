@@ -1,5 +1,5 @@
 /**
- * The 6-box OTP input.
+ * The 6-box OTP input — and, with `length` and `secure`, the 4-box Vault PIN input.
  *
  * One real `TextInput` holds the code and the boxes only draw it, so typing, backspace, paste
  * and the keyboard's own one-time-code suggestion all behave like a normal field instead of
@@ -22,9 +22,13 @@ export type OtpCodeFieldProps = {
   readonly onSubmitEditing?: () => void;
   readonly label: string;
   readonly hasError?: boolean;
+  /** Number of boxes. Defaults to the 6-digit OTP. */
+  readonly length?: number;
+  /** Draw a dot for each digit and never offer an SMS code (the Vault PIN). */
+  readonly secure?: boolean;
+  /** Raise the keyboard on mount. Defaults to true. */
+  readonly autoFocus?: boolean;
 };
-
-const BOX_INDEXES = Array.from({ length: OTP_LENGTH }, (_, index) => index);
 
 export function OtpCodeField({
   value,
@@ -32,16 +36,20 @@ export function OtpCodeField({
   onSubmitEditing,
   label,
   hasError = false,
+  length = OTP_LENGTH,
+  secure = false,
+  autoFocus = true,
 }: OtpCodeFieldProps) {
   const inputRef = useRef<TextInput>(null);
   const [focused, setFocused] = useState(false);
+  const boxIndexes = Array.from({ length }, (_, index) => index);
 
   /** The box the next digit lands in; stays on the last box once the code is full. */
-  const cursorIndex = Math.min(value.length, OTP_LENGTH - 1);
+  const cursorIndex = Math.min(value.length, length - 1);
 
   return (
     <Pressable accessible={false} onPress={() => inputRef.current?.focus()} style={styles.row}>
-      {BOX_INDEXES.map((index) => {
+      {boxIndexes.map((index) => {
         const digit = value[index];
         const isCursor = focused && index === cursorIndex;
 
@@ -58,7 +66,11 @@ export function OtpCodeField({
             accessible={false}
             importantForAccessibility="no-hide-descendants"
           >
-            {digit ? <Text style={styles.digit}>{digit}</Text> : <View style={styles.dash} />}
+            {digit ? (
+              <Text style={styles.digit}>{secure ? '•' : digit}</Text>
+            ) : (
+              <View style={styles.dash} />
+            )}
           </View>
         );
       })}
@@ -67,15 +79,16 @@ export function OtpCodeField({
         ref={inputRef}
         value={value}
         // No maxLength: it would cut a pasted "123 456" before the space is stripped.
-        onChangeText={(text) => onChangeCode(normaliseOtpInput(text))}
+        onChangeText={(text) => onChangeCode(normaliseOtpInput(text).slice(0, length))}
         onSubmitEditing={onSubmitEditing}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         keyboardType="number-pad"
-        textContentType="oneTimeCode"
-        autoComplete="sms-otp"
+        textContentType={secure ? 'none' : 'oneTimeCode'}
+        autoComplete={secure ? 'off' : 'sms-otp'}
+        secureTextEntry={secure}
         returnKeyType="done"
-        autoFocus
+        autoFocus={autoFocus}
         caretHidden
         accessibilityLabel={label}
         style={styles.hiddenInput}

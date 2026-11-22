@@ -21,6 +21,26 @@ describe('redact', () => {
     expect(out.pan).toBe('[redacted:string:10]');
   });
 
+  it('drops citizen vault secrets and names (0038) without swallowing ordinary codes', () => {
+    const out = redact({
+      vaultPin: '4826',
+      shareCode: '849201',
+      displayName: 'Demo Citizen',
+      documentTitle: 'My caste certificate',
+      wrappedKey: 'v1.aaa.bbb.ccc',
+      reasonCode: 'operator_limit',
+      mappingCount: 3,
+    }) as Record<string, unknown>;
+
+    expect(serialize(out)).not.toContain('4826');
+    expect(serialize(out)).not.toContain('849201');
+    expect(serialize(out)).not.toContain('Demo Citizen');
+    expect(serialize(out)).not.toContain('caste');
+    expect(serialize(out)).not.toContain('v1.aaa');
+    expect(out.reasonCode).toBe('operator_limit');
+    expect(out.mappingCount).toBe(3);
+  });
+
   it('never leaks an identifier through a nested structure', () => {
     const out = redact({
       extraction: {

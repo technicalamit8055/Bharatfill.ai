@@ -32,11 +32,13 @@ permission carrying an in-product explanation and matching Chrome Web Store copy
 **The shipped manifest does not match that.** `apps/extension/public/manifest.json` currently
 declares, since commit c8cd42d:
 
-| Key                         | Value                                                                       |
-| --------------------------- | --------------------------------------------------------------------------- |
-| `host_permissions`          | `["http://*/*", "https://*/*"]`                                             |
-| `content_scripts`           | `content.js` on `http://*/*` + `https://*/*`, `all_frames`, `document_idle` |
-| `optional_host_permissions` | `["http://*/*", "https://*/*"]` (redundant while the above is granted)      |
+| Key                | Value                                                                       |
+| ------------------ | --------------------------------------------------------------------------- |
+| `host_permissions` | `["http://*/*", "https://*/*"]`                                             |
+| `content_scripts`  | `content.js` on `http://*/*` + `https://*/*`, `all_frames`, `document_idle` |
+
+There is no `optional_host_permissions` key: listing the same hosts there made Chrome warn that
+it was redundant and drop it, and no code calls `chrome.permissions.request`.
 
 So the content script is loaded on every http(s) page and frame the operator opens, not injected
 on demand. On load it only sets a presence marker (`data-assistigo-extension="1"` on `<html>`,
@@ -45,12 +47,16 @@ fields until a `DETECT_FIELDS` arrives. `ensureContentScript` in the service wor
 and falls back to `executeScript`. The file comment in `content/index.ts` ("injected on demand")
 is stale. This diverges from spec §15.2 and needs a product-owner decision before a store build.
 
-`chrome.webNavigation` is used in `background/index.ts` to read and fill sub-frames, but the
-`webNavigation` permission is not declared, so `chrome.webNavigation` is undefined and both
-sub-frame branches are skipped (every call is guarded with `?.`). What remains is one
-`chrome.tabs.sendMessage` with no `frameId`; with `all_frames` content scripts every frame
-receives it and Chrome keeps the first reply, normally the top frame's, whose detector walks
-same-origin iframes itself (§6). Not verified on a portal with cross-origin frames.
+Every page message (`PING`, `DETECT_FIELDS`, `APPLY_FILL`) is sent with `{ frameId: 0 }`. The
+content script runs in every frame (`all_frames`), and a message with no `frameId` would reach
+all of them with Chrome keeping whichever reply came first, so an ad or widget iframe could
+answer for the page. The top frame reaches same-origin iframes itself: the detector reads iframe
+`i` as frame `i + 1` (§6) and `findElementBySignature` looks for the field in that same frame,
+using tag checks rather than `instanceof` because a frame's elements belong to another realm.
+Cross-origin frames are never read or filled; they are counted in `page.blockedFrames`. No
+`webNavigation` permission is requested: an earlier sub-frame sweep relied on it, never ran
+because the permission was never declared, and would have detected same-origin fields twice, so
+it was removed. Not verified on a live portal that uses iframes.
 
 `externally_connectable.matches` lists the dashboard origins only — `http://localhost:3000`,
 `https://assistigo.ai` and `https://*.assistigo.ai` — because pairing (§3) is the one thing a web
@@ -85,8 +91,9 @@ Tokens live in `chrome.storage.session` and are refreshed by the service worker.
 the dashboard revokes the extension session — the extension holds the _Supabase_ refresh token,
 so `POST /api/extension/refresh` fails the moment that token family is revoked.
 
-Rationale: no password ever passes through extension code, and Chrome Web Store review sees no
-credential handling.
+Rationale: the operator's own Bharatfill password never passes through extension code. (Since
+2026-11-07 the extension does handle one kind of credential — a citizen's saved portal login, on
+the operator's click; see § 5a. Chrome Web Store review must be told about it.)
 
 ```text
 popup  ──"Connect account"──▶  tab: /extension/connect?ext=<id>
@@ -179,10 +186,21 @@ LINK_ROAMING_CUSTOMER    sidepanel → background → server   (bookmark + selec
 GET_ROAMING_ACCESS       sidepanel → background → server   (masked card + top scheme matches)
 REQUEST_ROAMING_OTP      sidepanel → background → server   (never returns the code itself)
 VERIFY_ROAMING_OTP       sidepanel → background → server   (mints the time-boxed grant)
+REQUEST_ROAMING_APPROVAL sidepanel → background → server   (BharatDoc app approval; no duration —
+                         the citizen picks 1/2/4 h in the app, migration 0039)
+GET_ROAMING_APPROVAL     sidepanel → background → server   (poll; on approval unlocks the selection)
+CANCEL_ROAMING_APPROVAL  sidepanel → background → server
 REVOKE_ROAMING_SESSION   sidepanel → background → server
+
+GET_PORTAL_LOGIN         sidepanel → background → server   (is this tab an allow-listed portal
+                         login, and does the customer have a saved login? masked only, §5a)
+FILL_PORTAL_LOGIN        sidepanel → background → server   (no payload; worker reads the tab URL
+                         and selected customer itself, §5a)
+APPLY_PORTAL_LOGIN       background → content, frame 0 only   (the only message that carries a
+                         portal password; content re-checks its location first, §5a)
 ```
 
-The six roaming messages (migration 0024) are the extension's half of the cross-centre roaming
+The roaming messages (migrations 0024, 0039) are the extension's half of the cross-centre roaming
 feature — see §4b and docs/SECURITY.md "Cross-operator roaming access". None of them ever carries
 a value from the customer's record beyond what the masked pre-auth card already shows; the
 selected `CustomerSummary`'s `isRoaming` / `accessStatus` / `grantExpiresAt` fields are what gate
@@ -199,7 +217,9 @@ to storage, and are cleared from the message context when the fill completes.
 ### 4a. Opening the dashboard
 
 `OPEN_DASHBOARD { path? }` makes the worker open `${dashboardUrl}${path ?? '/dashboard'}` in a new
-tab (`chrome.tabs.create`). Entry points:
+tab (`chrome.tabs.create`). The schema requires `path` to start with exactly one `/` (not `//` or
+`/\`), and the worker refuses with `invalid_path` unless the built URL has the dashboard's own
+origin, so `@host` or `//host` can never open another site. Entry points:
 
 | Where                                                 | `path`                                                                         |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -255,15 +275,18 @@ The code the operator types is the citizen's consent code, sent by Assistigo to 
 read back at the counter. It goes into the extension's own panel and nowhere else; it is not a
 portal OTP, and portal OTP boxes stay unfillable (§5).
 
+Grant expiry: whenever the worker reads the selected customer (`readSelectedCustomer`), a roaming
+grant whose `grantExpiresAt` has passed, or cannot be parsed, is rewritten to `locked`. The
+banner's 30-second tick refreshes the session at expiry, so the panel drops back to the OTP step
+and disables Detect and the vault within half a minute. The server refuses expired grants anyway.
+
 Known gaps, as the code stands:
 
-- The countdown is cosmetic. On expiry the banner refreshes session state, but `GET_SESSION`
-  returns the stored selection without re-checking the grant, so the panel keeps showing an
-  active session at `00m` and leaves Detect enabled until the operator re-selects or presses
-  Lock / End. The server refuses the reads regardless.
-- "Save as an application" (§6b) does not work for a roaming customer: `POST /api/applications`
-  requires the customer to belong to the caller's organization and answers 404, and the panel
-  swallows the failure.
+- "Save as an application" (§6b) is not offered for a roaming customer. A grant never covers
+  `applications` (migration 0024), so the panel shows a note instead of the button and the
+  worker refuses `CREATE_APPLICATION` with `roaming_application_unsupported` before any request.
+  Whether a visiting centre should be able to record the application at all is an open product
+  decision.
 
 Asserted by `apps/extension/tests/roaming.test.ts` (5 tests: OTP request path and error shape,
 verify marks only the selected customer granted, a wrong code mints nothing).
@@ -289,6 +312,48 @@ suites may be deleted or weakened.
 
 The multi-stage workflow (§6b) adds no new way past these: it advances only when the operator
 presses the panel's own button after using the portal's own navigation.
+
+Since 2026-11-07, `applyFill` also refuses a `type="password"` input on the live element
+(`unsupported_type`), even when instructed by its real signature. Before, only the mapper kept
+password fields out.
+
+## 5a. Portal login (spec §19.7a)
+
+The side panel's **Log in as [customer]** card fills a citizen's saved portal login — SSC, UPSC,
+UPPSC, BPSC OTR, Rajasthan SSO, Haryana PPP — so the operator does not go through "Forgot
+password". It is the only code in the extension that types a password, and it is kept apart from
+the form filler.
+
+```text
+side panel  GET_PORTAL_LOGIN ─▶ worker: portalForUrl(tab.url) ─▶ GET /api/customers/:id/portal-credentials
+            (masked: portal name, login-ID hint, hasPassword) ◀─┘
+operator clicks "Log in as …"
+side panel  FILL_PORTAL_LOGIN (no payload) ─▶ worker: portalForUrl(tab.url) again
+            ─▶ POST /api/portal-credentials/login-fill { customerId, pageUrl }   (server re-derives the portal; critical audit)
+            ─▶ APPLY_PORTAL_LOGIN { loginId, password, hosts } to frame 0
+content     fillPortalLogin(): isAllowedLoginLocation(location, hosts) → type ID + password → report
+```
+
+- **Three host checks.** The worker checks the tab URL, the server checks the submitted URL (the
+  caller never names the portal), and the content script checks its own `location` before typing.
+  A page counts only if it is `https:` on the default port with no `user:pass@`, and its host
+  equals a catalogue host or is a dot-boundary subdomain of one
+  (`packages/core/src/portal-credentials/hosts.ts`). `notssc.gov.in` and `ssc.gov.in.evil.com` do
+  not match.
+- **What it types.** The first usable, non-CAPTCHA/OTP password box on the top document, and the
+  text box closest before it in the same form. On an ID-only first step it types only into a box
+  labelled as a login ID. Hidden, disabled and readonly boxes are skipped.
+- **What it never does.** It never clicks, submits or presses Enter, and never writes a CAPTCHA or
+  OTP box. It reports whether a CAPTCHA is present so the panel can say "solve the CAPTCHA and
+  press Login yourself". It never writes into an iframe.
+- **What it keeps.** Nothing. The values travel worker → content once per click and are never
+  written to `chrome.storage`. The side panel never receives them.
+- **Who.** `credential.use` + `fill.run`. Not offered for a roaming customer: the vault stays at
+  the home centre.
+
+Tests: `apps/extension/tests/portal-login.test.ts` (look-alike hosts, http, odd port, empty
+allow-list, never submits/clicks/keys, CAPTCHA and password-typed OTP untouched, hidden/disabled
+skipped, and the form filler still refusing a password box). Do not delete or weaken it.
 
 ## 6. Detection
 
@@ -541,7 +606,8 @@ Consequences worth knowing:
   first save stay unlinked, so saving on stage 1 is what links the whole journey.
 - Closing the side panel drops the panel's copy. If the worker has also restarted, or the next
   page opened in another tab, the link is gone and the next Save creates a second application.
-- A roaming customer cannot be saved (§4b).
+- A roaming customer cannot be saved (§4b); the panel says so instead of offering the button.
+  Any other save failure is shown in the panel rather than swallowed.
 - **Re-fill** goes through the normal `APPLY_FILL` path, so the worker PATCHes the same
   `fill_sessions` row a second time with only the retried results: the row's filled/skipped counts
   are overwritten with the subset's, duplicate `fill_session_fields` rows are inserted for those

@@ -22,9 +22,11 @@ These are product-level constraints, not preferences. A PR that violates one is 
 | 8   | No competitor branding, copy, layout or assets.                                                           | §1, §28.1    |
 | 9   | No product scope invented outside the master spec.                                                        | §28.1        |
 | 10  | Raw documents are never sent to an AI provider without org-level opt-in.                                  | §12.3, §19.3 |
+| 11  | A saved portal password is typed only by the extension's login filler: on the operator's click, on an allow-listed `https:` portal host, never submitting. The form filler never fills a password field. | §19.7a |
 
-Rules 1–4 are additionally guarded by tests in `apps/extension/tests/` and constants in
-`packages/form-engine/src/safety.ts`. Do not weaken them "temporarily".
+Rules 1–4 and 11 are additionally guarded by tests in `apps/extension/tests/` (rule 11:
+`portal-login.test.ts`) and constants in `packages/form-engine/src/safety.ts`. Do not weaken them
+"temporarily".
 
 ---
 

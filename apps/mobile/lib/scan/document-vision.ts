@@ -68,7 +68,7 @@ import {
   refineQuad,
   type Segment,
 } from './page-lines';
-import { estimatePaperLight, maxPool } from './paper-light';
+import { estimatePaperLight, maxPool, poolFactor } from './paper-light';
 import { assessPhotoQuality, type PhotoQuality } from './photo-quality';
 import {
   centredCrop,
@@ -514,8 +514,15 @@ function findPageInPhoto(gray: Mat, size: GeometrySize): Quad | null {
  * each side is snapped onto the straight edge it lies on at a higher resolution, so the corners
  * land on the paper's real edge. The result is inset slightly so no desk shows in the scan.
  * The photo's quality is measured inside the page found, for review to warn about.
+ *
+ * With `findPage: false` the image is taken to be the page already — one Google's document
+ * scanner cropped and flattened (`platform-scanner.ts`) — so it is not searched again: a search
+ * would find a box printed on the page and crop to it. The whole image is the page.
  */
-export async function analysePhoto(uri: string): Promise<PhotoAnalysis> {
+export async function analysePhoto(
+  uri: string,
+  { findPage = true }: { readonly findPage?: boolean } = {},
+): Promise<PhotoAnalysis> {
   const scope: Releasable[] = [];
   const keep = <R extends Releasable>(object: R): R => {
     scope.push(object);
@@ -524,6 +531,15 @@ export async function analysePhoto(uri: string): Promise<PhotoAnalysis> {
   try {
     const image = await loadUpright(uri, keep);
     const size = { width: image.cols, height: image.rows };
+
+    if (!findPage) {
+      return {
+        size,
+        quad: fullFrameQuad(size),
+        detected: true,
+        quality: measureQuality(image, null),
+      };
+    }
 
     const coarseScale = Math.min(1, DETECTION_WIDTH / size.width);
     const coarse = withGrayAt(image, coarseScale, findPageInPhoto);
@@ -557,12 +573,15 @@ export async function analysePhoto(uri: string): Promise<PhotoAnalysis> {
 }
 
 /**
- * Longest side of the copy the paper's lighting is estimated from, and how much of it is
- * max-pooled away: about a 256px grid, fine enough to follow a shadow's edge. Proportional to
- * the page, so a filter card's preview and the saved page get the same look.
+ * Longest side of the copy the paper's lighting is pooled from, and of the grid it is pooled
+ * down to (`poolFactor`). The grid is fine enough to follow a shadow's edge. The copy is several
+ * times finer, so the brightest pixel of each cell is still the paper between a faint seal's
+ * lines or a stamp's strokes: those marks stay out of the estimate and are kept, where a copy
+ * averaged down to the grid first turned them into grey patches that were whitened as shadow.
+ * A page smaller than the copy is pooled from as it is.
  */
-const LIGHTING_SAMPLE_SIDE = 512;
-const LIGHTING_POOL = 2;
+const LIGHTING_SAMPLE_SIDE = 1536;
+const LIGHTING_GRID_SIDE = 256;
 /**
  * What paper becomes once its lighting is divided out. Below 255, so paper grain is not
  * clipped and the tone curve can measure it.
@@ -619,7 +638,7 @@ function evenOutLighting(channel: Mat, keep: Keep): Mat {
   const light = estimatePaperLight(
     maxPool(
       { width: sample.cols, height: sample.rows, pixels: sample.toBuffer('uint8').buffer },
-      LIGHTING_POOL,
+      poolFactor(Math.max(sample.cols, sample.rows), LIGHTING_GRID_SIDE),
     ),
   );
 

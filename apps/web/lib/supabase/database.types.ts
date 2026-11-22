@@ -55,14 +55,7 @@ export type OrganizationRow = Timestamps & {
 };
 
 export type OrganizationAiProvider =
-  | 'openai'
-  | 'anthropic'
-  | 'deepseek'
-  | 'gemini'
-  | 'vertex'
-  | 'ollama'
-  | 'openrouter'
-  | 'custom';
+  'openai' | 'anthropic' | 'deepseek' | 'gemini' | 'vertex' | 'ollama' | 'openrouter' | 'custom';
 
 export type OrganizationAiSettingsRow = Timestamps & {
   organization_id: string;
@@ -147,6 +140,25 @@ export type CustomerFieldValueRow = Timestamps & {
   source_document_id: string | null;
   confidence: number | null;
   status: 'extracted' | 'operator_verified' | 'customer_confirmed' | 'rejected' | 'expired';
+  created_by: string | null;
+  updated_by: string | null;
+};
+
+/** Migration 0036. The three `*_encrypted` columns are ciphertext; see lib/portal-credentials. */
+export type CustomerPortalCredentialRow = Timestamps & {
+  id: string;
+  organization_id: string;
+  customer_id: string;
+  portal_key: 'ssc' | 'upsc' | 'uppsc' | 'bpsc' | 'rajasthan_sso' | 'haryana_ppp' | 'other';
+  portal_label: string | null;
+  login_id_encrypted: string;
+  login_id_hint: string;
+  password_encrypted: string | null;
+  security_question: string | null;
+  security_answer_encrypted: string | null;
+  linked_applications: Json;
+  password_updated_at: string | null;
+  last_used_at: string | null;
   created_by: string | null;
   updated_by: string | null;
 };
@@ -532,10 +544,7 @@ export type SchemesCatalogRow = Timestamps & {
 // ---------------------------------------------------------------------------
 
 export type PlatformRoleValue =
-  | 'super_admin'
-  | 'content_manager'
-  | 'scraper_operator'
-  | 'support_admin';
+  'super_admin' | 'content_manager' | 'scraper_operator' | 'support_admin';
 
 export type PlatformAdminRow = Timestamps & {
   id: string;
@@ -562,12 +571,7 @@ export type LaunchLeadRow = {
 export type ScraperFetcherValue = 'manual' | 'fixture' | 'http';
 
 export type ScraperRunStatusValue =
-  | 'pending'
-  | 'running'
-  | 'succeeded'
-  | 'partial'
-  | 'failed'
-  | 'cancelled';
+  'pending' | 'running' | 'succeeded' | 'partial' | 'failed' | 'cancelled';
 
 export type ScraperSourceRow = Timestamps & {
   id: string;
@@ -707,11 +711,8 @@ export type PlatformChannelSettingsRow = Timestamps & {
 // ---------------------------------------------------------------------------
 
 export type RoamingPurposeValue =
-  | 'form_filling'
-  | 'scheme_application'
-  | 'profile_update'
-  | 'document_access';
-export type RoamingAuthMethodValue = 'otp' | 'qr_consent' | 'biometric';
+  'form_filling' | 'scheme_application' | 'profile_update' | 'document_access';
+export type RoamingAuthMethodValue = 'otp' | 'qr_consent' | 'biometric' | 'app_approval';
 export type RoamingGrantStatusValue = 'active' | 'expired' | 'revoked';
 export type RoamingOtpChannelValue = 'whatsapp' | 'sms';
 
@@ -765,6 +766,24 @@ export type CustomerAccessChallengeRow = {
   created_at: string;
 };
 
+/** `customer_access_requests` (0039): service-role writes; the citizen may read their own rows. */
+export type CustomerAccessRequestRow = {
+  id: string;
+  customer_id: string;
+  organization_id: string;
+  centre_name: string;
+  requested_by: string;
+  citizen_id: string | null;
+  purpose: RoamingPurposeValue;
+  target_scheme_slug: string | null;
+  status: 'pending' | 'approved' | 'denied' | 'expired';
+  duration_minutes: 60 | 120 | 240 | null;
+  grant_id: string | null;
+  expires_at: string;
+  decided_at: string | null;
+  created_at: string;
+};
+
 /** Row shape returned by `public.roaming_customer_search()` and `public.roaming_customer_card()`. */
 export type RoamingCustomerCardRow = {
   customer_id: string;
@@ -799,4 +818,111 @@ export type RoamingLinkedCustomerRow = {
   last_served_at: string;
   has_active_grant: boolean;
   grant_expires_at: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// Citizen Vault (migration 0038, docs/VAULT_BRIDGE_DESIGN.md §5). Citizen tables are written only
+// by citizen/vault routes holding the service role; see the migration header.
+// ---------------------------------------------------------------------------
+
+export type CitizenAccountRow = Timestamps & {
+  id: string;
+  display_name: string;
+  preferred_locale: 'en' | 'hi';
+  cloud_enabled: boolean;
+  last_active_at: string;
+  restore_hold_until: string | null;
+};
+
+/** No client policy: service role only. */
+export type CitizenVaultKeyRow = Timestamps & {
+  citizen_id: string;
+  wrapped_key: string;
+  key_version: number;
+  pin_hmac: string;
+  pin_failures: number;
+  pin_failures_total: number;
+  pin_locked_until: string | null;
+};
+
+export type CitizenDeviceRow = {
+  id: string;
+  citizen_id: string;
+  platform: 'android' | 'ios';
+  label: string | null;
+  key_issued_via: 'signup' | 'pin' | 'device_approval' | 'hold';
+  key_issued_at: string;
+  push_token: string | null;
+  last_seen_at: string;
+  revoked_at: string | null;
+  created_at: string;
+};
+
+export type CitizenVaultDocumentRow = Timestamps & {
+  id: string;
+  citizen_id: string;
+  document_type: string;
+  category: 'identity' | 'academic' | 'certificate' | 'form_asset' | 'other';
+  title: string;
+  storage_path: string;
+  mime_type: string;
+  size_bytes: number;
+  page_count: number;
+  sha256: string | null;
+  status: 'pending' | 'ready';
+  deleted_at: string | null;
+};
+
+export type VaultAccessGrantRow = {
+  id: string;
+  citizen_id: string;
+  organization_id: string;
+  centre_name: string;
+  granted_to_user_id: string;
+  method: 'approval' | 'code' | 'named_centre';
+  allow_copy: boolean;
+  granted_at: string;
+  expires_at: string;
+  ended_at: string | null;
+  ended_by: 'operator' | 'citizen' | 'system' | null;
+  opened_notified_at: string | null;
+  created_at: string;
+};
+
+export type VaultAccessRequestRow = {
+  id: string;
+  citizen_id: string | null;
+  mobile_hmac: string;
+  organization_id: string;
+  centre_name: string;
+  requested_by: string;
+  status: 'pending' | 'approved' | 'denied' | 'expired';
+  duration_minutes: 30 | 120 | null;
+  allow_copy: boolean;
+  grant_id: string | null;
+  expires_at: string;
+  decided_at: string | null;
+  created_at: string;
+};
+
+export type VaultAccessEventRow = {
+  id: string;
+  grant_id: string | null;
+  citizen_id: string | null;
+  organization_id: string | null;
+  centre_name: string | null;
+  operator_id: string | null;
+  document_id: string | null;
+  document_type: string | null;
+  action:
+    | 'granted'
+    | 'listed'
+    | 'viewed'
+    | 'attached'
+    | 'copied'
+    | 'ended'
+    | 'restored'
+    | 'restore_refused'
+    | 'pin_changed';
+  created_at: string;
 };
