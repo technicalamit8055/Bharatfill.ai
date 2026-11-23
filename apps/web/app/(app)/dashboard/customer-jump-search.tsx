@@ -74,7 +74,7 @@ export function CustomerJumpSearch({ canCreateCustomer }: { canCreateCustomer: b
         {t('dashboard.jumpSearchLabel')}
       </label>
       <div className="relative">
-        <span aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 text-white/70">
+        <span aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
           <SearchIcon />
         </span>
         <input
@@ -87,17 +87,17 @@ export function CustomerJumpSearch({ canCreateCustomer }: { canCreateCustomer: b
           }}
           placeholder={t('dashboard.jumpSearchPlaceholder')}
           autoComplete="off"
-          className="h-11 w-full rounded-xl border border-white/25 bg-white/15 pl-10 pr-10 text-sm text-white placeholder:text-white/60 backdrop-blur-md transition-colors focus:border-white/50 focus:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
+          className="h-9 w-full rounded-md border border-slate-300 bg-white pl-9 pr-9 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
         />
         {loading ? (
           <span className="absolute right-3 top-1/2 -translate-y-1/2">
-            <Spinner className="border-white/40 border-t-white" />
+            <Spinner />
           </span>
         ) : null}
       </div>
 
       {results !== null ? (
-        <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
           {results.length === 0 ? (
             <div className="px-4 py-3">
               <p className="text-sm text-slate-500">{t('dashboard.jumpSearchEmpty')}</p>
@@ -117,7 +117,7 @@ export function CustomerJumpSearch({ canCreateCustomer }: { canCreateCustomer: b
                 <li key={result.id}>
                   <Link
                     href={`/customers/${result.id}`}
-                    className="flex items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-brand-50"
+                    className="flex items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50"
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium text-slate-900">
@@ -130,7 +130,7 @@ export function CustomerJumpSearch({ canCreateCustomer }: { canCreateCustomer: b
                         {result.mobileLast4 ? ` · ••••${result.mobileLast4}` : ''}
                       </span>
                     </span>
-                    <span aria-hidden className="shrink-0 text-brand-500">
+                    <span aria-hidden className="shrink-0 text-slate-400">
                       →
                     </span>
                   </Link>

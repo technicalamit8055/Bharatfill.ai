@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Badge, Button, Card, EmptyState, type Tone } from '@assistigo/ui';
 import { useI18n } from '@/lib/i18n/client';
-import { initialsOf } from '@/lib/dashboard/metrics';
+import { CustomerAvatar } from '../customers/customer-avatar';
 import { whatsappLink } from '@/lib/schemes/view';
 import { ArrowRightIcon, EyeIcon, PhoneIcon, PlusIcon, UploadIcon, WhatsappIcon } from './icons';
 
@@ -33,22 +33,6 @@ const VERIFICATION_TONE: Record<string, Tone> = {
   rejected: 'warning',
 };
 
-const AVATAR_GRADIENTS = [
-  'from-brand-500 to-sky-500',
-  'from-emerald-500 to-teal-500',
-  'from-violet-500 to-fuchsia-500',
-  'from-amber-500 to-orange-500',
-  'from-rose-500 to-pink-500',
-  'from-cyan-500 to-blue-500',
-];
-
-/** Stable per customer, so the same person keeps the same colour between visits. */
-function gradientFor(id: string): string {
-  let hash = 0;
-  for (let index = 0; index < id.length; index++) hash = (hash * 31 + id.charCodeAt(index)) >>> 0;
-  return AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.length] ?? 'from-brand-500 to-sky-500';
-}
-
 /**
  * The walk-in list: who came to the counter, and the two things the operator does next.
  *
@@ -75,7 +59,6 @@ export function RecentCustomersCard({
 
   return (
     <Card
-      className="animate-fade-in-up"
       title={t('dashboard.walkInCustomers')}
       description={t('dashboard.walkInCustomersHint')}
       actions={
@@ -126,6 +109,10 @@ export function RecentCustomersCard({
   );
 }
 
+/** One look for every row action, so the eye reads the labels rather than four colours. */
+const ROW_ACTION =
+  'inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50';
+
 function CustomerRow({
   customer,
   canReveal,
@@ -174,13 +161,8 @@ function CustomerRow({
   const tel = /^(?:91)?[6-9]\d{9}$/.test(digits) ? `tel:+91${digits.slice(-10)}` : null;
 
   return (
-    <li className="group -mx-2 flex flex-wrap items-center gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-slate-50">
-      <span
-        aria-hidden
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-semibold text-white shadow-sm ${gradientFor(customer.id)}`}
-      >
-        {initialsOf(customer.fullName)}
-      </span>
+    <li className="group -mx-5 flex flex-wrap items-center gap-3 px-5 py-2.5 transition-colors hover:bg-slate-50">
+      <CustomerAvatar id={customer.id} name={customer.fullName} className="h-9 w-9 text-xs" />
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -228,18 +210,14 @@ function CustomerRow({
             target="_blank"
             rel="noopener noreferrer"
             title={t('dashboard.messageOnWhatsapp')}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-medium text-emerald-800 transition-colors hover:bg-emerald-100"
+            className={ROW_ACTION}
           >
-            <WhatsappIcon className="h-4 w-4" />
+            <WhatsappIcon className="h-4 w-4 text-emerald-600" />
             <span className="hidden sm:inline">{t('dashboard.whatsapp')}</span>
           </a>
         ) : null}
         {tel ? (
-          <a
-            href={tel}
-            title={t('dashboard.callCustomer')}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100"
-          >
+          <a href={tel} title={t('dashboard.callCustomer')} className={ROW_ACTION}>
             <PhoneIcon className="h-4 w-4" />
             <span className="hidden sm:inline">{t('dashboard.call')}</span>
           </a>
@@ -248,7 +226,7 @@ function CustomerRow({
           <Link
             href={`/applications/new?customerId=${customer.id}`}
             title={t('dashboard.startApplication')}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 text-xs font-medium text-brand-800 transition-colors hover:bg-brand-100"
+            className={ROW_ACTION}
           >
             <ArrowRightIcon className="h-4 w-4" />
             <span className="hidden xl:inline">{t('dashboard.startApplication')}</span>
@@ -258,7 +236,7 @@ function CustomerRow({
           <Link
             href={`/documents/upload?customerId=${customer.id}`}
             title={t('documents.upload')}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            className={`${ROW_ACTION} w-8 justify-center px-0`}
           >
             <UploadIcon className="h-4 w-4" />
             <span className="sr-only">{t('documents.upload')}</span>

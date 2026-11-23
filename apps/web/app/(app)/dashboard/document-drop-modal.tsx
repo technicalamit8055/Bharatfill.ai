@@ -287,7 +287,7 @@ export function DocumentDropModal({
       aria-labelledby="document-drop-title"
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center"
     >
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+      <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
         <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
           <div>
             <h2
@@ -315,7 +315,7 @@ export function DocumentDropModal({
             <div
               role="group"
               aria-label={t('documentDrop.channel.label')}
-              className="flex gap-1 rounded-xl bg-slate-100 p-1"
+              className="flex gap-1 rounded-lg bg-slate-100 p-1"
             >
               {CHANNEL_ORDER.filter((option) => channels.includes(option)).map((option) => (
                 <button
@@ -368,14 +368,14 @@ export function DocumentDropModal({
                  * attempts to scan on a cheap phone across a counter.
                  */}
                 <div
-                  className="rounded-xl border-4 border-white bg-white p-2 shadow-md ring-1 ring-slate-200"
+                  className="rounded-lg border-4 border-white bg-white p-2 shadow-md ring-1 ring-slate-200"
                   style={{ width: 232, height: 232 }}
                   // The SVG is generated in this browser from a link this component built.
                   dangerouslySetInnerHTML={{ __html: qrSvg ?? '' }}
                 />
 
                 <div className="flex flex-col items-center gap-1">
-                  <span className="text-[11px] uppercase tracking-wide text-slate-400">
+                  <span className="text-xs text-slate-400">
                     {t('documentDrop.qr.codeLabel')}
                   </span>
                   <span className="font-mono text-2xl font-semibold tracking-widest text-slate-900">
@@ -416,7 +416,7 @@ export function DocumentDropModal({
               </div>
 
               {/* The live line. One sentence, because an operator glances at it. */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
                 <div className="flex items-center gap-2">
                   <span
                     aria-hidden
@@ -441,7 +441,7 @@ export function DocumentDropModal({
               </div>
 
               {simulatorEnabled ? (
-                <details className="rounded-xl border border-dashed border-slate-300 px-4 py-3">
+                <details className="rounded-lg border border-dashed border-slate-300 px-4 py-3">
                   <summary className="cursor-pointer text-sm font-medium text-slate-700">
                     {t('documentDrop.simulate.tab')}
                   </summary>

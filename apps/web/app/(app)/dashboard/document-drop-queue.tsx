@@ -357,7 +357,6 @@ export function DocumentDropQueue({
   return (
     <>
       <Card
-        className="animate-fade-in-up"
         title={t('documentDrop.queue.title')}
         description={t('documentDrop.queue.hint')}
         actions={
@@ -413,7 +412,7 @@ export function DocumentDropQueue({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
                           {CHANNEL_ICON[session.channel]}
                           {t(`documentDrop.queue.channelBadge.${session.channel}`)}
                         </span>
@@ -454,7 +453,7 @@ export function DocumentDropQueue({
                           {session.files.map((file) => (
                             <li
                               key={file.id}
-                              className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 text-[11px] text-slate-600 ring-1 ring-inset ring-slate-200"
+                              className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-600 ring-1 ring-inset ring-slate-200"
                               title={`${file.filename} · ${formatBytes(file.sizeBytes)}`}
                             >
                               <InboxIcon className="h-3 w-3" />
@@ -529,7 +528,7 @@ export function DocumentDropQueue({
                                   : session.files.map((file) => file.id),
                             }))
                           }
-                          className="text-[11px] font-medium text-slate-500 hover:text-slate-800"
+                          className="text-xs font-medium text-slate-500 hover:text-slate-800"
                         >
                           {t(
                             ticked.length === session.files.length
@@ -553,7 +552,7 @@ export function DocumentDropQueue({
                               <p className="truncate text-xs font-medium text-slate-800">
                                 {documentTypeLabel(file, locale)}
                               </p>
-                              <p className="truncate text-[11px] text-slate-500">
+                              <p className="truncate text-xs text-slate-500">
                                 {file.filename} · {formatBytes(file.sizeBytes)}
                               </p>
                             </div>
@@ -562,14 +561,14 @@ export function DocumentDropQueue({
                                 <button
                                   type="button"
                                   onClick={() => setPreviewing({ session, file })}
-                                  className="text-[11px] font-medium text-brand-700 hover:underline"
+                                  className="text-xs font-medium text-brand-700 hover:underline"
                                 >
                                   {t('documentDrop.queue.preview')}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => void downloadFile(session, file)}
-                                  className="text-[11px] font-medium text-slate-500 hover:text-slate-800"
+                                  className="text-xs font-medium text-slate-500 hover:text-slate-800"
                                 >
                                   {t('documentDrop.queue.download')}
                                 </button>

@@ -92,7 +92,7 @@ export function DropCustomerPicker({
         if (event.target === event.currentTarget && !busy) onCancel();
       }}
     >
-      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-lg bg-white shadow-xl">
         <header className="border-b border-slate-100 px-5 py-4">
           <h2 className="text-sm font-semibold text-slate-900">
             {t('documentDrop.picker.title')}

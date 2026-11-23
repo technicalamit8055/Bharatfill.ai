@@ -141,77 +141,20 @@
   }
 }
 
-/*
- * Command-centre surfaces (dashboard home).
- *
- * Kept as utilities rather than inline class soup because the same treatments repeat across the
- * hero, the stat tiles and the tool launcher, and a counter operator reads the dashboard as one
- * surface — a tile that glows differently from its neighbour looks broken, not decorated.
- */
-@layer utilities {
-  .mesh-gradient-brand {
-    background-color: #1841dc;
-    background-image:
-      radial-gradient(at 12% 8%, rgba(89, 153, 255, 0.55) 0px, transparent 55%),
-      radial-gradient(at 88% 4%, rgba(34, 211, 238, 0.35) 0px, transparent 50%),
-      radial-gradient(at 72% 96%, rgba(16, 185, 129, 0.3) 0px, transparent 52%),
-      radial-gradient(at 30% 100%, rgba(27, 51, 140, 0.7) 0px, transparent 60%);
-  }
-
-  .glass-pill {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-md;
-  }
-
-  .command-tile {
-    @apply transition-all duration-200 hover:-translate-y-1 hover:shadow-lg;
-  }
-
-  /* The accent bloom behind a stat tile's number, painted only while the tile is hovered. */
-  .stat-card-glow::after {
-    content: '';
-    position: absolute;
-    inset: auto -30% -60% -30%;
-    height: 120%;
-    opacity: 0;
-    transition: opacity 200ms ease-out;
-    background: radial-gradient(
-      ellipse at 50% 100%,
-      var(--stat-glow, transparent),
-      transparent 70%
-    );
-    pointer-events: none;
-  }
-
-  .stat-card-glow:hover::after {
-    opacity: 1;
-  }
-}
-
 @layer components {
   /*
-   * One bar of a seven-day sparkline. Height is set inline from real daily counts; the rise is
-   * only the reveal. A quiet day keeps a visible floor so it reads as "nothing happened" rather
-   * than as missing data.
+   * One bar of a seven-day sparkline. Height is set inline from real daily counts. A quiet day
+   * keeps a visible floor so it reads as "nothing happened" rather than as missing data.
    */
   .sparkline-bar {
-    @apply w-full rounded-full bg-current;
-    animation: sparklineRise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
-    transform-origin: bottom;
+    @apply w-full rounded-sm bg-current;
   }
 }
 
-@keyframes sparklineRise {
-  from {
-    transform: scaleY(0.05);
-    opacity: 0;
-  }
-  to {
-    transform: scaleY(1);
-    opacity: 1;
-  }
-}
-
-/* A slow breath on the "live" dot, so the clock reads as running without pulling the eye. */
+/*
+ * A slow breath on a "waiting" dot (the walk-in drop waiting for an upload), so the state reads
+ * as live without pulling the eye.
+ */
 @keyframes livePulse {
   0%,
   100% {
@@ -822,7 +765,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sparkline-bar,
   .animate-live-pulse,
   .animate-float,
   .animate-pulse-glow,
@@ -843,10 +785,6 @@
   .hero-shine,
   .hero-ripple {
     display: none;
-  }
-
-  .command-tile {
-    @apply hover:translate-y-0;
   }
 }
 

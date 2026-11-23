@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import { Badge, Card, EmptyState, type Tone } from '@assistigo/ui';
 import {
@@ -9,7 +8,7 @@ import {
   type ApplicationStatus,
 } from '@assistigo/core';
 import { localised, type Locale, type Translator } from '@/lib/i18n';
-import { ArrowRightIcon, ClipboardIcon } from './icons';
+import { ArrowRightIcon } from './icons';
 
 export type PipelineApplicationView = {
   id: string;
@@ -48,7 +47,6 @@ export function ApplicationsPipelineCard({
 }) {
   return (
     <Card
-      className="animate-fade-in-up"
       title={t('dashboard.pipelineTitle')}
       description={t('dashboard.pipelineHint')}
       actions={
@@ -65,29 +63,15 @@ export function ApplicationsPipelineCard({
         <EmptyState
           title={t('dashboard.emptyApplications')}
           description={canCreate ? t('dashboard.emptyApplicationsHint') : undefined}
-          /* Decorative: the title beside it already carries the message. */
-          illustration={
-            <Image
-              src="/dashboard/empty-applications.png"
-              alt=""
-              width={1024}
-              height={1024}
-              className="h-32 w-auto select-none object-contain"
-            />
-          }
         />
       ) : (
-        <ul className="space-y-2">
+        <ul className="-my-1 divide-y divide-slate-100">
           {applications.map((application) => (
             <li key={application.id}>
               <Link
                 href={`/applications/${application.id}`}
-                className="group flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md"
+                className="group -mx-5 flex items-start gap-3 px-5 py-3 transition-colors hover:bg-slate-50"
               >
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-colors group-hover:bg-brand-50 group-hover:text-brand-700">
-                  <ClipboardIcon className="h-4 w-4" />
-                </span>
-
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium text-slate-900">
@@ -130,7 +114,7 @@ export function ApplicationsPipelineCard({
 
                 <span
                   aria-hidden
-                  className="mt-1.5 shrink-0 text-slate-300 transition-colors group-hover:text-brand-500"
+                  className="mt-0.5 shrink-0 text-slate-300 transition-colors group-hover:text-slate-500"
                 >
                   <ArrowRightIcon className="h-4 w-4" />
                 </span>

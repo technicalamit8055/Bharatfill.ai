@@ -5,13 +5,13 @@ import { isProduction } from '@/lib/env';
 import { getTranslations } from '@/lib/i18n/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { filterSchemes, loadSchemeCatalog, type SchemeListing } from '@/lib/schemes/service';
-import { bucketByIstDay, greetingKey, istHour, trendFrom } from '@/lib/dashboard/metrics';
+import { bucketByIstDay, trendFrom } from '@/lib/dashboard/metrics';
 import type { ApplicationRow, CustomerRow, DashboardSummary } from '@/lib/supabase/database.types';
 import { OnboardingChecklist } from './onboarding-checklist';
 import { DashboardHero } from './dashboard-hero';
 import { DocumentDropQueue } from './document-drop-queue';
 import { PowerToolsLauncher } from './power-tools-launcher';
-import { StatCard, type StatTone, type StatTrend } from './stat-card';
+import { StatCard, type StatTrend } from './stat-card';
 import { RecentCustomersCard, type RecentCustomerView } from './recent-customers-card';
 import {
   ApplicationsPipelineCard,
@@ -19,7 +19,6 @@ import {
 } from './applications-pipeline-card';
 import { SchemesOpportunityRadar } from './schemes-opportunity-radar';
 import { ProductivityWidget } from './productivity-widget';
-import { AlertIcon, ClipboardIcon, DocumentIcon, FormIcon, UsersIcon } from './icons';
 
 export const metadata = { title: 'Home' };
 
@@ -246,14 +245,11 @@ export default async function DashboardPage({
     };
   };
 
-  const reviewsTone: StatTone = summary.reviewsPending > 0 ? 'rose' : 'emerald';
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <DashboardHero
         organizationName={session.organization.name}
         place={place || null}
-        initialGreeting={t(greetingKey(istHour(asOf)))}
         canSearchCustomers={canViewCustomers}
         canCreateCustomer={session.permissions.has('customer.create')}
         canOpenDocumentDrop={canUploadDocuments}
@@ -267,57 +263,43 @@ export default async function DashboardPage({
         <StatCard
           label={t('dashboard.fillsToday')}
           value={summary.fillsToday}
-          icon={<FormIcon />}
-          tone="brand"
           href={canRunFills ? '/fill-sessions' : undefined}
           series={fillsSeries}
           seriesLabel={t('dashboard.lastSevenDays')}
           trend={trendFor(fillsSeries)}
-          style={{ animationDelay: '0ms' }}
         />
         <StatCard
           label={t('dashboard.customersServed')}
           value={summary.customersServedToday}
-          icon={<UsersIcon />}
-          tone="sky"
           href={canViewCustomers ? '/customers' : undefined}
           series={canViewCustomers ? customersSeries : undefined}
           seriesLabel={t('dashboard.newCustomersSevenDays')}
           hint={t('dashboard.customersTotalHint', { total: summary.customersTotal })}
-          style={{ animationDelay: '40ms' }}
         />
         <StatCard
           label={t('dashboard.documentsProcessed')}
           value={summary.documentsProcessedToday}
-          icon={<DocumentIcon />}
-          tone="violet"
           href={canViewDocuments ? '/documents' : undefined}
           series={canViewDocuments ? documentsSeries : undefined}
           seriesLabel={t('dashboard.lastSevenDays')}
           trend={canViewDocuments ? trendFor(documentsSeries) : null}
-          style={{ animationDelay: '80ms' }}
         />
         <StatCard
           label={t('dashboard.applicationsOpen')}
           value={summary.applicationsOpen}
-          icon={<ClipboardIcon />}
-          tone="amber"
           href={canViewApplications ? '/applications?filter=open' : undefined}
           hint={t('dashboard.applicationsOpenHint')}
-          style={{ animationDelay: '120ms' }}
         />
         <StatCard
           label={t('dashboard.reviewsPending')}
           value={summary.reviewsPending}
-          icon={<AlertIcon />}
-          tone={reviewsTone}
+          attention={summary.reviewsPending > 0}
           href={canViewDocuments ? '/documents' : undefined}
           hint={t(
             summary.reviewsPending > 0
               ? 'dashboard.reviewsPendingHint'
               : 'dashboard.reviewsClearHint',
           )}
-          style={{ animationDelay: '160ms' }}
         />
       </div>
 

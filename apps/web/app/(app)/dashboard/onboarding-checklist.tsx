@@ -51,7 +51,7 @@ export function OnboardingChecklist({
     >
       <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-brand-400 to-brand-600 transition-all duration-500"
+          className="h-full rounded-full bg-brand-600 transition-[width] duration-300"
           style={{ width: `${(doneCount / steps.length) * 100}%` }}
         />
       </div>

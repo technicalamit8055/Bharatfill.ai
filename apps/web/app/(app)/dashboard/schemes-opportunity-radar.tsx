@@ -3,7 +3,7 @@ import { Badge, Card, EmptyState, type Tone } from '@assistigo/ui';
 import { SCHEME_CATEGORY_LABELS, formatInr, type SchemeLifecycleStatus } from '@assistigo/core';
 import { localised, type Locale, type Translator } from '@/lib/i18n';
 import type { SchemeListing } from '@/lib/schemes/service';
-import { ArrowRightIcon, RadarIcon } from './icons';
+import { ArrowRightIcon } from './icons';
 
 const CATEGORY_TONE: Record<string, Tone> = {
   recruitment: 'info',
@@ -34,7 +34,6 @@ export function SchemesOpportunityRadar({
 }) {
   return (
     <Card
-      className="animate-fade-in-up"
       title={t('dashboard.radarTitle')}
       description={t('dashboard.radarHint')}
       actions={
@@ -50,17 +49,13 @@ export function SchemesOpportunityRadar({
       {listings.length === 0 ? (
         <EmptyState title={t('dashboard.radarEmpty')} description={t('dashboard.radarEmptyHint')} />
       ) : (
-        <ul className="space-y-2">
+        <ul className="-my-1 divide-y divide-slate-100">
           {listings.map((listing) => (
             <li key={listing.scheme.slug}>
               <Link
                 href={`/schemes/${listing.scheme.slug}`}
-                className="group flex items-start gap-3 rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/60 px-3 py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md"
+                className="group -mx-5 flex items-start gap-3 px-5 py-3 transition-colors hover:bg-slate-50"
               >
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
-                  <RadarIcon className="h-4 w-4" />
-                </span>
-
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium text-slate-900">
