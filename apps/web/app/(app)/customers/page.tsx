@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Badge, EmptyState, Table, TBody, TD, TH, THead, TR, type Tone } from '@assistigo/ui';
+import { EmptyState, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
 import {
   formatGrantRemaining,
   formatIndianDate,
@@ -46,7 +46,6 @@ import {
   NextIcon,
   PlusIcon,
   PreviousIcon,
-  RoamingIcon,
   StateIcon,
   VerifiedIcon,
   ViewIcon,
@@ -56,15 +55,6 @@ export const metadata = { title: 'Customers' };
 
 const NEW_CUSTOMER_LINK =
   'inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600';
-
-const VERIFICATION_TONE: Record<string, Tone> = {
-  unverified: 'neutral',
-  extracted: 'info',
-  operator_verified: 'success',
-  customer_confirmed: 'success',
-  expired: 'warning',
-  rejected: 'warning',
-};
 
 /** How many months the "new this month" bars cover, the current one included. */
 const MONTH_BARS = 6;
@@ -78,19 +68,21 @@ const STATS_ROW_LIMIT = 5000;
 
 /**
  * One row of the list: a customer registered here, or one from another centre (or the BharatDoc
- * app) that this centre has been given access to (migration 0044). A linked row carries only the
- * masked card — "Rahul K.", last four digits — and opens through the usual roaming access.
+ * app) who approved this centre once (migration 0044) — listed for good, with no "other centre"
+ * tag. A linked row, and an own row the citizen locked in the app (0046), carries only the masked
+ * card — "Rahul K.", last four digits — and opens through a fresh approval.
  */
 type ListRow = {
   id: string;
   isLinked: boolean;
-  /** Full name for an own customer; "Rahul K." for a linked one. */
+  /** Own record the citizen locked this centre out of (0046). */
+  isLocked: boolean;
+  /** Full name for an own customer; "Rahul K." for a linked or locked one. */
   displayName: string;
   mobileLast4: string | null;
   district: string | null;
-  verificationStatus: string;
   addedAt: string;
-  /** Linked rows: the caller holds a live grant, and until when. */
+  /** Linked or locked rows: the caller holds a live grant, and until when. */
   grantExpiresAt: string | null;
 };
 
@@ -106,6 +98,8 @@ type CentreListRow = {
   added_at: string;
   has_active_grant: boolean;
   grant_expires_at: string | null;
+  /** 0046; absent before it. */
+  is_locked?: boolean;
   total_count: number;
 };
 
@@ -188,12 +182,13 @@ export default async function CustomersPage({
         rows: data.map((row) => ({
           id: row.customer_id,
           isLinked: row.is_linked,
-          displayName: row.is_linked
-            ? `${row.given_name ?? ''}${row.family_initial ? ` ${row.family_initial}.` : ''}`
-            : (row.full_name ?? ''),
+          isLocked: row.is_locked === true,
+          displayName:
+            row.is_linked || row.is_locked
+              ? `${row.given_name ?? ''}${row.family_initial ? ` ${row.family_initial}.` : ''}`
+              : (row.full_name ?? ''),
           mobileLast4: row.mobile_last4 || null,
           district: row.district,
-          verificationStatus: row.verification_status,
           addedAt: row.added_at,
           grantExpiresAt: row.has_active_grant ? row.grant_expires_at : null,
         })),
@@ -207,10 +202,10 @@ export default async function CustomersPage({
       rows: ((own.data ?? []) as unknown as OwnListRow[]).map((row) => ({
         id: row.id,
         isLinked: false,
+        isLocked: false,
         displayName: row.full_name,
         mobileLast4: maskLast4(row.mobile),
         district: row.current_district ?? row.permanent_district,
-        verificationStatus: row.verification_status,
         addedAt: row.created_at,
         grantExpiresAt: null,
       })),
@@ -291,9 +286,10 @@ export default async function CustomersPage({
 
   const rows = list?.rows ?? [];
   const listTotal = list?.count ?? 0;
-  // Everyone this centre serves: registered here, plus roaming customers it has been given
-  // access to (each linked once, 0044).
-  const allCount = totalCount + (roamingCount?.count ?? 0);
+  // Everyone this centre serves: registered here (locked ones included, 0046), plus roaming
+  // customers it has been given access to (each linked once, 0044). Unfiltered, that is exactly
+  // the list's own total; the head-count queries cannot see locked rows.
+  const allCount = since ? totalCount + (roamingCount?.count ?? 0) : listTotal;
   const pages = lastPage(listTotal, params.perPage);
 
   return (
@@ -486,7 +482,6 @@ export default async function CustomersPage({
                   <TH className="py-3.5">{t('customers.name')}</TH>
                   <TH className="py-3.5">{t('customers.mobile')}</TH>
                   <TH className="py-3.5">{t('customers.district')}</TH>
-                  <TH className="py-3.5">{t('settings.status')}</TH>
                   <TH className="py-3.5">{t('customers.addedOn')}</TH>
                   <TH className="py-3.5 text-right">{t('customers.actions')}</TH>
                 </TR>
@@ -496,14 +491,11 @@ export default async function CustomersPage({
                   <CustomerTableRow
                     key={customer.id}
                     customer={customer}
-                    statusLabel={
-                      customer.isLinked
-                        ? accessLabel(customer.grantExpiresAt, t)
-                        : customer.verificationStatus in VERIFICATION_TONE
-                          ? t(`customers.verification.${customer.verificationStatus}`)
-                          : customer.verificationStatus
+                    pendingLabel={
+                      customer.isLinked || customer.isLocked
+                        ? accessLabel(customer.grantExpiresAt, customer.isLocked, t)
+                        : null
                     }
-                    otherCentreLabel={t('customers.roaming.otherCentre')}
                     openLabel={t('customers.openProfile', { name: customer.displayName })}
                   />
                 ))}
@@ -534,38 +526,37 @@ export default async function CustomersPage({
   );
 }
 
-/** A linked customer's access state: "🟢 Active (1h 20m)" or "🔒 Locked" (approval needed). */
+/**
+ * The access line under a linked or locked customer's name: "🟢 Active (1h 20m)" while a session
+ * runs; otherwise "🔒 Ask for access", or "🔒 Locked by the customer" for an own record the
+ * citizen locked in the BharatDoc app (0046).
+ */
 function accessLabel(
   grantExpiresAt: string | null,
+  lockedByCustomer: boolean,
   t: (key: string, values?: Record<string, string | number>) => string,
 ) {
   const remaining = grantExpiresAt
     ? grantRemainingMs({ status: 'active', expiresAt: grantExpiresAt })
     : 0;
-  return remaining > 0
-    ? `🟢 ${t('customers.roaming.activeShort', { remaining: formatGrantRemaining(remaining) })}`
-    : `🔒 ${t('customers.roaming.lockedShort')}`;
+  if (remaining > 0) {
+    return `🟢 ${t('customers.roaming.activeShort', { remaining: formatGrantRemaining(remaining) })}`;
+  }
+  return `🔒 ${t(lockedByCustomer ? 'customers.roaming.lockedByCustomerShort' : 'customers.roaming.lockedShort')}`;
 }
 
 function CustomerTableRow({
   customer,
-  statusLabel,
-  otherCentreLabel,
+  pendingLabel,
   openLabel,
 }: {
   customer: ListRow;
-  statusLabel: string;
-  otherCentreLabel: string;
+  /** Linked rows still waiting for their one approval; null for every ordinary customer. */
+  pendingLabel: string | null;
   openLabel: string;
 }) {
   const href = `/customers/${customer.id}`;
   const last4 = customer.mobileLast4;
-  const tone: Tone = customer.isLinked
-    ? customer.grantExpiresAt &&
-      grantRemainingMs({ status: 'active', expiresAt: customer.grantExpiresAt }) > 0
-      ? 'success'
-      : 'neutral'
-    : (VERIFICATION_TONE[customer.verificationStatus] ?? 'neutral');
   const addedOn = formatIndianDate(istDayKey(customer.addedAt));
 
   return (
@@ -575,10 +566,9 @@ function CustomerTableRow({
           <CustomerAvatar id={customer.id} name={customer.displayName} />
           <span className="min-w-0">
             <span className="block hover:underline">{customer.displayName}</span>
-            {customer.isLinked ? (
-              <span className="mt-0.5 flex items-center gap-1 text-xs font-medium text-slate-500">
-                <RoamingIcon className="h-3.5 w-3.5" />
-                {otherCentreLabel}
+            {pendingLabel ? (
+              <span className="mt-0.5 block text-xs font-medium text-slate-500">
+                {pendingLabel}
               </span>
             ) : null}
           </span>
@@ -586,14 +576,6 @@ function CustomerTableRow({
       </TD>
       <TD className="py-3.5 tabular-nums text-slate-600">{last4 ? `•••••• ${last4}` : '—'}</TD>
       <TD className="py-3.5 text-slate-600">{customer.district ?? '—'}</TD>
-      <TD className="py-3.5">
-        <Badge tone={tone} className="gap-1 px-2.5 py-1">
-          {!customer.isLinked && tone === 'success' ? (
-            <VerifiedIcon className="h-3.5 w-3.5" />
-          ) : null}
-          {statusLabel}
-        </Badge>
-      </TD>
       <TD className="py-3.5 tabular-nums text-slate-500">{addedOn ?? '—'}</TD>
       <TD className="py-3.5 text-right">
         <Link

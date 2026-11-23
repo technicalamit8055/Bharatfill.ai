@@ -1,7 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Alert, Badge, Button, Field, Input, Select, TextField } from '@assistigo/ui';
+import {
+  Alert,
+  Badge,
+  Button,
+  Field,
+  Input,
+  LoadingRegion,
+  Select,
+  Skeleton,
+  TextField,
+} from '@assistigo/ui';
 import {
   PORTALS,
   checkPasswordAgainstPolicy,
@@ -302,7 +312,19 @@ export function PortalLoginsCard({
           ) : null}
 
           {credentials === null && !error ? (
-            <p className="text-sm text-slate-500">{t('common.loading')}</p>
+            <LoadingRegion label={t('common.loading')}>
+              <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                {[0, 1].map((row) => (
+                  <li key={row} className="flex items-center justify-between gap-4 p-4">
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-56 max-w-full" />
+                    </div>
+                    <Skeleton className="h-9 w-20 rounded-lg" />
+                  </li>
+                ))}
+              </ul>
+            </LoadingRegion>
           ) : null}
 
           {credentials && credentials.length === 0 && !editor ? (

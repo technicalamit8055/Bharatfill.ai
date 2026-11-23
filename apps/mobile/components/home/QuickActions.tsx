@@ -1,14 +1,20 @@
 /**
- * The five scanner shortcuts under the hero: Document, ID Card, Photo, Signature, Multi-Page.
- * All five sit across on a wide screen; on a phone the tiles keep a readable width and the row
- * scrolls sideways, bleeding to the screen edge so the next tile peeks in.
+ * The shortcuts under the hero: Document, Upload, ID Card, Photo, Signature, Multi-Page. Upload
+ * adds a photo or PDF already on the phone; the others open the scanner. All six sit across on
+ * a wide screen; on a phone the tiles keep a readable width and the row scrolls sideways,
+ * bleeding to the screen edge so the next tile peeks in.
  */
 
 import type { LucideIcon } from 'lucide-react-native';
-import { Files, FileText, IdCard, PenLine, SquareUser } from 'lucide-react-native';
+import { FileText, FileUp, Files, IdCard, PenLine, SquareUser } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { QUICK_SCAN_MODES, type QuickScanMode, rowLayout } from '../../lib/home/dashboard';
+import {
+  QUICK_ACTIONS,
+  type QuickAction,
+  type QuickScanMode,
+  rowLayout,
+} from '../../lib/home/dashboard';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
 import { PAGE_PADDING } from './layout';
 import { homePalette as palette } from './palette';
@@ -16,8 +22,9 @@ import { homePalette as palette } from './palette';
 const TILE_MIN_WIDTH = 88;
 const GAP = 10;
 
-const ICONS: Record<QuickScanMode, LucideIcon> = {
+const ICONS: Record<QuickAction, LucideIcon> = {
   document: FileText,
+  upload: FileUp,
   id_card: IdCard,
   photo: SquareUser,
   signature: PenLine,
@@ -28,11 +35,12 @@ export type QuickActionsProps = {
   /** Width of the page's content column. */
   readonly width: number;
   readonly onScan: (mode: QuickScanMode) => void;
+  readonly onUpload: () => void;
 };
 
-export function QuickActions({ width, onScan }: QuickActionsProps) {
+export function QuickActions({ width, onScan, onUpload }: QuickActionsProps) {
   const { t } = useTranslation();
-  const { itemWidth, scrolls } = rowLayout(width, QUICK_SCAN_MODES.length, TILE_MIN_WIDTH, GAP);
+  const { itemWidth, scrolls } = rowLayout(width, QUICK_ACTIONS.length, TILE_MIN_WIDTH, GAP);
 
   return (
     <ScrollView
@@ -42,18 +50,18 @@ export function QuickActions({ width, onScan }: QuickActionsProps) {
       style={styles.bleed}
       contentContainerStyle={styles.row}
     >
-      {QUICK_SCAN_MODES.map((mode) => {
-        const Icon = ICONS[mode];
-        const colors = palette.quickActions[mode];
-        const label = t(`home.quickActions.${mode}.label`);
-        const caption = t(`home.quickActions.${mode}.caption`);
+      {QUICK_ACTIONS.map((action) => {
+        const Icon = ICONS[action];
+        const colors = palette.quickActions[action];
+        const label = t(`home.quickActions.${action}.label`);
+        const caption = t(`home.quickActions.${action}.caption`);
 
         return (
           <Pressable
-            key={mode}
+            key={action}
             accessibilityRole="button"
             accessibilityLabel={`${label}, ${caption}`}
-            onPress={() => onScan(mode)}
+            onPress={() => (action === 'upload' ? onUpload() : onScan(action))}
             style={({ pressed }) => [
               styles.tile,
               { width: itemWidth, backgroundColor: colors.tile, borderColor: colors.border },

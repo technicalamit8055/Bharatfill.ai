@@ -152,6 +152,67 @@ describe('platform scanner pages', () => {
   });
 });
 
+describe('uploaded PDF pages', () => {
+  it('are the page itself: not searched, on Original, with no photo quality to warn about', async () => {
+    nextIssues = ['dark'];
+    session.addPhotos(['file:///cache/pdf-1.jpg', 'file:///cache/pdf-2.jpg'], 'pdf');
+    await settle();
+
+    const pages = session.getSession().pages;
+    expect(searchedForPage).toEqual([false, false]);
+    expect(pages.map((page) => page.filter)).toEqual(['original', 'original']);
+    expect(pages.map((page) => session.pageQualityIssues(page))).toEqual([[], []]);
+  });
+
+  it('save as an imported document, alone or with uploaded photos', async () => {
+    session.addPhotos(['file:///cache/pdf-1.jpg'], 'pdf');
+    session.addPhotos(['file:///cache/picked.jpg'], 'gallery');
+    await session.saveSession();
+    expect(vi.mocked(vault.saveDocument).mock.calls[0]?.[1]).toBe('gallery');
+  });
+
+  it('save as a scan once a camera page joins them', async () => {
+    session.addPhotos(['file:///cache/pdf-1.jpg'], 'pdf');
+    session.addPhotos(['file:///cache/cam.jpg'], 'camera');
+    await session.saveSession();
+    expect(vi.mocked(vault.saveDocument).mock.calls[0]?.[1]).toBe('scanner');
+  });
+
+  it('replace a page in place, moving it to Original', async () => {
+    const [id] = session.addPhotos(['file:///cache/picked.jpg'], 'gallery');
+    await settle();
+    session.startRetake(id as string);
+    expect(
+      session.addPhotos(['file:///cache/pdf-1.jpg', 'file:///cache/pdf-2.jpg'], 'pdf'),
+    ).toEqual([id]);
+    expect(session.getSession().pages).toHaveLength(1);
+    expect(session.getSession().pages[0]).toMatchObject({ id, source: 'pdf', filter: 'original' });
+    // The second page has nowhere to go: it is deleted, like the photo it replaced.
+    expect(discarded).toEqual(
+      expect.arrayContaining(['file:///cache/pdf-2.jpg', 'file:///cache/picked.jpg']),
+    );
+  });
+});
+
+describe('session origin', () => {
+  it('is the camera unless Upload started the session', () => {
+    expect(session.getSession().origin).toBe('camera');
+    session.startSession('document', 'import');
+    expect(session.getSession()).toMatchObject({ origin: 'import', preset: 'document' });
+  });
+
+  it('goes back to the camera once the session is discarded or saved', async () => {
+    session.startSession('document', 'import');
+    session.discardSession();
+    expect(session.getSession().origin).toBe('camera');
+
+    session.startSession('document', 'import');
+    session.addPhotos(['file:///cache/picked.jpg'], 'gallery');
+    await session.saveSession();
+    expect(session.getSession().origin).toBe('camera');
+  });
+});
+
 describe('retake', () => {
   it('replaces the marked page in place, keeping its filter', async () => {
     const [first, second, third] = session.addPhotos(

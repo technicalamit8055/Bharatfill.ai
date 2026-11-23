@@ -48,11 +48,17 @@
     "digitalIndiaTagline": "Empowering Citizens",
     "supportTitle": "Need Help?",
     "supportHint": "Our support team is here",
-    "supportCta": "Contact Support"
+    "supportCta": "Contact Support",
+    "sidebarControl": "Sidebar control",
+    "sidebarExpanded": "Expanded",
+    "sidebarCollapsed": "Collapsed",
+    "sidebarHover": "Expand on hover"
   },
   "header": {
     "accountMenu": "Account menu",
+    "closeMenu": "Close menu",
     "notifications": "Notifications",
+    "openMenu": "Open menu",
     "nothingWaiting": "Nothing waiting for review",
     "reviewsWaiting": "{count} extraction(s) awaiting review"
   },
@@ -408,9 +414,12 @@
       "fromApp": "BharatDoc app",
       "accessColumn": "Access",
       "activeShort": "Active ({remaining})",
-      "lockedShort": "Locked",
+      "lockedShort": "Ask for access",
+      "lockedByCustomerShort": "Locked by the customer",
       "lockedTitle": "Customer registered at another centre",
-      "lockedBody": "Sensitive profile details and documents are locked under the DPDP Act 2023 until the customer approves in the BharatDoc app or confirms a one-time code.",
+      "lockedBody": "Sensitive profile details and documents are locked under the DPDP Act 2023 until the customer approves in the BharatDoc app or confirms a one-time code. You can still see the schemes they qualify for.",
+      "lockedByCustomerTitle": "The customer locked your centre",
+      "lockedByCustomerBody": "This customer locked your centre in the BharatDoc app, so their details and documents are closed. You can still see the schemes they qualify for. Send a request to open their details for a while.",
       "age": "Age",
       "ageYears": "{years} years",
       "category": "Category",
@@ -422,6 +431,8 @@
       "modalTitle": "Request access",
       "modalSubtitle": "Choose how the customer will approve your request.",
       "modalHelp": "A one-time code is sent to the customer’s own phone on WhatsApp. They read it back to you.",
+      "requestHelp": "If the customer uses the BharatDoc app, the request goes to their app and they choose how long. If not, a one-time code goes to their WhatsApp. Once they agree, they stay in your customer list.",
+      "durationHelp": "Used for a WhatsApp code. In the app, the customer chooses.",
       "purposeLabel": "Purpose",
       "durationLabel": "Access duration",
       "durationOption": "{hours}h",
@@ -458,8 +469,7 @@
       "appDeclined": "The customer declined the request in the app.",
       "appExpired": "The request expired. Send it again, or use a WhatsApp code.",
       "appUseOtp": "Customer has no app? Use a WhatsApp code",
-      "appCancel": "Cancel request",
-      "otherCentre": "From another centre"
+      "appCancel": "Cancel request"
     },
     "lookup": {
       "title": "Customer registered at another cyber cafe?",

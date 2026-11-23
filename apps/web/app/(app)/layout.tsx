@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Bell } from 'lucide-react';
@@ -7,7 +8,9 @@ import { isPlatformStaff } from '@/lib/admin/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { localised } from '@/lib/i18n';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { Sidebar } from '@/components/app-shell/sidebar';
+import { AppSidebar } from '@/components/app-shell/app-sidebar';
+import { MobileNav } from '@/components/app-shell/mobile-nav';
+import { SIDEBAR_MODE_COOKIE, parseSidebarMode } from '@/lib/app-shell/sidebar-mode';
 import { LocaleSwitcher } from '@/components/app-shell/locale-switcher';
 import { UserMenu } from '@/components/app-shell/user-menu';
 
@@ -16,6 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { t, locale } = await getTranslations();
   const supabase = await createSupabaseServerClient();
   const canViewDocuments = session.permissions.has('document.view');
+  const sidebarMode = parseSidebarMode((await cookies()).get(SIDEBAR_MODE_COOKIE)?.value);
 
   const [staff, reviewsResult] = await Promise.all([
     // Discoverability only. The link is not the gate — /admin re-checks the roster and 404s
@@ -38,34 +42,44 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const reviewsPending = reviewsResult.count ?? 0;
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      {/*
-        * A fixed 72px header rather than one sized by its contents: the sidebar rail below
-        * sticks to the bottom of it, and an offset derived from the logo's height would drift
-        * the moment the logo changed.
-        */}
-      <header className="sticky top-0 z-20 h-[72px] border-b border-slate-200 bg-white">
+    /*
+     * An app shell: the window never scrolls. The header and the sidebar are fixed parts of
+     * the frame, and `<main>` is the only scroll container, so the nav can never be dragged
+     * along with a long page (nor a long page with the nav). Page code that needs the scroll
+     * position must listen in the capture phase or target `#app-main`, not `window`.
+     *
+     * Both this and `<main>` are `relative` on purpose: `overflow` only clips an absolutely
+     * positioned descendant whose containing block is inside it. Without that, every
+     * `sr-only` label deep in a long list escaped `<main>`, stretched the document and gave the
+     * window its own scrollbar again. Print drops the frame so a page prints in full.
+     */
+    <div className="relative flex h-dvh flex-col overflow-hidden print:block print:h-auto print:overflow-visible">
+      {/* `relative` so `z-20` applies: the account menu's dropdown must paint over the page. */}
+      <header className="relative z-20 h-[72px] shrink-0 border-b border-slate-200 bg-white">
         <div className="flex h-full items-center justify-between gap-4 px-4 sm:px-6">
-          {/*
-            * The PNG ships with wide transparent margins (its artwork is 1705×504 inside a
-            * 1915×821 canvas), so it is drawn into a box of the artwork's own proportions with
-            * `object-cover`. That trims the empty margin rather than shrinking the wordmark and
-            * its Hindi tagline down to an unreadable size.
-            */}
-          <Link
-            href="/dashboard"
-            aria-label={t('app.name')}
-            className="relative block h-[52px] w-[176px] shrink-0"
-          >
-            <Image
-              src="/Bharatfill-logo.png"
-              alt={t('app.name')}
-              fill
-              sizes="176px"
-              className="object-cover"
-              priority
-            />
-          </Link>
+          <div className="flex min-w-0 items-center gap-2">
+            <MobileNav permissions={[...session.permissions]} />
+            {/*
+             * The PNG ships with wide transparent margins (its artwork is 1705×504 inside a
+             * 1915×821 canvas), so it is drawn into a box of the artwork's own proportions with
+             * `object-cover`. That trims the empty margin rather than shrinking the wordmark and
+             * its Hindi tagline down to an unreadable size.
+             */}
+            <Link
+              href="/dashboard"
+              aria-label={t('app.name')}
+              className="relative block h-[52px] w-[176px] shrink-0"
+            >
+              <Image
+                src="/Bharatfill-logo.png"
+                alt={t('app.name')}
+                fill
+                sizes="176px"
+                className="object-cover"
+                priority
+              />
+            </Link>
+          </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
             <LocaleSwitcher />
@@ -106,21 +120,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[1600px] flex-1 gap-6 px-4 py-5">
+      <div className="flex min-h-0 flex-1">
         {/*
-          * Sticky and self-scrolling: the rail carries the Digital India panel and the support
-          * card at its foot, and on a short laptop screen those must stay reachable without
-          * scrolling the whole dashboard past them.
-          */}
-        <aside className="sticky top-[72px] hidden max-h-[calc(100dvh-72px)] w-52 shrink-0 overflow-y-auto pb-4 lg:block">
-          <Sidebar permissions={[...session.permissions]} showFooter />
-        </aside>
-        <main className="min-w-0 flex-1">{children}</main>
-      </div>
+         * Full height and flush to the left edge; expanded, an icon rail, or a rail that opens on
+         * hover, as the operator chooses (read from a cookie above so the first paint is already
+         * the right width). Below `lg` it is replaced by the header's
+         * menu button and drawer (`MobileNav`) — operators work on desktops (spec §5.1), but a
+         * small or display-scaled screen must still be usable.
+         */}
+        <AppSidebar permissions={[...session.permissions]} initialMode={sidebarMode} />
 
-      {/* Operators work on desktops (spec §5.1), but a small screen must still be usable. */}
-      <div className="border-t border-slate-200 bg-white px-4 py-2 lg:hidden">
-        <Sidebar permissions={[...session.permissions]} />
+        {/*
+         * `scroll-pt-5` matches the inner padding, so a scroll-to-top on navigation (and any
+         * `scrollIntoView`) lands on the true top of the page rather than 20px into it.
+         */}
+        <main
+          id="app-main"
+          className="relative min-w-0 flex-1 scroll-pt-5 overflow-y-auto overscroll-contain print:static print:overflow-visible"
+        >
+          <div className="mx-auto w-full max-w-[1400px] px-4 py-5 sm:px-6">{children}</div>
+        </main>
       </div>
     </div>
   );

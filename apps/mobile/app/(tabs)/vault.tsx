@@ -15,7 +15,7 @@
 
 import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Files, ScanLine, Star, StarOff, Trash2 } from 'lucide-react-native';
+import { FileUp, Files, ScanLine, Star, StarOff, Trash2 } from 'lucide-react-native';
 import { useCallback, useRef, useState } from 'react';
 
 import { showActionSheet, showDialog } from '../../lib/dialog/dialog-store';
@@ -218,6 +218,10 @@ export default function VaultRoute() {
     [router],
   );
 
+  const upload = useCallback(() => {
+    router.push('/import');
+  }, [router]);
+
   const more = useCallback(() => {
     showActionSheet({
       title: t('vault.more'),
@@ -237,9 +241,16 @@ export default function VaultRoute() {
           icon: Files,
           onPress: () => scan('multi'),
         },
+        {
+          key: 'upload',
+          label: t('vault.actions.upload'),
+          description: t('vault.actions.uploadHint'),
+          icon: FileUp,
+          onPress: upload,
+        },
       ],
     });
-  }, [scan, t]);
+  }, [scan, t, upload]);
 
   return (
     <>
@@ -254,6 +265,7 @@ export default function VaultRoute() {
         onDocumentActions={documentActions}
         onMore={more}
         onScan={() => scan('single')}
+        onUpload={upload}
         onRetry={retry}
       />
     </>

@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
-import type { CentreAccess } from './citizen-api';
+import type { CentreAccess, CentreProfile } from './citizen-api';
 import { cloudConfig } from './config';
 import { citizenApi, currentSession } from './session';
 
@@ -18,7 +18,12 @@ export type CentreAccessState =
   | { readonly status: 'loading' }
   | { readonly status: 'signed_out' }
   | { readonly status: 'error'; readonly messageKey: string }
-  | { readonly status: 'ready'; readonly sessions: readonly CentreAccess[] };
+  | {
+      readonly status: 'ready';
+      readonly sessions: readonly CentreAccess[];
+      /** Centres that created a profile for this number (migration 0046). */
+      readonly centres: readonly CentreProfile[];
+    };
 
 export function useCentreAccess(): {
   readonly state: CentreAccessState;
@@ -42,9 +47,9 @@ export function useCentreAccess(): {
         if (!cancelled) setState({ status: 'signed_out' });
         return;
       }
-      const result = await api.listCentreAccess();
+      const result = await api.getCentreAccessOverview();
       if (cancelled) return;
-      if (result.ok) setState({ status: 'ready', sessions: result.value });
+      if (result.ok) setState({ status: 'ready', ...result.value });
       else if (result.error.code === 'SIGNED_OUT') setState({ status: 'signed_out' });
       // Keep what is on screen through a passing network error; say so only with nothing shown.
       else

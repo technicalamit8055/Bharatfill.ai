@@ -123,6 +123,45 @@ describe('citizen API', () => {
     expect(fetch.mock.calls[0]?.[0]).toBe('https://api.example.test/api/citizen/centre-access');
   });
 
+  it('reads the centres that saved the profile with the sessions (migration 0046)', async () => {
+    const one = session();
+    const centre = {
+      customerId: '11111111-1111-4111-8111-111111111111',
+      centreName: 'Demo Seva Kendra',
+      locked: true,
+      lockedAt: at(-DAY),
+    };
+    const { client } = api({ data: { sessions: [one], centres: [centre] } });
+    expect(await client.getCentreAccessOverview()).toEqual({
+      ok: true,
+      value: { sessions: [one], centres: [centre] },
+    });
+
+    // A server before 0046 sends no centres: the screen just shows none.
+    const older = api({ data: { sessions: [one] } });
+    expect(await older.client.getCentreAccessOverview()).toEqual({
+      ok: true,
+      value: { sessions: [one], centres: [] },
+    });
+  });
+
+  it('locks with POST and unlocks with DELETE on the same path', async () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    const lock = api(null, 204);
+    expect((await lock.client.lockCentreProfile(id)).ok).toBe(true);
+    expect(lock.fetch.mock.calls[0]?.[0]).toBe(
+      `https://api.example.test/api/citizen/centre-profiles/${id}/lock`,
+    );
+    expect(lock.fetch.mock.calls[0]?.[1]?.method).toBe('POST');
+
+    const unlock = api(null, 204);
+    expect((await unlock.client.unlockCentreProfile(id)).ok).toBe(true);
+    expect(unlock.fetch.mock.calls[0]?.[0]).toBe(
+      `https://api.example.test/api/citizen/centre-profiles/${id}/lock`,
+    );
+    expect(unlock.fetch.mock.calls[0]?.[1]?.method).toBe('DELETE');
+  });
+
   it('rejects a session the server describes in a way the app does not know', async () => {
     const { client } = api({ data: { sessions: [{ ...session(), state: 'paused' }] } });
     expect((await client.listCentreAccess()).ok).toBe(false);

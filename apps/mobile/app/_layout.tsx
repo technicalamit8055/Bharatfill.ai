@@ -34,6 +34,14 @@ function RootNavigator() {
           }}
         />
         <Stack.Screen
+          name="import"
+          options={{
+            headerShown: false,
+            presentation: 'fullScreenModal',
+            animation: 'slide_from_bottom',
+          }}
+        />
+        <Stack.Screen
           name="scan-review"
           options={{ headerShown: false, presentation: 'fullScreenModal', gestureEnabled: false }}
         />

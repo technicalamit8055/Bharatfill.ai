@@ -6,6 +6,8 @@
  * files the scan and seals it into the vault. Back returns to the camera with every page kept;
  * the camera's close button is where a scan is thrown away. Retake returns to the camera too,
  * and the next photo replaces the page on screen; review then reopens on it (`?page=<id>`).
+ * Pages uploaded from the phone (`app/import.tsx`, the session's `origin`) go back to Upload
+ * instead, where Retake is Replace: the next file picked takes the page's place.
  *
  * The page's photo-quality warning (`pageQualityIssues`) offers Retake, or Keep, which dismisses
  * it.
@@ -63,7 +65,7 @@ const pageIdSchema = z.string().uuid();
 export default function ScanReviewRoute() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { pages, preset } = useCaptureSession();
+  const { pages, preset, origin } = useCaptureSession();
   const params = useLocalSearchParams<{ page?: string }>();
 
   // Opens on the page just retaken, when there is one; otherwise on the newest page.
@@ -162,11 +164,19 @@ export default function ScanReviewRoute() {
     return () => subscription.remove();
   }, [cropEdit]);
 
-  /** Back to the camera that opened this review; it keeps the session's pages. */
+  /**
+   * Back to the screen that opened this review — the camera, or Upload for files from the
+   * phone; it keeps the session's pages.
+   */
   const backToCamera = useCallback(() => {
     if (router.canGoBack()) router.back();
-    else router.replace({ pathname: '/scanner', params: { continue: '1' } });
-  }, [router]);
+    else {
+      router.replace({
+        pathname: origin === 'import' ? '/import' : '/scanner',
+        params: { continue: '1' },
+      });
+    }
+  }, [origin, router]);
 
   // Nothing left to review (last page retaken or deleted): back to the camera. Only while this
   // screen is on top — saving from Save Document empties the session on its way out.
@@ -241,6 +251,7 @@ export default function ScanReviewRoute() {
       onCancelCrop={onCancelCrop}
       onResetCrop={onResetCrop}
       onRetake={onRetake}
+      retakeMode={origin === 'import' ? 'replace' : 'camera'}
       onDeletePage={onDeletePage}
       onRetry={() => current && retryPage(current.id)}
       onAddPage={backToCamera}

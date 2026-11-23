@@ -306,6 +306,24 @@ it is consent-gated and time-boxed rather than role-based:
 - `expire_roaming_access_grants()` is not scheduled by anything yet. Access still ends on time
   (policies compare against `now()`); what lingers is the `active` label and spent challenge
   hashes.
+- **Citizen locks (migration 0046, product owner 2026-11-23).** A citizen can lock the centre
+  that created their profile from the BharatDoc app (`apps/web/lib/roaming/citizen-locks.ts`,
+  only records whose mobile is their verified number). `customer_citizen_locks` has a select
+  policy for the centre's members and no write policy; a trigger requires the lock to name the
+  record's own centre. While locked, the home-centre clause of `customers_select`,
+  `customer_field_values_select`, `documents_select`, `document_derivatives_select`,
+  `has_customer_access` and the `assistigo documents read` storage policy is closed; the
+  roaming-grant clause is not, so a new approval (time-boxed grant) reopens the record for the
+  operator it names. Locking ends any live grant the centre holds. The centre still lists the
+  customer through `centre_customer_list` (masked, `is_locked`) and still gets the masked card and
+  scheme matches through `roaming_customer_card`. `can_request_customer_access` (link, or own
+  locked record) gates every request path. Writes that do not read the record first are not
+  blocked by the lock; the routes all load the customer first. Audited as
+  `customer.citizen_locked` / `customer.citizen_unlocked` (`sensitive`).
+- **One request button (0046).** `POST /api/customers/:id/roaming/request-access` checks
+  `can_request_customer_access` before reading the number, then sends to the BharatDoc app when
+  the number has an app account, otherwise a WhatsApp code. The response reveals which; accepted
+  by the product owner. 0045's copy of an approved customer was dropped by 0046.
 
 ### Walk-in intake (migrations 0022, 0023, 0025)
 

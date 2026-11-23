@@ -312,6 +312,16 @@ sample content (`components/*/demo.ts(x)`), which is not listed as built below.
   searched again; they start on the Original filter. Without Play services, on iOS, or if the
   scanner will not open, the in-app camera is used; the ID card, photo and signature presets
   always use it.
+* **Built (not yet checked on a phone):** Upload from phone, without opening the camera —
+  Home's Upload tile, and Vault's More menu and empty state (`apps/mobile/app/import.tsx`).
+  Photos come from the phone's photo picker; PDF, JPG and PNG files from the system file picker
+  (Downloads, WhatsApp documents, Drive). Each PDF page is drawn as an image on the phone by
+  Android's own PDF renderer (local module `apps/mobile/modules/pdf-pages`; no library, nothing
+  sent). A password-locked PDF (e-Aadhaar) asks for its password, used only to open the file and
+  never stored or logged; Android 15, or Android 12–14 with the April 2024 system update, can
+  open them — older phones are told to add screenshots instead. Pages then go through review
+  (crop, filters, Replace) and Save Document like a scan, and are filed as imported. iOS gets
+  photos and image files only.
 * **Built:** a photo quality check after each shot or import — blurred, too dark, or glare on a
   laminated card — shown on review with Retake or Keep. On the phone, nothing logged.
 * **Built:** the §3 Feature 1.5 presets, opened by Home's ID Card / Photo / Signature shortcuts:
@@ -363,6 +373,10 @@ Passport-photo background replacement; dewarping of curled pages; finger
 removal in the in-app camera (Google's scanner does its own); on-device OCR field extraction.
 
 ### Deviations from this spec
+* **Uploaded PDFs are kept as page images**, like scans, so the vault viewer, portal-size export
+  and crop work on them unchanged. The original PDF file is not kept: its text layer and any
+  digital signature (an e-Aadhaar's) are lost, so an export is a copy of the pages, not the
+  signed original. Keeping the original file alongside is a possible follow-up.
 * **Name:** the app ships as **Bharatfill** (`app.json`, `app.name`); the splash, onboarding and
   sign-in artwork spell the wordmark **BharatDoc**, which is also the name used in
   `docs/SCANNER_VFLAT_QUALITY_PLAN.md`.

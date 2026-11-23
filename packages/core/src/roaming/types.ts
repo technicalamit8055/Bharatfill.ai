@@ -183,6 +183,11 @@ export type RoamingAccessView = {
   challengePending: boolean;
   /** Top eligible schemes, `roaming_locked` only — see `RoamingSchemeSummary`. */
   topSchemes: RoamingSchemeSummary[] | null;
+  /**
+   * The record belongs to the caller's own centre and the citizen locked that centre in the
+   * BharatDoc app (migration 0046). Absent from servers before 0046.
+   */
+  lockedByCustomer?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -256,6 +261,30 @@ export const roamingAppDecisionSchema = z.object({
   ]),
 });
 export type RoamingAppDecisionInput = z.infer<typeof roamingAppDecisionSchema>;
+
+/**
+ * One "Request access" for the operator (migration 0046): the server sends it to the citizen's
+ * BharatDoc app when they have one, otherwise a WhatsApp code. `durationMinutes` applies to the
+ * code only — in the app the citizen picks the time themselves.
+ */
+export const roamingAccessRequestSchema = z.object({
+  purpose: z.enum(ROAMING_PURPOSES).default('form_filling'),
+  targetSchemeSlug: z
+    .string()
+    .trim()
+    .max(80)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'schemes.invalid_slug')
+    .optional(),
+  durationMinutes: z
+    .union([z.literal(60), z.literal(120), z.literal(240)])
+    .default(DEFAULT_ROAMING_DURATION_MINUTES),
+});
+export type RoamingAccessRequestInput = z.infer<typeof roamingAccessRequestSchema>;
+
+/** Where the request went: wait for the tap in the app, or type back the WhatsApp code. */
+export type RoamingAccessRequestResult =
+  | { method: 'app'; requestId: string; expiresAt: string }
+  | { method: 'otp'; mobileLast4: string | null; expiresInSeconds: number };
 
 /** What the operator's poll of a request answers with. */
 export type RoamingAppRequestView =

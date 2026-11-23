@@ -112,13 +112,13 @@ export default async function BillingPage() {
     <div className="space-y-5">
       <section className="relative min-h-[150px] overflow-hidden rounded-2xl border border-brand-100 bg-gradient-to-r from-[#e7f1fe] via-[#f1f7ff] to-white px-6 py-7 sm:px-8">
         {/*
-          * The invoice / rupee / calendar artwork. Decorative, and hidden below `md`, where the
-          * banner is no wider than its own heading.
-          *
-          * The source is a 16:9 frame whose left half is a flat blue wash, so it is drawn taller
-          * than the banner, pinned right, and faded at both edges: only the illustration shows,
-          * and it melts into the banner's gradient instead of ending in a hard seam.
-          */}
+         * The invoice / rupee / calendar artwork. Decorative, and hidden below `md`, where the
+         * banner is no wider than its own heading.
+         *
+         * The source is a 16:9 frame whose left half is a flat blue wash, so it is drawn taller
+         * than the banner, pinned right, and faded at both edges: only the illustration shows,
+         * and it melts into the banner's gradient instead of ending in a hard seam.
+         */}
         <div
           aria-hidden
           className="pointer-events-none absolute inset-y-0 right-0 hidden w-[340px] select-none overflow-hidden [mask-image:linear-gradient(to_right,transparent_0%,black_30%,black_85%,transparent_100%)] md:block lg:right-[200px] lg:w-[320px]"
@@ -140,7 +140,11 @@ export default async function BillingPage() {
         </div>
 
         <div className="absolute right-6 top-6 hidden items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/90 px-4 py-3 shadow-sm backdrop-blur lg:flex">
-          <ShieldCheck className="h-8 w-8 shrink-0 fill-emerald-600 text-white" strokeWidth={1.8} aria-hidden />
+          <ShieldCheck
+            className="h-8 w-8 shrink-0 fill-emerald-600 text-white"
+            strokeWidth={1.8}
+            aria-hidden
+          />
           <div>
             <p className="text-sm font-semibold text-emerald-800">
               {t('billing.securePayments.title')}
@@ -159,7 +163,10 @@ export default async function BillingPage() {
           <div className="mt-1 flex flex-wrap items-center gap-3">
             <span className="text-2xl font-semibold text-slate-900">{planName}</span>
             {activeSubscription ? (
-              <Badge tone={SUBSCRIPTION_TONE[activeSubscription.status] ?? 'neutral'} className="px-3 py-1 text-sm">
+              <Badge
+                tone={SUBSCRIPTION_TONE[activeSubscription.status] ?? 'neutral'}
+                className="px-3 py-1 text-sm"
+              >
                 {t(`billing.status.${activeSubscription.status}`)}
               </Badge>
             ) : null}
@@ -167,7 +174,9 @@ export default async function BillingPage() {
           {activeSubscription?.current_period_end ? (
             <p className="mt-1 text-sm text-slate-500">
               {t('billing.renewsOn', { date: activeSubscription.current_period_end.slice(0, 10) })}
-              {activeSubscription.cancel_at_period_end ? ` · ${t('billing.cancelledAtPeriodEnd')}` : ''}
+              {activeSubscription.cancel_at_period_end
+                ? ` · ${t('billing.cancelledAtPeriodEnd')}`
+                : ''}
             </p>
           ) : null}
         </div>
@@ -252,11 +261,11 @@ export default async function BillingPage() {
         </div>
       </section>
 
-      <section id="compare-plans" className={`${CARD} scroll-mt-24 p-5 sm:p-6`}>
-        <PlanComparison plans={catalogue}activePlanCode={usage.planCode} canManage={canManage} />
+      <section id="compare-plans" className={`${CARD} p-5 sm:p-6`}>
+        <PlanComparison plans={catalogue} activePlanCode={usage.planCode} canManage={canManage} />
       </section>
 
-      <section id="invoices" className={`${CARD} scroll-mt-24 p-5 sm:p-6`}>
+      <section id="invoices" className={`${CARD} p-5 sm:p-6`}>
         <SectionHeader
           icon={<ReceiptText className="h-5 w-5" aria-hidden />}
           title={t('billing.invoices.title')}
@@ -292,9 +301,7 @@ export default async function BillingPage() {
                       {t(`billing.status.${activeSubscription.status}`)}
                     </Badge>
                   </TD>
-                  <TD className="px-4 py-3 tabular-nums">
-                    ₹{planPrice}
-                  </TD>
+                  <TD className="px-4 py-3 tabular-nums">₹{planPrice}</TD>
                   <TD className="px-4 py-3">
                     <span className="inline-flex items-center gap-1.5 text-slate-500">
                       <Clock className="h-4 w-4" aria-hidden />
@@ -315,10 +322,10 @@ export default async function BillingPage() {
           <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">{t('billing.indiaNote.body')}</p>
         </div>
         {/*
-          * The logos sit in a thin band across the middle of a 16:9 canvas, so the image is
-          * drawn into a box of that band's proportions with `object-cover`, trimming the
-          * empty margin above and below.
-          */}
+         * The logos sit in a thin band across the middle of a 16:9 canvas, so the image is
+         * drawn into a box of that band's proportions with `object-cover`, trimming the
+         * empty margin above and below.
+         */}
         <div className="relative h-11 w-full max-w-[300px] shrink-0 sm:w-[300px]">
           <Image
             src="/billing/payment-methods-strip.png"

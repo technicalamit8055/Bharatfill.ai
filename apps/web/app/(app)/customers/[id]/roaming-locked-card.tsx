@@ -27,22 +27,36 @@ export async function RoamingLockedCard({
   customerId,
   card,
   topSchemes,
+  lockedByCustomer = false,
 }: {
   customerId: string;
   card: RoamingCustomerCard;
   topSchemes: { slug: string; title: { en: string; hi: string }; estimatedFee: number }[] | null;
+  /** This centre's own record, locked by the citizen in the BharatDoc app (0046). */
+  lockedByCustomer?: boolean;
 }) {
   const { t, locale } = await getTranslations();
 
   return (
     <Card>
-      <Alert tone="warning" title={t('customers.roaming.lockedTitle')}>
-        {t('customers.roaming.lockedBody')}
+      <Alert
+        tone="warning"
+        title={t(
+          lockedByCustomer
+            ? 'customers.roaming.lockedByCustomerTitle'
+            : 'customers.roaming.lockedTitle',
+        )}
+      >
+        {t(
+          lockedByCustomer
+            ? 'customers.roaming.lockedByCustomerBody'
+            : 'customers.roaming.lockedBody',
+        )}
       </Alert>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <span className="text-lg font-semibold text-slate-900">{card.displayName}</span>
-        <Badge tone="info">🌐 {t('customers.roaming.badge')}</Badge>
+        <Badge tone="neutral">🔒 {t('customers.roaming.lockedShort')}</Badge>
         {card.mobileLast4 ? (
           <span className="text-sm tabular-nums text-slate-600">•••••• {card.mobileLast4}</span>
         ) : null}

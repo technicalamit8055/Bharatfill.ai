@@ -22,6 +22,11 @@
  * A page from Google's document scanner (`platform` source, `platform-scanner.ts`) arrives
  * already cropped, flattened and cleaned: it is not searched for a page again, and it starts on
  * the Original filter so that clean-up is not done twice. The citizen can still pick another.
+ * A page of an uploaded PDF (`pdf` source, `pdf-pages.ts`) is the page itself, drawn by the
+ * phone's PDF renderer: it is treated the same way, and has no photo quality to warn about.
+ *
+ * A session also records where its pages come from (`origin`): the camera, or Upload
+ * (`app/import.tsx`), so review returns to the right screen to add or replace a page.
  *
  * Every file a session creates is a plaintext temporary copy in the app's cache or tmp folder.
  * Saving seals the processed pages into the encrypted vault and deletes all of them; discarding
@@ -48,12 +53,28 @@ import { presetDefaultFilter, presetPageLimit, type ScanPreset } from './presets
 
 export type PageStatus = 'pending' | 'processing' | 'ready' | 'failed';
 
+export type PageSource = 'camera' | 'gallery' | 'platform' | 'pdf';
+
+/** Where a session's pages are taken from: the scanner, or files already on the phone. */
+export type SessionOrigin = 'camera' | 'import';
+
+/**
+ * Whether a page arrives as the page itself — already cropped (Google's scanner) or drawn from a
+ * PDF — so it is not searched for a page, starts on Original, and has no photo to judge.
+ */
+export function arrivesAsPage(source: PageSource): boolean {
+  return source === 'platform' || source === 'pdf';
+}
+
 export type SessionPage = {
   readonly id: string;
   /** The original photo, upright only via EXIF. */
   readonly photoUri: string;
-  /** `platform`: Google's document scanner, which hands over the page already cropped. */
-  readonly source: 'camera' | 'gallery' | 'platform';
+  /**
+   * `platform`: Google's document scanner, which hands over the page already cropped. `pdf`: a
+   * page of a PDF on the phone, drawn as an image.
+   */
+  readonly source: PageSource;
   readonly analysis: PhotoAnalysis | null;
   /** The crop, in upright photo pixels. Starts as the detected page (or the whole photo). */
   readonly quad: Quad | null;
@@ -83,6 +104,7 @@ export type SessionState = {
   readonly retakeId: string | null;
   /** What the scan is for: an ordinary document unless the camera was opened for a preset. */
   readonly preset: ScanPreset;
+  readonly origin: SessionOrigin;
 };
 
 export const DEFAULT_FILTER: PageFilter = 'magic';
@@ -90,7 +112,7 @@ export const DEFAULT_FILTER: PageFilter = 'magic';
 /** A platform-scanned page is already cleaned: shown as it came, unless the citizen picks. */
 export const PLATFORM_FILTER: PageFilter = 'original';
 
-let state: SessionState = { pages: [], retakeId: null, preset: 'document' };
+let state: SessionState = { pages: [], retakeId: null, preset: 'document', origin: 'camera' };
 const listeners = new Set<() => void>();
 
 function setState(next: SessionState): void {
@@ -158,7 +180,7 @@ export function pageQualityIssues(
   page: SessionPage,
   preset: ScanPreset = state.preset,
 ): readonly QualityIssue[] {
-  if (page.qualityDismissed) return [];
+  if (page.qualityDismissed || page.source === 'pdf') return [];
   const issues = page.analysis?.quality?.issues ?? [];
   return preset === 'photo' ? issues.filter((issue) => issue !== 'blurry') : issues;
 }
@@ -183,7 +205,7 @@ async function processNow(id: string): Promise<void> {
   try {
     let { analysis, quad } = page;
     if (!analysis) {
-      analysis = await analysePhoto(page.photoUri, { findPage: page.source !== 'platform' });
+      analysis = await analysePhoto(page.photoUri, { findPage: !arrivesAsPage(page.source) });
       quad = quad ?? analysis.quad;
       if (!findPage(id)) return;
       patchPage(id, { analysis, quad });
@@ -255,7 +277,7 @@ export function addPhotos(uris: readonly string[], source: SessionPage['source']
               ...page,
               photoUri,
               source,
-              filter: source === 'platform' ? PLATFORM_FILTER : page.filter,
+              filter: arrivesAsPage(source) ? PLATFORM_FILTER : page.filter,
               analysis: null,
               quad: null,
               rotation: 0,
@@ -284,10 +306,9 @@ export function addPhotos(uris: readonly string[], source: SessionPage['source']
     source,
     analysis: null,
     quad: null,
-    filter:
-      source === 'platform'
-        ? PLATFORM_FILTER
-        : (state.pages.at(-1)?.filter ?? presetDefaultFilter(state.preset)),
+    filter: arrivesAsPage(source)
+      ? PLATFORM_FILTER
+      : (state.pages.at(-1)?.filter ?? presetDefaultFilter(state.preset)),
     rotation: 0,
     straighten: 0,
     rendered: null,
@@ -379,10 +400,13 @@ export function discardSession(): void {
   startSession('document');
 }
 
-/** Throws away any session in progress, deleting its files, and starts an empty one for `preset`. */
-export function startSession(preset: ScanPreset): void {
+/**
+ * Throws away any session in progress, deleting its files, and starts an empty one for `preset`,
+ * taking its pages from `origin`.
+ */
+export function startSession(preset: ScanPreset, origin: SessionOrigin = 'camera'): void {
   const uris = state.pages.flatMap(pageFiles);
-  setState({ pages: [], retakeId: null, preset });
+  setState({ pages: [], retakeId: null, preset, origin });
   discardIncoming(uris);
 }
 
@@ -410,7 +434,10 @@ export async function saveSession(details: DocumentDetails = {}): Promise<string
   }
 
   const rendered = pages.map((page) => page.rendered as RenderedPage);
-  const source = pages.every((page) => page.source === 'gallery') ? 'gallery' : 'scanner';
+  // Uploaded photos and PDFs are filed as imported; anything with a scanned page as a scan.
+  const source = pages.every((page) => page.source === 'gallery' || page.source === 'pdf')
+    ? 'gallery'
+    : 'scanner';
 
   // An ID card's sides go on one A4 page. If that cannot be drawn, the sides are saved as they
   // are rather than losing the scan. The sheet is a plaintext copy: deleted however it ends.

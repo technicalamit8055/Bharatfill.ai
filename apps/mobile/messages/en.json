@@ -39,6 +39,10 @@
         "label": "Document",
         "caption": "A4, Certificates"
       },
+      "upload": {
+        "label": "Upload",
+        "caption": "Photo or PDF"
+      },
       "id_card": {
         "label": "ID Card",
         "caption": "Aadhaar, PAN"
@@ -146,7 +150,9 @@
       "scan": "Scan a document",
       "scanMulti": "Scan a multi-page document",
       "scanHint": "Capture one page and save it to your vault",
-      "scanMultiHint": "Capture several pages as one document"
+      "scanMultiHint": "Capture several pages as one document",
+      "upload": "Upload from phone",
+      "uploadHint": "Add a photo or PDF already on this phone"
     },
     "untitled": {
       "scanner": "Scanned document",
@@ -169,6 +175,7 @@
       "category": "No documents in this category yet."
     },
     "emptyAction": "Scan a document",
+    "uploadAction": "Or upload a photo or PDF from this phone",
     "loadError": "Your documents could not be opened on this phone.",
     "starFailed": "The star could not be saved. Please try again.",
     "deleteFailed": "The document could not be deleted. Please try again.",
@@ -308,6 +315,7 @@
     "zoomHint": "Pinch to zoom · double-tap to zoom in",
     "cropApply": "Done",
     "retake": "Retake",
+    "replace": "Replace",
     "sides": {
       "front": "Front",
       "back": "Back"
@@ -318,6 +326,54 @@
       "glare": "Light is shining off this page. Tilt it or move away from the light, then retake.",
       "keep": "Keep",
       "keepHint": "Hides this warning and keeps the page as it is"
+    }
+  },
+  "importFiles": {
+    "close": "Close upload",
+    "title": "Upload from phone",
+    "body": "Add a document that is already on this phone: a photo, or a PDF such as an e-Aadhaar or a DigiLocker download.",
+    "replaceTitle": "Replace this page",
+    "replaceBody": "Pick the photo or file that should take this page's place.",
+    "photos": {
+      "label": "Photos",
+      "caption": "From your gallery, camera or WhatsApp"
+    },
+    "files": {
+      "label": "PDF or file",
+      "caption": "Downloads, WhatsApp documents, Drive",
+      "labelImages": "Image file",
+      "captionImages": "A JPG or PNG from your files"
+    },
+    "privacy": "A copy is encrypted and kept in your vault. The original file on your phone is not changed.",
+    "opening": "Opening…",
+    "reading": "Reading your file…",
+    "review": "Review pages ({count})",
+    "errorTitle": "The file could not be added",
+    "errorBody": "Something went wrong while opening it. Please try again.",
+    "discardTitle": "Discard this upload?",
+    "discardBody": "The pages added so far will be removed. The files on your phone are not affected.",
+    "password": {
+      "title": "This PDF is locked",
+      "titleOf": "File {number} of {total} is locked",
+      "body": "Enter the PDF's password to open it. It is used only to open the file and is not saved.",
+      "label": "PDF password",
+      "placeholder": "Password",
+      "show": "Show password",
+      "hide": "Hide password",
+      "wrong": "That password did not open the PDF. Check it and try again.",
+      "aadhaarHint": "e-Aadhaar: the first 4 letters of your name in CAPITALS, then your year of birth. For example, ABCD1990.",
+      "open": "Open PDF",
+      "skip": "Skip this file",
+      "cancel": "Close"
+    },
+    "report": {
+      "title": "Not everything was added",
+      "full": "This document already has {max} pages, the most one document can hold. Save it, then upload the rest as a new document.",
+      "overLimit": "A document can hold up to {max} pages, so some pages were left out. Save this one, then upload the rest as a new document.",
+      "lockedUnsupported": "This phone cannot open password-locked PDFs. Take a screenshot of each page and add the screenshots under Photos.",
+      "locked": "A locked PDF was skipped because its password was not entered.",
+      "unreadable": "A file could not be opened. It may be damaged, or not a real PDF.",
+      "unsupported": "Only PDF, JPG and PNG files can be added. Other files were skipped."
     }
   },
   "saveDocument": {
@@ -1075,7 +1131,7 @@
   },
   "profileRequest": {
     "title": "Allow access to your details?",
-    "body": "{centre} wants to use the details and documents a centre has saved for you.",
+    "body": "{centre} wants to use the details and documents a centre has saved for you. If you approve, you stay in its customer list, and it can open your details only for the time you choose.",
     "purposeLabel": "Purpose",
     "purposes": {
       "form_filling": "Fill a form",
@@ -1109,6 +1165,22 @@
     "noneLive": "No centre can use your details right now. When a centre asks, you will see the request on your screen.",
     "endedHeading": "Ended in the last 30 days",
     "trustedBadge": "Trusted",
+    "savedHeading": "Centres that saved your profile",
+    "savedLead": "These centres created your profile and keep you as their customer. Lock one to stop it opening your details and documents. It will still see which schemes you qualify for, and must ask you again before opening anything.",
+    "savedOpen": "Can open your details",
+    "savedLocked": "Locked: must ask you first",
+    "lock": "Lock",
+    "unlock": "Unlock",
+    "lockLabel": "Lock {centre}",
+    "unlockLabel": "Unlock {centre}",
+    "lockConfirmTitle": "Lock this centre?",
+    "lockConfirmBody": "{centre} will no longer be able to open your details and documents. You stay in its customer list, and it must send you a request before it can open anything again.",
+    "unlockConfirmTitle": "Unlock this centre?",
+    "unlockConfirmBody": "{centre} will be able to open your details and documents again without asking.",
+    "lockedTitle": "Centre locked",
+    "lockedBody": "{centre} can no longer open your details and documents.",
+    "unlockedTitle": "Centre unlocked",
+    "unlockedBody": "{centre} can open your details and documents again.",
     "until": "until {date}",
     "left": {
       "days": "{days} days left",

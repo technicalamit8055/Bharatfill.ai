@@ -2,16 +2,17 @@
  * Centre access route — `/centre-access`, from Profile → Centre access (migration 0042).
  *
  * Loads the citizen's sessions, and confirms before Stop (the centre loses access at once) and
- * before Trust / Renew (the centre keeps access for 30 days without asking again).
+ * before Trust / Renew (the centre keeps access for 30 days without asking again); and before
+ * Lock / Unlock of a centre that created their profile (migration 0046).
  */
 
 import { useRouter } from 'expo-router';
-import { BadgeCheck, ShieldOff } from 'lucide-react-native';
+import { BadgeCheck, Lock, ShieldOff, Unlock } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 
 import { type CentreAccessBusy, CentreAccessScreen } from '../components/access/CentreAccessScreen';
 import { MAX_TRUSTED_CENTRES } from '../lib/access/centre-access';
-import type { CentreAccess } from '../lib/cloud/citizen-api';
+import type { CentreAccess, CentreProfile } from '../lib/cloud/citizen-api';
 import { citizenApi } from '../lib/cloud/session';
 import { useCentreAccess } from '../lib/cloud/use-centre-access';
 import { showDialog } from '../lib/dialog/dialog-store';
@@ -130,6 +131,52 @@ export default function CentreAccessRoute() {
     [failed, refresh, t],
   );
 
+  const changeLock = useCallback(
+    (centre: CentreProfile, action: 'lock' | 'unlock') => {
+      const name = centre.centreName || t('centreAccess.unknownCentre');
+      const locking = action === 'lock';
+      showDialog(
+        t(locking ? 'centreAccess.lockConfirmTitle' : 'centreAccess.unlockConfirmTitle'),
+        t(locking ? 'centreAccess.lockConfirmBody' : 'centreAccess.unlockConfirmBody', {
+          centre: name,
+        }),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t(locking ? 'centreAccess.lock' : 'centreAccess.unlock'),
+            style: locking ? 'destructive' : 'default',
+            onPress: () => {
+              void (async () => {
+                const api = citizenApi();
+                if (!api) return;
+                setBusy({ customerId: centre.customerId, action });
+                const result = locking
+                  ? await api.lockCentreProfile(centre.customerId)
+                  : await api.unlockCentreProfile(centre.customerId);
+                setBusy(null);
+                refresh();
+                if (!result.ok) {
+                  failed(result.error.messageKey);
+                  return;
+                }
+                showDialog(
+                  t(locking ? 'centreAccess.lockedTitle' : 'centreAccess.unlockedTitle'),
+                  t(locking ? 'centreAccess.lockedBody' : 'centreAccess.unlockedBody', {
+                    centre: name,
+                  }),
+                  [{ text: t('common.ok') }],
+                  { tone: 'success', icon: locking ? Lock : Unlock },
+                );
+              })();
+            },
+          },
+        ],
+        { tone: locking ? 'danger' : 'brand' },
+      );
+    },
+    [failed, refresh, t],
+  );
+
   return (
     <CentreAccessScreen
       state={state}
@@ -143,6 +190,8 @@ export default function CentreAccessRoute() {
       }}
       onStop={stop}
       onTrust={trust}
+      onLock={(centre) => changeLock(centre, 'lock')}
+      onUnlock={(centre) => changeLock(centre, 'unlock')}
       onSignIn={() => router.push('/(auth)/mobile-number')}
     />
   );

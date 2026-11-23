@@ -1,0 +1,18 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'ai.bharatfill'
+version = '0.1.0'
+
+android {
+  namespace "ai.bharatfill.pdfpages"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+}
+
+// No dependencies: pages are drawn by Android's own PDF renderer (android.graphics.pdf), on the
+// phone. Nothing is downloaded and nothing is sent anywhere.

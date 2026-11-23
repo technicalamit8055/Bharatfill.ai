@@ -29,4 +29,5 @@ export {
   type TabItem,
 } from './controls';
 export { Alert, Badge, Card, EmptyState, ProgressBar, Spinner, Stat, type Tone } from './feedback';
+export { LoadingRegion, Skeleton, SkeletonText, type SkeletonTone } from './skeleton';
 export { TBody, TD, TH, THead, TR, Table } from './table';

@@ -71,6 +71,18 @@ No cloud processing: every page is processed on the phone.
   camera. The module autolinks from `modules/`; rebuild the dev build after pulling it. ML Kit
   sends Google API usage metrics (not images) — see `docs/CITIZEN_MOBILE_APP_SPEC.md` §8.
 
+- **Upload** (`app/import.tsx`, `components/import/`, `lib/scan/file-import.ts`): add a photo or
+  PDF already on the phone without the camera — Home's Upload tile, Vault's More menu and empty
+  state. Photos use `expo-image-picker`; files use `expo-document-picker` (PDF, JPG, PNG; copied
+  into the cache). Each PDF page is drawn at up to 300 dpi (long side ≤ 2400 px) on white by
+  Android's `PdfRenderer` in the local module `modules/pdf-pages` (`lib/scan/pdf-pages.ts`) and
+  joins the session as a `pdf` page: not searched for a page, Original filter, no photo-quality
+  warning. Locked PDFs prompt for the password (`PdfPasswordSheet`) — `PdfRenderer` with
+  `LoadParams` on Android 15, `PdfRendererPreV` on Android 12–14 with SDK extension 13, otherwise
+  "cannot open here". The session's `origin` is `import`, so review comes back to Upload and
+  Retake reads Replace. One message at the end lists what was skipped. The picked PDF and its
+  page images are cache copies, deleted like any scan file. No module on iOS: photos and image
+  files only. Rebuild the dev build after pulling it.
 - **Camera** (`app/scanner.tsx`, `components/scanner/ScannerScreen.tsx`): a full-screen modal
   opened by the Scan tab, the Home hero and quick actions (`?mode=single|multi`). Live detection
   (`components/scanner/useLiveDocumentDetection.ts`) streams 640×480 frames; a camera-thread
@@ -211,6 +223,7 @@ app/
     share/                  Connect stack: index, nearby, centre
     profile.tsx             Profile
   scanner.tsx               camera, live detection, auto capture, gallery
+  import.tsx                Upload: photos or PDF / image files already on the phone
   scan-review.tsx           filters, crop / straighten, retake, add / delete page
   save-document.tsx         name, type, folder, tags, expiry reminder; seals into the vault
   scan-result.tsx           the saved scan
@@ -219,13 +232,14 @@ components/                 presentational screens, one folder per area, each wi
   scanner/                  ScannerScreen, ScanOverlay, ShutterButton, ScanReviewScreen,
                             CropEditor, StraightenDial, PageZoomViewer, ScanResultScreen,
                             useLiveDocumentDetection
+  import/                   ImportScreen, PdfPasswordSheet
   save-document/  vault/  document-details/  home/  connect/  profile/
   splash/  onboarding/  registration/  navigation/
   */demo.ts(x)              dev-only sample content (vault, home, connect, profile)
 lib/                        pure logic and storage, unit tested where pure
   scan/                     capture-session, scan-session, document-vision (OpenCV),
                             page-lines, paper-light, tone-curve, geometry, exif, luma,
-                            photo-quality, presets, filters
+                            photo-quality, presets, filters, file-import, pdf-pages
   vault/                    vault-storage (encryption), vault-index (Zod), categories,
                             save-document, vault-screen, document-details, document-export,
                             scan-pdf, expiry-reminders

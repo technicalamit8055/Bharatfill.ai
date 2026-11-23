@@ -10,7 +10,8 @@
  *
  * Development builds show the design mockup's sample content (`components/home/demo.tsx`) while
  * the phone's vault is empty, so the layout can be reviewed full. The quick actions open the
- * scanner or one of its presets (ID card, photo, signature). Features the dashboard points at
+ * scanner or one of its presets (ID card, photo, signature), or Upload (`app/import.tsx`) for a
+ * photo or PDF already on the phone. Features the dashboard points at
  * that do not exist yet — notifications — say so plainly, and nothing is sent.
  */
 
@@ -107,6 +108,10 @@ export default function HomeRoute() {
     [router],
   );
 
+  const handleUpload = useCallback(() => {
+    router.push('/import');
+  }, [router]);
+
   const handleOpenVault = useCallback(() => {
     router.navigate('/vault');
   }, [router]);
@@ -142,6 +147,7 @@ export default function HomeRoute() {
         dashboard={dashboard}
         now={now}
         onScan={handleScan}
+        onUpload={handleUpload}
         onOpenNotifications={handleOpenNotifications}
         onOpenProfile={handleOpenProfile}
         onConnect={handleConnect}

@@ -25,6 +25,7 @@ import {
   ChevronLeft,
   Contrast,
   Crop,
+  FileUp,
   Image as ImageIcon,
   type LucideIcon,
   RotateCcw,
@@ -100,6 +101,11 @@ export type ScanReviewScreenProps = {
   readonly onCancelCrop: () => void;
   readonly onResetCrop: () => void;
   readonly onRetake: () => void;
+  /**
+   * `replace` for pages uploaded from the phone (`app/import.tsx`): Retake picks another file
+   * instead of opening the camera, and says so.
+   */
+  readonly retakeMode?: 'camera' | 'replace';
   readonly onDeletePage: () => void;
   readonly onRetry: () => void;
   readonly onAddPage: () => void;
@@ -241,7 +247,11 @@ export function ScanReviewScreen(props: ScanReviewScreenProps) {
                     onPress={props.onRetake}
                     style={({ pressed }) => pressed && styles.pressed}
                   >
-                    <Text style={styles.warningAction}>{t('scanReview.retake')}</Text>
+                    <Text style={styles.warningAction}>
+                      {t(
+                        props.retakeMode === 'replace' ? 'scanReview.replace' : 'scanReview.retake',
+                      )}
+                    </Text>
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
@@ -336,9 +346,13 @@ export function ScanReviewScreen(props: ScanReviewScreenProps) {
                   pressed && styles.pressed,
                 ]}
               >
-                <Camera color={palette.brandBlue} size={24} strokeWidth={2.1} />
+                {props.retakeMode === 'replace' ? (
+                  <FileUp color={palette.brandBlue} size={24} strokeWidth={2.1} />
+                ) : (
+                  <Camera color={palette.brandBlue} size={24} strokeWidth={2.1} />
+                )}
                 <Text numberOfLines={1} style={styles.outlineLabel}>
-                  {t('scanReview.retake')}
+                  {t(props.retakeMode === 'replace' ? 'scanReview.replace' : 'scanReview.retake')}
                 </Text>
               </Pressable>
               <Pressable

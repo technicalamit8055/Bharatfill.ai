@@ -101,7 +101,12 @@ export default async function CustomerProfilePage({
     if (!access.card) nextNotFound();
     return (
       <div className="space-y-6">
-        <RoamingLockedCard customerId={id} card={access.card} topSchemes={access.topSchemes} />
+        <RoamingLockedCard
+          customerId={id}
+          card={access.card}
+          topSchemes={access.topSchemes}
+          lockedByCustomer={access.lockedByCustomer === true}
+        />
       </div>
     );
   }

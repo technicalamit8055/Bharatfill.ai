@@ -27,6 +27,8 @@ export type HomeDashboardScreenProps = {
   /** The moment document ages ("2 hours ago") are measured from. */
   readonly now: Date;
   readonly onScan: (mode: QuickScanMode) => void;
+  /** Upload: a photo or PDF already on the phone. */
+  readonly onUpload: () => void;
   readonly onOpenNotifications: () => void;
   readonly onOpenProfile: () => void;
   readonly onConnect: () => void;
@@ -38,6 +40,7 @@ export function HomeDashboardScreen({
   dashboard,
   now,
   onScan,
+  onUpload,
   onOpenNotifications,
   onOpenProfile,
   onConnect,
@@ -62,7 +65,7 @@ export function HomeDashboardScreen({
 
           <ScanHeroCard onScan={() => onScan('document')} />
 
-          <QuickActions width={contentWidth} onScan={onScan} />
+          <QuickActions width={contentWidth} onScan={onScan} onUpload={onUpload} />
 
           <CscConnectBanner width={contentWidth} onConnect={onConnect} />
 

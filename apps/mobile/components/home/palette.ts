@@ -49,6 +49,7 @@ export const homePalette = {
 
   quickActions: {
     document: { tile: '#EDF4FF', border: '#DCE8FF', badge: '#D6E6FF', icon: '#1D6BFF' },
+    upload: { tile: '#E8F7F8', border: '#D0EEF0', badge: '#C9ECEF', icon: '#0E8C95' },
     id_card: { tile: '#EAF8F0', border: '#D5F0E0', badge: '#CFF0DC', icon: '#16A34A' },
     photo: { tile: '#FDEEF0', border: '#FAD9DE', badge: '#FBD7DD', icon: '#E11D48' },
     signature: { tile: '#F4EFFF', border: '#E6DCFF', badge: '#E5D9FF', icon: '#7C3AED' },

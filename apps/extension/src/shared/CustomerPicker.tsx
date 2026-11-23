@@ -134,7 +134,11 @@ export function CustomerPicker({
             <div className="grow">
               <div className="strong truncate">
                 {selected.displayName}
-                {selected.isRoaming ? <span className="badge badge-brand"> 🌐 Roaming</span> : null}
+                {selected.isRoaming ? (
+                  <span className="badge badge-brand">
+                    {selected.accessStatus === 'granted' ? ' 🟢 Access open' : ' 🔒 Locked'}
+                  </span>
+                ) : null}
               </div>
               <div className="tiny muted truncate">
                 {selected.mobileLast4 ? `••••${selected.mobileLast4}` : 'no mobile on file'}

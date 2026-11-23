@@ -77,7 +77,10 @@ export type OperatorApprovalContext = {
   centreName: string;
   operatorId: string;
   now: () => Date;
-  /** This centre has bookmarked the customer (`has_customer_roaming_link`, caller's own JWT). */
+  /**
+   * This centre may ask: it has the customer linked, or created the record and the citizen
+   * locked it (`can_request_customer_access`, 0046; caller's own JWT).
+   */
   isLinked: (customerId: string) => Promise<boolean>;
   audit: (entry: {
     action: AuditAction;

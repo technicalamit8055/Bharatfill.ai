@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import en from '../messages/en.json';
 import hi from '../messages/hi.json';
-import { documentAgeMessage, documentCountMessage, QUICK_SCAN_MODES } from '../lib/home/dashboard';
+import { documentAgeMessage, documentCountMessage, QUICK_ACTIONS } from '../lib/home/dashboard';
 import { VAULT_CATEGORIES } from '../lib/vault/categories';
 
 const NOW = new Date('2026-09-23T12:00:00Z');
@@ -27,9 +27,9 @@ const RENDERED_KEYS = [
   'home.hero.title',
   'home.hero.body',
   'home.hero.action',
-  ...QUICK_SCAN_MODES.flatMap((mode) => [
-    `home.quickActions.${mode}.label`,
-    `home.quickActions.${mode}.caption`,
+  ...QUICK_ACTIONS.flatMap((action) => [
+    `home.quickActions.${action}.label`,
+    `home.quickActions.${action}.caption`,
   ]),
   'home.connect.title',
   'home.connect.body',

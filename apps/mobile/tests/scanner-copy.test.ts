@@ -81,6 +81,7 @@ const RENDERED_KEYS = [
     'straighten',
     'straightenReset',
     'retake',
+    'replace',
     'deletePage',
     'deleteTitle',
     'deleteBody',

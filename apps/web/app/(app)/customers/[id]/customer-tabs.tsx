@@ -109,7 +109,11 @@ export type CustomerTabItem = {
   count?: number | null;
 };
 
-/** The tab strip, pinned under the app header so it is always one tap away. */
+/**
+ * The tab strip, pinned to the top of the scrolling `<main>` (just under the app header) so it
+ * is always one tap away. `-scroll-mt-5` cancels main's scroll padding, so jumping to it parks
+ * it flush at the top where it sticks.
+ */
 export function CustomerTabBar({
   items,
   ariaLabel,
@@ -122,7 +126,7 @@ export function CustomerTabBar({
   return (
     <div
       id={WORKSPACE_ANCHOR}
-      className="sticky top-[72px] z-10 -mx-1 scroll-mt-[72px] bg-slate-50/95 px-1 pt-1 backdrop-blur"
+      className="sticky top-0 z-10 -mx-1 -scroll-mt-5 bg-slate-50/95 px-1 pt-1 backdrop-blur"
     >
       <div
         role="tablist"

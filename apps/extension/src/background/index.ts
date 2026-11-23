@@ -17,6 +17,7 @@ import {
   portalForUrl,
   type PortalCredentialView,
   type PortalLoginFill,
+  type RoamingAccessRequestResult,
   type RoamingAccessView,
   type RoamingAppRequestView,
 } from '@assistigo/core';
@@ -822,6 +823,21 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       await selectedCustomerStore.set(summary);
       await recentCustomersStore.push(summary);
       return ok({ customer: summary });
+    }
+
+    case 'REQUEST_ROAMING_ACCESS': {
+      const result = await apiFetch<RoamingAccessRequestResult>(
+        `/api/customers/${message.customerId}/roaming/request-access`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            purpose: message.purpose,
+            durationMinutes: message.durationMinutes,
+            targetSchemeSlug: message.targetSchemeSlug,
+          }),
+        },
+      );
+      return ok(result);
     }
 
     case 'REQUEST_ROAMING_OTP': {

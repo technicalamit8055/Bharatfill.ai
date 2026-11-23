@@ -216,6 +216,19 @@ export const AUDIT_ACTIONS = define([
     description: 'Time-limited access to a roaming customer granted after consent',
   },
   {
+    // The citizen locked the centre that created their record, from the BharatDoc app (0046).
+    action: 'customer.citizen_locked',
+    entityType: 'customer',
+    sensitivity: 'sensitive',
+    description: 'Customer locked this centre out of their profile in the BharatDoc app',
+  },
+  {
+    action: 'customer.citizen_unlocked',
+    entityType: 'customer',
+    sensitivity: 'sensitive',
+    description: 'Customer unlocked this centre in the BharatDoc app',
+  },
+  {
     action: 'customer.roaming_access_revoked',
     entityType: 'customer_access_grant',
     sensitivity: 'sensitive',

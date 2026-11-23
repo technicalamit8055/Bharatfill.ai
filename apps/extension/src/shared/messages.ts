@@ -135,6 +135,18 @@ export const messageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('LINK_ROAMING_CUSTOMER'), customerId: z.string().uuid() }),
   /** The masked pre-auth card plus top scheme matches, for the locked-state banner. */
   z.object({ type: z.literal('GET_ROAMING_ACCESS'), customerId: z.string().uuid() }),
+  /**
+   * The one "Request access" (migration 0046): the server sends it to the citizen's BharatDoc app
+   * when they have one, otherwise a WhatsApp code; the answer says which. `durationMinutes` is
+   * for the code only.
+   */
+  z.object({
+    type: z.literal('REQUEST_ROAMING_ACCESS'),
+    customerId: z.string().uuid(),
+    purpose: roamingPurposeSchema.default('form_filling'),
+    durationMinutes: z.union([z.literal(60), z.literal(120), z.literal(240)]).default(120),
+    targetSchemeSlug: z.string().max(80).optional(),
+  }),
   z.object({
     type: z.literal('REQUEST_ROAMING_OTP'),
     customerId: z.string().uuid(),

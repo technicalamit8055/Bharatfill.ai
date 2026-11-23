@@ -632,6 +632,11 @@ Built:
       (`lib/scan/platform-scanner.ts`, native module `modules/platform-scanner`): opens from
       Scan, add page and retake; pages skip the page search and start on Original; falls back to
       the in-app camera without Play services or on iOS; presets keep the in-app camera
+- [x] Upload from phone (`app/import.tsx`, 2026-11-23): Home's Upload tile and the Vault tab add
+      photos (photo picker) or PDF / JPG / PNG files (system file picker) without the camera;
+      PDF pages are drawn on the phone by Android's renderer (`modules/pdf-pages`,
+      `lib/scan/pdf-pages.ts`), locked PDFs ask for their password (Android 12+ with the 2024
+      system update; never stored); then review and Save Document as for a scan
 - [x] Scan review: filter cards, pinch zoom, crop editor with a corner loupe, quarter turns and
       ±45° straighten dial, retake, add and delete page
 - [x] Photo quality check (blur, dark, glare) with Retake / Keep on review
@@ -668,6 +673,9 @@ Remaining:
       import, cache clean-up, and fallback with Play services disabled
 - [x] App lock: phone fingerprint / face / screen lock or a 4-digit app PIN, relock after a
       minute away, wrong-PIN waits, Forgot PIN (`lib/security/`, `app/security.tsx`)
+- [ ] **On a device:** Upload — photos, a multi-page PDF, a locked e-Aadhaar (right and wrong
+      password, skip), a PDF over 24 pages, an unsupported file, Replace from review, cache
+      clean-up; the locked-PDF message on an Android 11 phone
 - [ ] **On a device:** app lock — with and without biometrics, no screen lock (PIN only), relock
       after Google's scanner and the share sheet, Forgot PIN reset
 - [x] Hide the app's screen in Android's recent-apps preview (Android 13+,
@@ -693,6 +701,15 @@ Remaining:
       listed with own customers (masked until access is live, approval each visit); customer
       codes hidden everywhere in favour of the masked mobile; same-mobile duplicate warning
       covers the whole centre — run 0044 and `npm run test:rls`
+- [x] Customers stay with the centre; the citizen can lock it (migration 0046, design §16,
+      2026-11-23): copying dropped (0045 undone); one "Request access" goes to the BharatDoc app
+      or, without one, a WhatsApp code (`lib/roaming/request-access.ts` + test, dashboard and
+      extension); linked customers stay listed with no "other centre" tag and their schemes after
+      the session ends; app Centre access → "Centres that saved your profile" with Lock / Unlock
+      (`lib/roaming/citizen-locks.ts` + test); locked customers stay listed, masked — run 0045
+      and 0046, then `npm run test:rls` (`citizen_centre_locks.test.ts`)
+- [ ] **Product owner / legal:** approval-sheet wording for the permanent listing; whether a
+      lock should also block writes that skip reading the record
 - [x] Document folders on the dashboard (migration 0043): the customer's Documents tab in the
       app's folders, the phone's folder synced on upload and on move, "From BharatDoc app" tag,
       live refresh for app customers; "Just save — don't read" for any typed upload

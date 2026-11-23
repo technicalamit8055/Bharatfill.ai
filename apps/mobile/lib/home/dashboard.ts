@@ -29,6 +29,21 @@ export const QUICK_SCAN_MODES = [
 ] as const;
 export type QuickScanMode = (typeof QUICK_SCAN_MODES)[number];
 
+/**
+ * The tiles under Home's hero, in display order: the scanner shortcuts, with Upload (a photo or
+ * PDF already on the phone, `app/import.tsx`) second, next to the plain document scan. Each has
+ * copy at `home.quickActions.<action>`.
+ */
+export const QUICK_ACTIONS = [
+  'document',
+  'upload',
+  'id_card',
+  'photo',
+  'signature',
+  'multi_page',
+] as const satisfies readonly (QuickScanMode | 'upload')[];
+export type QuickAction = (typeof QUICK_ACTIONS)[number];
+
 /** Route params for `/scanner` (`app/scanner.tsx`): a page count, or a dedicated preset. */
 export type ScannerParams = { readonly mode: 'single' | 'multi' } | { readonly preset: string };
 

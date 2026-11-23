@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   formatGrantRemaining,
+  type RoamingAccessRequestResult,
   type RoamingAccessView,
   type RoamingAppRequestView,
 } from '@assistigo/core';
@@ -14,17 +15,16 @@ import type { CustomerSummary } from './messages';
  * switching back to the dashboard: see why a locked profile is worth pursuing, ask for the
  * citizen's consent, type back the code, and end the session early.
  *
- * Consent comes one of two ways (migration 0039):
- *   app  a request to the citizen's BharatDoc app. The citizen picks how long (1, 2 or 4 hours,
- *        or 30 days to trust this centre — migration 0042), so there is no duration picker
- *        here; the panel polls until they answer.
- *   otp  a code sent to the citizen's phone, for a window the operator picks.
+ * One "Request access" (migration 0046) — the server decides how the citizen says yes:
+ *   app  they have the BharatDoc app: the request goes there. The citizen picks how long (1, 2
+ *        or 4 hours, or 30 days to trust this centre — migration 0042); the panel polls.
+ *   otp  they do not: a WhatsApp code for the window picked here, typed back at the counter.
+ * While waiting on the app the operator can still fall back to a code.
  */
 
 const DURATIONS = [60, 120, 240] as const;
 type DurationMinutes = (typeof DURATIONS)[number];
 
-type Method = 'app' | 'otp';
 type Stage = 'idle' | 'sent' | 'waiting';
 
 /** How often the panel asks whether the citizen has answered in the app. */
@@ -53,7 +53,6 @@ export function RoamingAuthBanner({
   const isActive = customer.accessStatus === 'granted';
 
   const [access, setAccess] = useState<RoamingAccessView | null>(null);
-  const [method, setMethod] = useState<Method>('app');
   const [stage, setStage] = useState<Stage>('idle');
   const [request, setRequest] = useState<{ id: string; expiresAt: string } | null>(null);
   const [countdown, setCountdown] = useState('');
@@ -123,28 +122,35 @@ export function RoamingAuthBanner({
     };
   }, [stage, request, customer.id, onChange]);
 
-  async function sendAppRequest() {
+  /** The app when the customer has it, otherwise a WhatsApp code — the server decides. */
+  async function sendRequest() {
     setPending(true);
     setError(null);
-    const response = await send<{ requestId: string; expiresAt: string }>({
-      type: 'REQUEST_ROAMING_APPROVAL',
+    const response = await send<RoamingAccessRequestResult>({
+      type: 'REQUEST_ROAMING_ACCESS',
       customerId: customer.id,
       purpose: 'form_filling',
+      durationMinutes,
     });
     setPending(false);
     if (!response.ok) {
-      setError('Could not send the request. Try again, or use OTP.');
+      setError('Could not send the request. Try again.');
       return;
     }
-    setRequest({ id: response.data.requestId, expiresAt: response.data.expiresAt });
-    setStage('waiting');
+    const result = response.data;
+    if (result.method === 'app') {
+      setRequest({ id: result.requestId, expiresAt: result.expiresAt });
+      setStage('waiting');
+    } else {
+      setMobileLast4(result.mobileLast4);
+      setStage('sent');
+    }
   }
 
-  async function cancelAppRequest(switchTo: Method = 'app') {
+  async function cancelAppRequest() {
     const current = request;
     setStage('idle');
     setRequest(null);
-    setMethod(switchTo);
     if (current) {
       await send({
         type: 'CANCEL_ROAMING_APPROVAL',
@@ -154,13 +160,9 @@ export function RoamingAuthBanner({
     }
   }
 
-  function chooseMethod(next: Method) {
-    setMethod(next);
-    setStage('idle');
-    setError(null);
-  }
-
+  /** A WhatsApp code directly: the fallback while waiting on the app, and Resend. */
   async function sendCode() {
+    if (request) await cancelAppRequest();
     setPending(true);
     setError(null);
     const response = await send<{ mobileLast4: string | null }>({
@@ -203,9 +205,7 @@ export function RoamingAuthBanner({
     return (
       <div className="notice notice-ok">
         <ShieldIcon size={13} />
-        <span className="grow">
-          🟢 Active roaming session{remaining ? ` (${remaining} remaining)` : ''}
-        </span>
+        <span className="grow">🟢 Access open{remaining ? ` (${remaining} remaining)` : ''}</span>
         <button
           type="button"
           className="btn-ghost tiny"
@@ -223,19 +223,23 @@ export function RoamingAuthBanner({
       <div className="notice notice-warn">
         <ShieldIcon size={13} />
         <span>
-          🔒 Roaming customer (profile locked)
-          {mobileLast4
-            ? method === 'app'
-              ? ` — request goes to the BharatDoc app on •••• ${mobileLast4}`
-              : ` — code goes to •••••• ${mobileLast4}`
-            : ''}
+          {access?.lockedByCustomer
+            ? '🔒 The customer locked your centre in the BharatDoc app'
+            : '🔒 Profile locked — ask the customer for access'}
+          {mobileLast4 && stage === 'sent' ? ` — code sent to •••••• ${mobileLast4}` : ''}
         </span>
       </div>
 
       {access?.topSchemes && access.topSchemes.length > 0 ? (
         <p className="tiny row" style={{ gap: 4 }}>
           <CheckIcon size={12} className="muted" />
-          <span>Eligible for {access.topSchemes.map((scheme) => scheme.title.en).join(', ')}</span>
+          <span>
+            Eligible for{' '}
+            {access.topSchemes
+              .slice(0, 3)
+              .map((scheme) => scheme.title.en)
+              .join(', ')}
+          </span>
         </p>
       ) : null}
 
@@ -244,39 +248,6 @@ export function RoamingAuthBanner({
           <AlertIcon size={12} />
           <span>{error}</span>
         </p>
-      ) : null}
-
-      {stage !== 'waiting' ? (
-        <div
-          className="row"
-          role="radiogroup"
-          aria-label="How the customer approves"
-          style={{ gap: 6 }}
-        >
-          {(
-            [
-              ['app', '📱 BharatDoc app'],
-              ['otp', '🔢 OTP'],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={method === value}
-              className="btn-ghost tiny grow"
-              style={
-                method === value
-                  ? { borderColor: 'var(--brand-600)', color: 'var(--brand-700)' }
-                  : undefined
-              }
-              disabled={pending}
-              onClick={() => chooseMethod(value)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
       ) : null}
 
       {stage === 'waiting' ? (
@@ -288,31 +259,21 @@ export function RoamingAuthBanner({
           <button
             type="button"
             className="btn-ghost tiny"
-            onClick={() => void cancelAppRequest('otp')}
+            disabled={pending}
+            onClick={() => void sendCode()}
           >
-            Customer has no app? Use OTP instead
+            Customer can&rsquo;t open the app? Send a WhatsApp code
           </button>
           <button type="button" className="btn-ghost tiny" onClick={() => void cancelAppRequest()}>
             Cancel request
           </button>
         </>
-      ) : method === 'app' ? (
-        <>
-          <p className="tiny muted">
-            The customer approves on their phone and picks how long: 1, 2 or 4 hours, or 30 days if
-            they trust your centre.
-          </p>
-          <button
-            type="button"
-            className="btn-primary btn-block"
-            disabled={pending}
-            onClick={() => void sendAppRequest()}
-          >
-            📱 Send request to BharatDoc app
-          </button>
-        </>
       ) : stage === 'idle' ? (
         <>
+          <p className="tiny muted">
+            Goes to the customer&rsquo;s BharatDoc app if they have it (they choose how long),
+            otherwise a WhatsApp code. Time for a code:
+          </p>
           <div className="row" style={{ gap: 6 }}>
             {DURATIONS.map((value) => (
               <button
@@ -335,9 +296,9 @@ export function RoamingAuthBanner({
             type="button"
             className="btn-primary btn-block"
             disabled={pending}
-            onClick={() => void sendCode()}
+            onClick={() => void sendRequest()}
           >
-            🔐 Request OTP to unlock autofill
+            🔐 Request access
           </button>
         </>
       ) : (

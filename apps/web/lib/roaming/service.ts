@@ -38,8 +38,12 @@ import {
 import { roamingOtpMessage } from './messages';
 import { customerRowFromRoamingCard } from './scheme-report';
 
-/** How many of the top eligible schemes the compact roaming view carries (extension banner). */
-const TOP_SCHEME_COUNT = 3;
+/**
+ * How many eligible schemes the locked view carries. The operator keeps seeing what the customer
+ * qualifies for after a session ends or the citizen stops it (product owner, 2026-11-23); the
+ * extension banner shows the first three.
+ */
+const TOP_SCHEME_COUNT = 10;
 
 /**
  * Cross-centre roaming access — server-side orchestration.
@@ -229,8 +233,20 @@ export async function resolveRoamingAccess(
     .maybeSingle();
   if (customerError) throw customerError;
 
+  // The citizen locked this centre out of a record it created (0046): from here on it is handled
+  // like a linked customer from elsewhere — masked card, schemes, ask again, time-boxed grant.
+  let lockedByCustomer = false;
+  if (customerRow && customerRow.organization_id === context.organization.id) {
+    const { data: locked, error: lockError } = await context.supabase.rpc(
+      'is_customer_citizen_locked',
+      { p_customer_id: customerId },
+    );
+    if (lockError) throw lockError;
+    lockedByCustomer = locked === true;
+  }
+
   if (customerRow) {
-    if (customerRow.organization_id === context.organization.id) {
+    if (customerRow.organization_id === context.organization.id && !lockedByCustomer) {
       return {
         state: 'home_org',
         card: null,
@@ -259,17 +275,18 @@ export async function resolveRoamingAccess(
       session: grantRow ? toSessionView(grantRow) : null,
       challengePending: false,
       topSchemes: null,
+      lockedByCustomer,
     };
   }
 
-  // Not reachable through customers_select: either this centre has bookmarked the citizen and
-  // is waiting on consent, or there is nothing here for this caller at all.
-  const { data: linked, error: linkError } = await context.supabase.rpc(
-    'has_customer_roaming_link',
+  // Not reachable through customers_select: this centre has the citizen in its list (linked, or
+  // its own record the citizen locked) and is waiting on consent — or there is nothing here.
+  const { data: askable, error: askError } = await context.supabase.rpc(
+    'can_request_customer_access',
     { p_customer_id: customerId },
   );
-  if (linkError) throw linkError;
-  if (!linked) throw notFound('errors.not_found');
+  if (askError) throw askError;
+  if (!askable) throw notFound('errors.not_found');
 
   // Service role only (0024): this function returns the raw name, mobile and certificate JSON,
   // so it must never be reachable with the caller's own JWT — only from here, with the caller's
@@ -299,6 +316,8 @@ export async function resolveRoamingAccess(
     session: null,
     challengePending: (count ?? 0) > 0,
     topSchemes,
+    // Only ever this centre's own record: a visiting centre never learns of a home-centre lock.
+    lockedByCustomer: cardRow.home_organization_id === context.organization.id,
   };
 }
 
@@ -351,13 +370,13 @@ export async function requestRoamingOtp(
   const admin = createSupabaseAdminClient();
 
   // Defence in depth: the route only reaches here from the 'roaming_locked' state, which itself
-  // requires a bookmark, but this function must stand on its own.
-  const { data: linked, error: linkError } = await context.supabase.rpc(
-    'has_customer_roaming_link',
+  // requires a bookmark (or a locked own record, 0046), but this function must stand on its own.
+  const { data: askable, error: askError } = await context.supabase.rpc(
+    'can_request_customer_access',
     { p_customer_id: customerId },
   );
-  if (linkError) throw linkError;
-  if (!linked) throw notFound('errors.not_found');
+  if (askError) throw askError;
+  if (!askable) throw notFound('errors.not_found');
 
   const { data: customerRow, error: customerError } = await admin
     .from('customers')

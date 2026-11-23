@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
@@ -19,6 +19,7 @@ import {
 import { Alert, Button, TextField, cn } from '@assistigo/ui';
 import {
   ROAMING_PURPOSE_LABELS,
+  type RoamingAccessRequestResult,
   type RoamingAppRequestView,
   type RoamingPurpose,
 } from '@assistigo/core';
@@ -42,8 +43,6 @@ const PURPOSE_ICONS: Record<RoamingPurpose, LucideIcon> = {
   document_access: Folder,
 };
 
-/** app: request to the citizen's BharatDoc app (0039). otp: WhatsApp code (0024). */
-type Method = 'app' | 'otp';
 type Stage = 'closed' | 'form' | 'sent' | 'waiting';
 
 /** How often the modal asks whether the citizen has answered in the app. */
@@ -63,22 +62,22 @@ function formatCountdown(expiresAt: string): string {
 }
 
 /**
- * The consent flow for a `roaming_locked` customer.
- * Master spec §19.2; migrations 0024 (OTP) and 0039 (approval in the BharatDoc app).
+ * The consent flow for a `roaming_locked` customer — linked from another centre, or this
+ * centre's own record the citizen locked (0046).
+ * Master spec §19.2; migrations 0024 (OTP), 0039 (approval in the BharatDoc app), 0046.
  *
- * The citizen says yes one of two ways, and there is no path in this component that unlocks the
- * profile without them:
- *   app  a request to their BharatDoc app. They see the centre and purpose, pick how long
- *        (1, 2 or 4 hours) and tap Approve, so there is no duration picker here; we poll.
- *   otp  a WhatsApp code for a window the operator picks, which the citizen reads back.
- * The server answers the same way whether or not the person uses the app.
+ * One "Send request": the server picks how the citizen says yes, and there is no path in this
+ * component that unlocks the profile without them:
+ *   app  they have the BharatDoc app — the request goes there; they see the centre and purpose,
+ *        pick how long and tap Approve. We poll.
+ *   otp  they do not — a WhatsApp code for the window picked here, read back at the counter.
+ * While waiting on the app, the operator can still fall back to a WhatsApp code.
  */
 export function RoamingAuthModal({ customerId }: { customerId: string }) {
   const { t, locale } = useI18n();
   const router = useRouter();
 
   const [stage, setStage] = useState<Stage>('closed');
-  const [method, setMethod] = useState<Method>('app');
   const [purpose, setPurpose] = useState<RoamingPurpose>('form_filling');
   const [durationMinutes, setDurationMinutes] = useState<DurationMinutes>(120);
   const [otp, setOtp] = useState('');
@@ -150,29 +149,34 @@ export function RoamingAuthModal({ customerId }: { customerId: string }) {
     setPending(false);
   }
 
-  function chooseMethod(next: Method) {
+  function backToForm() {
     cancelRequest();
-    setMethod(next);
     setStage('form');
     setError(null);
   }
 
-  async function sendAppRequest() {
+  /** The app when the customer has it, otherwise a WhatsApp code — the server decides. */
+  async function sendRequest() {
     setPending(true);
     setError(null);
     try {
-      const response = await fetch(`/api/customers/${customerId}/roaming/app-request`, {
+      const response = await fetch(`/api/customers/${customerId}/roaming/request-access`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ purpose }),
+        body: JSON.stringify({ purpose, durationMinutes }),
       });
       if (!response.ok) {
         setError(await readErrorKey(response));
         return;
       }
-      const body = (await response.json()) as { data: { requestId: string; expiresAt: string } };
-      setRequest({ id: body.data.requestId, expiresAt: body.data.expiresAt });
-      setStage('waiting');
+      const { data } = (await response.json()) as { data: RoamingAccessRequestResult };
+      if (data.method === 'app') {
+        setRequest({ id: data.requestId, expiresAt: data.expiresAt });
+        setStage('waiting');
+      } else {
+        setMobileLast4(data.mobileLast4);
+        setStage('sent');
+      }
     } catch {
       setError('errors.internal');
     } finally {
@@ -180,7 +184,9 @@ export function RoamingAuthModal({ customerId }: { customerId: string }) {
     }
   }
 
+  /** A WhatsApp code directly: the fallback while waiting on the app, and Resend. */
   async function sendOtp() {
+    cancelRequest();
     setPending(true);
     setError(null);
     try {
@@ -275,51 +281,10 @@ export function RoamingAuthModal({ customerId }: { customerId: string }) {
 
           {stage === 'form' ? (
             <>
-              <section className="mt-5">
-                <h3 className="text-sm font-semibold text-slate-900">
-                  {t('customers.roaming.methodLabel')}
-                </h3>
-                <div
-                  role="radiogroup"
-                  aria-label={t('customers.roaming.methodLabel')}
-                  className="mt-2 grid grid-cols-2 gap-2.5"
-                >
-                  <MethodOption
-                    selected={method === 'app'}
-                    label={t('customers.roaming.methodApp')}
-                    onSelect={() => chooseMethod('app')}
-                    icon={
-                      <Image
-                        src="/customers/bharatdoc-logo.png"
-                        alt=""
-                        width={32}
-                        height={32}
-                        className="h-8 w-8 shrink-0 rounded-lg"
-                      />
-                    }
-                  />
-                  <MethodOption
-                    selected={method === 'otp'}
-                    label={t('customers.roaming.methodOtp')}
-                    onSelect={() => chooseMethod('otp')}
-                    icon={
-                      <Image
-                        src="/customers/whatsapp-logo.webp"
-                        alt=""
-                        width={32}
-                        height={32}
-                        className="h-8 w-8 shrink-0"
-                      />
-                    }
-                  />
-                </div>
-                <p className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-slate-600">
-                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-700" />
-                  <span>
-                    {t(method === 'app' ? 'customers.roaming.appHelp' : 'customers.roaming.modalHelp')}
-                  </span>
-                </p>
-              </section>
+              <p className="mt-5 flex items-start gap-2 text-xs leading-relaxed text-slate-600">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-700" />
+                <span>{t('customers.roaming.requestHelp')}</span>
+              </p>
 
               <hr className="my-4 border-slate-200" />
 
@@ -367,41 +332,42 @@ export function RoamingAuthModal({ customerId }: { customerId: string }) {
                 </div>
               </section>
 
-              {method === 'otp' ? (
-                <section className="mt-4">
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    {t('customers.roaming.durationLabel')}
-                  </h3>
-                  <div
-                    role="radiogroup"
-                    aria-label={t('customers.roaming.durationLabel')}
-                    className="mt-2 flex flex-wrap gap-2"
-                  >
-                    {DURATIONS.map((value) => {
-                      const selected = durationMinutes === value;
-                      return (
-                        <button
-                          key={value}
-                          type="button"
-                          role="radio"
-                          aria-checked={selected}
-                          onClick={() => setDurationMinutes(value)}
-                          className={cn(
-                            'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition',
-                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1',
-                            selected
-                              ? 'border-blue-600 bg-blue-50/70 text-blue-700'
-                              : 'border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50',
-                          )}
-                        >
-                          <Clock className="h-3.5 w-3.5" />
-                          {t('customers.roaming.durationOption', { hours: value / 60 })}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-              ) : null}
+              <section className="mt-4">
+                <h3 className="text-sm font-semibold text-slate-900">
+                  {t('customers.roaming.durationLabel')}
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {t('customers.roaming.durationHelp')}
+                </p>
+                <div
+                  role="radiogroup"
+                  aria-label={t('customers.roaming.durationLabel')}
+                  className="mt-2 flex flex-wrap gap-2"
+                >
+                  {DURATIONS.map((value) => {
+                    const selected = durationMinutes === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => setDurationMinutes(value)}
+                        className={cn(
+                          'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1',
+                          selected
+                            ? 'border-blue-600 bg-blue-50/70 text-blue-700'
+                            : 'border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50',
+                        )}
+                      >
+                        <Clock className="h-3.5 w-3.5" />
+                        {t('customers.roaming.durationOption', { hours: value / 60 })}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
 
               <div className="mt-5 flex items-center justify-end gap-2">
                 <Button type="button" variant="ghost" onClick={reset}>
@@ -409,10 +375,8 @@ export function RoamingAuthModal({ customerId }: { customerId: string }) {
                 </Button>
                 <PrimaryAction
                   pending={pending}
-                  onClick={() => void (method === 'app' ? sendAppRequest() : sendOtp())}
-                  label={t(
-                    method === 'app' ? 'customers.roaming.sendAppRequest' : 'customers.roaming.sendCode',
-                  )}
+                  onClick={() => void sendRequest()}
+                  label={t('customers.roaming.sendAppRequest')}
                 />
               </div>
             </>
@@ -428,10 +392,15 @@ export function RoamingAuthModal({ customerId }: { customerId: string }) {
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <Button type="button" variant="link" onClick={() => chooseMethod('otp')}>
+                <Button
+                  type="button"
+                  variant="link"
+                  disabled={pending}
+                  onClick={() => void sendOtp()}
+                >
                   {t('customers.roaming.appUseOtp')}
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => chooseMethod('app')}>
+                <Button type="button" variant="ghost" onClick={backToForm}>
                   {t('customers.roaming.appCancel')}
                 </Button>
               </div>
@@ -454,7 +423,9 @@ export function RoamingAuthModal({ customerId }: { customerId: string }) {
                 />
                 <span>
                   {t('customers.roaming.codeSentTo', {
-                    mobile: mobileLast4 ? `•••••• ${mobileLast4}` : t('customers.roaming.theirPhone'),
+                    mobile: mobileLast4
+                      ? `•••••• ${mobileLast4}`
+                      : t('customers.roaming.theirPhone'),
                   })}
                 </span>
               </p>
@@ -491,46 +462,6 @@ export function RoamingAuthModal({ customerId }: { customerId: string }) {
         </div>
       </div>
     </div>
-  );
-}
-
-function MethodOption({
-  selected,
-  label,
-  icon,
-  onSelect,
-}: {
-  selected: boolean;
-  label: string;
-  icon: ReactNode;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={cn(
-        'flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1',
-        selected
-          ? 'border-blue-600 bg-blue-50/70'
-          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50',
-      )}
-    >
-      {icon}
-      <span className="flex-1 text-sm font-semibold leading-tight text-slate-900">{label}</span>
-      <span
-        aria-hidden="true"
-        className={cn(
-          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition',
-          selected ? 'border-blue-600' : 'border-slate-300',
-        )}
-      >
-        {selected ? <span className="h-2 w-2 rounded-full bg-blue-600" /> : null}
-      </span>
-    </button>
   );
 }
 

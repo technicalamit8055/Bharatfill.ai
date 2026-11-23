@@ -60,6 +60,8 @@ export type VaultScreenProps = {
   readonly onDocumentActions: (item: VaultItem) => void;
   readonly onMore: () => void;
   readonly onScan: () => void;
+  /** Upload: a photo or PDF already on the phone. */
+  readonly onUpload: () => void;
   readonly onRetry: () => void;
 };
 
@@ -72,6 +74,7 @@ export function VaultScreen({
   onDocumentActions,
   onMore,
   onScan,
+  onUpload,
   onRetry,
 }: VaultScreenProps) {
   const { t } = useTranslation();
@@ -201,7 +204,17 @@ export function VaultScreen({
       <View style={styles.emptyCard}>
         <Text style={styles.emptyBody}>{t(message.key, message.values)}</Text>
         {items.length === 0 ? (
-          <PrimaryButton label={t('vault.emptyAction')} onPress={onScan} />
+          <>
+            <PrimaryButton label={t('vault.emptyAction')} onPress={onScan} />
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={onUpload}
+              style={({ pressed }) => pressed && styles.pressed}
+            >
+              <Text style={styles.linkLabel}>{t('vault.uploadAction')}</Text>
+            </Pressable>
+          </>
         ) : null}
       </View>
     );
@@ -394,5 +407,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: palette.onBrand,
+  },
+  linkLabel: {
+    fontSize: 14.5,
+    fontWeight: '600',
+    color: palette.brandBlue,
+    textDecorationLine: 'underline',
   },
 });

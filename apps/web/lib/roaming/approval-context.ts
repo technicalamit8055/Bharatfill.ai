@@ -19,7 +19,8 @@ export function operatorApprovalContext(context: RequestContext): OperatorApprov
     operatorId: context.userId,
     now: () => new Date(),
     isLinked: async (customerId) => {
-      const { data, error } = await context.supabase.rpc('has_customer_roaming_link', {
+      // A link, or this centre's own record the citizen locked (0046).
+      const { data, error } = await context.supabase.rpc('can_request_customer_access', {
         p_customer_id: customerId,
       });
       if (error) throw error;

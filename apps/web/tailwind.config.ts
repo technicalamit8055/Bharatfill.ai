@@ -165,9 +165,15 @@ const config: Config = {
           '0%': { transform: 'translateX(-100%)' },
           '100%': { transform: 'translateX(300%)' },
         },
+        // The sweep across a loading placeholder (`Skeleton` in @assistigo/ui).
+        shimmer: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
+        },
       },
       animation: {
         'progress-indeterminate': 'progress-indeterminate 1.2s ease-in-out infinite',
+        shimmer: 'shimmer 1.6s ease-in-out infinite',
       },
       fontFamily: {
         sans: [

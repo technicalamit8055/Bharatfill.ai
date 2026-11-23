@@ -82,6 +82,25 @@ const centreAccessSchema = z.object({
 });
 export type CentreAccess = z.infer<typeof centreAccessSchema>;
 
+/**
+ * A centre that created a profile for this number, and whether the citizen locked it
+ * (migration 0046). Locked: the centre keeps the customer in its list, masked, and must ask again.
+ */
+const centreProfileSchema = z.object({
+  customerId: z.string().uuid(),
+  centreName: z.string(),
+  locked: z.boolean(),
+  lockedAt: z.string().nullable(),
+});
+export type CentreProfile = z.infer<typeof centreProfileSchema>;
+
+const centreAccessOverviewSchema = z.object({
+  sessions: z.array(centreAccessSchema),
+  // Absent from servers before 0046.
+  centres: z.array(centreProfileSchema).default([]),
+});
+export type CentreAccessOverview = z.infer<typeof centreAccessOverviewSchema>;
+
 // ---- Vault access by centres (design §4.2): requests to approve, live grants, share codes. ----
 const vaultRequestSchema = z.object({
   id: z.string().uuid(),
@@ -308,6 +327,19 @@ export function createCitizenApi(deps: CitizenApiDeps) {
         'GET',
         '/api/citizen/centre-access',
         z.object({ sessions: z.array(centreAccessSchema) }).transform((v) => v.sessions),
+      ),
+    /** Sessions plus the centres that created a profile for this number (migration 0046). */
+    getCentreAccessOverview: () =>
+      call('GET', '/api/citizen/centre-access', centreAccessOverviewSchema),
+    /** Lock: that centre can no longer open the profile until the citizen approves again. */
+    lockCentreProfile: (customerId: string) =>
+      call('POST', `/api/citizen/centre-profiles/${encodeURIComponent(customerId)}/lock`, z.null()),
+    /** Unlock: that centre works with the profile as before. */
+    unlockCentreProfile: (customerId: string) =>
+      call(
+        'DELETE',
+        `/api/citizen/centre-profiles/${encodeURIComponent(customerId)}/lock`,
+        z.null(),
       ),
     /** Stop: the centre loses access at once. */
     stopCentreAccess: (grantId: string) =>

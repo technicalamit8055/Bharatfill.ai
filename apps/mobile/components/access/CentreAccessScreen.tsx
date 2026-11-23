@@ -5,12 +5,16 @@
  * left and a Stop button; trusted centres (30 days) marked, with "Trust for 30 days" on a short
  * session and "Renew" in a trusted one's last week; and what ended in the last 30 days.
  *
- * Presentational: the route loads the sessions and does Stop / Trust. Names the centre and the
+ * Below them, "Centres that saved your profile" (migration 0046): the centres that created a
+ * profile for this number, each with Lock / Unlock. Locked, the centre keeps the citizen in its
+ * list and still sees their scheme matches, but cannot open the details until they approve again.
+ *
+ * Presentational: the route loads the sessions and does Stop / Trust / Lock / Unlock. Names the centre and the
  * purpose only — never the operator, a document or a value from the customer record.
  */
 
 import { StatusBar } from 'expo-status-bar';
-import { BadgeCheck, Building2, ChevronLeft, Clock } from 'lucide-react-native';
+import { BadgeCheck, Building2, ChevronLeft, Clock, Lock } from 'lucide-react-native';
 import {
   ActivityIndicator,
   Pressable,
@@ -31,14 +35,16 @@ import {
   timeLeftCopy,
   trustActionFor,
 } from '../../lib/access/centre-access';
-import type { CentreAccess } from '../../lib/cloud/citizen-api';
+import type { CentreAccess, CentreProfile } from '../../lib/cloud/citizen-api';
 import type { CentreAccessState } from '../../lib/cloud/use-centre-access';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
 import { formatVaultDate } from '../../lib/vault/vault-screen';
 import { CONTENT_MAX_WIDTH, PAGE_PADDING } from '../home/layout';
 import { profilePalette as palette } from '../profile/palette';
 
-export type CentreAccessBusy = { readonly grantId: string; readonly action: 'stop' | 'trust' };
+export type CentreAccessBusy =
+  | { readonly grantId: string; readonly action: 'stop' | 'trust' }
+  | { readonly customerId: string; readonly action: 'lock' | 'unlock' };
 
 export type CentreAccessScreenProps = {
   readonly state: CentreAccessState;
@@ -49,6 +55,8 @@ export type CentreAccessScreenProps = {
   readonly onRefresh: () => void;
   readonly onStop: (session: CentreAccess) => void;
   readonly onTrust: (session: CentreAccess) => void;
+  readonly onLock: (centre: CentreProfile) => void;
+  readonly onUnlock: (centre: CentreProfile) => void;
   readonly onSignIn: () => void;
 };
 
@@ -96,7 +104,12 @@ export function CentreAccessScreen(props: CentreAccessScreenProps) {
             {state.status === 'error' ? (
               <Text style={styles.error}>{t(state.messageKey)}</Text>
             ) : null}
-            {state.status === 'ready' ? <Sessions {...props} sessions={state.sessions} /> : null}
+            {state.status === 'ready' ? (
+              <>
+                <Sessions {...props} sessions={state.sessions} />
+                <SavedProfiles {...props} centres={state.centres} />
+              </>
+            ) : null}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -182,6 +195,80 @@ function Sessions(props: CentreAccessScreenProps & { readonly sessions: readonly
   );
 }
 
+function SavedProfiles(
+  props: CentreAccessScreenProps & { readonly centres: readonly CentreProfile[] },
+) {
+  const { t } = useTranslation();
+  const { centres, busy, onLock, onUnlock } = props;
+  if (centres.length === 0) return null;
+  const disabled = busy !== null;
+
+  return (
+    <>
+      <Text style={styles.section} accessibilityRole="header">
+        {t('centreAccess.savedHeading')}
+      </Text>
+      <Text style={styles.sectionLead}>{t('centreAccess.savedLead')}</Text>
+      <View style={styles.list}>
+        {centres.map((centre) => {
+          const name = centre.centreName || t('centreAccess.unknownCentre');
+          const mine =
+            busy && 'customerId' in busy && busy.customerId === centre.customerId
+              ? busy.action
+              : null;
+          return (
+            <View key={centre.customerId} style={styles.card}>
+              <View style={styles.cardHead}>
+                <View style={styles.cardIcon}>
+                  {centre.locked ? (
+                    <Lock color={palette.logoutText} size={20} strokeWidth={2} />
+                  ) : (
+                    <Building2 color={palette.brandBlue} size={22} strokeWidth={2} />
+                  )}
+                </View>
+                <View style={styles.cardCopy}>
+                  <Text style={styles.cardTitle} numberOfLines={2}>
+                    {name}
+                  </Text>
+                  <Text style={styles.cardBody}>
+                    {t(centre.locked ? 'centreAccess.savedLocked' : 'centreAccess.savedOpen')}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.actions}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t(
+                    centre.locked ? 'centreAccess.unlockLabel' : 'centreAccess.lockLabel',
+                    { centre: name },
+                  )}
+                  accessibilityState={{ disabled }}
+                  disabled={disabled}
+                  onPress={() => (centre.locked ? onUnlock(centre) : onLock(centre))}
+                  style={({ pressed }) => [
+                    centre.locked ? styles.trustButton : styles.stopButton,
+                    pressed && (centre.locked ? styles.primaryPressed : styles.pressed),
+                  ]}
+                >
+                  {mine ? (
+                    <ActivityIndicator
+                      color={centre.locked ? palette.onBrand : palette.logoutText}
+                    />
+                  ) : (
+                    <Text style={centre.locked ? styles.primaryText : styles.stopText}>
+                      {t(centre.locked ? 'centreAccess.unlock' : 'centreAccess.lock')}
+                    </Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    </>
+  );
+}
+
 function LiveCard({
   session,
   trustedLive,
@@ -193,7 +280,7 @@ function LiveCard({
   const { t } = useTranslation();
   const left = timeLeftCopy(timeLeft(session.expiresAt, now));
   const action = trustActionFor(session, trustedLive, now);
-  const mine = busy?.grantId === session.grantId ? busy.action : null;
+  const mine = busy && 'grantId' in busy && busy.grantId === session.grantId ? busy.action : null;
   const disabled = busy !== null;
   const name = session.centreName || t('centreAccess.unknownCentre');
 
@@ -288,6 +375,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: palette.heading,
+  },
+  sectionLead: {
+    marginTop: -4,
+    marginBottom: 10,
+    fontSize: 13,
+    lineHeight: 19,
+    color: palette.textSecondary,
   },
   list: { gap: 12 },
   card: {
