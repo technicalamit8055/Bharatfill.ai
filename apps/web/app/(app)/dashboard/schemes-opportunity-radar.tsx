@@ -1,8 +1,11 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { Badge, Card, EmptyState, type Tone } from '@assistigo/ui';
 import { SCHEME_CATEGORY_LABELS, formatInr, type SchemeLifecycleStatus } from '@assistigo/core';
 import { localised, type Locale, type Translator } from '@/lib/i18n';
 import type { SchemeListing } from '@/lib/schemes/service';
+import { resolveSchemeImages, schemeArtwork } from '@/lib/schemes/artwork';
+import { CATEGORY_STYLE } from '../schemes/scheme-card';
 import { ArrowRightIcon } from './icons';
 
 const CATEGORY_TONE: Record<string, Tone> = {
@@ -56,6 +59,8 @@ export function SchemesOpportunityRadar({
                 href={`/schemes/${listing.scheme.slug}`}
                 className="group -mx-5 flex items-start gap-3 px-5 py-3 transition-colors hover:bg-slate-50"
               >
+                <SchemeMark listing={listing} />
+
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium text-slate-900">
@@ -134,4 +139,37 @@ function UrgencyBadge({ listing, t }: { listing: SchemeListing; t: Translator })
     default:
       return null;
   }
+}
+
+/**
+ * The scheme's own logo where one exists (an admin upload, else bundled artwork), otherwise the
+ * category mark the schemes hub uses — never an emblem drawn from memory.
+ */
+function SchemeMark({ listing }: { listing: SchemeListing }) {
+  const logo = resolveSchemeImages(listing.scheme, schemeArtwork(listing.scheme.slug)).logo;
+  if (logo) {
+    return (
+      <span className="relative mt-0.5 h-9 w-9 shrink-0 overflow-hidden rounded-full bg-white ring-1 ring-slate-200">
+        {/* Uploads are served by a signed-in route the image optimiser cannot reach. */}
+        <Image
+          src={logo.src}
+          alt=""
+          fill
+          sizes="36px"
+          unoptimized={logo.uploaded}
+          className="object-contain p-1"
+        />
+      </span>
+    );
+  }
+  const style = CATEGORY_STYLE[listing.scheme.category];
+  const Icon = style.icon;
+  return (
+    <span
+      aria-hidden
+      className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1 ${style.mark}`}
+    >
+      <Icon size={17} strokeWidth={1.8} />
+    </span>
+  );
 }

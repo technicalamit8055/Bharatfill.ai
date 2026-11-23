@@ -3,6 +3,7 @@ import {
   KEYSTROKES_PER_FIELD,
   SECONDS_SAVED_PER_FIELD,
   bucketByIstDay,
+  bucketByIstDayHour,
   bucketByIstMonth,
   durationParts,
   estimatedKeystrokesSaved,
@@ -69,6 +70,34 @@ describe('istDayKeys', () => {
   it('is empty for a zero or negative window', () => {
     expect(istDayKeys(0, new Date('2026-03-15T06:00:00.000Z'))).toEqual([]);
     expect(istDayKeys(-2, new Date('2026-03-15T06:00:00.000Z'))).toEqual([]);
+  });
+});
+
+describe('bucketByIstDayHour', () => {
+  const asOf = new Date('2026-03-15T06:00:00.000Z'); // 11:30 IST on the 15th
+
+  it('counts rows into their IST day and IST hour', () => {
+    const rows = [
+      { created_at: '2026-03-15T04:00:00.000Z' }, // 09:30 IST, today
+      { created_at: '2026-03-15T04:20:00.000Z' }, // 09:50 IST, today
+      { created_at: '2026-03-14T19:00:00.000Z' }, // 00:30 IST on the 15th, not the 14th
+      { created_at: '2026-03-13T05:00:00.000Z' }, // 10:30 IST, two days ago
+    ];
+    const grid = bucketByIstDayHour(rows, 3, asOf);
+    expect(grid).toHaveLength(3);
+    expect(grid[2]?.[9]).toBe(2);
+    expect(grid[2]?.[0]).toBe(1);
+    expect(grid[0]?.[10]).toBe(1);
+    expect(grid.flat().reduce((sum, value) => sum + value, 0)).toBe(4);
+  });
+
+  it('drops rows outside the window and unreadable timestamps', () => {
+    const rows = [{ created_at: '2026-03-01T05:00:00.000Z' }, { created_at: 'not a date' }];
+    expect(
+      bucketByIstDayHour(rows, 3, asOf)
+        .flat()
+        .every((value) => value === 0),
+    ).toBe(true);
   });
 });
 

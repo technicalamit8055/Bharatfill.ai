@@ -1,5 +1,10 @@
 import { Alert } from '@assistigo/ui';
-import { OPEN_STATUSES, formatIndianDate, maskMobile } from '@assistigo/core';
+import {
+  OPEN_STATUSES,
+  formatIndianDate,
+  maskMobile,
+  type ApplicationStatus,
+} from '@assistigo/core';
 import { requireSession } from '@/lib/auth/session';
 import { isProduction } from '@/lib/env';
 import { getTranslations } from '@/lib/i18n/server';
@@ -7,6 +12,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { filterSchemes, loadSchemeCatalog, type SchemeListing } from '@/lib/schemes/service';
 import {
   bucketByIstDay,
+  bucketByIstDayHour,
   greetingFirstName,
   greetingKey,
   istDayKeys,
@@ -27,6 +33,8 @@ import {
 import { SchemesOpportunityRadar } from './schemes-opportunity-radar';
 import { ActivityChart } from './activity-chart';
 import { AttentionStrip } from './attention-strip';
+import { PeakHoursHeatmap } from './peak-hours-heatmap';
+import { AlertIcon, ClipboardIcon, DocumentIcon, FormIcon, UsersIcon } from './icons';
 import { ProductivityWidget } from './productivity-widget';
 
 export const metadata = { title: 'Home' };
@@ -117,6 +125,7 @@ export default async function DashboardPage({
     documentTrendResult,
     catalog,
     dueSoonResult,
+    stageResult,
   ] = await Promise.all([
     supabase.rpc('dashboard_summary', { p_organization_id: organizationId }),
 
@@ -198,6 +207,18 @@ export default async function DashboardPage({
             new Date(asOf.getTime() + DUE_SOON_DAYS * 24 * 60 * 60 * 1000).toISOString(),
           )
       : Promise.resolve({ count: null }),
+
+    // Status only, for the pipeline's stage bar: every open application, not just the five
+    // listed, so the bar shows where the whole queue sits.
+    canViewApplications
+      ? supabase
+          .from('applications')
+          .select('status')
+          .eq('organization_id', organizationId)
+          .is('deleted_at', null)
+          .in('status', OPEN_STATUSES)
+          .limit(TREND_ROW_LIMIT)
+      : Promise.resolve({ data: null }),
   ]);
 
   const summary: DashboardSummary = {
@@ -225,6 +246,11 @@ export default async function DashboardPage({
     TREND_DAYS,
     asOf,
   );
+
+  const stageCounts: Partial<Record<ApplicationStatus, number>> = {};
+  for (const row of (stageResult.data ?? []) as { status: ApplicationStatus }[]) {
+    stageCounts[row.status] = (stageCounts[row.status] ?? 0) + 1;
+  }
 
   const recentCustomers: RecentCustomerView[] = (
     (customersResult.data ?? []) as RecentCustomerRow[]
@@ -300,6 +326,7 @@ export default async function DashboardPage({
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label={t('dashboard.fillsToday')}
+          icon={<FormIcon />}
           value={summary.fillsToday}
           href={canRunFills ? '/fill-sessions' : undefined}
           series={fillsSeries}
@@ -308,6 +335,7 @@ export default async function DashboardPage({
         />
         <StatCard
           label={t('dashboard.customersServed')}
+          icon={<UsersIcon />}
           value={summary.customersServedToday}
           href={canViewCustomers ? '/customers' : undefined}
           series={canViewCustomers ? customersSeries : undefined}
@@ -316,6 +344,7 @@ export default async function DashboardPage({
         />
         <StatCard
           label={t('dashboard.documentsProcessed')}
+          icon={<DocumentIcon />}
           value={summary.documentsProcessedToday}
           href={canViewDocuments ? '/documents' : undefined}
           series={canViewDocuments ? documentsSeries : undefined}
@@ -324,12 +353,14 @@ export default async function DashboardPage({
         />
         <StatCard
           label={t('dashboard.applicationsOpen')}
+          icon={<ClipboardIcon />}
           value={summary.applicationsOpen}
           href={canViewApplications ? '/applications?filter=open' : undefined}
           hint={t('dashboard.applicationsOpenHint')}
         />
         <StatCard
           label={t('dashboard.reviewsPending')}
+          icon={<AlertIcon />}
           value={summary.reviewsPending}
           attention={summary.reviewsPending > 0}
           href={canViewDocuments ? '/documents' : undefined}
@@ -355,6 +386,11 @@ export default async function DashboardPage({
             }}
           />
 
+          <PeakHoursHeatmap
+            dayKeys={istDayKeys(TREND_DAYS, asOf)}
+            grid={bucketByIstDayHour(fillRows, TREND_DAYS, asOf)}
+          />
+
           {canViewCustomers ? (
             <RecentCustomersCard
               customers={recentCustomers}
@@ -368,6 +404,7 @@ export default async function DashboardPage({
           {canViewApplications ? (
             <ApplicationsPipelineCard
               applications={recentApplications}
+              stageCounts={stageCounts}
               canCreate={session.permissions.has('application.create')}
               locale={locale}
               t={t}

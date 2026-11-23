@@ -83,6 +83,32 @@ export function bucketByIstDay<T extends { created_at: string }>(
 }
 
 /**
+ * Rows counted into an IST day × hour grid for the peak-hours heatmap: `grid[day][hour]`, days
+ * oldest first (the same order as `istDayKeys`), hours 0–23 in IST. Rows outside the window are
+ * dropped, exactly as `bucketByIstDay` drops them.
+ */
+export function bucketByIstDayHour<T extends { created_at: string }>(
+  rows: readonly T[],
+  days: number,
+  asOf: Date = new Date(),
+): number[][] {
+  const index = new Map<string, number>();
+  istDayKeys(days, asOf).forEach((key, position) => index.set(key, position));
+
+  const grid = Array.from({ length: index.size }, () => new Array<number>(24).fill(0));
+  for (const row of rows) {
+    const date = toDate(row.created_at);
+    if (!date) continue;
+    const ist = shiftToIst(date);
+    const day = index.get(ist.toISOString().slice(0, 10));
+    if (day === undefined) continue;
+    const hours = grid[day];
+    if (hours) hours[ist.getUTCHours()] = (hours[ist.getUTCHours()] ?? 0) + 1;
+  }
+  return grid;
+}
+
+/**
  * The IST calendar month an instant falls in, as `YYYY-MM`. The month-scale sibling of
  * `istDayKey`: a customer registered at 00:10 IST on the 1st joined in the new month.
  */

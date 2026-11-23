@@ -5,6 +5,7 @@ import {
   APPLICATION_STATUS_TONE,
   formatIndianDate,
   formatInr,
+  OPEN_STATUSES,
   type ApplicationStatus,
 } from '@assistigo/core';
 import { localised, type Locale, type Translator } from '@/lib/i18n';
@@ -36,11 +37,14 @@ const PAYMENT_TONE: Record<string, Tone> = {
  */
 export function ApplicationsPipelineCard({
   applications,
+  stageCounts,
   canCreate,
   locale,
   t,
 }: {
   applications: PipelineApplicationView[];
+  /** Every open application in the organization by status, not just the five listed. */
+  stageCounts: Partial<Record<ApplicationStatus, number>>;
   canCreate: boolean;
   locale: Locale;
   t: Translator;
@@ -59,6 +63,8 @@ export function ApplicationsPipelineCard({
         </Link>
       }
     >
+      <StageBar counts={stageCounts} locale={locale} t={t} />
+
       {applications.length === 0 ? (
         <EmptyState
           title={t('dashboard.emptyApplications')}
@@ -124,5 +130,89 @@ export function ApplicationsPipelineCard({
         </ul>
       )}
     </Card>
+  );
+}
+
+/**
+ * Ordered stages, so a sequential scale (dataviz skill): one hue getting darker as an
+ * application moves towards the portal. Every stage is also named, with its count, in the legend.
+ */
+// Six evenly spaced OKLCH steps of the brand hue (L 0.68 → 0.30). The Tailwind brand scale has
+// no six steps far enough apart; these pass the skill's ordinal check (monotone, every gap
+// >= 0.06 L, lightest step 2.9:1 on white).
+const STAGE_FILL: Record<string, string> = {
+  draft: 'bg-[#5c94ff]',
+  pending_documents: 'bg-[#487de2]',
+  ready_to_fill: 'bg-[#3566c5]',
+  filled: 'bg-[#2250a9]',
+  submitted: 'bg-[#0f3a8d]',
+  pending_followup: 'bg-[#002472]',
+};
+
+/**
+ * Where the open work is sitting: one bar split by stage, widths proportional to counts.
+ *
+ * A thin segmented bar carries no text of its own; the legend under it names each stage with its
+ * count, and each segment's tooltip repeats both, so nothing depends on telling blues apart.
+ */
+function StageBar({
+  counts,
+  locale,
+  t,
+}: {
+  counts: Partial<Record<ApplicationStatus, number>>;
+  locale: Locale;
+  t: Translator;
+}) {
+  const stages = OPEN_STATUSES.map((status) => ({
+    status,
+    count: counts[status] ?? 0,
+    label: localised(APPLICATION_STATUS_LABELS[status], locale),
+  }));
+  const total = stages.reduce((sum, stage) => sum + stage.count, 0);
+  if (total === 0) return null;
+
+  return (
+    <div className="mb-4 border-b border-slate-100 pb-4">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <p className="text-xs font-medium text-slate-600">{t('dashboard.pipelineStages')}</p>
+        <p className="text-xs text-slate-500">
+          {t('dashboard.pipelineStagesTotal', { count: total })}
+        </p>
+      </div>
+
+      <div
+        role="img"
+        aria-label={stages
+          .filter((stage) => stage.count > 0)
+          .map((stage) => `${stage.label}: ${stage.count}`)
+          .join(', ')}
+        className="flex h-2.5 gap-0.5 overflow-hidden rounded-full"
+      >
+        {stages
+          .filter((stage) => stage.count > 0)
+          .map((stage) => (
+            <span
+              key={stage.status}
+              title={`${stage.label}: ${stage.count}`}
+              className={`${STAGE_FILL[stage.status] ?? 'bg-brand-500'} transition-opacity hover:opacity-80`}
+              style={{ width: `${(stage.count / total) * 100}%` }}
+            />
+          ))}
+      </div>
+
+      <ul className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5">
+        {stages.map((stage) => (
+          <li key={stage.status} className="flex items-center gap-1.5 text-xs text-slate-600">
+            <span
+              aria-hidden
+              className={`h-2.5 w-2.5 rounded-sm ${STAGE_FILL[stage.status] ?? 'bg-brand-500'}`}
+            />
+            {stage.label}
+            <span className="font-semibold tabular-nums text-slate-900">{stage.count}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

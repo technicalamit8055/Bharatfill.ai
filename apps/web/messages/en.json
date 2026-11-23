@@ -306,6 +306,20 @@
       "newCustomer": "New customer",
       "drop": "Walk-in document drop",
       "help": "Show shortcuts"
+    },
+    "pipelineStages": "Where your open applications are",
+    "pipelineStagesTotal": "{count} open",
+    "peakHours": {
+      "title": "Peak hours",
+      "hint": "When fill sessions start at your counter, by hour, over the last 7 days.",
+      "busiest": "Busiest: {range}",
+      "fills": "{count} fill sessions",
+      "fillsOne": "1 fill session",
+      "less": "Less",
+      "more": "More",
+      "empty": "No fill sessions in the last 7 days yet. The grid fills in as you work.",
+      "tableCaption": "Fill sessions per hour, last 7 days",
+      "dayColumn": "Day"
     }
   },
   "customers": {

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { sparklineHeights } from '@/lib/dashboard/metrics';
 import { TrendDownIcon, TrendUpIcon } from './icons';
 
@@ -20,6 +21,7 @@ export function StatCard({
   label,
   value,
   hint,
+  icon,
   attention = false,
   href,
   series,
@@ -29,6 +31,8 @@ export function StatCard({
   label: string;
   value: string | number;
   hint?: string;
+  /** A small glyph naming the metric. Every card wears the same chip; only `attention` recolours it. */
+  icon?: ReactNode;
   /** The value is something waiting on the operator (e.g. reviews pending). */
   attention?: boolean;
   href?: string;
@@ -40,7 +44,19 @@ export function StatCard({
 }) {
   const content = (
     <>
-      <p className="text-[13px] font-medium text-slate-600">{label}</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[13px] font-medium text-slate-600">{label}</p>
+        {icon ? (
+          <span
+            aria-hidden
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md [&_svg]:h-4 [&_svg]:w-4 ${
+              attention ? 'bg-amber-50 text-amber-600' : 'bg-brand-50 text-brand-600'
+            }`}
+          >
+            {icon}
+          </span>
+        ) : null}
+      </div>
 
       <p
         className={`mt-1.5 text-2xl font-semibold leading-none tabular-nums ${
