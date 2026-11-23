@@ -3,9 +3,11 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/lib/i18n/client';
+import { greetingKey, istHour } from '@/lib/dashboard/metrics';
 import { CustomerJumpSearch } from './customer-jump-search';
 import { DocumentDropModal } from './document-drop-modal';
 import { useExtensionInstalled } from './use-extension-installed';
+import { DashboardShortcuts } from './keyboard-shortcuts';
 import { QrIcon } from './icons';
 
 /**
@@ -34,12 +36,17 @@ function istDateFormatter(locale: 'en' | 'hi'): Intl.DateTimeFormat {
  * extension is connected, and the two ways to reach the person at the counter (search, walk-in
  * drop).
  *
- * Deliberately plain: a title row on the page background rather than a banner. An operator
- * opens this screen dozens of times a day, and the numbers below are what they came for.
+ * A title row on the page background rather than a banner: an operator opens this screen
+ * dozens of times a day, and the numbers below are what they came for. The greeting is the one
+ * personal touch, and it follows the IST clock, so a dashboard left open past noon stops saying
+ * "good morning".
  *
- * A client component because it carries a running clock and the extension probe.
+ * A client component because it carries a running clock, the extension probe and the keyboard
+ * shortcuts.
  */
 export function DashboardHero({
+  operatorFirstName,
+  initialGreeting,
   organizationName,
   place,
   canSearchCustomers,
@@ -47,6 +54,13 @@ export function DashboardHero({
   canOpenDocumentDrop,
   simulatorEnabled,
 }: {
+  /** The signed-in operator's first name, or null when only an email is on file. */
+  operatorFirstName: string | null;
+  /**
+   * The greeting the server rendered, used until the clock mounts so the first client render
+   * matches the server's byte for byte.
+   */
+  initialGreeting: string;
   organizationName: string;
   /** District/state line, already resolved server-side. Empty when the centre has not set one. */
   place: string | null;
@@ -73,10 +87,15 @@ export function DashboardHero({
   // re-renders every fifteen seconds.
   const dateFormat = useMemo(() => istDateFormatter(locale), [locale]);
 
+  const greeting = now ? t(greetingKey(istHour(now))) : initialGreeting;
+  const title = operatorFirstName
+    ? t('dashboard.greetingWithName', { greeting, name: operatorFirstName })
+    : greeting;
+
   return (
     <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{t('dashboard.title')}</h1>
+        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{title}</h1>
         <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
           <span className="font-medium text-slate-700">{organizationName}</span>
           {place ? (
@@ -128,6 +147,12 @@ export function DashboardHero({
             }
           />
         ) : null}
+
+        <DashboardShortcuts
+          canSearchCustomers={canSearchCustomers}
+          canCreateCustomer={canCreateCustomer}
+          canOpenDocumentDrop={canOpenDocumentDrop}
+        />
       </div>
     </header>
   );

@@ -7,6 +7,7 @@ import {
   durationParts,
   estimatedKeystrokesSaved,
   estimatedSecondsSaved,
+  greetingFirstName,
   greetingKey,
   initialsOf,
   istDayKey,
@@ -179,6 +180,25 @@ describe('durationParts', () => {
 
   it('floors at zero', () => {
     expect(durationParts(-10)).toEqual({ hours: 0, minutes: 0 });
+  });
+});
+
+describe('greetingFirstName', () => {
+  it('uses the first word of a real name', () => {
+    expect(greetingFirstName('Ravi Kumar Verma', 'ravi.verma@example.test')).toBe('Ravi');
+    expect(greetingFirstName('  सुनीता देवी ', 'demo@example.test')).toBe('सुनीता');
+  });
+
+  it('never greets by an email-derived or placeholder name', () => {
+    expect(greetingFirstName('demo.operator', 'demo.operator@example.test')).toBeNull();
+    expect(greetingFirstName('Operator', undefined)).toBeNull();
+    expect(greetingFirstName('someone@example.test', null)).toBeNull();
+    expect(greetingFirstName('', 'demo@example.test')).toBeNull();
+  });
+
+  it('skips handles that look like usernames', () => {
+    expect(greetingFirstName('cyber_cafe01', 'owner@example.test')).toBeNull();
+    expect(greetingFirstName('demo123 centre', 'owner@example.test')).toBeNull();
   });
 });
 

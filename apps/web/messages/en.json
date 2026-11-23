@@ -272,6 +272,40 @@
         "title": "Autofill bench",
         "spec": "Open a mapped portal form"
       }
+    },
+    "greetingWithName": "{greeting}, {name}",
+    "activity": {
+      "title": "This week",
+      "hint": "Daily activity at your centre over the last 7 days.",
+      "metricPicker": "Choose what the chart shows",
+      "metrics": {
+        "fills": "Forms filled",
+        "fields": "Fields filled",
+        "customers": "New customers",
+        "documents": "Documents"
+      },
+      "total": "Total",
+      "dailyAverage": "Daily average",
+      "busiest": "Busiest day",
+      "today": "Today",
+      "empty": "Nothing recorded this week yet.",
+      "tableCaption": "{metric} per day, last 7 days"
+    },
+    "attention": {
+      "title": "Needs your attention",
+      "reviewsOne": "1 document extraction is waiting for your review before it can be used to fill a form.",
+      "reviews": "{count} document extractions are waiting for your review before they can be used to fill forms.",
+      "reviewsAction": "Review now",
+      "deadlinesOne": "1 open application is due within 3 days or already overdue.",
+      "deadlines": "{count} open applications are due within 3 days or already overdue.",
+      "deadlinesAction": "View applications"
+    },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "search": "Search customers",
+      "newCustomer": "New customer",
+      "drop": "Walk-in document drop",
+      "help": "Show shortcuts"
     }
   },
   "customers": {

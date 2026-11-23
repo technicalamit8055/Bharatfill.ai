@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Spinner } from '@assistigo/ui';
 import { useTranslations } from '@/lib/i18n/client';
 import { SearchIcon, PlusIcon } from './icons';
+import { CUSTOMER_SEARCH_INPUT_ID, Kbd } from './keyboard-shortcuts';
 
 type JumpResult = {
   id: string;
@@ -70,7 +71,7 @@ export function CustomerJumpSearch({ canCreateCustomer }: { canCreateCustomer: b
 
   return (
     <div ref={containerRef} className="relative">
-      <label className="sr-only" htmlFor="dashboard-customer-jump">
+      <label className="sr-only" htmlFor={CUSTOMER_SEARCH_INPUT_ID}>
         {t('dashboard.jumpSearchLabel')}
       </label>
       <div className="relative">
@@ -78,7 +79,7 @@ export function CustomerJumpSearch({ canCreateCustomer }: { canCreateCustomer: b
           <SearchIcon />
         </span>
         <input
-          id="dashboard-customer-jump"
+          id={CUSTOMER_SEARCH_INPUT_ID}
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -92,6 +93,14 @@ export function CustomerJumpSearch({ canCreateCustomer }: { canCreateCustomer: b
         {loading ? (
           <span className="absolute right-3 top-1/2 -translate-y-1/2">
             <Spinner />
+          </span>
+        ) : query === '' ? (
+          // The `/` shortcut, shown where the operator's eye already is.
+          <span
+            aria-hidden
+            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2"
+          >
+            <Kbd>/</Kbd>
           </span>
         ) : null}
       </div>

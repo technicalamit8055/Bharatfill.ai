@@ -5,7 +5,14 @@ import { isProduction } from '@/lib/env';
 import { getTranslations } from '@/lib/i18n/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { filterSchemes, loadSchemeCatalog, type SchemeListing } from '@/lib/schemes/service';
-import { bucketByIstDay, trendFrom } from '@/lib/dashboard/metrics';
+import {
+  bucketByIstDay,
+  greetingFirstName,
+  greetingKey,
+  istDayKeys,
+  istHour,
+  trendFrom,
+} from '@/lib/dashboard/metrics';
 import type { ApplicationRow, CustomerRow, DashboardSummary } from '@/lib/supabase/database.types';
 import { OnboardingChecklist } from './onboarding-checklist';
 import { DashboardHero } from './dashboard-hero';
@@ -18,6 +25,8 @@ import {
   type PipelineApplicationView,
 } from './applications-pipeline-card';
 import { SchemesOpportunityRadar } from './schemes-opportunity-radar';
+import { ActivityChart } from './activity-chart';
+import { AttentionStrip } from './attention-strip';
 import { ProductivityWidget } from './productivity-widget';
 
 export const metadata = { title: 'Home' };
@@ -43,6 +52,9 @@ const TREND_LOOKBACK_DAYS = TREND_DAYS + 1;
 
 /** Enough to cover a busy week at a large centre without pulling an unbounded set. */
 const TREND_ROW_LIMIT = 5000;
+
+/** "Due soon" on the attention strip: open applications whose deadline falls within this window. */
+const DUE_SOON_DAYS = 3;
 
 /** Only the closing end of the catalogue belongs on the home screen. */
 const RADAR_LIMIT = 4;
@@ -104,6 +116,7 @@ export default async function DashboardPage({
     customerTrendResult,
     documentTrendResult,
     catalog,
+    dueSoonResult,
   ] = await Promise.all([
     supabase.rpc('dashboard_summary', { p_organization_id: organizationId }),
 
@@ -168,6 +181,23 @@ export default async function DashboardPage({
     // Built-ins are the floor of this list even when the query fails, so the radar is never
     // empty for a reason the operator cannot see.
     canViewCustomers ? loadSchemeCatalog(supabase, organizationId) : Promise.resolve([]),
+
+    /*
+     * Open applications due within DUE_SOON_DAYS, overdue ones included (their deadline is also
+     * before the cut-off). A head-only count: no rows, no names, cheap on every page load.
+     */
+    canViewApplications
+      ? supabase
+          .from('applications')
+          .select('id', { count: 'exact', head: true })
+          .eq('organization_id', organizationId)
+          .is('deleted_at', null)
+          .in('status', OPEN_STATUSES)
+          .lte(
+            'deadline_at',
+            new Date(asOf.getTime() + DUE_SOON_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+          )
+      : Promise.resolve({ count: null }),
   ]);
 
   const summary: DashboardSummary = {
@@ -248,6 +278,8 @@ export default async function DashboardPage({
   return (
     <div className="space-y-6">
       <DashboardHero
+        operatorFirstName={greetingFirstName(session.displayName, session.email)}
+        initialGreeting={t(greetingKey(istHour(asOf)))}
         organizationName={session.organization.name}
         place={place || null}
         canSearchCustomers={canViewCustomers}
@@ -258,6 +290,12 @@ export default async function DashboardPage({
       />
 
       {params.denied ? <Alert tone="warning">{t('errors.permission_denied')}</Alert> : null}
+
+      <AttentionStrip
+        reviewsPending={canViewDocuments ? summary.reviewsPending : null}
+        applicationsDueSoon={canViewApplications ? (dueSoonResult.count ?? null) : null}
+        t={t}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
@@ -307,6 +345,16 @@ export default async function DashboardPage({
 
       <div className="grid gap-5 xl:grid-cols-3">
         <div className="space-y-5 xl:col-span-2">
+          <ActivityChart
+            dayKeys={istDayKeys(TREND_DAYS, asOf)}
+            series={{
+              fills: fillsSeries,
+              fields: fieldsSeries,
+              customers: canViewCustomers ? customersSeries : undefined,
+              documents: canViewDocuments ? documentsSeries : undefined,
+            }}
+          />
+
           {canViewCustomers ? (
             <RecentCustomersCard
               customers={recentCustomers}

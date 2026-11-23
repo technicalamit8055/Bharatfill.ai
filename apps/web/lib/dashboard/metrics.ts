@@ -228,6 +228,27 @@ export function durationParts(totalSeconds: number): DurationParts {
   return minutes === 60 ? { hours: hours + 1, minutes: 0 } : { hours, minutes };
 }
 
+/**
+ * The first name to greet the operator by, or null when there is no real name to use.
+ *
+ * The session's display name falls back to the part of the email before the @ (and then to
+ * "Operator"); "Good morning, technicalamit01" reads worse than a greeting with no name, so a
+ * fallback is never used. Fake data only in tests.
+ */
+export function greetingFirstName(
+  displayName: string,
+  email: string | null | undefined,
+): string | null {
+  const name = displayName.trim();
+  if (!name || name === 'Operator') return null;
+  if (email && name === email.split('@')[0]) return null;
+  if (name.includes('@')) return null;
+  const first = name.split(/\s+/)[0] ?? '';
+  // A handle, not a name: digits or underscores mean the provider gave us a username.
+  if (!first || /[\d_]/.test(first)) return null;
+  return first;
+}
+
 export function greetingKey(hour: number): string {
   if (hour < 12) return 'dashboard.greetingMorning';
   if (hour < 17) return 'dashboard.greetingAfternoon';
