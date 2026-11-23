@@ -683,6 +683,12 @@ Remaining:
 - [ ] Restore by old-phone approval and the 7-day hold (design §3.3)
 - [x] Cloud sync (design §3.2): upload intent, encrypted upload, confirm, rename, delete,
       "Keep on this phone only" — not yet run on a device
+- [x] Everyday scans stay on the phone (design §15, 2026-11-23): only form documents sync by
+      default (`keepsOnPhoneByDefault` in core: a type or folder with a vault section); "Other" and
+      untyped scans are never uploaded, so never read. Decided at save in the same write as the
+      document; Save screen card "Ready for your cyber cafe" / "Only on this phone" with an
+      override switch; moving an Other document into a section shares it. Older documents keep
+      syncing — not yet run on a device
 - [x] Document folders on the dashboard (migration 0043): the customer's Documents tab in the
       app's folders, the phone's folder synced on upload and on move, "From BharatDoc app" tag,
       live refresh for app customers; "Just save — don't read" for any typed upload
