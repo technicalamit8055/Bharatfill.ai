@@ -1,6 +1,6 @@
 /**
  * Save Document rules: the types offered, the name and folder following the type, tag clean-up,
- * the expiry date and its reminder time, the scan status card, and form validation.
+ * the expiry date and its reminder time, the scan status card, sharing, and form validation.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -13,6 +13,7 @@ import {
   MAX_EXPIRY_YEARS,
   normaliseTag,
   normaliseTitle,
+  phoneOnlyFor,
   reminderTime,
   removeTag,
   SAVE_DOCUMENT_TYPES,
@@ -32,6 +33,7 @@ const FORM: SaveDocumentForm = {
   category: 'identity',
   tags: [],
   expiresOn: null,
+  phoneOnly: null,
 };
 
 describe('document types', () => {
@@ -162,6 +164,37 @@ describe('scan status', () => {
   });
 });
 
+describe('sharing', () => {
+  it('follows the type until the citizen chooses', () => {
+    expect(phoneOnlyFor(null, 'aadhaar_like', 'identity')).toBe(false);
+    expect(phoneOnlyFor(null, 'generic', null)).toBe(true);
+    expect(phoneOnlyFor(null, null, null)).toBe(true);
+  });
+
+  it('shares an Other document the citizen filed in a vault folder', () => {
+    expect(phoneOnlyFor(null, 'generic', 'certificate')).toBe(false);
+  });
+
+  it("keeps the citizen's own choice whatever the type", () => {
+    expect(phoneOnlyFor(true, 'aadhaar_like', 'identity')).toBe(true);
+    expect(phoneOnlyFor(false, 'generic', null)).toBe(false);
+  });
+
+  it('always stores the answer, and whether the citizen chose it', () => {
+    const everyday = validateSaveDocument(
+      { ...FORM, title: 'Recipe', documentType: 'generic', category: null },
+      NOW,
+    );
+    expect(everyday).toEqual({
+      ok: true,
+      details: { title: 'Recipe', documentType: 'generic', phoneOnly: true },
+    });
+
+    const chosen = validateSaveDocument({ ...FORM, phoneOnly: true }, NOW);
+    expect(chosen.ok && chosen.details).toMatchObject({ phoneOnly: true, phoneOnlyChosen: true });
+  });
+});
+
 describe('validation', () => {
   it('returns the details to store', () => {
     expect(
@@ -177,6 +210,7 @@ describe('validation', () => {
         category: 'identity',
         tags: ['Identity'],
         expiresOn: '2030-08-12',
+        phoneOnly: false,
       },
     });
   });
@@ -185,7 +219,7 @@ describe('validation', () => {
     const result = validateSaveDocument({ ...FORM, category: null }, NOW);
     expect(result).toEqual({
       ok: true,
-      details: { title: 'Aadhaar Card', documentType: 'aadhaar_like' },
+      details: { title: 'Aadhaar Card', documentType: 'aadhaar_like', phoneOnly: false },
     });
   });
 

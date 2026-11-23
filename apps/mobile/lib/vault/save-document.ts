@@ -1,14 +1,14 @@
 /**
  * Pure rules for the Save Document screen, shown after scan review: which document types it
  * offers, how the folder follows the type, tag clean-up, the expiry date and when its reminder
- * fires, the "Document scanned" status card, and turning the form into the details the vault
- * stores.
+ * fires, the "Document scanned" status card, whether the document is shared with centres or
+ * stays on this phone, and turning the form into the details the vault stores.
  *
  * The name, tags and expiry date are the citizen's own data. Nothing here logs or persists
  * them; `vault-storage.ts` seals them into the encrypted index.
  */
 
-import type { DocumentType } from '@assistigo/core';
+import { type DocumentType, keepsOnPhoneByDefault } from '@assistigo/core';
 
 import type { PageStatus } from '../scan/capture-session';
 import { localDateParts, parseIsoDate, toIsoDate } from '../profile/date-of-birth';
@@ -103,6 +103,21 @@ export function categoryAfterTypeChange(
   return chosenByCitizen ? category : categoryOf(type);
 }
 
+// ---- Sharing --------------------------------------------------------------------------------
+
+/**
+ * Whether the document stays on this phone (design §15). `choice` is the citizen's own, from the
+ * switch; null until they touch it, so the answer follows the type and folder: Aadhaar is ready
+ * for centres, "Other" stays here. Most people never touch it.
+ */
+export function phoneOnlyFor(
+  choice: boolean | null,
+  type: DocumentType | null,
+  category: VaultCategoryKey | null,
+): boolean {
+  return choice ?? keepsOnPhoneByDefault(type, category);
+}
+
 // ---- Expiry and reminder --------------------------------------------------------------------
 
 export type ExpiryStatus = 'valid' | 'invalid' | 'not_future' | 'too_far';
@@ -170,6 +185,8 @@ export type SaveDocumentForm = {
   readonly tags: readonly string[];
   /** Null while the reminder is off. */
   readonly expiresOn: string | null;
+  /** The citizen's "only on this phone" choice; null follows the type (`phoneOnlyFor`). */
+  readonly phoneOnly: boolean | null;
 };
 
 export type SaveDocumentErrors = {
@@ -203,6 +220,8 @@ export function validateSaveDocument(form: SaveDocumentForm, now: Date): SaveDoc
       ...(form.category === null ? {} : { category: form.category }),
       ...(tags.length === 0 ? {} : { tags }),
       ...(form.expiresOn === null ? {} : { expiresOn: form.expiresOn }),
+      phoneOnly: phoneOnlyFor(form.phoneOnly, form.documentType, form.category),
+      ...(form.phoneOnly === null ? {} : { phoneOnlyChosen: true }),
     },
   };
 }

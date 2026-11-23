@@ -6,7 +6,9 @@
  *
  * Picking a type names the document after it until the citizen types a name of their own, and
  * files it in that type's folder until they pick one. A preset scan (a passport photo, a signature)
- * arrives with its type already picked. The form lives here; the route
+ * arrives with its type already picked. With cloud sync on, the security card says whether the
+ * document will be ready for a cyber cafe or stay on this phone: set from the type (Aadhaar is
+ * shared, "Other" stays here), so most people never touch its switch. The form lives here; the route
  * (`app/save-document.tsx`) owns the capture session, notification permission and saving.
  *
  * Light-only branded artwork like the Vault tab, so it reads from `saveDocumentPalette`.
@@ -21,12 +23,14 @@ import {
   Bell,
   Check,
   ChevronDown,
+  CloudUpload,
   ChevronLeft,
   Crop,
   FileText,
   FolderOpen,
   Plus,
   ShieldCheck,
+  Smartphone,
   X,
   XCircle,
 } from 'lucide-react-native';
@@ -59,6 +63,7 @@ import {
   documentTypeLabelKey,
   expiryYearOptions,
   MAX_EXPIRY_YEARS,
+  phoneOnlyFor,
   reminderTime,
   removeTag,
   SAVE_DOCUMENT_TYPES,
@@ -91,6 +96,8 @@ export type SaveDocumentScreenProps = {
   readonly saving: boolean;
   /** The type to start on, for a scan made with a preset that knows what it is. */
   readonly initialType: DocumentType | null;
+  /** Cloud sync is built in, so the card offers "ready for a cyber cafe" or "only on this phone". */
+  readonly cloudSync: boolean;
   readonly onBack: () => void;
   readonly onEditScan: () => void;
   /** Asks for permission to notify. Resolves to whether reminders can be scheduled. */
@@ -103,6 +110,7 @@ export function SaveDocumentScreen({
   pages,
   saving,
   initialType,
+  cloudSync,
   onBack,
   onEditScan,
   onEnableReminder,
@@ -122,6 +130,8 @@ export function SaveDocumentScreen({
   const [tags, setTags] = useState<readonly string[]>([]);
   const [expiresOn, setExpiresOn] = useState<string | null>(null);
   const [reminderOn, setReminderOn] = useState(false);
+  /** The citizen's own sharing choice; null follows the type and folder. */
+  const [phoneOnlyChoice, setPhoneOnlyChoice] = useState<boolean | null>(null);
   const [askingPermission, setAskingPermission] = useState(false);
 
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -190,7 +200,14 @@ export function SaveDocumentScreen({
   const save = () => {
     if (saving) return;
     const result = validateSaveDocument(
-      { title, documentType, category, tags, expiresOn: reminderOn ? expiresOn : null },
+      {
+        title,
+        documentType,
+        category,
+        tags,
+        expiresOn: reminderOn ? expiresOn : null,
+        phoneOnly: cloudSync ? phoneOnlyChoice : null,
+      },
       new Date(),
     );
     if (!result.ok) {
@@ -200,6 +217,7 @@ export function SaveDocumentScreen({
     onSave(result.details);
   };
 
+  const phoneOnly = phoneOnlyFor(phoneOnlyChoice, documentType, category);
   const status = scanStatus(pages);
   const shownIndex = Math.min(pageIndex, Math.max(0, pages.length - 1));
 
@@ -299,21 +317,28 @@ export function SaveDocumentScreen({
             <FieldLabel label={t('saveDocument.tags.label')} optional />
             <TagEditor tags={tags} onChange={setTags} />
 
-            {/* ---- Security note ---- */}
-            <View style={styles.secureCard}>
-              <View style={styles.secureBadge}>
-                <ShieldCheck
-                  color={palette.onBrand}
-                  fill={palette.secureIcon}
-                  size={30}
-                  strokeWidth={2}
-                />
+            {/* ---- Security note, or where the document will be ---- */}
+            {cloudSync ? (
+              <SharingCard
+                phoneOnly={phoneOnly}
+                onChange={(shared) => setPhoneOnlyChoice(!shared)}
+              />
+            ) : (
+              <View style={styles.secureCard}>
+                <View style={styles.secureBadge}>
+                  <ShieldCheck
+                    color={palette.onBrand}
+                    fill={palette.secureIcon}
+                    size={30}
+                    strokeWidth={2}
+                  />
+                </View>
+                <View style={styles.cardCopy}>
+                  <Text style={styles.cardTitle}>{t('saveDocument.secure.title')}</Text>
+                  <Text style={styles.cardBody}>{t('saveDocument.secure.body')}</Text>
+                </View>
               </View>
-              <View style={styles.cardCopy}>
-                <Text style={styles.cardTitle}>{t('saveDocument.secure.title')}</Text>
-                <Text style={styles.cardBody}>{t('saveDocument.secure.body')}</Text>
-              </View>
-            </View>
+            )}
 
             {/* ---- Reminder ---- */}
             <View style={styles.reminderCard}>
@@ -433,6 +458,44 @@ export function SaveDocumentScreen({
           onClose={() => setSheet(null)}
         />
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * Ready for a cyber cafe, or only on this phone. Already right for the type, so it is a status
+ * line first; the switch is for the rare document the citizen wants the other way.
+ */
+function SharingCard({
+  phoneOnly,
+  onChange,
+}: {
+  readonly phoneOnly: boolean;
+  readonly onChange: (shared: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const Icon = phoneOnly ? Smartphone : CloudUpload;
+  return (
+    <View style={styles.secureCard}>
+      <View style={styles.secureBadge}>
+        <Icon color={palette.onBrand} size={26} strokeWidth={2} />
+      </View>
+      <View style={styles.cardCopy}>
+        <Text style={styles.cardTitle}>
+          {t(phoneOnly ? 'saveDocument.sharing.phoneTitle' : 'saveDocument.sharing.sharedTitle')}
+        </Text>
+        <Text style={styles.cardBody}>
+          {t(phoneOnly ? 'saveDocument.sharing.phoneBody' : 'saveDocument.sharing.sharedBody')}
+        </Text>
+      </View>
+      <Switch
+        accessibilityLabel={t('saveDocument.sharing.switchLabel')}
+        value={!phoneOnly}
+        onValueChange={onChange}
+        trackColor={{ false: palette.switchTrackOff, true: palette.switchTrackOn }}
+        thumbColor={phoneOnly ? palette.switchThumbOff : palette.switchThumbOn}
+        ios_backgroundColor={palette.switchTrackOff}
+      />
     </View>
   );
 }

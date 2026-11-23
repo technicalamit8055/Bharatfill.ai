@@ -169,6 +169,7 @@ const RENDERED_KEYS = [
   'documentDetails.pm',
   'documentDetails.secure.title',
   'documentDetails.secure.body',
+  'documentDetails.secure.sharedBody',
   'documentDetails.move',
   'documentDetails.delete',
   'documentDetails.sheetClose',

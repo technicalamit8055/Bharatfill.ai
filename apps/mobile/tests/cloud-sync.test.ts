@@ -9,6 +9,7 @@ import { cloudTitle, planSync, syncFileKind } from '../lib/cloud/sync-plan';
 import {
   EMPTY_VAULT_INDEX,
   parseVaultIndex,
+  phoneOnlyForNewDocument,
   serialiseVaultIndex,
   type VaultDocument,
   type VaultIndex,
@@ -236,5 +237,61 @@ describe('what a document syncs as', () => {
 
   it('caps a title at the server limit', () => {
     expect(cloudTitle(doc(A, { title: 'x'.repeat(80) }), untitled)).toHaveLength(80);
+  });
+});
+
+describe('everyday scans stay on the phone (design §15)', () => {
+  /** A document as `saveDocument` writes it: the details plus the sharing answer. */
+  function saved(id: string, details: Partial<VaultDocument>): VaultDocument {
+    return doc(id, { ...details, phoneOnly: phoneOnlyForNewDocument(details) });
+  }
+
+  it('uploads a form document straight away, never an Other one or one with no type', () => {
+    const index = indexOf(
+      saved(A, { documentType: 'aadhaar_like', category: 'identity' }),
+      saved(B, { documentType: 'generic' }),
+      saved('33333333-3333-4333-8333-333333333333', {}),
+    );
+    expect(plan(index)).toEqual([expect.objectContaining({ kind: 'upload', documentId: A })]);
+  });
+
+  it('uploads what the citizen chose to share, and never what they chose to keep', () => {
+    const index = indexOf(
+      saved(A, { documentType: 'generic', phoneOnly: false, phoneOnlyChosen: true }),
+      saved(B, {
+        documentType: 'pan',
+        category: 'identity',
+        phoneOnly: true,
+        phoneOnlyChosen: true,
+      }),
+    );
+    expect(plan(index)).toEqual([expect.objectContaining({ kind: 'upload', documentId: A })]);
+  });
+
+  it('still syncs a document saved before the default existed', () => {
+    expect(plan(indexOf(doc(A, { documentType: 'generic' })))[0]).toMatchObject({
+      kind: 'upload',
+    });
+  });
+
+  it('shares an Other document once it is filed in a vault folder', () => {
+    const moved = withDetails(indexOf(saved(A, { documentType: 'generic' })), A, {
+      category: 'certificate',
+    });
+    expect(moved.documents[0]?.phoneOnly).toBe(false);
+    expect(plan(moved)[0]).toMatchObject({ kind: 'upload', category: 'certificate' });
+  });
+
+  it('never shares on a move what the citizen chose to keep on the phone', () => {
+    const kept = withPhoneOnly(indexOf(saved(A, { documentType: 'generic' })), A, true);
+    const moved = withDetails(kept, A, { category: 'identity' });
+    expect(moved.documents[0]?.phoneOnly).toBe(true);
+    expect(plan(moved)).toEqual([]);
+  });
+
+  it('never stops sharing because of a move', () => {
+    const shared = indexOf(saved(A, { documentType: 'generic', category: 'identity' }));
+    const moved = withDetails(shared, A, { category: null });
+    expect(moved.documents[0]?.phoneOnly).toBe(false);
   });
 });

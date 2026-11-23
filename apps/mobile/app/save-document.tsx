@@ -17,6 +17,7 @@ import { showDialog } from '../lib/dialog/dialog-store';
 import { SaveDocumentScreen } from '../components/save-document/SaveDocumentScreen';
 import { useTranslation } from '../lib/i18n/I18nProvider';
 import { formatDateOfBirth, MONTH_KEYS } from '../lib/profile/date-of-birth';
+import { cloudConfig } from '../lib/cloud/config';
 import { saveSession, useCaptureSession } from '../lib/scan/capture-session';
 import { PRESET_DOCUMENT_TYPE } from '../lib/scan/presets';
 import {
@@ -135,6 +136,7 @@ export default function SaveDocumentRoute() {
       pages={pages}
       saving={saving}
       initialType={PRESET_DOCUMENT_TYPE[preset]}
+      cloudSync={cloudConfig() !== null}
       onBack={back}
       onEditScan={back}
       onEnableReminder={enableReminder}

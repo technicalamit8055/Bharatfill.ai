@@ -376,6 +376,13 @@
       "title": "Keep it Secure",
       "body": "Your document is encrypted and stored in your personal vault on this phone."
     },
+    "sharing": {
+      "sharedTitle": "Ready for your cyber cafe",
+      "sharedBody": "Encrypted and backed up, so a cyber cafe you approve can fill your forms with it.",
+      "phoneTitle": "Only on this phone",
+      "phoneBody": "Stays encrypted here and is never uploaded. Turn on to use it at a cyber cafe.",
+      "switchLabel": "Share with cyber cafes you approve"
+    },
     "reminder": {
       "title": "Set Reminder",
       "body": "Get notified before expiry date",
@@ -481,7 +488,8 @@
     "pm": "PM",
     "secure": {
       "title": "Stored Securely",
-      "body": "Your document is encrypted and kept only in your vault on this phone."
+      "body": "Your document is encrypted and kept only in your vault on this phone.",
+      "sharedBody": "Encrypted on this phone and backed up, ready for a cyber cafe you approve."
     },
     "move": "Move",
     "delete": "Delete",

@@ -46,6 +46,22 @@ export const CITIZEN_VAULT_DOCUMENT_CATEGORIES: Record<DocumentType, CitizenVaul
     unknown: null,
   };
 
+/**
+ * Whether a document stays on the phone unless the citizen says otherwise
+ * (docs/VAULT_BRIDGE_DESIGN.md §15). The scanner is also an everyday tool, so only what a form
+ * needs is shared by default: a document whose type has a vault section (Aadhaar, a marksheet, a
+ * photo), or one the citizen filed in a section themselves. "Other", a type with no section, and
+ * no type at all stay on the phone: never uploaded, so never read.
+ */
+export function keepsOnPhoneByDefault(
+  documentType: DocumentType | null | undefined,
+  category?: CitizenVaultCategory | null,
+): boolean {
+  if (category) return false;
+  if (!documentType) return true;
+  return CITIZEN_VAULT_DOCUMENT_CATEGORIES[documentType] === null;
+}
+
 /** The `citizen_vault_documents.category` value for a document type. */
 export function storedVaultCategory(type: DocumentType): CitizenVaultCategory | 'other' {
   return CITIZEN_VAULT_DOCUMENT_CATEGORIES[type] ?? 'other';

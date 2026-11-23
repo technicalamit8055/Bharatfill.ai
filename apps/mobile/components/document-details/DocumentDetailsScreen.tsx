@@ -428,7 +428,13 @@ export function DocumentDetailsScreen({
           </View>
           <View style={styles.secureText}>
             <Text style={styles.secureTitle}>{t('documentDetails.secure.title')}</Text>
-            <Text style={styles.secureBody}>{t('documentDetails.secure.body')}</Text>
+            <Text style={styles.secureBody}>
+              {t(
+                document.phoneOnly === false
+                  ? 'documentDetails.secure.sharedBody'
+                  : 'documentDetails.secure.body',
+              )}
+            </Text>
           </View>
         </View>
 

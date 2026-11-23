@@ -41,6 +41,7 @@ import {
   pageFileName,
   type PageMimeType,
   parseVaultIndex,
+  phoneOnlyForNewDocument,
   serialiseVaultIndex,
   type VaultDocument,
   type VaultIndex,
@@ -274,6 +275,8 @@ export async function saveDocument(
         source,
         pages: pages.map(({ mimeType }) => ({ mimeType })),
         ...details,
+        // Written in the same index write as the document, before any sync can see it (§15).
+        phoneOnly: phoneOnlyForNewDocument(details),
       };
       await exclusive(async () =>
         writeIndex(withDocument(await readIndexForUpdate(key), document), key),

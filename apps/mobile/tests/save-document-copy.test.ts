@@ -38,6 +38,7 @@ const RENDERED_KEYS = [
   ...Object.keys(en.saveDocument.folder).map((key) => `saveDocument.folder.${key}`),
   ...Object.keys(en.saveDocument.tags).map((key) => `saveDocument.tags.${key}`),
   'saveDocument.secure.title',
+  ...Object.keys(en.saveDocument.sharing).map((key) => `saveDocument.sharing.${key}`),
   'saveDocument.secure.body',
   ...Object.keys(en.saveDocument.reminder).map((key) => `saveDocument.reminder.${key}`),
   'saveDocument.save',
@@ -117,5 +118,12 @@ describe('save document copy', () => {
       const value = lookup(dictionary, key) as string;
       expect(placeholders(value), key).toEqual(key.endsWith('body') ? ['{date}'] : []);
     }
+  });
+});
+
+describe('sharing copy', () => {
+  it('never says a phone-only document leaves the phone', () => {
+    expect(en.saveDocument.sharing.phoneBody.toLowerCase()).toContain('never uploaded');
+    expect(en.saveDocument.sharing.phoneTitle.toLowerCase()).toContain('only on this phone');
   });
 });

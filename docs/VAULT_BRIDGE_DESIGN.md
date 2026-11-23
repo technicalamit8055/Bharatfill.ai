@@ -37,6 +37,9 @@ Build progress (§9):
 - **Changed 2026-11-22 (product owner): app accounts are ordinary customers — see §13.** It
   supersedes D10's "no extracted fields" and §4's separate "Bharatfill Vault" box; the grant,
   code and file routes of §4 and §6 are no longer reached from the dashboard or the extension.
+- **Changed 2026-11-23 (product owner): everyday scans stay on the phone — see §15.** D1's
+  automatic sync now covers form documents only. "Other" and untyped scans are never uploaded
+  unless the citizen turns sharing on.
 
 ---
 
@@ -391,3 +394,24 @@ Open (product owner / legal):
 - "Every access notifies the citizen" (D2) needs push (Phase 3); until then the screen shows that a
   centre _can_ use the details, not each time it did.
 - Owner MFA (D15), then decide whether to move to 90 days or centre-wide trust.
+
+## 15. Everyday scans stay on the phone (no migration)
+
+Product owner, 2026-11-23: citizens also use the scanner for everyday PDFs that have nothing to
+do with a form, and those must not reach the cloud. Before this, D1 synced every document straight
+after saving, and the server copied and read each one (§13). "Keep on this phone only" in Document
+Details came too late: by then the file had already been uploaded and read.
+
+| What               | How                                                                                                                                                                                                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The rule           | `keepsOnPhoneByDefault(type, folder)` in `@assistigo/core`. A type with a vault section (ID, marksheet, certificate, photo, signature) or a document filed in a section is **ready for centres**; "Other", no type, receipts, unclassified **stay on the phone**. |
+| When it is decided | At save, in the same index write as the document (`phoneOnlyForNewDocument` in `saveDocument`), so the sync that runs right after a save can never upload first. Every new document has `phoneOnly` set.                                                          |
+| Citizen            | No extra step. On the Save screen, the security card shows **"Ready for your cyber cafe"** or **"Only on this phone"** from the type. Its switch is only for the rare document the citizen wants the other way (`phoneOnlyChosen`).                               |
+| Moving it later    | Filing an "Other" document in a section (Move → Identity) makes it ready for centres, unless the citizen chose otherwise. A move never stops sharing, so a copy a centre may be using never disappears silently.                                                  |
+| Older documents    | A document saved before this has no `phoneOnly` and keeps syncing as before. Nothing is deleted from the cloud.                                                                                                                                                   |
+| Sync, server       | Unchanged. The planner already skips phone-only documents, and the server only reads what it receives.                                                                                                                                                            |
+| Operator           | Unchanged. Everyday scans never reach the customer's Documents tab.                                                                                                                                                                                               |
+
+The sign-up consent already reads "the documents I sync", so it is still accurate and the terms
+version is unchanged. Less leaves the phone than before. Open (legal): confirm that wording covers
+the type-based default.

@@ -14,7 +14,7 @@
  * after `pages` is optional, so indexes written before it existed still parse.
  */
 
-import { DOCUMENT_FOLDERS, DOCUMENT_TYPES } from '@assistigo/core';
+import { DOCUMENT_FOLDERS, DOCUMENT_TYPES, keepsOnPhoneByDefault } from '@assistigo/core';
 import { z } from 'zod';
 
 import { VAULT_CATEGORIES, type VaultCategoryKey } from './categories';
@@ -56,8 +56,14 @@ const vaultDocumentSchema = z.object({
   expiresOn: z.string().regex(ISO_DATE).optional(),
   /** The local notification scheduled for `expiresOn`, so deleting the document cancels it. */
   reminderId: z.string().min(1).max(200).optional(),
-  /** "Keep on this phone only": never uploaded to the cloud vault (design §3.2). */
+  /**
+   * "Keep on this phone only": never uploaded to the cloud vault (design §3.2). Every document
+   * saved since design §15 has it set, from its type unless the citizen chose; one without it
+   * is older and syncs, as it always did.
+   */
   phoneOnly: z.boolean().optional(),
+  /** The citizen set `phoneOnly` themselves, so a later folder move never changes it. */
+  phoneOnlyChosen: z.boolean().optional(),
   /**
    * The cloud copy of this document, once synced: its server id and the type, title and folder
    * it was last synced with, so a later rename, retype or move is noticed and sent
@@ -97,8 +103,24 @@ export type VaultIndex = z.infer<typeof vaultIndexSchema>;
 /** What the citizen chose on the Save Document screen. */
 export type DocumentDetails = Pick<
   VaultDocument,
-  'title' | 'documentType' | 'category' | 'tags' | 'expiresOn' | 'reminderId'
+  | 'title'
+  | 'documentType'
+  | 'category'
+  | 'tags'
+  | 'expiresOn'
+  | 'reminderId'
+  | 'phoneOnly'
+  | 'phoneOnlyChosen'
 >;
+
+/**
+ * Whether a new document stays on the phone: what the citizen chose, otherwise the default for
+ * its type and folder (design §15). Every save writes the answer, so the sync that runs straight
+ * after a save can never upload an everyday scan before the choice is recorded.
+ */
+export function phoneOnlyForNewDocument(details: DocumentDetails): boolean {
+  return details.phoneOnly ?? keepsOnPhoneByDefault(details.documentType, details.category);
+}
 
 export const EMPTY_VAULT_INDEX: VaultIndex = { version: VAULT_INDEX_VERSION, documents: [] };
 
@@ -159,6 +181,11 @@ export type DetailsChange = {
 /**
  * Applies a details change to one document, validated like any saved document, so a name or tag
  * over the limits is refused. An unknown id leaves the index as it was.
+ *
+ * Filing an everyday scan in a vault section (Move → Identity) makes it ready for centres, as
+ * saving it there would have, unless the citizen chose "phone only" themselves. A move never
+ * works the other way: taking a document out of a folder never removes a copy a centre may be
+ * using.
  */
 export function withDetails(index: VaultIndex, id: string, change: DetailsChange): VaultIndex {
   return {
@@ -167,8 +194,13 @@ export function withDetails(index: VaultIndex, id: string, change: DetailsChange
       if (document.id !== id) return document;
       const { category: previous, ...rest } = document;
       const category = change.category === undefined ? previous : change.category;
+      const nowShared =
+        rest.phoneOnly === true &&
+        rest.phoneOnlyChosen !== true &&
+        !keepsOnPhoneByDefault(rest.documentType, category);
       return vaultDocumentSchema.parse({
         ...rest,
+        ...(nowShared ? { phoneOnly: false } : {}),
         ...(category ? { category } : {}),
         ...(change.title !== undefined ? { title: change.title } : {}),
         ...(change.tags !== undefined ? { tags: [...change.tags] } : {}),
@@ -206,16 +238,17 @@ export function withCloudSynced(
 }
 
 /**
- * Turns "Keep on this phone only" on or off. Turning it on for a synced document forgets its
- * cloud copy here and queues that copy for deletion.
+ * The citizen turns "Keep on this phone only" on or off. Turning it on for a synced document
+ * forgets its cloud copy here and queues that copy for deletion. Either way it is now their
+ * choice, which a folder move no longer overrides.
  */
 export function withPhoneOnly(index: VaultIndex, id: string, phoneOnly: boolean): VaultIndex {
   const target = index.documents.find((document) => document.id === id);
   if (!target) return index;
   const { cloud, ...rest } = target;
   const updated: VaultDocument = phoneOnly
-    ? { ...rest, phoneOnly: true }
-    : { ...target, phoneOnly: false };
+    ? { ...rest, phoneOnly: true, phoneOnlyChosen: true }
+    : { ...target, phoneOnly: false, phoneOnlyChosen: true };
   const next = {
     ...index,
     documents: index.documents.map((document) => (document.id === id ? updated : document)),
