@@ -104,14 +104,11 @@ export type ProfileSection = {
  */
 export function CustomerProfileSections({
   customerId,
-  customerCode,
   sections,
   canUpdate,
   canReveal,
 }: {
   customerId: string;
-  /** Shown read-only in the personal card; it is an identifier, not a profile field. */
-  customerCode: string;
   sections: ProfileSection[];
   canUpdate: boolean;
   canReveal: boolean;
@@ -305,24 +302,8 @@ export function CustomerProfileSections({
                       className={field.dataType === 'longtext' ? 'sm:col-span-2' : undefined}
                     />
                   );
-                  // The customer code reads as part of who this person is, so it sits right
-                  // after their name rather than in a card of its own.
-                  return field.key === 'customer.full_name'
-                    ? [
-                        entry,
-                        <CustomerProfileField
-                          key="customer-code"
-                          customerId={customerId}
-                          fieldKey={null}
-                          label={t('customers.profile.customerCode')}
-                          value={customerCode}
-                          hasEncryptedValue={false}
-                          sensitive={false}
-                          canReveal={false}
-                          copyable
-                        />,
-                      ]
-                    : [entry];
+                  // Mobile + name identify a customer; the internal customer code is not shown.
+                  return [entry];
                 })}
               </dl>
             </DetailCard>

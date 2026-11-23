@@ -7,6 +7,7 @@ import {
   formatIndianDate,
   formatInr,
   isSensitiveField,
+  maskLast4,
 } from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
@@ -289,8 +290,8 @@ export default async function CustomerProfilePage({
             <li aria-hidden>
               <NextIcon className="h-3.5 w-3.5" />
             </li>
-            <li aria-current="page" className="font-medium text-slate-700">
-              {row.customer_code}
+            <li aria-current="page" className="max-w-[16rem] truncate font-medium text-slate-700">
+              {row.full_name}
             </li>
           </ol>
         </nav>
@@ -301,8 +302,13 @@ export default async function CustomerProfilePage({
             <div className="min-w-0">
               <h1 className="truncate text-xl font-bold text-slate-900">{row.full_name}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                <span className="font-mono">{row.customer_code}</span>
-                <span aria-hidden>•</span>
+                {/* Mobile + name identify a customer; the internal code is not shown. */}
+                {maskLast4(row.mobile) ? (
+                  <>
+                    <span className="tabular-nums">•••••• {maskLast4(row.mobile)}</span>
+                    <span aria-hidden>•</span>
+                  </>
+                ) : null}
                 <Badge
                   tone={VERIFICATION_TONE[row.verification_status] ?? 'neutral'}
                   className="gap-1"
@@ -360,7 +366,6 @@ export default async function CustomerProfilePage({
 
           <CustomerProfileSections
             customerId={row.id}
-            customerCode={row.customer_code}
             sections={sectionsData}
             canUpdate={canUpdate}
             canReveal={canReveal}

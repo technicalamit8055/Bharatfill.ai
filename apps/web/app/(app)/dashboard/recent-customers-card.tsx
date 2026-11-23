@@ -177,8 +177,6 @@ function CustomerRow({
           </Badge>
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
-          <span className="font-mono">{customer.customerCode}</span>
-          <span aria-hidden>·</span>
           <span className="masked-value">{revealed ?? customer.mobileMasked ?? '—'}</span>
           {canReveal && revealed === null && customer.mobileMasked ? (
             <button

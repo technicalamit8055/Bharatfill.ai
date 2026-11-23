@@ -133,10 +133,11 @@ export function CustomerJumpSearch({ canCreateCustomer }: { canCreateCustomer: b
                         {result.displayName}
                       </span>
                       <span className="block truncate font-mono text-xs text-slate-500">
-                        {result.customerCode}
-                        {result.district ? ` · ${result.district}` : ''}
-                        {/* Last four only — the search API never sends more (§19.3). */}
-                        {result.mobileLast4 ? ` · ••••${result.mobileLast4}` : ''}
+                        {/* Last four only — the search API never sends more (§19.3). Mobile +
+                            name identify a customer; the internal code is not shown. */}
+                        {[result.mobileLast4 ? `••••${result.mobileLast4}` : null, result.district]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </span>
                     </span>
                     <span aria-hidden className="shrink-0 text-slate-400">

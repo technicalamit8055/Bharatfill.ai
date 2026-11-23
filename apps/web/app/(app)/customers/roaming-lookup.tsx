@@ -2,9 +2,10 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Alert, Badge, Button, Card, Input } from '@assistigo/ui';
+import { Alert, Badge, Button, Input } from '@assistigo/ui';
 import type { RoamingCustomerCard } from '@assistigo/core';
 import { useTranslations } from '@/lib/i18n/client';
+import { RoamingIcon } from './icons';
 
 async function readErrorKey(response: Response): Promise<string> {
   const json = (await response.json().catch(() => null)) as {
@@ -14,16 +15,20 @@ async function readErrorKey(response: Response): Promise<string> {
 }
 
 /**
- * "Aapka registered mobile number kya hai?" — the counter lookup across every centre on the
- * platform (§7.3.2, migration 0024). A match here is never the whole record: `RoamingCustomerCard`
- * is the masked pre-auth card, and linking a result only bookmarks it — full access still needs
- * the citizen's own consent, on the customer's own page.
+ * "Customer registered at another cyber cafe?" — the counter lookup across every centre on the
+ * platform (§7.3.2, migration 0024), always open above the customer list, in plain words for a
+ * CSC / cyber cafe operator.
+ *
+ * A match is never the whole record: `RoamingCustomerCard` is the masked card. "Ask for
+ * permission" links the customer to this centre (so their page can open, locked) and goes to
+ * their page, where the operator sends the request. Once the customer says yes on their phone,
+ * or reads out the code, they sit in this centre's list for good (0044); every later visit
+ * needs a fresh yes.
  */
 export function RoamingLookup() {
   const t = useTranslations();
   const router = useRouter();
 
-  const [open, setOpen] = useState(false);
   const [mobile, setMobile] = useState('');
   const [searching, setSearching] = useState(false);
   const [linkingId, setLinkingId] = useState<string | null>(null);
@@ -52,7 +57,7 @@ export function RoamingLookup() {
     }
   }
 
-  async function link(customerId: string) {
+  async function askPermission(customerId: string) {
     setLinkingId(customerId);
     setError(null);
     try {
@@ -73,47 +78,35 @@ export function RoamingLookup() {
     }
   }
 
-  if (!open) {
-    return (
-      <Button variant="secondary" onClick={() => setOpen(true)}>
-        🌐 {t('customers.roaming.lookupButton')}
-      </Button>
-    );
-  }
-
   return (
-    <Card
-      title={t('customers.roaming.lookupTitle')}
-      actions={
-        <button
-          type="button"
-          aria-label={t('common.cancel')}
-          className="text-slate-400 hover:text-slate-700"
-          onClick={() => {
-            setOpen(false);
-            setResults(null);
-            setError(null);
-            setMobile('');
-          }}
-        >
-          ✕
-        </button>
-      }
-    >
-      <form className="flex items-end gap-2" onSubmit={(event) => void search(event)}>
-        <div className="flex-1">
-          <Input
-            value={mobile}
-            onChange={(event) => setMobile(event.target.value)}
-            inputMode="numeric"
-            placeholder={t('customers.roaming.mobilePlaceholder')}
-            aria-label={t('customers.mobile')}
-            maxLength={10}
-            required
-          />
+    <section className="rounded-2xl border border-sky-100 bg-sky-50/60 p-4 sm:p-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm">
+          <RoamingIcon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-slate-900">{t('customers.lookup.title')}</h2>
+          <p className="mt-0.5 text-sm text-slate-600">{t('customers.lookup.intro')}</p>
         </div>
-        <Button type="submit" loading={searching}>
-          {t('common.search')}
+      </div>
+
+      <form
+        className="mt-4 flex flex-col gap-2 sm:flex-row"
+        onSubmit={(event) => void search(event)}
+      >
+        <Input
+          value={mobile}
+          onChange={(event) => setMobile(event.target.value.replace(/\D/g, ''))}
+          inputMode="numeric"
+          placeholder={t('customers.lookup.placeholder')}
+          aria-label={t('customers.lookup.placeholder')}
+          maxLength={10}
+          minLength={10}
+          required
+          className="sm:max-w-xs"
+        />
+        <Button type="submit" loading={searching} disabled={mobile.length !== 10}>
+          {t('customers.lookup.find')}
         </Button>
       </form>
 
@@ -125,53 +118,57 @@ export function RoamingLookup() {
 
       {results !== null ? (
         results.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-500">{t('customers.roaming.noMatch')}</p>
+          <p className="mt-3 text-sm text-slate-600">{t('customers.lookup.noMatch')}</p>
         ) : (
-          <ul className="mt-3 divide-y divide-slate-100">
-            {results.map((customer) => (
-              <li
-                key={customer.customerId}
-                className="flex items-center justify-between gap-3 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-900">
-                    {customer.displayName}
-                    <Badge tone="info" className="ml-2">
-                      🌐 {t('customers.roaming.badge')}
-                    </Badge>
-                    {customer.fromApp ? (
-                      <Badge tone="neutral" className="ml-2">
-                        📱 {t('customers.roaming.fromApp')}
+          <>
+            <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+              {results.map((customer) => (
+                <li
+                  key={customer.customerId}
+                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-900">
+                      <span className="truncate">{customer.displayName}</span>
+                      <Badge tone={customer.fromApp ? 'neutral' : 'info'}>
+                        {customer.fromApp
+                          ? `📱 ${t('customers.lookup.fromApp')}`
+                          : `🌐 ${t('customers.lookup.otherCafe')}`}
                       </Badge>
-                    ) : null}
-                  </p>
-                  <p className="truncate text-xs text-slate-500">
-                    {customer.mobileLast4 ? `•••••• ${customer.mobileLast4}` : ''}
-                    {customer.state ? ` · ${customer.state}` : ''}
-                  </p>
-                </div>
-                {customer.isLinked ? (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => router.push(`/customers/${customer.customerId}`)}
-                  >
-                    {t('customers.roaming.viewLinked')}
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    loading={linkingId === customer.customerId}
-                    onClick={() => void link(customer.customerId)}
-                  >
-                    {t('customers.roaming.linkToCounter')}
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
+                    </p>
+                    <p className="truncate text-xs text-slate-500">
+                      {[
+                        customer.mobileLast4 ? `•••••• ${customer.mobileLast4}` : null,
+                        customer.state,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  </div>
+                  {customer.isLinked ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => router.push(`/customers/${customer.customerId}`)}
+                    >
+                      {t('customers.lookup.open')}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      loading={linkingId === customer.customerId}
+                      onClick={() => void askPermission(customer.customerId)}
+                    >
+                      {t('customers.lookup.askPermission')}
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-slate-500">{t('customers.lookup.howItWorks')}</p>
+          </>
         )
       ) : null}
-    </Card>
+    </section>
   );
 }

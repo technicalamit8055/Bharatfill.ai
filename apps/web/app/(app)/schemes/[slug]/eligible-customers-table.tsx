@@ -16,7 +16,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { EmptyState, cn } from '@assistigo/ui';
-import type { SchemeMatchStatus } from '@assistigo/core';
+import { maskLast4, type SchemeMatchStatus } from '@assistigo/core';
 import { useI18n } from '@/lib/i18n/client';
 import { whatsappLink } from '@/lib/schemes/view';
 import { CustomerAvatar } from '../../customers/customer-avatar';
@@ -86,17 +86,19 @@ export function EligibleCustomersPanel({
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     if (!needle) return customers;
+    // Mobile + name identify a customer: search either.
+    const digits = needle.replace(/\D/g, '');
     return customers.filter(
       (customer) =>
         customer.fullName.toLocaleLowerCase().includes(needle) ||
-        customer.customerCode.toLocaleLowerCase().includes(needle),
+        (digits.length > 0 && (customer.mobile ?? '').replace(/\D/g, '').includes(digits)),
     );
   }, [customers, query]);
 
   const copyList = async () => {
     // Copies what is on screen, so a search narrows the list the operator takes away.
     const lines = visible.map((customer) =>
-      [customer.fullName, customer.customerCode, customer.mobile ?? ''].filter(Boolean).join('\t'),
+      [customer.fullName, customer.mobile ?? ''].filter(Boolean).join('\t'),
     );
     if (await copyText(lines.join('\n'))) {
       setCopied(true);
@@ -183,7 +185,7 @@ export function EligibleCustomersPanel({
                   {t('customers.name')}
                 </th>
                 <th scope="col" className="px-4 py-3 font-medium">
-                  {t('customers.code')}
+                  {t('customers.mobile')}
                 </th>
                 <th scope="col" className="px-4 py-3 font-medium">
                   {t('schemes.customerAge')}
@@ -221,7 +223,9 @@ export function EligibleCustomersPanel({
                           {customer.fullName}
                         </Link>
                       </td>
-                      <td className="px-4 py-3.5 text-slate-500">{customer.customerCode}</td>
+                      <td className="px-4 py-3.5 tabular-nums text-slate-500">
+                        {maskLast4(customer.mobile) ? `•••••• ${maskLast4(customer.mobile)}` : '—'}
+                      </td>
                       <td className="px-4 py-3.5 text-slate-600">{customer.ageAtCutoff ?? '—'}</td>
                       <td className="px-4 py-3.5">
                         <StatusCell customer={customer} t={t} />

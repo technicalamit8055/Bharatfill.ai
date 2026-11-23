@@ -94,9 +94,7 @@ export function DropCustomerPicker({
     >
       <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-lg bg-white shadow-xl">
         <header className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">
-            {t('documentDrop.picker.title')}
-          </h2>
+          <h2 className="text-sm font-semibold text-slate-900">{t('documentDrop.picker.title')}</h2>
           <p className="mt-0.5 text-xs text-slate-500">
             {t('documentDrop.picker.subtitle', { count: fileCount })}
           </p>
@@ -219,8 +217,7 @@ function LocalSearch({
       ) : (
         <ul className="divide-y divide-slate-100">
           {results.map((customer) => {
-            const isSelected =
-              selected?.target === 'local' && selected.customerId === customer.id;
+            const isSelected = selected?.target === 'local' && selected.customerId === customer.id;
             return (
               <li key={customer.id}>
                 <button
@@ -241,7 +238,10 @@ function LocalSearch({
                       {customer.displayName}
                     </span>
                     <span className="block text-xs text-slate-500">
-                      {[customer.customerCode, customer.mobileLast4, customer.district]
+                      {[
+                        customer.mobileLast4 ? `••••${customer.mobileLast4}` : null,
+                        customer.district,
+                      ]
                         .filter(Boolean)
                         .join(' · ')}
                     </span>
@@ -347,9 +347,7 @@ function RoamingSearch({
           <Spinner />
         </div>
       ) : results === null ? null : results.length === 0 ? (
-        <p className="py-2 text-xs text-slate-500">
-          {t('documentDrop.picker.roamingNoResults')}
-        </p>
+        <p className="py-2 text-xs text-slate-500">{t('documentDrop.picker.roamingNoResults')}</p>
       ) : (
         <ul className="space-y-2">
           {results.map((card) => {

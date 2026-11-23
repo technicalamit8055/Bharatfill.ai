@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Lightbulb } from 'lucide-react';
+import { maskLast4 } from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -31,12 +32,17 @@ export default async function NewApplicationPage({
     customerId
       ? supabase
           .from('customers')
-          .select('id, full_name, customer_code')
+          .select('id, full_name, mobile')
           .eq('id', customerId)
           .eq('organization_id', session.organization.id)
           .is('deleted_at', null)
           .maybeSingle()
-          .then((result) => result.data as Pick<CustomerRow, 'id' | 'full_name' | 'customer_code'> | null)
+          .then((result) => {
+            const row = result.data as Pick<CustomerRow, 'id' | 'full_name' | 'mobile'> | null;
+            return row
+              ? { id: row.id, full_name: row.full_name, mobile_last4: maskLast4(row.mobile) }
+              : null;
+          })
       : Promise.resolve(null),
   ]);
 
@@ -69,14 +75,14 @@ export default async function NewApplicationPage({
           </div>
 
           {/*
-            * The form / ID card / tricolour artwork, between the title and the tips. Decorative,
-            * and hidden below `lg`, where the three columns would crush it.
-            *
-            * The source is a 1376×768 canvas with the artwork in its middle and wide white margins,
-            * so it is scaled up inside a clipped box to trim those margins, and multiplied onto the
-            * banner so the white that remains takes on the banner's tint instead of reading as a
-            * pasted-on rectangle.
-            */}
+           * The form / ID card / tricolour artwork, between the title and the tips. Decorative,
+           * and hidden below `lg`, where the three columns would crush it.
+           *
+           * The source is a 1376×768 canvas with the artwork in its middle and wide white margins,
+           * so it is scaled up inside a clipped box to trim those margins, and multiplied onto the
+           * banner so the white that remains takes on the banner's tint instead of reading as a
+           * pasted-on rectangle.
+           */}
           <div
             aria-hidden
             className="pointer-events-none relative hidden h-36 w-72 select-none overflow-hidden lg:block"
@@ -96,7 +102,9 @@ export default async function NewApplicationPage({
               <Lightbulb size={22} strokeWidth={1.8} aria-hidden />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-900">{t('applications.newPage.tipsTitle')}</p>
+              <p className="text-sm font-semibold text-slate-900">
+                {t('applications.newPage.tipsTitle')}
+              </p>
               <p className="mt-1 text-xs leading-relaxed text-slate-600">
                 {t('applications.newPage.tipsBody')}
               </p>

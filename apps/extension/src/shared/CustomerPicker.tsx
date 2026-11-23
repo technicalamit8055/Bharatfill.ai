@@ -137,7 +137,6 @@ export function CustomerPicker({
                 {selected.isRoaming ? <span className="badge badge-brand"> 🌐 Roaming</span> : null}
               </div>
               <div className="tiny muted truncate">
-                {selected.customerCode ? `${selected.customerCode} · ` : ''}
                 {selected.mobileLast4 ? `••••${selected.mobileLast4}` : 'no mobile on file'}
               </div>
             </div>
@@ -208,8 +207,8 @@ export function CustomerPicker({
                       {isSelected ? <CheckIcon size={13} className="muted" /> : null}
                     </span>
                     <span className="tiny muted truncate" style={{ display: 'block' }}>
-                      {customer.customerCode}
-                      {customer.mobileLast4 ? ` · ••••${customer.mobileLast4}` : ''}
+                      {/* Mobile + name identify a customer; the internal code is not shown. */}
+                      {customer.mobileLast4 ? `••••${customer.mobileLast4}` : ''}
                     </span>
                   </button>
                 );

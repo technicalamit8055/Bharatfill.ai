@@ -25,8 +25,9 @@ import { useTranslations } from '@/lib/i18n/client';
 import { APPLICATION_CATEGORIES, APPLICATION_NOTES_MAX } from '@/lib/applications/schema';
 import { CustomerAvatar } from '../../customers/customer-avatar';
 
-type CustomerOption = { id: string; full_name: string; customer_code: string };
-type SearchResult = { id: string; displayName: string; customerCode: string };
+/** Mobile + name identify a customer: the last four digits stand in for the internal code. */
+type CustomerOption = { id: string; full_name: string; mobile_last4: string | null };
+type SearchResult = { id: string; displayName: string; mobileLast4: string | null };
 type AdapterOption = { id: string; portalName: string; formName: string };
 
 /** Both submit buttons create the application; they differ only in where the operator lands. */
@@ -118,7 +119,9 @@ export function NewApplicationForm({
     const timer = setTimeout(() => {
       fetch(`/api/customers/search?q=${encodeURIComponent(trimmed)}`, { signal: controller.signal })
         .then((response) => (response.ok ? response.json() : Promise.reject(response)))
-        .then((body: { data: { customers: SearchResult[] } }) => setCustomerResults(body.data.customers))
+        .then((body: { data: { customers: SearchResult[] } }) =>
+          setCustomerResults(body.data.customers),
+        )
         .catch((err: unknown) => {
           if (err instanceof DOMException && err.name === 'AbortError') return;
           setCustomerResults([]);
@@ -200,8 +203,7 @@ export function NewApplicationForm({
         body: JSON.stringify(payload),
       });
       const json = (await response.json()) as
-        | { data: { application: { id: string } } }
-        | { error: { messageKey: string } };
+        { data: { application: { id: string } } } | { error: { messageKey: string } };
       if (!response.ok || 'error' in json) {
         setError('error' in json ? json.error.messageKey : 'errors.internal');
         setPending(null);
@@ -209,7 +211,9 @@ export function NewApplicationForm({
       }
       // Every new application starts as a draft (the column default). "Save as draft" parks it on
       // the list; "Create application" opens it so the operator can carry on with the checklist.
-      router.push(intent === 'draft' ? '/applications' : `/applications/${json.data.application.id}`);
+      router.push(
+        intent === 'draft' ? '/applications' : `/applications/${json.data.application.id}`,
+      );
     } catch {
       setError('errors.internal');
       setPending(null);
@@ -231,15 +235,27 @@ export function NewApplicationForm({
               label={t('applications.form.customer')}
               htmlFor={`${ids}-customer`}
               hint={t('applications.form.customerHint')}
-              error={customerMissing && !customer ? t('applications.form.customerRequired') : undefined}
+              error={
+                customerMissing && !customer ? t('applications.form.customerRequired') : undefined
+              }
               required
             >
               {customer ? (
                 <div className="flex h-11 items-center justify-between gap-3 rounded-lg bg-white px-3 shadow-sm ring-1 ring-inset ring-slate-300">
                   <div className="flex min-w-0 items-center gap-2.5">
-                    <CustomerAvatar id={customer.id} name={customer.full_name} className="h-7 w-7 text-xs" />
-                    <span className="truncate text-sm font-medium text-slate-900">{customer.full_name}</span>
-                    <span className="shrink-0 font-mono text-xs text-slate-500">{customer.customer_code}</span>
+                    <CustomerAvatar
+                      id={customer.id}
+                      name={customer.full_name}
+                      className="h-7 w-7 text-xs"
+                    />
+                    <span className="truncate text-sm font-medium text-slate-900">
+                      {customer.full_name}
+                    </span>
+                    {customer.mobile_last4 ? (
+                      <span className="shrink-0 text-xs tabular-nums text-slate-500">
+                        ••••{customer.mobile_last4}
+                      </span>
+                    ) : null}
                   </div>
                   <button
                     type="button"
@@ -286,7 +302,9 @@ export function NewApplicationForm({
                   {customerResults !== null ? (
                     <ul className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
                       {customerResults.length === 0 ? (
-                        <li className="px-3 py-2.5 text-sm text-slate-500">{t('customers.empty')}</li>
+                        <li className="px-3 py-2.5 text-sm text-slate-500">
+                          {t('customers.empty')}
+                        </li>
                       ) : (
                         customerResults.map((result) => (
                           <li key={result.id}>
@@ -297,17 +315,25 @@ export function NewApplicationForm({
                                 setCustomer({
                                   id: result.id,
                                   full_name: result.displayName,
-                                  customer_code: result.customerCode,
+                                  mobile_last4: result.mobileLast4,
                                 });
                                 setCustomerResults(null);
                                 setCustomerMissing(false);
                               }}
                             >
                               <span className="flex min-w-0 items-center gap-2.5">
-                                <CustomerAvatar id={result.id} name={result.displayName} className="h-7 w-7 text-xs" />
-                                <span className="truncate text-sm text-slate-900">{result.displayName}</span>
+                                <CustomerAvatar
+                                  id={result.id}
+                                  name={result.displayName}
+                                  className="h-7 w-7 text-xs"
+                                />
+                                <span className="truncate text-sm text-slate-900">
+                                  {result.displayName}
+                                </span>
                               </span>
-                              <Badge tone="neutral">{result.customerCode}</Badge>
+                              {result.mobileLast4 ? (
+                                <Badge tone="neutral">••••{result.mobileLast4}</Badge>
+                              ) : null}
                             </button>
                           </li>
                         ))
@@ -454,7 +480,12 @@ export function NewApplicationForm({
           </FieldRow>
           <FieldRow icon={CreditCard} tone="violet">
             <Field label={t('applications.form.paymentStatus')} htmlFor={`${ids}-payment`}>
-              <Select id={`${ids}-payment`} name="paymentStatus" defaultValue="" className={CONTROL}>
+              <Select
+                id={`${ids}-payment`}
+                name="paymentStatus"
+                defaultValue=""
+                className={CONTROL}
+              >
                 <option value="">{t('applications.form.paymentStatusPlaceholder')}</option>
                 <option value="unpaid">{t('applications.payment.unpaid')}</option>
                 <option value="paid">{t('applications.payment.paid')}</option>
@@ -477,7 +508,10 @@ export function NewApplicationForm({
               className="rounded-lg"
             />
             <p id={`${ids}-notes-count`} className="text-right text-xs text-slate-500">
-              {t('applications.form.notesCount', { count: notesLength, max: APPLICATION_NOTES_MAX })}
+              {t('applications.form.notesCount', {
+                count: notesLength,
+                max: APPLICATION_NOTES_MAX,
+              })}
             </p>
           </Field>
         </FieldRow>
@@ -504,8 +538,12 @@ export function NewApplicationForm({
               disabled={pending !== null}
               className="h-11 rounded-lg px-5"
             >
-              {pending === 'draft' ? null : <FileText size={16} strokeWidth={1.8} aria-hidden className="text-brand-600" />}
-              {pending === 'draft' ? t('applications.form.savingDraft') : t('applications.form.saveDraft')}
+              {pending === 'draft' ? null : (
+                <FileText size={16} strokeWidth={1.8} aria-hidden className="text-brand-600" />
+              )}
+              {pending === 'draft'
+                ? t('applications.form.savingDraft')
+                : t('applications.form.saveDraft')}
             </Button>
             <Button
               type="submit"

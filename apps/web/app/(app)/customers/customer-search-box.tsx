@@ -76,9 +76,9 @@ export function CustomerSearchBox() {
       </div>
 
       {/*
-        * Floats over the stat cards and table instead of pushing them down, so the list the
-        * operator was reading stays where it was while they type.
-        */}
+       * Floats over the stat cards and table instead of pushing them down, so the list the
+       * operator was reading stays where it was while they type.
+       */}
       {results !== null ? (
         <Card className="absolute inset-x-0 top-full z-20 mt-2 max-h-96 overflow-y-auto p-0 shadow-lg">
           {results.length === 0 ? (
@@ -96,9 +96,13 @@ export function CustomerSearchBox() {
                         {result.displayName}
                       </p>
                       <p className="truncate text-xs text-slate-500">
-                        {result.customerCode}
-                        {result.district ? ` · ${result.district}` : ''}
-                        {result.mobileLast4 ? ` · •••••• ${result.mobileLast4}` : ''}
+                        {/* Mobile + name identify a customer; the internal code is not shown. */}
+                        {[
+                          result.mobileLast4 ? `•••••• ${result.mobileLast4}` : null,
+                          result.district,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </p>
                     </div>
                     <Badge tone="neutral" className="shrink-0">

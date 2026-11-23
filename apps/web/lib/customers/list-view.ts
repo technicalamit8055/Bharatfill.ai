@@ -9,7 +9,11 @@ import { z } from 'zod';
  * address and a verification status — no name, number or document ever passes through it.
  */
 
-export const LIST_VIEWS = ['all', 'roaming'] as const;
+/**
+ * One list since 0044: roaming customers a centre has been given access to sit with its own, so
+ * the old `roaming` tab is gone (an old `?view=roaming` link falls back to `all`).
+ */
+export const LIST_VIEWS = ['all'] as const;
 export type ListView = (typeof LIST_VIEWS)[number];
 
 export const PAGE_SIZES = [10, 25, 50] as const;
@@ -37,10 +41,7 @@ export type ListParams = {
 };
 
 /** First value of a repeated query parameter — `?page=2&page=3` reads as page 2. */
-const firstValue = z.preprocess(
-  (value) => (Array.isArray(value) ? value[0] : value),
-  z.unknown(),
-);
+const firstValue = z.preprocess((value) => (Array.isArray(value) ? value[0] : value), z.unknown());
 
 /*
  * Every field falls back to its default rather than failing: a hand-edited or stale URL should

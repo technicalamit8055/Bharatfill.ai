@@ -2,7 +2,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Badge, EmptyState, Table, TBody, TD, TH, THead, TR, type Tone } from '@assistigo/ui';
-import { formatIndianDate, maskLast4 } from '@assistigo/core';
+import {
+  formatGrantRemaining,
+  formatIndianDate,
+  grantRemainingMs,
+  maskLast4,
+} from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -33,7 +38,6 @@ import { CustomerSearchBox } from './customer-search-box';
 import { CustomerStatCard } from './customer-stat-card';
 import { FilterMenu } from './filter-menu';
 import { RoamingLookup } from './roaming-lookup';
-import { RoamingCustomersTable } from './roaming-customers-table';
 import { RowsPerPage } from './rows-per-page';
 import {
   CustomersIcon,
@@ -72,9 +76,41 @@ const MONTH_BARS = 6;
  */
 const STATS_ROW_LIMIT = 5000;
 
+/**
+ * One row of the list: a customer registered here, or one from another centre (or the BharatDoc
+ * app) that this centre has been given access to (migration 0044). A linked row carries only the
+ * masked card — "Rahul K.", last four digits — and opens through the usual roaming access.
+ */
 type ListRow = {
   id: string;
-  customer_code: string;
+  isLinked: boolean;
+  /** Full name for an own customer; "Rahul K." for a linked one. */
+  displayName: string;
+  mobileLast4: string | null;
+  district: string | null;
+  verificationStatus: string;
+  addedAt: string;
+  /** Linked rows: the caller holds a live grant, and until when. */
+  grantExpiresAt: string | null;
+};
+
+type CentreListRow = {
+  customer_id: string;
+  is_linked: boolean;
+  full_name: string | null;
+  given_name: string | null;
+  family_initial: string | null;
+  mobile_last4: string | null;
+  district: string | null;
+  verification_status: string;
+  added_at: string;
+  has_active_grant: boolean;
+  grant_expires_at: string | null;
+  total_count: number;
+};
+
+type OwnListRow = {
+  id: string;
   full_name: string;
   mobile: string | null;
   current_district: string | null;
@@ -82,6 +118,11 @@ type ListRow = {
   verification_status: string;
   created_at: string;
 };
+
+/** Postgres / PostgREST: the function does not exist — the database has not run 0044. */
+function isMissingFunction(error: { code?: string } | null | undefined): boolean {
+  return error?.code === 'PGRST202' || error?.code === '42883';
+}
 
 type StateRow = { permanent_state: string | null; current_state: string | null };
 
@@ -108,14 +149,15 @@ export default async function CustomersPage({
   const canLinkRoaming = session.permissions.has('customer.roaming_link');
 
   const now = new Date();
-  const since = params.view === 'all' ? addedSince(params.added, now) : null;
+  const since = addedSince(params.added, now);
   const { from, to } = pageRange(params.page, params.perPage);
 
-  const listQuery = () => {
+  /** Own customers only — the list before 0044, and the fallback while it is not applied. */
+  const ownListQuery = () => {
     let query = supabase
       .from('customers')
       .select(
-        'id, customer_code, full_name, mobile, verification_status, created_at, ' +
+        'id, full_name, mobile, verification_status, created_at, ' +
           'current_district:address_json->current->>district, ' +
           'permanent_district:address_json->permanent->>district',
         { count: 'exact' },
@@ -124,6 +166,55 @@ export default async function CustomersPage({
       .is('deleted_at', null);
     if (since) query = query.gte('created_at', since.toISOString());
     return query.order('created_at', { ascending: false }).range(from, to);
+  };
+
+  /**
+   * Own customers and the roaming customers this centre has been given access to, in one list
+   * (0044). Falls back to own customers on a database that has not run 0044.
+   */
+  const listQuery = async (): Promise<{ rows: ListRow[]; count: number; error: unknown }> => {
+    const combined = await supabase.rpc('centre_customer_list', {
+      p_organization_id: organizationId,
+      p_since: since ? since.toISOString() : null,
+      p_include_linked: canLinkRoaming,
+      p_limit: params.perPage,
+      p_offset: from,
+    });
+    if (!isMissingFunction(combined.error)) {
+      const data = (combined.data ?? []) as CentreListRow[];
+      return {
+        error: combined.error,
+        count: Number(data[0]?.total_count ?? 0),
+        rows: data.map((row) => ({
+          id: row.customer_id,
+          isLinked: row.is_linked,
+          displayName: row.is_linked
+            ? `${row.given_name ?? ''}${row.family_initial ? ` ${row.family_initial}.` : ''}`
+            : (row.full_name ?? ''),
+          mobileLast4: row.mobile_last4 || null,
+          district: row.district,
+          verificationStatus: row.verification_status,
+          addedAt: row.added_at,
+          grantExpiresAt: row.has_active_grant ? row.grant_expires_at : null,
+        })),
+      };
+    }
+
+    const own = await ownListQuery();
+    return {
+      error: own.error?.code === 'PGRST103' ? null : own.error,
+      count: own.count ?? 0,
+      rows: ((own.data ?? []) as unknown as OwnListRow[]).map((row) => ({
+        id: row.id,
+        isLinked: false,
+        displayName: row.full_name,
+        mobileLast4: maskLast4(row.mobile),
+        district: row.current_district ?? row.permanent_district,
+        verificationStatus: row.verification_status,
+        addedAt: row.created_at,
+        grantExpiresAt: null,
+      })),
+    };
   };
 
   const [total, verified, newThisMonth, recent, states, roamingCount, list] = await Promise.all([
@@ -168,14 +259,17 @@ export default async function CustomersPage({
           .select('id', { count: 'exact', head: true })
           .eq('organization_id', organizationId)
       : Promise.resolve(null),
-    params.view === 'all' ? listQuery() : Promise.resolve(null),
+    listQuery(),
   ]);
 
-  // A page past the end — a stale link after customers were removed, or a hand-edited URL.
-  if (list?.error?.code === 'PGRST103') redirect(listHref(params, { page: 1 }));
-
-  for (const result of [total, verified, newThisMonth, recent, states, roamingCount, list]) {
+  for (const result of [total, verified, newThisMonth, recent, states, roamingCount]) {
     if (result?.error) throw result.error;
+  }
+  if (list?.error) throw list.error;
+
+  // A page past the end — a stale link after customers were removed, or a hand-edited URL.
+  if (list && list.rows.length === 0 && params.page > 1) {
+    redirect(listHref(params, { page: 1 }));
   }
 
   const totalCount = total.count ?? 0;
@@ -195,21 +289,24 @@ export default async function CustomersPage({
     year: 'numeric',
   }).format(now);
 
-  const rows = (list?.data ?? []) as unknown as ListRow[];
+  const rows = list?.rows ?? [];
   const listTotal = list?.count ?? 0;
+  // Everyone this centre serves: registered here, plus roaming customers it has been given
+  // access to (each linked once, 0044).
+  const allCount = totalCount + (roamingCount?.count ?? 0);
   const pages = lastPage(listTotal, params.perPage);
 
   return (
     <div className="space-y-6">
       <section className="relative min-h-[150px] overflow-hidden rounded-2xl border border-brand-100 bg-gradient-to-r from-[#e7f1fe] to-[#e1f1ff] px-6 py-8 sm:px-8">
         {/*
-          * The citizens / India Gate / tricolour artwork, anchored right. Decorative only, and
-          * hidden below `md`, where the banner is no wider than its own heading.
-          *
-          * A fixed width rather than a share of the banner: the source is a 16:9 landscape in a
-          * short box, so the crop is tuned for one scale — flag and skyline across the top,
-          * the three figures from the shoulders up.
-          */}
+         * The citizens / India Gate / tricolour artwork, anchored right. Decorative only, and
+         * hidden below `md`, where the banner is no wider than its own heading.
+         *
+         * A fixed width rather than a share of the banner: the source is a 16:9 landscape in a
+         * short box, so the crop is tuned for one scale — flag and skyline across the top,
+         * the three figures from the shoulders up.
+         */}
         <div
           aria-hidden
           className="pointer-events-none absolute inset-y-0 right-0 hidden w-[640px] max-w-[70%] select-none md:block"
@@ -334,23 +431,21 @@ export default async function CustomersPage({
           <CustomerSearchBox />
         </div>
         <div className="flex gap-3">
-          {params.view === 'all' ? (
-            <FilterMenu
-              buttonLabel={
-                params.added === 'any'
-                  ? t('customers.filter.button')
-                  : `${t('customers.filter.button')}: ${t(`customers.filter.${params.added}`)}`
-              }
-              heading={t('customers.filter.added')}
-              isFiltered={params.added !== 'any'}
-              options={ADDED_WINDOWS.map((window) => ({
-                key: window,
-                label: t(`customers.filter.${window}`),
-                href: listHref(params, { added: window, page: 1 }),
-                active: params.added === window,
-              }))}
-            />
-          ) : null}
+          <FilterMenu
+            buttonLabel={
+              params.added === 'any'
+                ? t('customers.filter.button')
+                : `${t('customers.filter.button')}: ${t(`customers.filter.${params.added}`)}`
+            }
+            heading={t('customers.filter.added')}
+            isFiltered={params.added !== 'any'}
+            options={ADDED_WINDOWS.map((window) => ({
+              key: window,
+              label: t(`customers.filter.${window}`),
+              href: listHref(params, { added: window, page: 1 }),
+              active: params.added === window,
+            }))}
+          />
           {canCreate ? (
             <Link href="/customers/new" className={NEW_CUSTOMER_LINK}>
               <PlusIcon className="h-5 w-5" />
@@ -360,161 +455,142 @@ export default async function CustomersPage({
         </div>
       </div>
 
-      <nav className="flex gap-2 overflow-x-auto border-b border-slate-200">
-        <ViewTab
-          href={listHref(params, { view: 'all', page: 1 })}
-          active={params.view === 'all'}
-          icon={<CustomersIcon className="h-5 w-5" />}
-          label={t('customers.tabAllCount', { count: totalCount })}
-        />
-        {canLinkRoaming ? (
-          <ViewTab
-            href={listHref(params, { view: 'roaming', page: 1 })}
-            active={params.view === 'roaming'}
-            icon={<RoamingIcon className="h-5 w-5" />}
-            label={t('customers.roaming.tabRoamingCount', { count: roamingCount?.count ?? 0 })}
+      {/* "Registered at another cafe?" — find them by mobile; they join this list once they
+          say yes on their phone (0044). Replaces the old Roaming tab. */}
+      {canLinkRoaming ? <RoamingLookup /> : null}
+
+      <h2 className="flex items-center gap-2 border-b border-slate-200 pb-3 text-sm font-semibold text-brand-700">
+        <CustomersIcon className="h-5 w-5" />
+        {t('customers.tabAllCount', { count: allCount })}
+      </h2>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        {rows.length === 0 ? (
+          <EmptyState
+            title={since ? t('customers.emptyFilter') : t('customers.emptyFirst')}
+            description={since || canCreate ? undefined : t('customers.empty')}
+            action={
+              !since && canCreate ? (
+                <Link href="/customers/new" className={NEW_CUSTOMER_LINK}>
+                  <PlusIcon className="h-5 w-5" />
+                  {t('customers.new')}
+                </Link>
+              ) : undefined
+            }
           />
-        ) : null}
-      </nav>
+        ) : (
+          <>
+            <Table>
+              <THead>
+                <TR>
+                  <TH className="py-3.5">{t('customers.name')}</TH>
+                  <TH className="py-3.5">{t('customers.mobile')}</TH>
+                  <TH className="py-3.5">{t('customers.district')}</TH>
+                  <TH className="py-3.5">{t('settings.status')}</TH>
+                  <TH className="py-3.5">{t('customers.addedOn')}</TH>
+                  <TH className="py-3.5 text-right">{t('customers.actions')}</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {rows.map((customer) => (
+                  <CustomerTableRow
+                    key={customer.id}
+                    customer={customer}
+                    statusLabel={
+                      customer.isLinked
+                        ? accessLabel(customer.grantExpiresAt, t)
+                        : customer.verificationStatus in VERIFICATION_TONE
+                          ? t(`customers.verification.${customer.verificationStatus}`)
+                          : customer.verificationStatus
+                    }
+                    otherCentreLabel={t('customers.roaming.otherCentre')}
+                    openLabel={t('customers.openProfile', { name: customer.displayName })}
+                  />
+                ))}
+              </TBody>
+            </Table>
 
-      {params.view === 'roaming' ? (
-        <div className="space-y-4">
-          <RoamingLookup />
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <RoamingCustomersTable organizationId={organizationId} />
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          {rows.length === 0 ? (
-            <EmptyState
-              title={since ? t('customers.emptyFilter') : t('customers.emptyFirst')}
-              description={since || canCreate ? undefined : t('customers.empty')}
-              action={
-                !since && canCreate ? (
-                  <Link href="/customers/new" className={NEW_CUSTOMER_LINK}>
-                    <PlusIcon className="h-5 w-5" />
-                    {t('customers.new')}
-                  </Link>
-                ) : undefined
-              }
+            <Pagination
+              params={params}
+              total={listTotal}
+              pages={pages}
+              labels={{
+                nav: t('customers.pagination.label'),
+                showing: t('customers.pagination.showing', {
+                  from: from + 1,
+                  to: from + rows.length,
+                  total: listTotal,
+                }),
+                rowsPerPage: t('customers.pagination.rowsPerPage'),
+                previous: t('customers.pagination.previous'),
+                next: t('customers.pagination.next'),
+                page: (page) => t('customers.pagination.page', { page }),
+              }}
             />
-          ) : (
-            <>
-              <Table>
-                <THead>
-                  <TR>
-                    <TH className="py-3.5">{t('customers.code')}</TH>
-                    <TH className="py-3.5">{t('customers.name')}</TH>
-                    <TH className="py-3.5">{t('customers.mobile')}</TH>
-                    <TH className="py-3.5">{t('customers.district')}</TH>
-                    <TH className="py-3.5">{t('settings.status')}</TH>
-                    <TH className="py-3.5">{t('customers.addedOn')}</TH>
-                    <TH className="py-3.5 text-right">{t('customers.actions')}</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {rows.map((customer) => (
-                    <CustomerTableRow
-                      key={customer.id}
-                      customer={customer}
-                      statusLabel={
-                        customer.verification_status in VERIFICATION_TONE
-                          ? t(`customers.verification.${customer.verification_status}`)
-                          : customer.verification_status
-                      }
-                      openLabel={t('customers.openProfile', { name: customer.full_name })}
-                    />
-                  ))}
-                </TBody>
-              </Table>
-
-              <Pagination
-                params={params}
-                total={listTotal}
-                pages={pages}
-                labels={{
-                  nav: t('customers.pagination.label'),
-                  showing: t('customers.pagination.showing', {
-                    from: from + 1,
-                    to: from + rows.length,
-                    total: listTotal,
-                  }),
-                  rowsPerPage: t('customers.pagination.rowsPerPage'),
-                  previous: t('customers.pagination.previous'),
-                  next: t('customers.pagination.next'),
-                  page: (page) => t('customers.pagination.page', { page }),
-                }}
-              />
-            </>
-          )}
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-function ViewTab({
-  href,
-  active,
-  icon,
-  label,
-}: {
-  href: string;
-  active: boolean;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? 'page' : undefined}
-      className={`-mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
-        active
-          ? 'border-brand-600 text-brand-700'
-          : 'border-transparent text-slate-500 hover:text-slate-800'
-      }`}
-    >
-      {icon}
-      {label}
-    </Link>
-  );
+/** A linked customer's access state: "🟢 Active (1h 20m)" or "🔒 Locked" (approval needed). */
+function accessLabel(
+  grantExpiresAt: string | null,
+  t: (key: string, values?: Record<string, string | number>) => string,
+) {
+  const remaining = grantExpiresAt
+    ? grantRemainingMs({ status: 'active', expiresAt: grantExpiresAt })
+    : 0;
+  return remaining > 0
+    ? `🟢 ${t('customers.roaming.activeShort', { remaining: formatGrantRemaining(remaining) })}`
+    : `🔒 ${t('customers.roaming.lockedShort')}`;
 }
 
 function CustomerTableRow({
   customer,
   statusLabel,
+  otherCentreLabel,
   openLabel,
 }: {
   customer: ListRow;
   statusLabel: string;
+  otherCentreLabel: string;
   openLabel: string;
 }) {
   const href = `/customers/${customer.id}`;
-  const last4 = maskLast4(customer.mobile);
-  const tone = VERIFICATION_TONE[customer.verification_status] ?? 'neutral';
-  const addedOn = formatIndianDate(istDayKey(customer.created_at));
+  const last4 = customer.mobileLast4;
+  const tone: Tone = customer.isLinked
+    ? customer.grantExpiresAt &&
+      grantRemainingMs({ status: 'active', expiresAt: customer.grantExpiresAt }) > 0
+      ? 'success'
+      : 'neutral'
+    : (VERIFICATION_TONE[customer.verificationStatus] ?? 'neutral');
+  const addedOn = formatIndianDate(istDayKey(customer.addedAt));
 
   return (
     <TR className="hover:bg-slate-50/60">
       <TD className="py-3.5">
-        <Link href={href} className="font-medium text-brand-700 hover:underline">
-          {customer.customer_code}
-        </Link>
-      </TD>
-      <TD className="py-3.5">
         <Link href={href} className="flex items-center gap-3 font-semibold text-slate-900">
-          <CustomerAvatar id={customer.id} name={customer.full_name} />
-          <span className="hover:underline">{customer.full_name}</span>
+          <CustomerAvatar id={customer.id} name={customer.displayName} />
+          <span className="min-w-0">
+            <span className="block hover:underline">{customer.displayName}</span>
+            {customer.isLinked ? (
+              <span className="mt-0.5 flex items-center gap-1 text-xs font-medium text-slate-500">
+                <RoamingIcon className="h-3.5 w-3.5" />
+                {otherCentreLabel}
+              </span>
+            ) : null}
+          </span>
         </Link>
       </TD>
       <TD className="py-3.5 tabular-nums text-slate-600">{last4 ? `•••••• ${last4}` : '—'}</TD>
-      <TD className="py-3.5 text-slate-600">
-        {customer.current_district ?? customer.permanent_district ?? '—'}
-      </TD>
+      <TD className="py-3.5 text-slate-600">{customer.district ?? '—'}</TD>
       <TD className="py-3.5">
         <Badge tone={tone} className="gap-1 px-2.5 py-1">
-          {tone === 'success' ? <VerifiedIcon className="h-3.5 w-3.5" /> : null}
+          {!customer.isLinked && tone === 'success' ? (
+            <VerifiedIcon className="h-3.5 w-3.5" />
+          ) : null}
           {statusLabel}
         </Badge>
       </TD>

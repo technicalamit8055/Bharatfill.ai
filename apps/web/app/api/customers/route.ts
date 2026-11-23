@@ -5,6 +5,7 @@ import {
   entitlementExceeded,
   findDuplicates,
   maskLast4,
+  normalizeMobile,
   normalizeName,
   type DuplicateCandidateInput,
 } from '@assistigo/core';
@@ -80,13 +81,38 @@ export const POST = handler('api.customers.create', async (request) => {
   const fullName = normalizeName(input.fullName).value ?? input.fullName;
 
   if (!force) {
-    // Narrow the candidate set in SQL, then score properly in the domain layer.
-    const { data: candidates } = await context.supabase
-      .from('customers')
-      .select('id, full_name, mobile, date_of_birth, father_name, address_json')
-      .eq('organization_id', context.organization.id)
-      .is('deleted_at', null)
-      .limit(200);
+    // Narrow the candidate set in SQL, then score properly in the domain layer. Mobile + name
+    // identify a customer, so everyone on the same number is always a candidate — however large
+    // the centre — on top of the 200 most recent for the name-based checks. A family sharing one
+    // phone is normal: the operator sees who is already on it and decides.
+    const columns = 'id, full_name, mobile, date_of_birth, father_name, address_json';
+    const mobile = normalizeMobile(input.mobile ?? null).value;
+    const [recent, sameMobile] = await Promise.all([
+      context.supabase
+        .from('customers')
+        .select(columns)
+        .eq('organization_id', context.organization.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(200),
+      mobile
+        ? context.supabase
+            .from('customers')
+            .select(columns)
+            .eq('organization_id', context.organization.id)
+            .eq('mobile_normalized', mobile)
+            .is('deleted_at', null)
+            .limit(50)
+        : Promise.resolve({ data: [] }),
+    ]);
+    const candidates = [
+      ...new Map(
+        [...(sameMobile.data ?? []), ...(recent.data ?? [])].map((row) => [
+          (row as { id: string }).id,
+          row,
+        ]),
+      ).values(),
+    ];
 
     const duplicates = findDuplicates(
       {

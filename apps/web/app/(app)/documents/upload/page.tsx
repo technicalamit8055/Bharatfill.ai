@@ -31,9 +31,7 @@ export default async function UploadDocumentPage({
     const last4 = maskLast4(customer.mobile ?? null);
     return {
       id: String(customer.id),
-      label: last4
-        ? `${customer.full_name} · ••••${last4}`
-        : `${customer.full_name} · ${customer.customer_code}`,
+      label: last4 ? `${customer.full_name} · ••••${last4}` : String(customer.full_name ?? ''),
     };
   });
 

@@ -1,7 +1,12 @@
 import Link from 'next/link';
 import { notFound as nextNotFound } from 'next/navigation';
 import { Badge, Card, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
-import { APPLICATION_STATUS_LABELS, APPLICATION_STATUS_TONE, formatIndianDate } from '@assistigo/core';
+import {
+  APPLICATION_STATUS_LABELS,
+  APPLICATION_STATUS_TONE,
+  formatIndianDate,
+  maskLast4,
+} from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { localised } from '@/lib/i18n';
@@ -84,7 +89,10 @@ export default async function ApplicationDetailPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/applications" className="text-xs font-medium text-slate-500 hover:text-slate-800">
+          <Link
+            href="/applications"
+            className="text-xs font-medium text-slate-500 hover:text-slate-800"
+          >
             ← {t('applications.title')}
           </Link>
           <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -105,7 +113,11 @@ export default async function ApplicationDetailPage({
           {customer ? (
             <div>
               <p className="text-sm font-medium text-slate-900">{customer.full_name}</p>
-              <p className="mt-0.5 font-mono text-xs text-slate-500">{customer.customer_code}</p>
+              {maskLast4(customer.mobile) ? (
+                <p className="mt-0.5 text-xs tabular-nums text-slate-500">
+                  •••••• {maskLast4(customer.mobile)}
+                </p>
+              ) : null}
               <Link
                 href={`/customers/${customer.id}`}
                 className="mt-2 inline-block text-sm text-brand-700 hover:underline"
@@ -133,7 +145,9 @@ export default async function ApplicationDetailPage({
             <div className="flex justify-between gap-4">
               <dt className="text-slate-500">{t('applications.detail.fee')}</dt>
               <dd className="text-right text-slate-800">
-                {row.amount_charged !== null ? `₹${row.amount_charged}` : t('applications.detail.feeNone')}
+                {row.amount_charged !== null
+                  ? `₹${row.amount_charged}`
+                  : t('applications.detail.feeNone')}
               </dd>
             </div>
             {row.payment_status ? (
@@ -168,11 +182,7 @@ export default async function ApplicationDetailPage({
         </Card>
       ) : null}
 
-      <Checklist
-        applicationId={row.id}
-        documents={documentRows}
-        canUpdate={canUpdate}
-      />
+      <Checklist applicationId={row.id} documents={documentRows} canUpdate={canUpdate} />
 
       <Card title={t('applications.detail.statusHistory')}>
         {statusEventRows.length === 0 ? (
@@ -210,7 +220,9 @@ export default async function ApplicationDetailPage({
 
       <Card title={t('applications.detail.linkedFillSessions')}>
         {fillSessionRows.length === 0 ? (
-          <p className="text-sm text-slate-500">{t('applications.detail.linkedFillSessionsEmpty')}</p>
+          <p className="text-sm text-slate-500">
+            {t('applications.detail.linkedFillSessionsEmpty')}
+          </p>
         ) : (
           <Table>
             <THead>

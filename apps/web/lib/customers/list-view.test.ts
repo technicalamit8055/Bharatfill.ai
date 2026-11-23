@@ -21,18 +21,22 @@ describe('parseListParams', () => {
   });
 
   it('reads valid values', () => {
-    expect(parseListParams({ view: 'roaming', page: '3', per: '25', added: '30d' })).toEqual({
-      view: 'roaming',
+    expect(parseListParams({ page: '3', per: '25', added: '30d' })).toEqual({
+      view: 'all',
       page: 3,
       perPage: 25,
       added: '30d',
     });
   });
 
+  it('opens an old "roaming" tab link on the one list (0044 merged it in)', () => {
+    expect(parseListParams({ view: 'roaming', page: '2' })).toEqual({ ...DEFAULTS, page: 2 });
+  });
+
   it('falls back field by field instead of failing on a bad URL', () => {
-    expect(
-      parseListParams({ view: 'deleted', page: '-2', per: '1000', added: 'forever' }),
-    ).toEqual(DEFAULTS);
+    expect(parseListParams({ view: 'deleted', page: '-2', per: '1000', added: 'forever' })).toEqual(
+      DEFAULTS,
+    );
     expect(parseListParams({ page: 'abc', per: '25' })).toEqual({ ...DEFAULTS, perPage: 25 });
     expect(parseListParams({ page: '1.5' }).page).toBe(1);
   });
@@ -49,8 +53,8 @@ describe('listHref', () => {
 
   it('carries only non-default state', () => {
     expect(listHref(DEFAULTS, { added: '7d', page: 2 })).toBe('/customers?added=7d&page=2');
-    expect(listHref({ ...DEFAULTS, perPage: 50 }, { view: 'roaming' })).toBe(
-      '/customers?view=roaming&per=50',
+    expect(listHref({ ...DEFAULTS, perPage: 50 }, { added: '30d' })).toBe(
+      '/customers?added=30d&per=50',
     );
   });
 });

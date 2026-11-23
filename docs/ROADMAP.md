@@ -689,6 +689,10 @@ Remaining:
       document; Save screen card "Ready for your cyber cafe" / "Only on this phone" with an
       override switch; moving an Other document into a section shares it. Older documents keep
       syncing — not yet run on a device
+- [x] Roaming customers join the centre's customer list (migration 0044): linked on every grant,
+      listed with own customers (masked until access is live, approval each visit); customer
+      codes hidden everywhere in favour of the masked mobile; same-mobile duplicate warning
+      covers the whole centre — run 0044 and `npm run test:rls`
 - [x] Document folders on the dashboard (migration 0043): the customer's Documents tab in the
       app's folders, the phone's folder synced on upload and on move, "From BharatDoc app" tag,
       live refresh for app customers; "Just save — don't read" for any typed upload
