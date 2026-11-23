@@ -25,8 +25,9 @@ export type StoredSettings = {
 /**
  * Which dashboard this build talks to.
  *
- * Baked in at build time (`VITE_DASHBOARD_URL=https://assistigo.ai npm run build:extension`) and
- * defaulting to the local dev server. It must match an origin in the manifest's
+ * Baked in at build time: `npm run build:extension` reads `.env.production`
+ * (https://www.bharatfillai.in); `npm run dev:extension` builds in development mode and falls back
+ * to the local dev server. It must match an origin in the manifest's
  * `externally_connectable`, or the connect page cannot hand the service worker a pairing code.
  */
 const configuredDashboardUrl: unknown = import.meta.env.VITE_DASHBOARD_URL;

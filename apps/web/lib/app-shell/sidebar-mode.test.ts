@@ -14,13 +14,13 @@ describe('sidebar mode preference', () => {
     }
   });
 
-  it('falls back to the expanded sidebar for a missing or unknown value', () => {
-    expect(DEFAULT_SIDEBAR_MODE).toBe('expanded');
-    expect(parseSidebarMode(undefined)).toBe('expanded');
-    expect(parseSidebarMode(null)).toBe('expanded');
-    expect(parseSidebarMode('')).toBe('expanded');
-    expect(parseSidebarMode('Collapsed')).toBe('expanded');
-    expect(parseSidebarMode('1')).toBe('expanded');
+  it('falls back to the expand-on-hover sidebar for a missing or unknown value', () => {
+    expect(DEFAULT_SIDEBAR_MODE).toBe('hover');
+    expect(parseSidebarMode(undefined)).toBe('hover');
+    expect(parseSidebarMode(null)).toBe('hover');
+    expect(parseSidebarMode('')).toBe('hover');
+    expect(parseSidebarMode('Collapsed')).toBe('hover');
+    expect(parseSidebarMode('1')).toBe('hover');
   });
 
   it('writes a site-wide cookie holding only the mode', () => {

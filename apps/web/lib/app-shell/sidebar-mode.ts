@@ -16,7 +16,7 @@ export type SidebarMode = (typeof SIDEBAR_MODES)[number];
 
 export const SIDEBAR_MODE_COOKIE = 'bf-sidebar-mode';
 
-export const DEFAULT_SIDEBAR_MODE: SidebarMode = 'expanded';
+export const DEFAULT_SIDEBAR_MODE: SidebarMode = 'hover';
 
 /** Anything unknown — a missing cookie, an old value, a hand-edited one — falls back. */
 export function parseSidebarMode(value: string | undefined | null): SidebarMode {
