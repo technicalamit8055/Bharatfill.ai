@@ -1,16 +1,28 @@
 import type { Metadata, Viewport } from 'next';
-import { Kalam, Outfit, Plus_Jakarta_Sans, Noto_Sans_Devanagari } from 'next/font/google';
+import { Inter, Kalam, Outfit, Plus_Jakarta_Sans, Noto_Sans_Devanagari } from 'next/font/google';
 import './globals.css';
 import { I18nProvider } from '@/lib/i18n/client';
 import { getLocale } from '@/lib/i18n/server';
 import { siteUrl } from '@/lib/document-tools/structured-data';
 
+/**
+ * The product UI face: dashboard, console, auth and tools. Neutral and legible at the 12–14px
+ * sizes a dense operator screen runs on, with tabular figures for IDs and counts.
+ */
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
+
+/** Landing-page display face only (via `.font-heading`). */
 const outfit = Outfit({
   subsets: ['latin'],
   variable: '--font-outfit',
   display: 'swap',
 });
 
+/** Landing-page body face only (the landing root sets `font-jakarta`). */
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
   variable: '--font-jakarta',
@@ -59,7 +71,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html
       lang={locale}
-      className={`${outfit.variable} ${jakarta.variable} ${devanagari.variable} ${hand.variable}`}
+      className={`${inter.variable} ${outfit.variable} ${jakarta.variable} ${devanagari.variable} ${hand.variable}`}
       suppressHydrationWarning
     >
       <body className="min-h-dvh font-sans antialiased">

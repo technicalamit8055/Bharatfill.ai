@@ -25,7 +25,7 @@ export default function LandingPage() {
 
   return (
     <LaunchDialogProvider signupsOpen={signupsOpen} channelUrl={channelUrl}>
-      <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-blue-500/20 selection:text-blue-900">
+      <div className="min-h-screen bg-slate-50 font-jakarta text-slate-900 [--heading-face:var(--font-outfit)] selection:bg-blue-500/20 selection:text-blue-900">
         <Header />
         <main>
           <Hero />

@@ -171,7 +171,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: [
-          'var(--font-jakarta)',
+          'var(--font-inter)',
           'var(--font-devanagari)',
           'ui-sans-serif',
           'system-ui',
@@ -191,9 +191,8 @@ const config: Config = {
           'sans-serif',
         ],
         outfit: ['var(--font-outfit)', 'var(--font-devanagari)', 'sans-serif'],
-        // Legacy alias — Inter has been retired in favour of Outfit/Jakarta; kept so any
-        // remaining `font-inter` usage still resolves to the new body font instead of erroring.
-        inter: ['var(--font-jakarta)', 'sans-serif'],
+        // The product UI face. Outfit and Jakarta are kept for the marketing landing page only.
+        inter: ['var(--font-inter)', 'var(--font-devanagari)', 'sans-serif'],
         jakarta: ['var(--font-jakarta)', 'var(--font-devanagari)', 'sans-serif'],
         devanagari: ['var(--font-devanagari)', 'sans-serif'],
         hand: ['var(--font-hand)', 'cursive'],

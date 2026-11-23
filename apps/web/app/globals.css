@@ -17,9 +17,18 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
-  /* Headings & display text get the geometric Outfit face, falling back through Devanagari
-   * (Outfit has no Devanagari glyphs) and Plus Jakarta Sans before the system stack. */
-  :where(h1, h2, h3, h4, .font-heading) {
+  /*
+   * Product headings use the same face as body text (Inter), as a working tool should; only the
+   * weight and size change. The marketing landing page swaps in Outfit by setting
+   * `--heading-face` on its root, and `.font-heading` always opts into Outfit explicitly.
+   * Devanagari falls back to Noto Sans in both cases (neither Latin face has those glyphs).
+   */
+  :where(h1, h2, h3, h4) {
+    font-family: var(--heading-face, var(--font-inter)), var(--font-devanagari), sans-serif;
+    @apply tracking-tight;
+  }
+
+  :where(.font-heading) {
     font-family: var(--font-outfit), var(--font-devanagari), var(--font-jakarta), sans-serif;
     @apply tracking-tight;
   }
