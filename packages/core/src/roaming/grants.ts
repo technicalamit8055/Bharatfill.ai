@@ -15,6 +15,7 @@ import {
   ROAMING_DURATION_OPTIONS,
   type RoamingDurationMinutes,
   type RoamingGrantStatus,
+  TRUSTED_CENTRE_DURATION_MINUTES,
 } from './types';
 
 /** The fields of a grant this module needs. Anything wider is the caller's business. */
@@ -60,9 +61,14 @@ export function grantRemainingMs(grant: RoamingGrantLike, now: Date = new Date()
  */
 export function formatGrantRemaining(remainingMs: number): string {
   const totalMinutes = Math.floor(Math.max(0, remainingMs) / 60_000);
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  // A trusted centre's window runs for days (migration 0042); "719h 59m" helps nobody.
+  if (totalMinutes >= 24 * 60) {
+    const days = Math.floor(totalMinutes / (24 * 60));
+    return `${days}d ${pad(Math.floor((totalMinutes % (24 * 60)) / 60))}h`;
+  }
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  const pad = (value: number): string => String(value).padStart(2, '0');
   return hours > 0 ? `${pad(hours)}h ${pad(minutes)}m` : `${pad(minutes)}m`;
 }
 
@@ -101,6 +107,14 @@ export function resolveGrantDuration(minutes: number | null | undefined): Roamin
 export function grantExpiryFrom(grantedAt: Date, durationMinutes: number): Date {
   const capped = Math.min(Math.max(1, Math.floor(durationMinutes)), MAX_ROAMING_DURATION_MINUTES);
   return new Date(grantedAt.getTime() + capped * 60_000);
+}
+
+/**
+ * When a trusted-centre grant starting now would end: exactly 30 days, never more. Separate from
+ * `grantExpiryFrom` so its 12-hour cap keeps applying to every other kind of grant.
+ */
+export function trustedGrantExpiryFrom(grantedAt: Date): Date {
+  return new Date(grantedAt.getTime() + TRUSTED_CENTRE_DURATION_MINUTES * 60_000);
 }
 
 /** True once a code has been superseded, spent or has run out of time or attempts. */

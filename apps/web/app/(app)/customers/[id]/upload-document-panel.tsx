@@ -10,12 +10,12 @@ import {
   DOCUMENT_TYPE_LABELS,
   MAX_UPLOAD_BYTES,
   isAllowedUploadMimeType,
-  isStoreOnlyDocumentType,
   type DocumentType,
 } from '@assistigo/core';
 import type { ExtractionMode } from '@assistigo/ai/types';
 import { useI18n, useTranslations } from '@/lib/i18n/client';
 import { ExtractionModeSelect } from '@/components/documents/extraction-mode-select';
+import { SkipReadingToggle, storeOnlyState } from '@/components/documents/skip-reading-toggle';
 import { ActiveAiVendorNote } from '@/components/documents/active-ai-vendor-note';
 import { ExtractionWarningsAlert } from '@/components/documents/extraction-warnings';
 import { formatBytes } from '@/lib/documents/format';
@@ -33,7 +33,8 @@ import { ExtractionReview, type ReviewField } from '../../documents/[id]/extract
  * instead of sending the operator away to review it later.
  *
  * A photograph or a signature skips all of that (§12.4): there is nothing on it to read, so the
- * reading-method picker goes away and the file is saved as it is (`storeOnly`).
+ * reading-method picker goes away and the file is saved as it is (`storeOnly`). Any other typed
+ * document does the same when the operator ticks "Just save — don't read".
  */
 
 const POLL_INTERVAL_MS = 3000;
@@ -78,15 +79,15 @@ export function UploadDocumentPanel({
   const [documentStatus, setDocumentStatus] = useState<string | null>(null);
   const [result, setResult] = useState<ExtractionGetResponse['extraction']>(null);
   const [reviewed, setReviewed] = useState(false);
-  /** A photo or signature went up as `storeOnly`: there is no extraction coming to wait for. */
+  /** The file went up as `storeOnly`: there is no extraction coming to wait for. */
   const [savedUnread, setSavedUnread] = useState(false);
+  const [skipReading, setSkipReading] = useState(false);
 
   async function fetchExtraction(id: string) {
     try {
       const response = await fetch(`/api/documents/${id}/extraction`);
       const json = (await response.json()) as
-        | { data: ExtractionGetResponse }
-        | { error: { messageKey: string } };
+        { data: ExtractionGetResponse } | { error: { messageKey: string } };
 
       if (!response.ok || 'error' in json) return;
 
@@ -145,14 +146,15 @@ export function UploadDocumentPanel({
     setResult(null);
     setReviewed(false);
     setSavedUnread(false);
+    setSkipReading(false);
     setError(null);
   }
 
-  const storeOnly = isStoreOnlyDocumentType(documentType);
+  const { storeOnly, needsType } = storeOnlyState(documentType, skipReading);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!file) return;
+    if (!file || needsType) return;
 
     setPending(true);
     setError(null);
@@ -173,8 +175,7 @@ export function UploadDocumentPanel({
       });
 
       const intentJson = (await intentResponse.json()) as
-        | { data: { documentId: string; uploadUrl: string } }
-        | { error: { messageKey: string } };
+        { data: { documentId: string; uploadUrl: string } } | { error: { messageKey: string } };
 
       if (!intentResponse.ok || 'error' in intentJson) {
         setError('error' in intentJson ? intentJson.error.messageKey : 'errors.internal');
@@ -207,8 +208,7 @@ export function UploadDocumentPanel({
       });
 
       const processJson = (await processResponse.json()) as
-        | { data: { status: string } }
-        | { error: { messageKey: string } };
+        { data: { status: string } } | { error: { messageKey: string } };
 
       if (!processResponse.ok || 'error' in processJson) {
         setError('error' in processJson ? processJson.error.messageKey : 'errors.internal');
@@ -282,10 +282,16 @@ export function UploadDocumentPanel({
                 </option>
               ))}
             </Select>
-            <p className="text-xs text-slate-500">
-              {t(storeOnly ? 'documents.storeOnly.hint' : 'documents.typeHint')}
-            </p>
+            {storeOnly ? null : <p className="text-xs text-slate-500">{t('documents.typeHint')}</p>}
           </div>
+
+          <SkipReadingToggle
+            id="profile-upload-skip-reading"
+            documentType={documentType}
+            checked={skipReading}
+            onChange={setSkipReading}
+            disabled={pending}
+          />
 
           {storeOnly ? null : (
             <>
@@ -301,7 +307,7 @@ export function UploadDocumentPanel({
 
           {error ? <Alert tone="danger">{t(error)}</Alert> : null}
 
-          <Button type="submit" loading={pending} disabled={!file}>
+          <Button type="submit" loading={pending} disabled={!file || needsType}>
             {t(storeOnly ? 'common.save' : 'documents.upload')}
           </Button>
         </form>
@@ -327,7 +333,10 @@ export function UploadDocumentPanel({
           ) : null}
 
           {result ? (
-            <ExtractionWarningsAlert warnings={result.warnings} title={t('documents.warnings.title')} />
+            <ExtractionWarningsAlert
+              warnings={result.warnings}
+              title={t('documents.warnings.title')}
+            />
           ) : null}
 
           {alreadyReviewed ? (

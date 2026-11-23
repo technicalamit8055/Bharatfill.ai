@@ -7,8 +7,14 @@ import {
   isChallengeUsable,
   isGrantActive,
   resolveGrantDuration,
+  trustedGrantExpiryFrom,
 } from './grants';
-import { MAX_ROAMING_DURATION_MINUTES } from './types';
+import {
+  MAX_ROAMING_DURATION_MINUTES,
+  roamingAppDecisionSchema,
+  roamingOtpRequestSchema,
+  TRUSTED_CENTRE_DURATION_MINUTES,
+} from './types';
 
 const NOW = new Date('2026-09-03T10:00:00.000Z');
 const in2Hours = new Date(NOW.getTime() + 2 * 60 * 60_000).toISOString();
@@ -59,6 +65,12 @@ describe('remaining time', () => {
     expect(formatGrantRemaining(-5)).toBe('00m');
   });
 
+  it("counts a trusted centre's window in days and hours", () => {
+    expect(formatGrantRemaining(24 * 60 * 60_000)).toBe('1d 00h');
+    expect(formatGrantRemaining(30 * 24 * 60 * 60_000 - 60_000)).toBe('29d 23h');
+    expect(formatGrantRemaining(23 * 60 * 60_000 + 59 * 60_000)).toBe('23h 59m');
+  });
+
   it('gives no countdown label when there is no live session', () => {
     expect(grantCountdownLabel(null, NOW)).toBeNull();
     expect(grantCountdownLabel({ status: 'active', expiresAt: twoHoursAgo }, NOW)).toBeNull();
@@ -103,5 +115,32 @@ describe('isChallengeUsable', () => {
     expect(isChallengeUsable({ ...base, consumedAt: NOW.toISOString() }, NOW)).toBe(false);
     expect(isChallengeUsable({ ...base, attemptsLeft: 0 }, NOW)).toBe(false);
     expect(isChallengeUsable({ ...base, expiresAt: twoHoursAgo }, NOW)).toBe(false);
+  });
+});
+
+describe('trusted centres (migration 0042)', () => {
+  it('lasts exactly 30 days', () => {
+    expect(TRUSTED_CENTRE_DURATION_MINUTES).toBe(30 * 24 * 60);
+    expect(trustedGrantExpiryFrom(NOW).getTime() - NOW.getTime()).toBe(30 * 24 * 60 * 60_000);
+  });
+
+  it('is offered to the citizen in the app, and only there', () => {
+    expect(
+      roamingAppDecisionSchema.safeParse({ durationMinutes: TRUSTED_CENTRE_DURATION_MINUTES })
+        .success,
+    ).toBe(true);
+    // An operator picking the window for an OTP can never ask for it.
+    expect(
+      roamingOtpRequestSchema.safeParse({ durationMinutes: TRUSTED_CENTRE_DURATION_MINUTES })
+        .success,
+    ).toBe(false);
+    // Nor any other long window.
+    expect(roamingAppDecisionSchema.safeParse({ durationMinutes: 10_080 }).success).toBe(false);
+  });
+
+  it('leaves the 12-hour cap on every other grant unchanged', () => {
+    const capped = grantExpiryFrom(NOW, TRUSTED_CENTRE_DURATION_MINUTES);
+    expect(capped.getTime() - NOW.getTime()).toBe(MAX_ROAMING_DURATION_MINUTES * 60_000);
+    expect(MAX_ROAMING_DURATION_MINUTES).toBe(720);
   });
 });

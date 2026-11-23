@@ -9,7 +9,7 @@
  * tap it, and Verify is never pressed for them.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { normaliseOtpInput, OTP_LENGTH } from '../../lib/auth/otp';
@@ -44,11 +44,34 @@ export function OtpCodeField({
   const [focused, setFocused] = useState(false);
   const boxIndexes = Array.from({ length }, (_, index) => index);
 
+  /**
+   * Raise the keyboard a moment after mount instead of using `autoFocus`. Inside an Android
+   * `Modal` (the app lock) `autoFocus` runs before the dialog window has focus: the input is
+   * marked focused but the keyboard never shows, and later taps are ignored.
+   */
+  useEffect(() => {
+    if (!autoFocus) return;
+    const timer = setTimeout(() => inputRef.current?.focus(), 250);
+    return () => clearTimeout(timer);
+  }, [autoFocus]);
+
+  /** Tapping the boxes always brings the keyboard up, even if the input already has focus. */
+  const openKeyboard = () => {
+    const input = inputRef.current;
+    if (!input) return;
+    if (input.isFocused()) {
+      input.blur();
+      setTimeout(() => input.focus(), 50);
+    } else {
+      input.focus();
+    }
+  };
+
   /** The box the next digit lands in; stays on the last box once the code is full. */
   const cursorIndex = Math.min(value.length, length - 1);
 
   return (
-    <Pressable accessible={false} onPress={() => inputRef.current?.focus()} style={styles.row}>
+    <Pressable accessible={false} onPress={openKeyboard} style={styles.row}>
       {boxIndexes.map((index) => {
         const digit = value[index];
         const isCursor = focused && index === cursorIndex;
@@ -88,7 +111,6 @@ export function OtpCodeField({
         autoComplete={secure ? 'off' : 'sms-otp'}
         secureTextEntry={secure}
         returnKeyType="done"
-        autoFocus={autoFocus}
         caretHidden
         accessibilityLabel={label}
         style={styles.hiddenInput}

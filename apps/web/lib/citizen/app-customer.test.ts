@@ -26,11 +26,15 @@ import {
   mobileFromAuthPhone,
   removeMirror,
   syncAppCustomerName,
+  updateMirror,
 } from './app-customer';
 import { newDocumentKey, wrapDocumentKey } from './secrets';
 import { sealVaultFile } from './vault-file';
 
 type Row = Record<string, unknown>;
+
+/** Columns the fake database refuses on write, like a database that has not run their migration. */
+let missingColumns = new Set<string>();
 
 function fakeDb(tables: Record<string, Row[]>, objects: Map<string, Buffer>) {
   function builder(table: string) {
@@ -40,7 +44,13 @@ function fakeDb(tables: Record<string, Row[]>, objects: Map<string, Buffer>) {
     const rows = () => (tables[table] ??= []);
     const matching = () => rows().filter((row) => filters.every((f) => f(row)));
 
-    function run(): { data: Row[]; error: null } {
+    function run(): { data: Row[]; error: { code: string } | null } {
+      if (
+        (op === 'insert' || op === 'update') &&
+        Object.keys(payload).some((k) => missingColumns.has(k))
+      ) {
+        return { data: [], error: { code: 'PGRST204' } };
+      }
       if (op === 'insert') {
         const row = { id: randomUUID(), deleted_at: null, ...payload };
         rows().push(row);
@@ -75,7 +85,7 @@ function fakeDb(tables: Record<string, Row[]>, objects: Map<string, Buffer>) {
         const row = run().data[0];
         return row ? { data: row, error: null } : { data: null, error: new Error('no row') };
       },
-      then: (resolve: (value: { data: Row[]; error: null }) => unknown) => resolve(run()),
+      then: (resolve: (value: ReturnType<typeof run>) => unknown) => resolve(run()),
     };
     return api;
   }
@@ -137,6 +147,7 @@ function seedVaultDocument(overrides: Row = {}): Row {
 const asDb = () => db as never;
 
 beforeEach(() => {
+  missingColumns = new Set();
   objects = new Map();
   tables = {
     citizen_accounts: [{ id: CITIZEN, display_name: 'Demo Citizen', customer_id: null }],
@@ -281,6 +292,70 @@ describe('mirrorVaultDocument', () => {
     await mirrorPendingDocuments(asDb(), { citizenId: CITIZEN, phone: PHONE });
     expect(tables.customers).toHaveLength(1);
     expect(tables.documents?.[0]?.customer_id).toBe(tables.customers?.[0]?.id);
+  });
+});
+
+describe('folders reach the customer side (0043)', () => {
+  it('files the copy in the folder the citizen picked on the phone', async () => {
+    const customerId = (await ensureAppCustomer(asDb(), { citizenId: CITIZEN, phone: PHONE }))!;
+    const vault = seedVaultDocument({ category: 'identity' });
+    const documentId = await mirrorVaultDocument(asDb(), CITIZEN, customerId, vault as never);
+    expect(tables.documents?.find((row) => row.id === documentId)?.folder).toBe('identity');
+  });
+
+  it('leaves a copy in no folder when the citizen filed it in none, so it follows its type', async () => {
+    const customerId = (await ensureAppCustomer(asDb(), { citizenId: CITIZEN, phone: PHONE }))!;
+    const vault = seedVaultDocument({ category: 'other' });
+    const documentId = await mirrorVaultDocument(asDb(), CITIZEN, customerId, vault as never);
+    expect(tables.documents?.find((row) => row.id === documentId)?.folder).toBeUndefined();
+  });
+
+  it('carries the folder of a file mirrored on catch-up', async () => {
+    seedVaultDocument({ category: 'academic' });
+    await mirrorPendingDocuments(asDb(), { citizenId: CITIZEN, phone: PHONE });
+    expect(tables.documents?.[0]?.folder).toBe('academic');
+  });
+
+  it('still mirrors the file on a database that has not run 0043, in the folder of its type', async () => {
+    missingColumns = new Set(['folder']);
+    const customerId = (await ensureAppCustomer(asDb(), { citizenId: CITIZEN, phone: PHONE }))!;
+    const vault = seedVaultDocument({ category: 'identity' });
+    const documentId = await mirrorVaultDocument(asDb(), CITIZEN, customerId, vault as never);
+    const document = tables.documents?.find((row) => row.id === documentId);
+    expect(document).toBeDefined();
+    expect(document?.folder).toBeUndefined();
+  });
+
+  it('moves the copy when the citizen moves the document, and other clears it', async () => {
+    const customerId = (await ensureAppCustomer(asDb(), { citizenId: CITIZEN, phone: PHONE }))!;
+    const vault = seedVaultDocument({ category: 'identity' });
+    const documentId = await mirrorVaultDocument(asDb(), CITIZEN, customerId, vault as never);
+    const copy = () => tables.documents?.find((row) => row.id === documentId);
+
+    await updateMirror(asDb(), documentId, {
+      category: 'certificate',
+      mimeType: 'application/pdf',
+    });
+    expect(copy()?.folder).toBe('certificate');
+
+    await updateMirror(asDb(), documentId, { category: 'other', mimeType: 'application/pdf' });
+    expect(copy()?.folder).toBeNull();
+  });
+
+  it('still renames on a database without 0043, dropping only the move', async () => {
+    const customerId = (await ensureAppCustomer(asDb(), { citizenId: CITIZEN, phone: PHONE }))!;
+    const vault = seedVaultDocument();
+    const documentId = await mirrorVaultDocument(asDb(), CITIZEN, customerId, vault as never);
+    missingColumns = new Set(['folder']);
+
+    await updateMirror(asDb(), documentId, {
+      title: 'Renamed',
+      category: 'academic',
+      mimeType: 'application/pdf',
+    });
+    const copy = tables.documents?.find((row) => row.id === documentId);
+    expect(copy?.original_filename).toBe('Renamed.pdf');
+    expect(copy?.folder).toBeUndefined();
   });
 });
 

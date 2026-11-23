@@ -12,14 +12,27 @@ const POLL_INTERVAL_MS = 4000;
  * Stops polling as soon as the page re-renders with nothing left in `processing` — the caller
  * re-mounts this with a fresh `isProcessing` prop on every server refresh.
  */
-export function AutoRefreshWhileProcessing({ isProcessing }: { isProcessing: boolean }) {
+export function AutoRefreshWhileProcessing({
+  isProcessing,
+  intervalMs = POLL_INTERVAL_MS,
+}: {
+  isProcessing: boolean;
+  /**
+   * Slower than the default for a page that only might change — a BharatDoc app customer's
+   * documents, which the citizen can add from the phone at any moment.
+   */
+  intervalMs?: number;
+}) {
   const router = useRouter();
 
   useEffect(() => {
     if (!isProcessing) return;
-    const timer = setInterval(() => router.refresh(), POLL_INTERVAL_MS);
+    // A hidden tab has nobody to show the change to; it catches up when it is looked at again.
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') router.refresh();
+    }, intervalMs);
     return () => clearInterval(timer);
-  }, [isProcessing, router]);
+  }, [isProcessing, intervalMs, router]);
 
   return null;
 }

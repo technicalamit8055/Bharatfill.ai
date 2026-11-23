@@ -69,6 +69,7 @@ describe('profile screen', () => {
     expect(PROFILE_MENU_ITEMS).toEqual([
       'personal',
       'security',
+      'centres',
       'notifications',
       'language',
       'appearance',

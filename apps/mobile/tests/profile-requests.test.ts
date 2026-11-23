@@ -47,8 +47,8 @@ describe('nextProfileRequest', () => {
 });
 
 describe('durations', () => {
-  it('offers 1, 2 and 4 hours, 2 by default', () => {
-    expect(PROFILE_ACCESS_OPTIONS).toEqual([60, 120, 240]);
+  it('offers 1, 2 and 4 hours or 30 days (a trusted centre), 2 hours by default', () => {
+    expect(PROFILE_ACCESS_OPTIONS).toEqual([60, 120, 240, 43_200]);
     expect(DEFAULT_PROFILE_ACCESS_MINUTES).toBe(120);
   });
 
@@ -119,7 +119,10 @@ describe('copy', () => {
     'profileRequest.approvedBody',
     'profileRequest.deniedTitle',
     'profileRequest.deniedBody',
+    'profileRequest.approvedTrustedBody',
+    'profileRequest.trustedNote',
     'errors.roaming_request_missing',
+    'errors.roaming_trusted_limit',
   ];
 
   const lookup = (catalogue: unknown, key: string): unknown =>

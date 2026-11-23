@@ -13,6 +13,7 @@
 
 import {
   CITIZEN_DEVICE_HEADER,
+  type DocumentFolder,
   ROAMING_PURPOSES,
   type DocumentType,
   VAULT_FILE_MIME_TYPES,
@@ -67,6 +68,20 @@ const profileRequestSchema = z.object({
 });
 export type ProfileRequest = z.infer<typeof profileRequestSchema>;
 
+/** One session on the Centre access screen (migration 0042). Centre, purpose and times only. */
+const centreAccessSchema = z.object({
+  grantId: z.string().uuid(),
+  centreName: z.string(),
+  purpose: z.enum(ROAMING_PURPOSES),
+  targetSchemeSlug: z.string().nullable(),
+  trusted: z.boolean(),
+  grantedAt: z.string(),
+  expiresAt: z.string(),
+  state: z.enum(['live', 'ended_by_you', 'ended_by_centre', 'expired']),
+  endedAt: z.string().nullable(),
+});
+export type CentreAccess = z.infer<typeof centreAccessSchema>;
+
 // ---- Vault access by centres (design §4.2): requests to approve, live grants, share codes. ----
 const vaultRequestSchema = z.object({
   id: z.string().uuid(),
@@ -93,8 +108,8 @@ export type VaultShareChoice = {
   readonly allowCopy: boolean;
 };
 
-/** The windows the citizen may give a centre. */
-export type ProfileAccessMinutes = 60 | 120 | 240;
+/** The windows the citizen may give a centre. 43200 (30 days) trusts the centre (0042). */
+export type ProfileAccessMinutes = 60 | 120 | 240 | 43200;
 
 export type DeviceInfo = { platform: 'android' | 'ios'; label?: string };
 
@@ -129,6 +144,8 @@ export type UploadIntentInput = {
   /** Plaintext size; the upload is this plus VAULT_FILE_OVERHEAD_BYTES. */
   sizeBytes: number;
   pageCount: number;
+  /** The vault folder it is filed in (`other`: none), so the dashboard shows it there too. */
+  category: DocumentFolder;
 };
 
 export type CreateAccountInput = {
@@ -284,6 +301,27 @@ export function createCitizenApi(deps: CitizenApiDeps) {
     denyProfileRequest: (requestId: string) =>
       call('POST', `/api/citizen/profile-requests/${encodeURIComponent(requestId)}/deny`, z.null()),
 
+    // ---- Centres that can use the citizen's details (migration 0042). ------------------
+    /** Live sessions and the last 30 days. */
+    listCentreAccess: () =>
+      call(
+        'GET',
+        '/api/citizen/centre-access',
+        z.object({ sessions: z.array(centreAccessSchema) }).transform((v) => v.sessions),
+      ),
+    /** Stop: the centre loses access at once. */
+    stopCentreAccess: (grantId: string) =>
+      call('POST', `/api/citizen/centre-access/${encodeURIComponent(grantId)}/stop`, z.null()),
+    /** Keep this live session for 30 days, or renew a trusted one. */
+    trustCentreAccess: (grantId: string) =>
+      call(
+        'POST',
+        `/api/citizen/centre-access/${encodeURIComponent(grantId)}/trust`,
+        z
+          .object({ trusted: z.object({ grantId: z.string().uuid(), expiresAt: z.string() }) })
+          .transform((v) => v.trusted),
+      ),
+
     // ---- Centres asking for the vault (design §4.2). Approve and code need this phone. ----
     /** Pending requests and grants (live or recent). */
     getVaultAccess: () =>
@@ -339,7 +377,7 @@ export function createCitizenApi(deps: CitizenApiDeps) {
     updateDocument: (
       deviceId: string,
       documentId: string,
-      patch: { title?: string; documentType?: DocumentType },
+      patch: { title?: string; documentType?: DocumentType; category?: DocumentFolder },
     ) =>
       call(
         'PATCH',

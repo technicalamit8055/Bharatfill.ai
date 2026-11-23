@@ -383,6 +383,49 @@ describe('constraints', () => {
     expect(error).not.toBeNull();
   });
 
+  // Migration 0042 — trusted centres. Only `app_trusted` may run past twelve hours.
+  it('still rejects a thirty-day grant for every method but app_trusted', async () => {
+    for (const method of ['otp', 'app_approval', 'qr_consent', 'biometric']) {
+      const { error } = await fixture.admin.from('customer_access_grants').insert({
+        customer_id: customerId,
+        organization_id: fixture.orgB.id,
+        granted_to_user_id: fixture.orgB.usersByRole.operator.id,
+        status: 'active',
+        auth_method: method,
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60_000 - 60_000).toISOString(),
+      });
+      expect(error, method).not.toBeNull();
+    }
+  });
+
+  it('accepts a trusted centre for up to thirty days, never longer', async () => {
+    const day = 24 * 60 * 60_000;
+    const { data, error } = await fixture.admin
+      .from('customer_access_grants')
+      .insert({
+        customer_id: customerId,
+        organization_id: fixture.orgB.id,
+        granted_to_user_id: fixture.orgB.usersByRole.operator.id,
+        status: 'active',
+        auth_method: 'app_trusted',
+        expires_at: new Date(Date.now() + 30 * day - 60_000).toISOString(),
+      })
+      .select('id')
+      .single();
+    expect(error).toBeNull();
+    await fixture.admin.from('customer_access_grants').delete().eq('id', data?.id as string);
+
+    const { error: tooLong } = await fixture.admin.from('customer_access_grants').insert({
+      customer_id: customerId,
+      organization_id: fixture.orgB.id,
+      granted_to_user_id: fixture.orgB.usersByRole.operator.id,
+      status: 'active',
+      auth_method: 'app_trusted',
+      expires_at: new Date(Date.now() + 31 * day).toISOString(),
+    });
+    expect(tooLong).not.toBeNull();
+  });
+
   it('rejects a customer roam-linking to its own home centre', async () => {
     const { error } = await fixture.admin.from('customer_roaming_links').insert({
       organization_id: fixture.orgA.id,

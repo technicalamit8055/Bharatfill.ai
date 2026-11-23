@@ -3,12 +3,23 @@
  * sheet follows, kept free of React Native so they are tested in Node.
  *
  * The citizen — not the operator — chooses how long a centre may use their details: 1, 2 or 4
- * hours, 2 by default (the length of a counter queue plus a form).
+ * hours, 2 by default (the length of a counter queue plus a form), or 30 days to trust a centre
+ * they visit often (migration 0042).
  */
+
+import { TRUSTED_CENTRE_DURATION_MINUTES } from '@assistigo/core';
 
 import type { ProfileAccessMinutes, ProfileRequest } from '../cloud/citizen-api';
 
-export const PROFILE_ACCESS_OPTIONS: readonly ProfileAccessMinutes[] = [60, 120, 240];
+/** 30 days: a trusted centre. */
+export const TRUSTED_ACCESS_MINUTES = TRUSTED_CENTRE_DURATION_MINUTES;
+
+export const PROFILE_ACCESS_OPTIONS: readonly ProfileAccessMinutes[] = [
+  60,
+  120,
+  240,
+  TRUSTED_ACCESS_MINUTES,
+];
 export const DEFAULT_PROFILE_ACCESS_MINUTES: ProfileAccessMinutes = 120;
 
 /** How often the open app asks for new requests. */

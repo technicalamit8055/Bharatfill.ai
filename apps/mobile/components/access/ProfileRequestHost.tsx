@@ -1,7 +1,8 @@
 /**
  * "Allow access to your details?" — the sheet a centre's request (migration 0039) raises over
  * whichever tab is open. The citizen sees which centre is asking and why, picks how long the
- * centre may use their saved details (1, 2 or 4 hours), and taps Approve or Deny.
+ * centre may use their saved details (1, 2 or 4 hours, or 30 days to trust a centre they visit
+ * often — migration 0042), and taps Approve or Deny.
  *
  * Mounted once, in the tab shell. Shows nothing in offline builds, when signed out, or when no
  * request is open. Names the centre and the purpose only — never a document.
@@ -18,7 +19,9 @@ import {
   nextProfileRequest,
   PROFILE_ACCESS_OPTIONS,
   requestMinutesLeft,
+  TRUSTED_ACCESS_MINUTES,
 } from '../../lib/access/profile-requests';
+import { MAX_TRUSTED_CENTRES } from '../../lib/access/centre-access';
 import type { ProfileAccessMinutes } from '../../lib/cloud/citizen-api';
 import { citizenApi } from '../../lib/cloud/session';
 import { useProfileRequests } from '../../lib/cloud/use-profile-requests';
@@ -93,7 +96,9 @@ export function ProfileRequestHost() {
       if (decision === 'approve') {
         showDialog(
           t('profileRequest.approvedTitle'),
-          t('profileRequest.approvedBody', { centre, duration: t(durationKey(minutes)) }),
+          minutes === TRUSTED_ACCESS_MINUTES
+            ? t('profileRequest.approvedTrustedBody', { centre })
+            : t('profileRequest.approvedBody', { centre, duration: t(durationKey(minutes)) }),
           [{ text: t('common.ok') }],
           { tone: 'success' },
         );
@@ -161,11 +166,18 @@ export function ProfileRequestHost() {
             })}
           </View>
 
+          {minutes === TRUSTED_ACCESS_MINUTES ? (
+            <Text style={styles.trustedNote}>
+              {t('profileRequest.trustedNote', { max: MAX_TRUSTED_CENTRES })}
+            </Text>
+          ) : null}
           <Text style={styles.warning}>{t('profileRequest.warning')}</Text>
           {left > 0 ? (
             <Text style={styles.muted}>{t('profileRequest.expiresIn', { minutes: left })}</Text>
           ) : null}
-          {errorKey ? <Text style={styles.error}>{t(errorKey)}</Text> : null}
+          {errorKey ? (
+            <Text style={styles.error}>{t(errorKey, { max: MAX_TRUSTED_CENTRES })}</Text>
+          ) : null}
 
           <View style={styles.actions}>
             <Pressable
@@ -280,12 +292,17 @@ const styles = StyleSheet.create({
     backgroundColor: palette.tones.brand.halo,
   },
   chipText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: palette.body,
   },
   chipTextSelected: {
     color: palette.primary,
+  },
+  trustedNote: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: palette.body,
   },
   warning: {
     fontSize: 13,

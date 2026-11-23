@@ -64,13 +64,13 @@ An owner may bring their own vendor instead of the deployment's. When an organiz
 uses it — provider name `org_ai_vendor` — in place of `OCR_AI_PROVIDER`; with no row, the
 environment reader is used exactly as before.
 
-| Setting         | Rule                                                                                                                                                                                      |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Setting         | Rule                                                                                                                                                                                                |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `provider`      | UI preset: `openai`, `anthropic`, `deepseek`, `gemini`, `vertex`, `ollama`, `openrouter`, `custom` (`apps/web/lib/ai/vendor-settings.ts`); presets supply a default base URL, model and wire format |
-| `base_url`      | `https://` only; localhost, private ranges, `.local` and the cloud metadata address refused                                                                                               |
-| `model`         | falls back to the preset's default when blank                                                                                                                                             |
-| `api_key`       | AES-256-GCM at rest; never returned — the API reports `hasApiKey` only                                                                                                                    |
-| `custom_prompt` | ≤ 8 000 chars; switches the reader into structured mode (below)                                                                                                                           |
+| `base_url`      | `https://` only; localhost, private ranges, `.local` and the cloud metadata address refused                                                                                                         |
+| `model`         | falls back to the preset's default when blank                                                                                                                                                       |
+| `api_key`       | AES-256-GCM at rest; never returned — the API reports `hasApiKey` only                                                                                                                              |
+| `custom_prompt` | ≤ 8 000 chars; switches the reader into structured mode (below)                                                                                                                                     |
 
 Routes: `GET/PUT/DELETE /api/organizations/ai-settings` (read: any member; write: `org.security`,
 owner only) and `POST /api/organizations/ai-settings/test-connection` (owner; sends one trivial
@@ -117,9 +117,16 @@ Three rules hold whichever method was picked, and are enforced in `packages/ai/s
 so when the operator picks Photograph or Signature as the type, both upload forms hide the picker
 and post `storeOnly: true` instead of a method. `/process` still sniffs the magic bytes, then marks
 the document `stored` without queueing `ocr.extract`: no reader runs, no extraction quota is
-needed, nothing leaves the server. The server refuses `storeOnly` (409,
-`documents.errors.storeOnlyType`) for any type outside `STORE_ONLY_DOCUMENT_TYPES`, and the
-document page offers no "Read again" on a stored file.
+needed, nothing leaves the server. The document page offers no "Read again" on a stored photo or
+signature.
+
+**Any other document can be kept unread too** (product owner, 2026-11-23). Both upload forms have a
+**"Just save — don't read"** tick — on and fixed for Photograph and Signature, optional for every
+other type — for a passport copy, an old receipt or any file the operator only needs to keep. It
+posts the same `storeOnly: true`. The server refuses it (409, `documents.errors.storeOnlyType`)
+only for a document still without a type (`unknown`): detecting the type is itself a read, and a
+kept file must say what it is. Such a file shows "Saved", and its document page keeps **Read
+again**, so its details can be read the day they are needed.
 
 The skip is the operator's explicit choice, never inferred from `documents.document_type`. That
 column also holds a citizen's drop hint and the last classification, and the classifier calls
@@ -175,13 +182,13 @@ The operator sees `documents.warnings.aiDynamicExtractionUsed`.
 
 ### What each reader cannot do
 
-| Reader | Limitation                                                                                                                                                                                                                                                                                                                                                                 |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| local  | Cannot read a photograph or a scanned PDF: there is no OCR engine on the box.                                                                                                                                                                                                                                                                                              |
-| local  | Decodes fonts only through their `/ToUnicode` map (browser and Word PDFs ship one; pages, object streams and form XObjects are walked for it). A font with no map is reported as "no text", never as nonsense — `looksLikeProse` in `pdf-text.ts` is that guard.                                                                                  |
-| local  | Devanagari is drawn, not typed, in order. Drawn-order ि is moved back after its consonant; a line with an unmapped conjunct or reph glyph loses **all** its Hindi words (English kept), so a partial name such as `राम` for `राम शर्मा` is never proposed (`repairDevanagari`).                                                                                            |
+| Reader | Limitation                                                                                                                                                                                                                                                                                                                                                                         |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| local  | Cannot read a photograph or a scanned PDF: there is no OCR engine on the box.                                                                                                                                                                                                                                                                                                      |
+| local  | Decodes fonts only through their `/ToUnicode` map (browser and Word PDFs ship one; pages, object streams and form XObjects are walked for it). A font with no map is reported as "no text", never as nonsense — `looksLikeProse` in `pdf-text.ts` is that guard.                                                                                                                   |
+| local  | Devanagari is drawn, not typed, in order. Drawn-order ि is moved back after its consonant; a line with an unmapped conjunct or reph glyph loses **all** its Hindi words (English kept), so a partial name such as `राम` for `राम शर्मा` is never proposed (`repairDevanagari`).                                                                                                    |
 | AI     | A chat-completions endpoint takes images, not PDFs. A text-bearing PDF is read locally and its text sent instead (as a plain-text message, no image part); a **scanned** PDF is refused with `AI_NEEDS_IMAGE`, because rasterising would need a new dependency. The exception is a Gemini / Vertex AI / `googleapis.com` endpoint, which is sent the PDF directly (same 6 MB cap). |
-| AI     | Images over 6 MB are refused rather than turned into a request that fails slowly.                                                                                                                                                                                                                                                                                          |
+| AI     | Images over 6 MB are refused rather than turned into a request that fails slowly.                                                                                                                                                                                                                                                                                                  |
 
 Every one of these becomes an operator-facing warning under `documents.warnings.*`, in `en` and
 `hi`.

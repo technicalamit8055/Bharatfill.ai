@@ -24,6 +24,8 @@ import {
   FileCheck2,
   FileText,
   Filter,
+  Folder,
+  FolderOpen,
   Globe,
   GraduationCap,
   History,
@@ -35,11 +37,13 @@ import {
   Megaphone,
   MessageCircle,
   Pencil,
+  PenLine,
   Phone,
   Plus,
   Printer,
   Search,
   ShieldCheck,
+  Smartphone,
   StickyNote,
   Sparkles,
   Trash2,
@@ -107,6 +111,12 @@ export const BankingSectionIcon = icon(Landmark);
 
 export const AddDetailsIcon = icon(ClipboardPlus);
 export const DocumentsIcon = icon(FileText);
+
+// Document folders (same sections as the BharatDoc app vault)
+export const AllFoldersIcon = icon(FolderOpen);
+export const PhotoSignatureFolderIcon = icon(PenLine);
+export const OtherFolderIcon = icon(Folder);
+export const FromAppIcon = icon(Smartphone);
 export const ApplicationsIcon = icon(ClipboardList);
 export const FillSessionsIcon = icon(FileCheck2);
 export const ActivityIcon = icon(History);

@@ -546,6 +546,13 @@ customer's consent OTP, get time-boxed read access. `docs/DATABASE.md` (0024, 00
       `apps/web/lib/roaming/app-approval.ts` (+ test), `POST/GET/DELETE …/roaming/app-request`,
       `/api/citizen/profile-requests[/:id/approve|deny]`, extension `RoamingAuthBanner`,
       app `components/access/ProfileRequestHost.tsx` (polls every 6 s while open; push is Phase 3)
+- [x] Centre access and trusted centres (migration 0042, 2026-11-23): app Profile → Centre access
+      lists live and recent roaming sessions with Stop; the citizen can trust a centre for
+      30 days (approval sheet or a live session), renew in the last week, ≤ 3 at once.
+      `lib/roaming/citizen-sessions.ts` (+ test), `/api/citizen/centre-access[/:id/stop|trust]`,
+      app `app/centre-access.tsx`, `lib/access/centre-access.ts` (+ test). Design §14
+- [ ] **Product owner / legal:** trusted-centre consent text; owner MFA before 90-day or
+      centre-wide trust (design D15); per-access alerts need push
 - [ ] App approval: dashboard `roaming-auth-modal` still offers OTP only; RLS test for
       `customer_access_requests`; works only once app phone sign-in has a live SMS sender
 - [ ] **Product owner:** OTP goes over WhatsApp only; SMS vendor not chosen
@@ -676,6 +683,10 @@ Remaining:
 - [ ] Restore by old-phone approval and the 7-day hold (design §3.3)
 - [x] Cloud sync (design §3.2): upload intent, encrypted upload, confirm, rename, delete,
       "Keep on this phone only" — not yet run on a device
+- [x] Document folders on the dashboard (migration 0043): the customer's Documents tab in the
+      app's folders, the phone's folder synced on upload and on move, "From BharatDoc app" tag,
+      live refresh for app customers; "Just save — don't read" for any typed upload
+      (`docs/AI_PIPELINE.md`) — run 0043 against the database
 - [ ] Sync sweep: unconfirmed uploads and failed byte deletions (needs the jobs scheduler)
 - [ ] Bring synced documents back onto a restored phone
 - [x] Bridge API (design §6): operator lookup, share-code unlock, request status, grant

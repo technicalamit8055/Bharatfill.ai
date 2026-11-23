@@ -187,6 +187,8 @@ export type DocumentRow = Timestamps & {
   is_sensitive: boolean;
   expires_at: string | null;
   label: string | null;
+  /** Migration 0043. Null: the folder of `document_type` (`documentFolder` in core). */
+  folder: 'identity' | 'academic' | 'certificate' | 'form_asset' | 'other' | null;
   uploaded_by: string | null;
   deleted_at: string | null;
 };
@@ -712,7 +714,8 @@ export type PlatformChannelSettingsRow = Timestamps & {
 
 export type RoamingPurposeValue =
   'form_filling' | 'scheme_application' | 'profile_update' | 'document_access';
-export type RoamingAuthMethodValue = 'otp' | 'qr_consent' | 'biometric' | 'app_approval';
+export type RoamingAuthMethodValue =
+  'otp' | 'qr_consent' | 'biometric' | 'app_approval' | 'app_trusted';
 export type RoamingGrantStatusValue = 'active' | 'expired' | 'revoked';
 export type RoamingOtpChannelValue = 'whatsapp' | 'sms';
 
@@ -777,7 +780,8 @@ export type CustomerAccessRequestRow = {
   purpose: RoamingPurposeValue;
   target_scheme_slug: string | null;
   status: 'pending' | 'approved' | 'denied' | 'expired';
-  duration_minutes: 60 | 120 | 240 | null;
+  // 43200 = 30 days, a trusted centre (migration 0042).
+  duration_minutes: 60 | 120 | 240 | 43200 | null;
   grant_id: string | null;
   expires_at: string;
   decided_at: string | null;

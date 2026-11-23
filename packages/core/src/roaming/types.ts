@@ -42,8 +42,18 @@ export const ROAMING_PURPOSE_LABELS: Record<RoamingPurpose, { en: string; hi: st
  * constraint and here so that adding one later is a new code path rather than a migration on a
  * table that already holds live consent records — but nothing in the product mints them yet, and
  * a grant that claims one would be a bug.
+ *
+ * `app_trusted` (migration 0042) is an app approval where the citizen chose to trust the centre
+ * for 30 days instead of a few hours. It is the only method the database lets run past 12 hours,
+ * and only an approval in the citizen's own app can mint it — never an OTP read across a counter.
  */
-export const ROAMING_AUTH_METHODS = ['otp', 'qr_consent', 'biometric', 'app_approval'] as const;
+export const ROAMING_AUTH_METHODS = [
+  'otp',
+  'qr_consent',
+  'biometric',
+  'app_approval',
+  'app_trusted',
+] as const;
 export type RoamingAuthMethod = (typeof ROAMING_AUTH_METHODS)[number];
 
 export const ROAMING_GRANT_STATUSES = ['active', 'expired', 'revoked'] as const;
@@ -68,6 +78,19 @@ export const DEFAULT_ROAMING_DURATION_MINUTES: RoamingDurationMinutes = 120;
 
 /** Matches the `customer_access_grants_is_time_boxed` constraint in migration 0024. */
 export const MAX_ROAMING_DURATION_MINUTES = 720;
+
+/**
+ * Trusted centre (migration 0042; docs/VAULT_BRIDGE_DESIGN.md D2): the citizen lets the operator
+ * who served them keep access for 30 days, so a regular customer is not asked again on every
+ * visit. Chosen only in the citizen's app, renewable there with one tap, stoppable any time.
+ *
+ * 30 days rather than the design's 90 because the design's other guard — TOTP MFA for the
+ * centre owner (D15) — does not exist yet. Matches `customer_access_grants_is_time_boxed`.
+ */
+export const TRUSTED_CENTRE_DURATION_MINUTES = 43_200;
+
+/** Live trusted grants one citizen may hold at once (design §7: "≤ 3 per citizen"). */
+export const MAX_TRUSTED_CENTRES = 3;
 
 /** How long an unused consent code stays valid. Mirrors the challenge table's default. */
 export const ROAMING_OTP_TTL_MINUTES = 5;
@@ -220,9 +243,17 @@ export const roamingAppRequestSchema = z.object({
 });
 export type RoamingAppRequestInput = z.infer<typeof roamingAppRequestSchema>;
 
-/** The citizen's answer in the app: how long the centre may use their profile. */
+/**
+ * The citizen's answer in the app: how long the centre may use their profile. 30 days
+ * (`TRUSTED_CENTRE_DURATION_MINUTES`) makes it a trusted centre (migration 0042).
+ */
 export const roamingAppDecisionSchema = z.object({
-  durationMinutes: z.union([z.literal(60), z.literal(120), z.literal(240)]),
+  durationMinutes: z.union([
+    z.literal(60),
+    z.literal(120),
+    z.literal(240),
+    z.literal(TRUSTED_CENTRE_DURATION_MINUTES),
+  ]),
 });
 export type RoamingAppDecisionInput = z.infer<typeof roamingAppDecisionSchema>;
 
@@ -239,6 +270,24 @@ export type CitizenProfileRequestView = {
   purpose: RoamingPurpose;
   expiresAt: string;
   createdAt: string;
+};
+
+/**
+ * One session as the citizen's "Centre access" screen shows it: which centre, why, until when,
+ * and how it ended. Never the operator's name, the customer record or a document.
+ */
+export type CitizenCentreAccessView = {
+  grantId: string;
+  centreName: string;
+  purpose: RoamingPurpose;
+  targetSchemeSlug: string | null;
+  /** Thirty-day access the citizen chose (migration 0042). */
+  trusted: boolean;
+  grantedAt: string;
+  expiresAt: string;
+  /** `live` while the centre can open the details; otherwise who or what ended it. */
+  state: 'live' | 'ended_by_you' | 'ended_by_centre' | 'expired';
+  endedAt: string | null;
 };
 
 export const roamingOtpVerifySchema = z.object({

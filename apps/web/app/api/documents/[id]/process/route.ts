@@ -14,8 +14,9 @@ const idSchema = z.string().uuid();
  * the same instruction. Absent means "do not change how this document is read"; `auto` is a
  * choice, and a choice may overwrite the method already queued (see `claim_document_job`).
  *
- * `storeOnly` is the upload forms saying the operator picked Photograph or Signature: keep the
- * file, read nothing (§12.4). The server re-checks the document's type rather than trusting it.
+ * `storeOnly` is the upload forms saying "keep the file, read nothing" (§12.4): always for a
+ * Photograph or Signature, and for any typed document the operator ticked "Just save — don't
+ * read" for. The server refuses it for a document still without a type.
  */
 const bodySchema = z.object({
   extractionMode: extractionModeSchema.optional(),

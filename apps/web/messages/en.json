@@ -429,7 +429,8 @@
       "eligibleFor": "Eligible for",
       "requestAccess": "🔐 Request customer access",
       "modalTitle": "Request access",
-      "modalHelp": "Tell the customer why you need access. A one-time code will be sent to their own phone.",
+      "modalSubtitle": "Choose how the customer will approve your request.",
+      "modalHelp": "A one-time code is sent to the customer’s own phone on WhatsApp. They read it back to you.",
       "purposeLabel": "Purpose",
       "durationLabel": "Access duration",
       "durationOption": "{hours}h",
@@ -458,11 +459,11 @@
         "pages": "{count} page(s)",
         "view": "View"
       },
-      "methodLabel": "How the customer approves",
-      "methodApp": "📱 BharatDoc app",
-      "methodOtp": "🔢 WhatsApp code",
-      "appHelp": "Tell the customer why you need access. The request goes to their BharatDoc app, where they tap Approve and choose how long: 1, 2 or 4 hours.",
-      "sendAppRequest": "Send request to BharatDoc app",
+      "methodLabel": "Approval method",
+      "methodApp": "BharatDoc app",
+      "methodOtp": "WhatsApp code",
+      "appHelp": "The customer receives your request in BharatDoc and can approve it for 1, 2 or 4 hours, or trust your centre for 30 days.",
+      "sendAppRequest": "Send request",
       "appWaiting": "Waiting for the customer to tap Approve in the BharatDoc app ({countdown} left). They choose how long you get access.",
       "appDeclined": "The customer declined the request in the app.",
       "appExpired": "The request expired. Send it again, or use a WhatsApp code.",
@@ -1405,6 +1406,8 @@
     "roaming_otp_expired": "That code has expired or was already used. Request a new one.",
     "roaming_otp_incorrect": "That code is not correct. Please check and try again.",
     "roaming_no_active_session": "There is no active roaming session to end.",
+    "roaming_grant_missing": "This access has already ended or is not available.",
+    "roaming_trusted_limit": "You already trust {max} centres. Stop one before trusting another.",
     "console_session_required": "Sign in to the console to continue.",
     "organization_suspended": "This centre’s access has been paused by Bharatfill. Contact support to restore it.",
     "portal_credential_exists": "This customer already has a saved login for that portal. Edit it instead.",
@@ -1477,7 +1480,22 @@
     "storeOnly": {
       "hint": "Photos and signatures are saved as they are. Nothing is read from them, and nothing is sent to an AI provider.",
       "savedTitle": "Saved without reading",
-      "savedHelp": "Photos and signatures are kept exactly as uploaded and used as they are when a form asks for one. To have a document read, upload it with a different document type."
+      "savedHelp": "Kept exactly as uploaded; nothing was read from it. Photos and signatures are used as they are when a form asks for one. For any other document, press Read again whenever you need its details filled in.",
+      "toggle": "Just save — don't read it",
+      "toggleHint": "For a passport photo, a signature or any file you only need to keep. Nothing is read, nothing is sent to an AI provider and no reading credit is used. You can press Read again later if you need its details.",
+      "needsType": "Choose the document type above — a file saved without reading must say what it is."
+    },
+    "folders": {
+      "label": "Document folders",
+      "all": "All documents",
+      "identity": "Identity",
+      "academic": "Education",
+      "certificate": "Certificates",
+      "form_asset": "Photo & signature",
+      "other": "Other",
+      "empty": "No documents in this folder yet.",
+      "fromApp": "From BharatDoc app",
+      "appNote": "These documents come from the customer's BharatDoc app. Anything they add or change on their phone shows up here on its own, in the folder they chose."
     },
     "statuses": {
       "uploaded": "Uploaded",
@@ -1492,7 +1510,7 @@
     },
     "errors": {
       "uploadFailed": "The file could not be uploaded. Please try again.",
-      "storeOnlyType": "Only a photograph or a signature can be saved without being read."
+      "storeOnlyType": "Choose a document type before saving without reading."
     },
     "warnings": {
       "title": "Notes on this extraction",

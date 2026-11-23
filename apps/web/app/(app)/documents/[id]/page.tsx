@@ -8,6 +8,7 @@ import {
   formatIndianDate,
   getCustomerField,
   isDocumentType,
+  isStoreOnlyDocumentType,
 } from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
@@ -138,11 +139,13 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
             // runs through the process route, which is own-centre only.
             canDelete={!isAppDocument && session.permissions.has('document.delete')}
             // A photo or signature saved unread has nothing to read; offering "Read again" would
-            // only invite sending it to the AI reader for nothing (§12.4).
+            // only invite sending it to the AI reader for nothing (§12.4). Any other document
+            // kept with "Just save — don't read" can still be read whenever its details are
+            // needed — that is the whole point of letting the operator skip it at upload.
             canProcess={
               !isAppDocument &&
               session.permissions.has('document.upload') &&
-              document.status !== 'stored'
+              !(document.status === 'stored' && isStoreOnlyDocumentType(document.document_type))
             }
           />
         </div>

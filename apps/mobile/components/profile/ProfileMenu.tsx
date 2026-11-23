@@ -6,6 +6,7 @@
 
 import {
   Bell,
+  Building2,
   ChevronRight,
   CircleHelp,
   Globe,
@@ -26,6 +27,7 @@ const ICON_WELL_SIZE = 50;
 const ICONS: Record<ProfileMenuItem, LucideIcon> = {
   personal: UserRound,
   security: LockKeyhole,
+  centres: Building2,
   notifications: Bell,
   language: Globe,
   appearance: Palette,

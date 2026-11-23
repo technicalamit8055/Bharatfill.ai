@@ -1,43 +1,51 @@
 import Link from 'next/link';
-import { Badge, ProgressBar, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
-import { DOCUMENT_TYPE_LABELS, formatIndianDate, isDocumentType } from '@assistigo/core';
+import {
+  CITIZEN_APP_ORGANIZATION_ID,
+  DOCUMENT_TYPE_LABELS,
+  documentFolder,
+  formatIndianDate,
+  isDocumentType,
+} from '@assistigo/core';
 import { getTranslations } from '@/lib/i18n/server';
 import { localised } from '@/lib/i18n';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { isMissingColumnError } from '@/lib/supabase/missing-column';
 import { formatBytes } from '@/lib/documents/format';
 import { AutoRefreshWhileProcessing } from '@/components/documents/auto-refresh-while-processing';
 import type { DocumentRow } from '@/lib/supabase/database.types';
 import { DocumentsIcon, PlusIcon } from '../icons';
 import { DetailCard, DetailEmpty, PRIMARY_BUTTON } from './detail-card';
-import { DocumentRowActions } from './document-row-actions';
+import { DocumentFolders, type FolderDocument } from './document-folders';
 
-const STATUS_TONE: Record<string, 'neutral' | 'info' | 'success' | 'warning' | 'danger'> = {
-  uploaded: 'neutral',
-  processing: 'info',
-  extracted: 'info',
-  review_required: 'warning',
-  verified: 'success',
-  stored: 'success',
-  failed: 'danger',
-};
+/** A vault holds a person's whole document set; this is a ceiling, not a page size. */
+const MAX_DOCUMENTS = 200;
 
-/** The file-type chip beside a document's name: red for a PDF, blue for a photo or scan. */
-function FileChip({ mimeType }: { mimeType: string | null | undefined }) {
-  const isPdf = mimeType === 'application/pdf';
-  return (
-    <span
-      aria-hidden
-      className={`flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-[9px] font-bold uppercase ${
-        isPdf ? 'bg-red-50 text-red-600' : 'bg-sky-50 text-sky-600'
-      }`}
-    >
-      {isPdf ? 'pdf' : 'img'}
-    </span>
-  );
-}
+/** How often an app customer's documents are re-read while open, so a phone upload shows up. */
+const APP_CUSTOMER_REFRESH_MS = 20_000;
+
+const COLUMNS =
+  'id, original_filename, document_type, mime_type, status, size_bytes, created_at, label, folder';
+
+type ListedRow = Pick<
+  DocumentRow,
+  | 'id'
+  | 'original_filename'
+  | 'document_type'
+  | 'mime_type'
+  | 'status'
+  | 'size_bytes'
+  | 'created_at'
+  | 'label'
+> & { folder?: DocumentRow['folder'] };
 
 /**
- * The documents attached to one customer (§7.3.4).
+ * The documents attached to one customer (§7.3.4), in the same folders as the BharatDoc app
+ * vault (Identity, Education, Certificates, Photo & signature, Other — `DOCUMENT_FOLDERS`).
+ *
+ * For a BharatDoc app customer (0041) every file is one the citizen synced from the phone; they
+ * are tagged "From BharatDoc app" and the list re-reads itself while open, so a document the
+ * citizen adds at the counter appears without a reload. A folder the citizen picked in the app
+ * comes through `documents.folder` (0043); everything else sits in its type's folder.
  *
  * Metadata only — opening a document goes through the signed-URL route, which is audited
  * (docs/SECURITY.md §4).
@@ -56,24 +64,46 @@ export async function CustomerDocuments({
   const { t, locale } = await getTranslations();
   const supabase = await createSupabaseServerClient();
 
-  const { data } = await supabase
-    .from('documents')
-    .select('id, original_filename, document_type, mime_type, status, size_bytes, created_at')
-    .eq('organization_id', organizationId)
-    .eq('customer_id', customerId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(20);
+  const query = (columns: string) =>
+    supabase
+      .from('documents')
+      .select(columns)
+      .eq('organization_id', organizationId)
+      .eq('customer_id', customerId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(MAX_DOCUMENTS);
 
-  const documents = (data ?? []) as Partial<DocumentRow>[];
-  const isProcessing = documents.some((document) => document.status === 'processing');
+  let { data, error } = await query(COLUMNS);
+  // A database that has not run 0043 yet: list everything in its type's folder.
+  if (isMissingColumnError(error)) {
+    ({ data, error } = await query(COLUMNS.replace(', folder', '')));
+  }
+
+  const rows = (error ? [] : (data ?? [])) as unknown as ListedRow[];
+  const isAppCustomer = organizationId === CITIZEN_APP_ORGANIZATION_ID;
+  const isProcessing = rows.some((row) => row.status === 'processing');
+
+  const documents: FolderDocument[] = rows.map((row) => ({
+    id: row.id,
+    filename: row.original_filename,
+    typeLabel: isDocumentType(row.document_type)
+      ? localised(DOCUMENT_TYPE_LABELS[row.document_type], locale)
+      : '—',
+    mimeType: row.mime_type,
+    status: row.status,
+    sizeLabel: formatBytes(row.size_bytes ?? 0),
+    addedOn: formatIndianDate(row.created_at?.slice(0, 10)) ?? '—',
+    folder: documentFolder(row.document_type, row.folder),
+    fromApp: isAppCustomer || row.label === 'BharatDoc app',
+  }));
 
   return (
     <DetailCard
       icon={DocumentsIcon}
       tone="brand"
       title={t('documents.title')}
-      bodyClassName={documents.length === 0 ? undefined : 'px-0 py-0'}
+      bodyClassName="px-0 py-0"
       actions={
         canUpload ? (
           <Link href={`/documents/upload?customerId=${customerId}`} className={PRIMARY_BUTTON}>
@@ -83,63 +113,25 @@ export async function CustomerDocuments({
         ) : undefined
       }
     >
-      <AutoRefreshWhileProcessing isProcessing={isProcessing} />
+      {isProcessing ? (
+        <AutoRefreshWhileProcessing isProcessing />
+      ) : isAppCustomer ? (
+        <AutoRefreshWhileProcessing isProcessing intervalMs={APP_CUSTOMER_REFRESH_MS} />
+      ) : null}
+      {isAppCustomer ? (
+        <p className="border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-xs text-slate-600">
+          {t('documents.folders.appNote')}
+        </p>
+      ) : null}
       {documents.length === 0 ? (
-        <DetailEmpty title={t('documents.emptyTitle')} description={t('documents.emptyDescription')} />
+        <div className="px-5 py-4">
+          <DetailEmpty
+            title={t('documents.emptyTitle')}
+            description={t('documents.emptyDescription')}
+          />
+        </div>
       ) : (
-        <Table>
-          <THead>
-            <TR>
-              <TH className="pl-5">{t('documents.file')}</TH>
-              <TH>{t('documents.type')}</TH>
-              <TH>{t('documents.size')}</TH>
-              <TH>{t('settings.status')}</TH>
-              <TH>{t('customers.addedOn')}</TH>
-              <TH className="pr-5 text-right">{t('customers.actions')}</TH>
-            </TR>
-          </THead>
-          <TBody>
-            {documents.map((document) => (
-              <TR key={document.id}>
-                <TD className="pl-5">
-                  <Link
-                    href={`/documents/${document.id}`}
-                    className="flex items-center gap-2.5 font-medium text-brand-700 hover:underline"
-                  >
-                    <FileChip mimeType={document.mime_type} />
-                    <span className="break-all">{document.original_filename}</span>
-                  </Link>
-                </TD>
-                <TD className="text-slate-600">
-                  {isDocumentType(document.document_type)
-                    ? localised(DOCUMENT_TYPE_LABELS[document.document_type], locale)
-                    : '—'}
-                </TD>
-                <TD className="tabular-nums text-slate-500">
-                  {formatBytes(document.size_bytes ?? 0)}
-                </TD>
-                <TD>
-                  <Badge tone={STATUS_TONE[document.status ?? ''] ?? 'neutral'}>
-                    {t(`documents.statuses.${document.status}`)}
-                  </Badge>
-                  {document.status === 'processing' ? (
-                    <ProgressBar className="mt-1.5 max-w-[10rem]" />
-                  ) : null}
-                </TD>
-                <TD className="text-slate-500">
-                  {formatIndianDate(document.created_at?.slice(0, 10)) ?? '—'}
-                </TD>
-                <TD className="pr-5">
-                  <DocumentRowActions
-                    documentId={document.id ?? ''}
-                    fileName={document.original_filename ?? ''}
-                    canDownload={canDownload}
-                  />
-                </TD>
-              </TR>
-            ))}
-          </TBody>
-        </Table>
+        <DocumentFolders documents={documents} canDownload={canDownload} />
       )}
     </DetailCard>
   );

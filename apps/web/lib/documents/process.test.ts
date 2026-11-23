@@ -1,11 +1,12 @@
 /**
  * Tests for confirming an upload (`POST /api/documents/:id/process`).
  *
- * The property worth pinning down is the store-only path (§12.4): a photo or a signature the
- * operator asked to keep as it is must reach no reader at all — no job queued, no inline run, no
- * extraction quota — while still getting the same magic-byte check as every other upload. And it
- * has to stay the operator's choice: a document that merely *says* `photo` (the classifier calls
- * every textless image that) must still be read when someone asks for it.
+ * The property worth pinning down is the store-only path (§12.4): a document the operator asked
+ * to keep as it is — always a photo or signature, and any typed document when they tick "Just
+ * save — don't read" — must reach no reader at all — no job queued, no inline run, no extraction
+ * quota — while still getting the same magic-byte check as every other upload. And it has to stay
+ * the operator's choice: a document that merely *says* `photo` (the classifier calls every
+ * textless image that) must still be read when someone asks for it.
  *
  * The Supabase stub answers only the calls `processDocument` makes; a general-purpose fake would
  * be a second implementation to keep in sync.
@@ -193,9 +194,28 @@ describe('processDocument — store only', () => {
     expect(enqueueJob).not.toHaveBeenCalled();
   });
 
-  it.each(['aadhaar_like', 'marksheet_10', 'unknown'])(
-    'refuses to file a %s unread, before downloading anything',
+  // "Just save — don't read" (product owner, 2026-11-23): any typed document the operator only
+  // needs to keep — a passport copy, an old receipt — is saved unread when they ask for it.
+  it.each(['aadhaar_like', 'marksheet_10', 'receipt', 'generic'])(
+    'keeps a %s unread when the operator asks, with no reader and no quota',
     async (type) => {
+      loadEntitlementContext.mockImplementation(async () => FREE_PLAN_EXHAUSTED);
+      const { context, capture } = stubContext({ document_type: type });
+
+      const result = await processDocument(context, DOCUMENT, { storeOnly: true });
+
+      expect(result).toEqual({ documentId: DOCUMENT, status: 'stored', queued: false });
+      expect(capture.downloads).toHaveLength(1);
+      expect(capture.updates).toEqual([{ status: 'stored' }]);
+      expect(enqueueJob).not.toHaveBeenCalled();
+      expect(runDocumentJob).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['unknown', ''])(
+    'refuses to file an untyped document (%j) unread, before downloading anything',
+    async (type) => {
+      // Detecting the type is itself a read; a file kept unread must say what it is.
       const { context, capture } = stubContext({ document_type: type });
 
       const attempt = processDocument(context, DOCUMENT, { storeOnly: true });

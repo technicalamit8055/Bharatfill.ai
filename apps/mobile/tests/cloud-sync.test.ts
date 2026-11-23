@@ -50,8 +50,21 @@ const plan = (index: VaultIndex, cloudEnabled = true) =>
 describe('planSync', () => {
   it('uploads a document with no cloud copy, titled as the vault shows it', () => {
     expect(plan(indexOf(doc(A)))).toEqual([
-      { kind: 'upload', documentId: A, title: 'Scanned document', documentType: 'generic' },
+      {
+        kind: 'upload',
+        documentId: A,
+        title: 'Scanned document',
+        documentType: 'generic',
+        category: 'other',
+      },
     ]);
+  });
+
+  it('uploads a document with the folder it is filed in', () => {
+    expect(plan(indexOf(doc(A, { documentType: 'pan', category: 'identity' })))[0]).toMatchObject({
+      kind: 'upload',
+      category: 'identity',
+    });
   });
 
   it('uploads nothing that is phone-only, or when cloud backup is off', () => {
@@ -63,16 +76,66 @@ describe('planSync', () => {
     const synced = doc(A, {
       title: 'Marksheet',
       documentType: 'marksheet_10',
-      cloud: { id: CLOUD_A, title: 'Marksheet', documentType: 'marksheet_10' },
+      category: 'academic',
+      cloud: {
+        id: CLOUD_A,
+        title: 'Marksheet',
+        documentType: 'marksheet_10',
+        category: 'academic',
+      },
     });
     expect(plan(indexOf(synced))).toEqual([]);
+  });
+
+  it('sends a move to another folder', () => {
+    const moved = doc(A, {
+      title: 'Aadhaar',
+      documentType: 'aadhaar_like',
+      category: 'certificate',
+      cloud: { id: CLOUD_A, title: 'Aadhaar', documentType: 'aadhaar_like', category: 'identity' },
+    });
+    expect(plan(indexOf(moved))).toEqual([
+      {
+        kind: 'update',
+        documentId: A,
+        cloudId: CLOUD_A,
+        title: 'Aadhaar',
+        documentType: 'aadhaar_like',
+        category: 'certificate',
+      },
+    ]);
+  });
+
+  it('sends the folder once for a copy synced before folders synced', () => {
+    const older = doc(A, {
+      title: 'PAN',
+      documentType: 'pan',
+      category: 'identity',
+      cloud: { id: CLOUD_A, title: 'PAN', documentType: 'pan' },
+    });
+    const [action] = plan(indexOf(older));
+    expect(action).toMatchObject({ kind: 'update', category: 'identity' });
+
+    const recorded = withCloudSynced(indexOf(older), A, {
+      id: CLOUD_A,
+      title: 'PAN',
+      documentType: 'pan',
+      category: 'identity',
+    });
+    expect(plan(recorded)).toEqual([]);
   });
 
   it('sends a rename or a retype', () => {
     const renamed = doc(A, {
       title: 'Class 10 marksheet',
       documentType: 'marksheet_10',
-      cloud: { id: CLOUD_A, title: 'Marksheet', documentType: 'marksheet_10' },
+      category: 'academic',
+      cloud: {
+        id: CLOUD_A,
+        title: 'Marksheet',
+        documentType: 'marksheet_10',
+        category: 'academic',
+      },
     });
     expect(plan(indexOf(renamed))).toEqual([
       {
@@ -81,6 +144,7 @@ describe('planSync', () => {
         cloudId: CLOUD_A,
         title: 'Class 10 marksheet',
         documentType: 'marksheet_10',
+        category: 'academic',
       },
     ]);
   });
@@ -137,6 +201,7 @@ describe('vault index sync bookkeeping', () => {
       id: CLOUD_A,
       title: 'Scanned document',
       documentType: 'generic',
+      category: 'other',
     });
     expect(plan(synced)).toEqual([]);
     expect(plan(withCloudForgotten(synced, A))[0]?.kind).toBe('upload');

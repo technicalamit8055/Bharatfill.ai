@@ -10,12 +10,12 @@ import {
   DOCUMENT_TYPE_LABELS,
   MAX_UPLOAD_BYTES,
   isAllowedUploadMimeType,
-  isStoreOnlyDocumentType,
   type DocumentType,
 } from '@assistigo/core';
 import type { ExtractionMode } from '@assistigo/ai/types';
 import { useI18n, useTranslations } from '@/lib/i18n/client';
 import { ExtractionModeSelect } from '@/components/documents/extraction-mode-select';
+import { SkipReadingToggle, storeOnlyState } from '@/components/documents/skip-reading-toggle';
 import { formatBytes } from '@/lib/documents/format';
 
 type UploadIntent = {
@@ -32,8 +32,9 @@ type CustomerOption = { id: string; label: string };
  *
  *   1. ask the server to reserve a document row and a one-time upload URL,
  *   2. PUT the bytes straight to storage — they never pass through a route handler,
- *   3. tell the server to verify the bytes and queue extraction — or, for a photograph or a
- *      signature, to verify them and save the file without reading it (§12.4).
+ *   3. tell the server to verify the bytes and queue extraction — or, for a photograph, a
+ *      signature or anything the operator ticked "Just save — don't read" for, to verify them and
+ *      save the file without reading it (§12.4).
  *
  * The file itself is never held in component state beyond the upload; there is no reason for a
  * customer's Aadhaar scan to outlive the request that stored it.
@@ -54,8 +55,9 @@ export function UploadForm({
   const [extractionMode, setExtractionMode] = useState<ExtractionMode>('auto');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [skipReading, setSkipReading] = useState(false);
 
-  const storeOnly = isStoreOnlyDocumentType(documentType);
+  const { storeOnly, needsType } = storeOnlyState(documentType, skipReading);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const selected = event.target.files?.[0] ?? null;
@@ -84,7 +86,7 @@ export function UploadForm({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!file) return;
+    if (!file || needsType) return;
 
     const form = new FormData(event.currentTarget);
     const customerId = String(form.get('customerId') ?? '');
@@ -106,8 +108,7 @@ export function UploadForm({
       });
 
       const intentJson = (await intentResponse.json()) as
-        | { data: UploadIntent }
-        | { error: { messageKey: string } };
+        { data: UploadIntent } | { error: { messageKey: string } };
 
       if (!intentResponse.ok || 'error' in intentJson) {
         setError('error' in intentJson ? intentJson.error.messageKey : 'errors.internal');
@@ -130,8 +131,8 @@ export function UploadForm({
       }
 
       // The server has not seen a byte until this call: it downloads the object, checks the
-      // magic bytes against what we claimed, and only then queues extraction — or, for a photo
-      // or signature, saves it unread.
+      // magic bytes against what we claimed, and only then queues extraction — or, for a file
+      // kept as it is, saves it unread.
       const processResponse = await fetch(`/api/documents/${intent.documentId}/process`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -139,8 +140,7 @@ export function UploadForm({
       });
 
       const processJson = (await processResponse.json()) as
-        | { data: unknown }
-        | { error: { messageKey: string } };
+        { data: unknown } | { error: { messageKey: string } };
 
       if (!processResponse.ok || 'error' in processJson) {
         setError('error' in processJson ? processJson.error.messageKey : 'errors.internal');
@@ -214,10 +214,16 @@ export function UploadForm({
               </option>
             ))}
           </Select>
-          <p className="text-xs text-slate-500">
-            {t(storeOnly ? 'documents.storeOnly.hint' : 'documents.typeHint')}
-          </p>
+          {storeOnly ? null : <p className="text-xs text-slate-500">{t('documents.typeHint')}</p>}
         </div>
+
+        <SkipReadingToggle
+          id="skipReading"
+          documentType={documentType}
+          checked={skipReading}
+          onChange={setSkipReading}
+          disabled={pending}
+        />
 
         {storeOnly ? null : (
           <ExtractionModeSelect
@@ -231,7 +237,7 @@ export function UploadForm({
         {error ? <Alert tone="danger">{t(error)}</Alert> : null}
 
         <div className="flex gap-2">
-          <Button type="submit" loading={pending} disabled={!file}>
+          <Button type="submit" loading={pending} disabled={!file || needsType}>
             {t(storeOnly ? 'common.save' : 'documents.upload')}
           </Button>
           <Link

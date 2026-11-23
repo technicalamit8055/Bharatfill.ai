@@ -72,6 +72,10 @@ export function ProfileScreen({
         title: t('profile.menu.security.title'),
         subtitle: t('profile.menu.security.subtitle'),
       },
+      centres: {
+        title: t('profile.menu.centres.title'),
+        subtitle: t('profile.menu.centres.subtitle'),
+      },
       notifications: {
         title: t('profile.menu.notifications.title'),
         subtitle: t('profile.menu.notifications.subtitle'),

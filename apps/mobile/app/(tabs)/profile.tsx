@@ -113,6 +113,13 @@ export default function ProfileRoute() {
         router.push('/security');
         return;
       }
+      // Centre access lives on the server: it needs a cloud build and a signed-in account.
+      if (item === 'centres') {
+        if (SHOW_DEMO || !cloudConfig()) comingSoon('centres');
+        else if (state.status === 'signed_out') router.push('/(auth)/mobile-number');
+        else router.push('/centre-access');
+        return;
+      }
       if (item !== 'about') {
         comingSoon(item);
         return;

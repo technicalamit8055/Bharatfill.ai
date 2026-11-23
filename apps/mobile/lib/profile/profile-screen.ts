@@ -17,6 +17,7 @@ import { normaliseFullName } from './profile';
 export const PROFILE_MENU_ITEMS = [
   'personal',
   'security',
+  'centres',
   'notifications',
   'language',
   'appearance',

@@ -6,7 +6,7 @@
  *           upload slot, encrypt with the cloud document key — AES-256-GCM, AAD naming the
  *           citizen and the new row (format v1, `@assistigo/core`) — PUT the ciphertext to the
  *           signed URL, then confirm with its SHA-256. Plaintext never leaves the phone.
- *   update  send the new title / type.
+ *   update  send the new title / type / folder.
  *   delete  remove a queued cloud copy; "already gone" counts as done.
  *
  * Best effort and quiet: nothing is shown or logged, nothing is retried in a loop. Offline or
@@ -96,6 +96,7 @@ async function upload(
     mimeType: file.mimeType,
     sizeBytes: file.bytes.length,
     pageCount: document.pages.length,
+    category: action.category,
   });
   if (!intent.ok) return stepOf(intent) ?? 'failed';
   const cloudId = intent.value.document.id;
@@ -126,6 +127,7 @@ async function upload(
       id: cloudId,
       title: action.title,
       documentType: action.documentType,
+      category: action.category,
     }),
   );
   return 'ok';
@@ -147,6 +149,7 @@ async function perform(
       const result = await run.api.updateDocument(run.deviceId, action.cloudId, {
         title: action.title,
         documentType: action.documentType,
+        category: action.category,
       });
       if (!result.ok && result.error.status === 404) {
         // The cloud copy is gone: forget it here so the next run uploads it afresh.
@@ -159,6 +162,7 @@ async function perform(
           id: action.cloudId,
           title: action.title,
           documentType: action.documentType,
+          category: action.category,
         }),
       );
       return 'ok';

@@ -340,15 +340,16 @@ Product owner, 2026-11-22: "an account created in the app must not differ from o
 operator — all features the same." The app is a second way for a citizen to become a customer
 (sign up, scan, upload) and get their details extracted, so any centre can fill forms for them.
 
-| What                 | How                                                                                                                                                                                                                                                                      |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Customer record      | Sign-up also creates a `customers` row (name, verified mobile) in the platform organization **"BharatDoc app"** (`citizen_app_organization_id()`), which has no members, ever. Accounts made before 0041 were backfilled; a later sync makes one if it is still missing. |
-| Documents            | Each confirmed sync is decrypted by the server and stored as a normal `documents` row for that customer, then read by the usual `ocr.extract` job. Photo and signature are kept unread. Rename, retype and delete in the app follow through.                             |
-| Finding them         | The usual network (roaming) search by mobile. The result is labelled "📱 BharatDoc app"; otherwise it looks like any other centre's customer.                                                                                                                            |
-| Consent              | The usual roaming grant: the citizen taps **Approve** in the app (0039), or reads out the SMS OTP (0024). Once per visit, as for any customer from another centre.                                                                                                       |
-| Extracted values     | Reviewed by the operator holding the grant, on the usual review screen (`/documents/:id`). Writes land in the app organization through the server (`resolveDocumentScope`). Not charged to the centre's extraction quota.                                                |
-| Form filling         | Unchanged roaming filling: the extension uses the reviewed profile and the documents.                                                                                                                                                                                    |
-| Deleting the account | Removes the customer row, every mirrored file and its bytes before the vault itself.                                                                                                                                                                                     |
+| What                 | How                                                                                                                                                                                                                                                                                                                                             |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Customer record      | Sign-up also creates a `customers` row (name, verified mobile) in the platform organization **"BharatDoc app"** (`citizen_app_organization_id()`), which has no members, ever. Accounts made before 0041 were backfilled; a later sync makes one if it is still missing.                                                                        |
+| Documents            | Each confirmed sync is decrypted by the server and stored as a normal `documents` row for that customer, then read by the usual `ocr.extract` job. Photo and signature are kept unread. Rename, retype and delete in the app follow through.                                                                                                    |
+| Folders (0043)       | The customer's Documents tab uses the app's folders (Identity, Education, Certificates, Photo & signature, Other). The phone syncs the folder each document is filed in (`category` on upload and on move); the copy carries it in `documents.folder`. Files are tagged "From BharatDoc app" and the tab re-reads itself every 20 s while open. |
+| Finding them         | The usual network (roaming) search by mobile. The result is labelled "📱 BharatDoc app"; otherwise it looks like any other centre's customer.                                                                                                                                                                                                   |
+| Consent              | The usual roaming grant: the citizen taps **Approve** in the app (0039), or reads out the SMS OTP (0024). Once per visit, as for any customer from another centre.                                                                                                                                                                              |
+| Extracted values     | Reviewed by the operator holding the grant, on the usual review screen (`/documents/:id`). Writes land in the app organization through the server (`resolveDocumentScope`). Not charged to the centre's extraction quota.                                                                                                                       |
+| Form filling         | Unchanged roaming filling: the extension uses the reviewed profile and the documents.                                                                                                                                                                                                                                                           |
+| Deleting the account | Removes the customer row, every mirrored file and its bytes before the vault itself.                                                                                                                                                                                                                                                            |
 
 Removed: the extension's "BharatDoc app" box (`VaultAppBox`) and the dashboard's
 `VaultAccessPanel`. Still in the code but no longer reached: the operator vault routes
@@ -358,3 +359,35 @@ Removed: the extension's "BharatDoc app" box (`VaultAppBox`) and the dashboard's
 Open: AI reading stays off for app documents (`ai_processing_enabled = false`, rule 10) — local
 OCR only until the product owner and legal decide; the platform organization has no plan or
 storage quota of its own.
+
+## 14. Centre access and trusted centres (migration 0042)
+
+Product owner, 2026-11-23: "the app should show which cyber cafe / operator has access, let the
+citizen manage it, and allow giving access for the long term." This delivers D2 (named centres)
+on top of §13's roaming grants rather than the vault grants, because since §13 every centre
+reaches an app customer through a roaming grant.
+
+| What                 | How                                                                                                                                                                                                                                                                   |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Centre access screen | Profile → **Centre access** (`app/centre-access.tsx`). Live sessions (centre, purpose, time left, Trusted badge) with **Stop**, and what ended in the last 30 days (stopped by you / by the centre / time ran out). Never the operator, a document or a record value. |
+| Whose sessions       | Grants over every live `customers` row, at any centre, whose mobile is the citizen's verified sign-in number — the same rule that decides which phone an approval request reaches.                                                                                    |
+| Trusted centre       | **30 days** beside 1 / 2 / 4 h on the approval sheet, or **Trust for 30 days** on a live session. Grant `auth_method = 'app_trusted'`, for the one operator who asked, at that centre. **Renew** appears in the last 7 days.                                          |
+| Limits               | ≤ 3 live trusted grants per citizen (server, `errors.roaming_trusted_limit`); ≤ 30 days (DB check); every other grant keeps the 12 h ceiling. An OTP can never mint `app_trusted`.                                                                                    |
+| Stop                 | Revokes at once (`revoked_by` = the citizen), withdraws the grant's consent record, audits `customer.roaming_access_revoked` to the centre. Trust replaces the old grant (`revoked_by` null, hidden from the list).                                                   |
+| Routes               | `GET /api/citizen/centre-access`, `POST /api/citizen/centre-access/:id/stop`, `POST …/:id/trust`; `lib/roaming/citizen-sessions.ts`.                                                                                                                                  |
+| Operator side        | Unchanged access path; countdowns show days (`29d 23h`). The operator's "End session" still ends a trusted grant too.                                                                                                                                                 |
+
+Choices made for ease, with the reason:
+
+- **30 days, not D2's 90**, and **one operator, not the whole centre**: D15 asked for owner MFA
+  before standing access, and the platform has no MFA yet. A shorter window and the narrowest
+  grantee stand in for it until MFA lands; then revisit both.
+- **No separate "named centres" table**: a trusted centre is just a longer roaming grant, so the
+  RLS policies, the extension and the dashboard needed no change.
+
+Open (product owner / legal):
+
+- Legal review of the trusted-centre consent text (`roaming-trusted-v1`) in Hindi and English.
+- "Every access notifies the citizen" (D2) needs push (Phase 3); until then the screen shows that a
+  centre _can_ use the details, not each time it did.
+- Owner MFA (D15), then decide whether to move to 90 days or centre-wide trust.

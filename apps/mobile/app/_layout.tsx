@@ -62,6 +62,10 @@ function RootNavigator() {
           name="security"
           options={{ headerShown: false, animation: 'slide_from_right' }}
         />
+        <Stack.Screen
+          name="centre-access"
+          options={{ headerShown: false, animation: 'slide_from_right' }}
+        />
       </Stack>
       {/* Covers everything while the app is locked; the app keeps its place underneath. */}
       <AppLockGate />

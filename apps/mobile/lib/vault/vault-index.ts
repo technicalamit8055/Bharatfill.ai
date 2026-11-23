@@ -14,7 +14,7 @@
  * after `pages` is optional, so indexes written before it existed still parse.
  */
 
-import { DOCUMENT_TYPES } from '@assistigo/core';
+import { DOCUMENT_FOLDERS, DOCUMENT_TYPES } from '@assistigo/core';
 import { z } from 'zod';
 
 import { VAULT_CATEGORIES, type VaultCategoryKey } from './categories';
@@ -59,14 +59,17 @@ const vaultDocumentSchema = z.object({
   /** "Keep on this phone only": never uploaded to the cloud vault (design §3.2). */
   phoneOnly: z.boolean().optional(),
   /**
-   * The cloud copy of this document, once synced: its server id and the type and title it was
-   * last synced with, so a later rename or retype is noticed and sent (`lib/cloud/sync-plan.ts`).
+   * The cloud copy of this document, once synced: its server id and the type, title and folder
+   * it was last synced with, so a later rename, retype or move is noticed and sent
+   * (`lib/cloud/sync-plan.ts`). `category` is absent on copies synced before folders synced;
+   * the planner then sends the folder once.
    */
   cloud: z
     .object({
       id: z.string().uuid(),
       title: z.string().min(1).max(120),
       documentType: z.enum(DOCUMENT_TYPES),
+      category: z.enum(DOCUMENT_FOLDERS).optional(),
     })
     .optional(),
 });

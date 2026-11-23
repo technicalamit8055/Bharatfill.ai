@@ -7,12 +7,14 @@ import {
   documentStoragePath,
   isDocumentType,
   isStoreOnlyDocumentType,
+  mirrorFolderFrom,
   sniffMimeType,
   type DocumentType,
 } from '@assistigo/core';
 import { logger } from '../api/logger';
 import { serverEnv } from '../env';
 import { runDocumentJob } from '../jobs/runner';
+import { isMissingColumnError } from '../supabase/missing-column';
 import type { CitizenVaultDocumentRow } from '../supabase/database.types';
 import type { AssistigoSupabaseClient } from '../supabase/server';
 import { unwrapDocumentKey } from './secrets';
@@ -176,7 +178,7 @@ export async function mirrorVaultDocument(
   vault: Pick<
     CitizenVaultDocumentRow,
     'id' | 'document_type' | 'title' | 'storage_path' | 'mime_type' | 'mirror_document_id'
-  >,
+  > & { category?: string | null },
 ): Promise<string> {
   if (vault.mirror_document_id) return vault.mirror_document_id;
 
@@ -216,7 +218,7 @@ export async function mirrorVaultDocument(
     .upload(storagePath, plaintext, { contentType: vault.mime_type, upsert: false });
   if (uploadError) throw uploadError;
 
-  const { error: insertError } = await db.from('documents').insert({
+  const row = {
     id: documentId,
     organization_id: CITIZEN_APP_ORGANIZATION_ID,
     customer_id: customerId,
@@ -228,7 +230,15 @@ export async function mirrorVaultDocument(
     document_type: documentType,
     status: storeOnly ? 'stored' : 'processing',
     label: 'BharatDoc app',
-  });
+  };
+  // The folder the citizen filed it in on the phone (0043), so the operator finds it there too.
+  const folder = mirrorFolderFrom(vault.category);
+  const withFolder: Record<string, unknown> = folder === null ? row : { ...row, folder };
+  let { error: insertError } = await db.from('documents').insert(withFolder);
+  if (folder !== null && isMissingColumnError(insertError)) {
+    // Database one migration behind: keep the copy, in its type's folder.
+    ({ error: insertError } = await db.from('documents').insert(row));
+  }
   if (insertError) {
     await db.storage.from(DOCUMENT_BUCKET).remove([storagePath]);
     throw insertError;
@@ -298,7 +308,7 @@ export async function mirrorPendingDocuments(
 
   const { data, error } = await db
     .from('citizen_vault_documents')
-    .select('id, document_type, title, storage_path, mime_type, mirror_document_id')
+    .select('id, document_type, category, title, storage_path, mime_type, mirror_document_id')
     .eq('citizen_id', citizen.citizenId)
     .eq('status', 'ready')
     .is('deleted_at', null)
@@ -319,23 +329,33 @@ export async function mirrorPendingDocuments(
   }
 }
 
-/** Title or type changed in the app: the operator sees the same. */
+/** Title, type or folder changed in the app: the operator sees the same. */
 export async function updateMirror(
   db: Db,
   mirrorDocumentId: string,
-  patch: { title?: string; documentType?: string; mimeType: string },
+  patch: { title?: string; documentType?: string; category?: string; mimeType: string },
 ): Promise<void> {
   const update: Record<string, unknown> = {};
   if (patch.title !== undefined)
     update.original_filename = mirrorFilename(patch.title, patch.mimeType);
   if (patch.documentType !== undefined)
     update.document_type = mirrorDocumentType(patch.documentType);
+  if (patch.category !== undefined) update.folder = mirrorFolderFrom(patch.category);
   if (Object.keys(update).length === 0) return;
-  const { error } = await db
-    .from('documents')
-    .update(update)
-    .eq('id', mirrorDocumentId)
-    .eq('organization_id', CITIZEN_APP_ORGANIZATION_ID);
+
+  const apply = (values: Record<string, unknown>) =>
+    db
+      .from('documents')
+      .update(values)
+      .eq('id', mirrorDocumentId)
+      .eq('organization_id', CITIZEN_APP_ORGANIZATION_ID);
+
+  let { error } = await apply(update);
+  if ('folder' in update && isMissingColumnError(error)) {
+    // Database one migration behind (0043): apply the rest, drop the move.
+    const { folder: _dropped, ...rest } = update;
+    error = Object.keys(rest).length === 0 ? null : (await apply(rest)).error;
+  }
   if (error) throw error;
 }
 

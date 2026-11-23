@@ -6,6 +6,8 @@ import {
   notFound,
   rateLimited,
   ROAMING_APP_REQUEST_TTL_MINUTES,
+  TRUSTED_CENTRE_DURATION_MINUTES,
+  trustedGrantExpiryFrom,
   type AuditAction,
   type CitizenProfileRequestView,
   type RoamingAppDecisionInput,
@@ -16,6 +18,7 @@ import {
 import type { CustomerAccessGrantRow, CustomerAccessRequestRow } from '../supabase/database.types';
 import type { AssistigoSupabaseClient } from '../supabase/server';
 import { writeCentreAudit } from '../vault/grants';
+import { assertTrustedSlot, citizenCustomerIds } from './citizen-sessions';
 
 /**
  * Roaming consent by approval in the BharatDoc app (migration 0039) — the alternative to the
@@ -23,7 +26,7 @@ import { writeCentreAudit } from '../vault/grants';
  *
  *   operator  asks (no duration), polls until the citizen answers, or cancels.
  *   citizen   sees pending requests (centre + purpose), approves with a duration they pick —
- *             1, 2 or 4 hours — or denies.
+ *             1, 2 or 4 hours, or 30 days to trust the centre (migration 0042) — or denies.
  *
  * Approve mints the same `customer_access_grants` row as a verified OTP, with auth_method
  * `app_approval`, for the operator who asked, at the centre that asked.
@@ -317,6 +320,10 @@ export async function approveProfileRequest(
 ): Promise<ApprovedProfileRequest> {
   const now = ctx.now();
   const request = await citizenRequest(ctx, requestId);
+  const trusted = input.durationMinutes === TRUSTED_CENTRE_DURATION_MINUTES;
+  if (trusted) {
+    await assertTrustedSlot(ctx.db, await citizenCustomerIds(ctx.db, ctx.phone), now);
+  }
 
   // Claim first, so two taps (or two phones) cannot mint two grants.
   const { data: claimed, error: claimError } = await ctx.db
@@ -338,11 +345,11 @@ export async function approveProfileRequest(
       organization_id: request.organization_id,
       customer_id: request.customer_id,
       consent_subject: 'roaming_access',
-      consent_text_version: 'roaming-app-v1',
+      consent_text_version: trusted ? 'roaming-trusted-v1' : 'roaming-app-v1',
       status: 'granted',
       collected_by: request.requested_by,
       evidence_json: {
-        method: 'app_approval',
+        method: trusted ? 'app_trusted' : 'app_approval',
         requestId: request.id,
         purpose: request.purpose,
         targetSchemeSlug: request.target_scheme_slug,
@@ -353,7 +360,9 @@ export async function approveProfileRequest(
     .single();
   if (consentError) throw consentError;
 
-  const expiresAt = grantExpiryFrom(now, input.durationMinutes);
+  const expiresAt = trusted
+    ? trustedGrantExpiryFrom(now)
+    : grantExpiryFrom(now, input.durationMinutes);
   const { data: grant, error: grantError } = await ctx.db
     .from('customer_access_grants')
     .insert({
@@ -362,7 +371,7 @@ export async function approveProfileRequest(
       granted_to_user_id: request.requested_by,
       purpose: request.purpose,
       target_scheme_slug: request.target_scheme_slug,
-      auth_method: 'app_approval',
+      auth_method: trusted ? 'app_trusted' : 'app_approval',
       granted_at: now.toISOString(),
       expires_at: expiresAt.toISOString(),
       consent_record_id: (consent as { id: string }).id,
@@ -390,7 +399,7 @@ export async function approveProfileRequest(
     entityType: 'customer_access_grant',
     entityId: grantId,
     metadata: {
-      method: 'app_approval',
+      method: trusted ? 'app_trusted' : 'app_approval',
       purpose: request.purpose,
       durationMinutes: input.durationMinutes,
       targetSchemeSlug: request.target_scheme_slug,

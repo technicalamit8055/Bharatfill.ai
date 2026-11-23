@@ -5,7 +5,7 @@ import {
   checkUsageEntitlement,
   conflict,
   entitlementExceeded,
-  isStoreOnlyDocumentType,
+  isDocumentType,
   notFound,
   type AllowedUploadMimeType,
 } from '@assistigo/core';
@@ -31,8 +31,10 @@ export type ProcessDocumentOptions = {
    */
   extractionMode?: ExtractionMode | undefined;
   /**
-   * Keep the file without reading it. Only a store-only class may ask (`STORE_ONLY_DOCUMENT_TYPES`),
-   * and a reading method sent alongside it is ignored — there is nothing to read.
+   * Keep the file without reading it: a photo or signature (the upload forms always ask), or any
+   * document the operator ticked "Just save — don't read" for. The document must carry a real
+   * type — detecting one is itself a read — and a reading method sent alongside is ignored.
+   * "Read again" on the document page can still read it later.
    */
   storeOnly?: boolean | undefined;
 };
@@ -41,13 +43,19 @@ export type ProcessDocumentResult = { documentId: string; status: string; queued
 
 type ProcessableRow = Pick<
   DocumentRow,
-  'id' | 'storage_bucket' | 'storage_path' | 'mime_type' | 'status' | 'customer_id' | 'document_type'
+  | 'id'
+  | 'storage_bucket'
+  | 'storage_path'
+  | 'mime_type'
+  | 'status'
+  | 'customer_id'
+  | 'document_type'
 >;
 
 /**
  * Confirms an upload, then either queues extraction and — unless a scheduler owns the queue —
- * runs it (§17.4; docs/AI_PIPELINE.md §10), or, for a photo or signature the operator asked to
- * keep as it is, files it as `stored` without any reader seeing it (§12.4).
+ * runs it (§17.4; docs/AI_PIPELINE.md §10), or, for a document the operator asked to keep as it
+ * is, files it as `stored` without any reader seeing it (§12.4).
  *
  * This is where the server stops trusting the client. The bytes were uploaded directly to
  * storage, so this is the first moment anything server-side has seen them: the magic bytes are
@@ -74,9 +82,10 @@ export async function processDocument(
   const row = data as ProcessableRow;
   const storeOnly = options.storeOnly === true;
 
-  // Refused before a byte is downloaded. A class with fields filed unread would leave its
-  // details unproposed with nothing on screen saying so.
-  if (storeOnly && !isStoreOnlyDocumentType(row.document_type)) {
+  // Refused before a byte is downloaded. An untyped file kept unread would sit under "Other"
+  // with nothing saying what it is, so the type is the one thing a kept file must carry. Its
+  // status ("Saved") and the document page say it was never read; "Read again" is one click.
+  if (storeOnly && (!isDocumentType(row.document_type) || row.document_type === 'unknown')) {
     throw conflict('documents.errors.storeOnlyType');
   }
 

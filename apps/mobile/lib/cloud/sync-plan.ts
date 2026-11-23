@@ -7,7 +7,8 @@
  *   1. delete  every queued cloud copy (`cloudDeletes`): documents deleted here, or switched to
  *              "phone only", after they synced. Runs even with cloud backup off — removing a
  *              copy is always allowed.
- *   2. update  a synced document whose title or type changed here since it synced.
+ *   2. update  a synced document whose title, type or folder changed here since it synced (a
+ *              copy synced before folders synced has no folder recorded, so it is sent once).
  *   3. upload  a document with no cloud copy, unless it is phone-only or cloud backup is off.
  *
  * Never: delete a cloud copy just because this phone does not have the document. A restored or
@@ -15,7 +16,7 @@
  * citizen's cloud vault.
  */
 
-import { DISPLAY_NAME_MAX_LENGTH, type DocumentType } from '@assistigo/core';
+import { DISPLAY_NAME_MAX_LENGTH, type DocumentFolder, type DocumentType } from '@assistigo/core';
 
 import type { DocumentSource, VaultDocument, VaultIndex } from '../vault/vault-index';
 
@@ -27,12 +28,14 @@ export type SyncAction =
       readonly cloudId: string;
       readonly title: string;
       readonly documentType: DocumentType;
+      readonly category: DocumentFolder;
     }
   | {
       readonly kind: 'upload';
       readonly documentId: string;
       readonly title: string;
       readonly documentType: DocumentType;
+      readonly category: DocumentFolder;
     };
 
 /** The server's title limit (120) is under the display-name limit; the vault's own is 80. */
@@ -45,6 +48,14 @@ export function cloudTitle(
 ): string {
   const title = (document.title ?? '').trim() || untitled(document.source).trim() || 'Document';
   return title.slice(0, MAX_CLOUD_TITLE);
+}
+
+/**
+ * The folder the cloud copy carries, so the operator dashboard shows the document where the
+ * citizen filed it. A document in no folder is `other`.
+ */
+export function cloudCategory(document: VaultDocument): DocumentFolder {
+  return document.category ?? 'other';
 }
 
 /** A document saved without a type is synced as `generic`. */
@@ -63,23 +74,29 @@ export function planSync(
   for (const document of index.documents) {
     const title = cloudTitle(document, options.untitled);
     const documentType = cloudDocumentType(document);
+    const category = cloudCategory(document);
 
     if (document.cloud) {
       if (document.phoneOnly) continue; // withPhoneOnly already queued the delete.
-      if (document.cloud.title !== title || document.cloud.documentType !== documentType) {
+      if (
+        document.cloud.title !== title ||
+        document.cloud.documentType !== documentType ||
+        document.cloud.category !== category
+      ) {
         actions.push({
           kind: 'update',
           documentId: document.id,
           cloudId: document.cloud.id,
           title,
           documentType,
+          category,
         });
       }
       continue;
     }
 
     if (!options.cloudEnabled || document.phoneOnly) continue;
-    actions.push({ kind: 'upload', documentId: document.id, title, documentType });
+    actions.push({ kind: 'upload', documentId: document.id, title, documentType, category });
   }
 
   return actions;

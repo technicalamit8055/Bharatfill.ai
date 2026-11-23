@@ -163,7 +163,8 @@ export async function createUploadIntent(
       id,
       citizen_id: context.citizenId,
       document_type: input.documentType,
-      category: storedVaultCategory(input.documentType),
+      // The phone's folder when it sent one; an older app build: the type's folder.
+      category: input.category ?? storedVaultCategory(input.documentType),
       title: input.title,
       storage_path: path,
       mime_type: input.mimeType,
@@ -258,10 +259,14 @@ export async function updateVaultDocument(
   const current = await loadOwnDocument(context, documentId);
   const update: Record<string, unknown> = {};
   if (patch.title !== undefined) update.title = patch.title;
-  if (patch.documentType !== undefined) {
-    update.document_type = patch.documentType;
+  if (patch.documentType !== undefined) update.document_type = patch.documentType;
+  // A folder the phone sent wins; a retype from an app build that sends none moves it with
+  // its type, as before folders synced.
+  if (patch.category !== undefined) update.category = patch.category;
+  else if (patch.documentType !== undefined) {
     update.category = storedVaultCategory(patch.documentType);
   }
+  const category = typeof update.category === 'string' ? update.category : undefined;
   const { data, error } = await context.admin
     .from('citizen_vault_documents')
     .update(update)
@@ -274,6 +279,7 @@ export async function updateVaultDocument(
     await updateMirror(context.admin, current.mirror_document_id, {
       ...(patch.title === undefined ? {} : { title: patch.title }),
       ...(patch.documentType === undefined ? {} : { documentType: patch.documentType }),
+      ...(category === undefined ? {} : { category }),
       mimeType: current.mime_type,
     });
   }

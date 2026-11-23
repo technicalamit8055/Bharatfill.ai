@@ -52,6 +52,44 @@ export function storedVaultCategory(type: DocumentType): CitizenVaultCategory | 
 }
 
 // ---------------------------------------------------------------------------
+// Document folders — the same sections on the phone and on the operator dashboard
+// ---------------------------------------------------------------------------
+
+/**
+ * Every folder a document can sit in: the four vault sections, then `other` for everything with
+ * no section (receipts, generated PDFs, unclassified files). Mirrors the `documents.folder` and
+ * `citizen_vault_documents.category` checks (migrations 0043, 0038).
+ */
+export const DOCUMENT_FOLDERS = [...CITIZEN_VAULT_CATEGORIES, 'other'] as const;
+export type DocumentFolder = (typeof DOCUMENT_FOLDERS)[number];
+
+export function isDocumentFolder(value: unknown): value is DocumentFolder {
+  return typeof value === 'string' && (DOCUMENT_FOLDERS as readonly string[]).includes(value);
+}
+
+/**
+ * The folder a document shows in on the dashboard: the one it was filed in (a citizen's choice in
+ * the app, carried by `documents.folder`), otherwise the one its type belongs to. An unknown or
+ * unrecognised type lands in `other`, never nowhere.
+ */
+export function documentFolder(documentType: unknown, folder?: unknown): DocumentFolder {
+  if (isDocumentFolder(folder)) return folder;
+  return typeof documentType === 'string' &&
+    (DOCUMENT_TYPES as readonly string[]).includes(documentType)
+    ? storedVaultCategory(documentType as DocumentType)
+    : 'other';
+}
+
+/**
+ * What a vault document's section becomes on its customer-side copy: a real section is kept as
+ * the citizen filed it; `other` is stored as "no folder" so the copy follows its type — which the
+ * reader may still correct from "Other document" to, say, a PAN card.
+ */
+export function mirrorFolderFrom(category: unknown): CitizenVaultCategory | null {
+  return isDocumentFolder(category) && category !== 'other' ? category : null;
+}
+
+// ---------------------------------------------------------------------------
 // Limits (design §7) — the database CHECKs are the authority for the time boxes
 // ---------------------------------------------------------------------------
 
@@ -299,6 +337,11 @@ export const vaultDocumentIntentSchema = z.object({
   mimeType: z.enum(VAULT_FILE_MIME_TYPES),
   sizeBytes: z.number().int().positive().max(MAX_VAULT_FILE_BYTES),
   pageCount: z.number().int().min(1).max(MAX_VAULT_DOCUMENT_PAGES).default(1),
+  /**
+   * The folder the citizen filed it in on the phone (`other`: no folder). Absent — an app build
+   * from before folders synced — means "the folder its type belongs to".
+   */
+  category: z.enum(DOCUMENT_FOLDERS).optional(),
 });
 
 /** SHA-256 (hex) of the encrypted object the phone uploaded. */
@@ -310,6 +353,8 @@ export const vaultDocumentUpdateSchema = z
   .object({
     documentType: z.enum(DOCUMENT_TYPES).optional(),
     title: z.string().trim().min(1).max(120).optional(),
+    /** Moved to another folder on the phone. */
+    category: z.enum(DOCUMENT_FOLDERS).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, 'errors.validation_failed');
 

@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { RoamingAccessView, RoamingAppRequestView } from '@assistigo/core';
+import {
+  formatGrantRemaining,
+  type RoamingAccessView,
+  type RoamingAppRequestView,
+} from '@assistigo/core';
 import { send } from './send';
 import { AlertIcon, CheckIcon, ShieldIcon } from './Brand';
 import type { CustomerSummary } from './messages';
@@ -11,8 +15,9 @@ import type { CustomerSummary } from './messages';
  * citizen's consent, type back the code, and end the session early.
  *
  * Consent comes one of two ways (migration 0039):
- *   app  a request to the citizen's BharatDoc app. The citizen picks how long (1, 2 or 4 hours),
- *        so there is no duration picker here; the panel polls until they answer.
+ *   app  a request to the citizen's BharatDoc app. The citizen picks how long (1, 2 or 4 hours,
+ *        or 30 days to trust this centre — migration 0042), so there is no duration picker
+ *        here; the panel polls until they answer.
  *   otp  a code sent to the citizen's phone, for a window the operator picks.
  */
 
@@ -33,12 +38,8 @@ function formatCountdown(expiresAt: string): string {
 
 /** Cosmetic only — the server is what actually stops answering once the grant lapses. */
 function formatRemaining(expiresAt: string): string {
-  const ms = new Date(expiresAt).getTime() - Date.now();
-  const totalMinutes = Math.max(0, Math.floor(ms / 60_000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return hours > 0 ? `${pad(hours)}h ${pad(minutes)}m` : `${pad(minutes)}m`;
+  // Days for a trusted centre's 30-day window ("29d 23h"), hours and minutes otherwise.
+  return formatGrantRemaining(new Date(expiresAt).getTime() - Date.now());
 }
 
 export function RoamingAuthBanner({
@@ -298,7 +299,8 @@ export function RoamingAuthBanner({
       ) : method === 'app' ? (
         <>
           <p className="tiny muted">
-            The customer approves on their phone and picks how long: 1, 2 or 4 hours.
+            The customer approves on their phone and picks how long: 1, 2 or 4 hours, or 30 days if
+            they trust your centre.
           </p>
           <button
             type="button"

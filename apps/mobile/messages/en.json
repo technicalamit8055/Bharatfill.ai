@@ -786,6 +786,10 @@
         "title": "Security",
         "subtitle": "PIN & biometric settings"
       },
+      "centres": {
+        "title": "Centre access",
+        "subtitle": "Cyber cafes that can use your details"
+      },
       "notifications": {
         "title": "Notifications",
         "subtitle": "Manage alerts and reminders"
@@ -823,6 +827,7 @@
       "photo": "Adding a profile photo is not live yet. No photo has been used.",
       "plan": "Plans are not live yet. Nothing has been charged.",
       "security": "App lock with a PIN or fingerprint is not live yet.",
+      "centres": "Centre access needs your Bharatfill account. It is not available in this build.",
       "notifications": "Alert settings are not live yet.",
       "appearance": "Dark mode is not live yet. The app stays in light mode for now.",
       "help": "Help and support from the app is not live yet.",
@@ -1034,6 +1039,8 @@
     "rate_limited": "Too many tries. Please wait a few minutes and try again.",
     "unauthenticated": "Please sign in again.",
     "roaming_request_missing": "This request has ended or is no longer available.",
+    "roaming_grant_missing": "This access has already ended or is not available.",
+    "roaming_trusted_limit": "You already trust {max} centres. Stop one before trusting another.",
     "vault": {
       "unavailable": "Bharatfill Vault is not available right now. Please try again later.",
       "mobile_invalid": "Enter a valid 10-digit Indian mobile number.",
@@ -1069,10 +1076,12 @@
       "document_access": "Use saved documents"
     },
     "durationLabel": "How long can they use them?",
+    "trustedNote": "Trusted centre: the person at this counter can use your details for 30 days without asking you each visit. Choose this only for a centre you know well. You can trust up to {max} centres and stop any of them at any time.",
     "durations": {
       "m60": "1 hour",
       "m120": "2 hours",
-      "m240": "4 hours"
+      "m240": "4 hours",
+      "m43200": "30 days"
     },
     "warning": "Approve only if you are at this centre right now. Never approve because someone asked you on a phone call.",
     "expiresIn": "This request ends in {minutes} min",
@@ -1080,8 +1089,44 @@
     "deny": "Deny",
     "approvedTitle": "Access allowed",
     "approvedBody": "{centre} can use your details for {duration}. Access ends on its own after that.",
+    "approvedTrustedBody": "{centre} is now a trusted centre and can use your details for 30 days without asking again. You can stop this any time in Profile → Centre access.",
     "deniedTitle": "Request denied",
     "deniedBody": "{centre} cannot use your details."
+  },
+  "centreAccess": {
+    "title": "Centre access",
+    "lead": "Cyber cafes and centres you allow can use your saved details and documents to fill forms for you. Stop any of them at any time.",
+    "trustedCount": "Trusted centres: {count} of {max}",
+    "liveHeading": "Can use your details now",
+    "noneLive": "No centre can use your details right now. When a centre asks, you will see the request on your screen.",
+    "endedHeading": "Ended in the last 30 days",
+    "trustedBadge": "Trusted",
+    "until": "until {date}",
+    "left": {
+      "days": "{days} days left",
+      "hours": "{hours} h {minutes} min left",
+      "minutes": "{minutes} min left",
+      "none": "Ending now"
+    },
+    "stop": "Stop",
+    "stopLabel": "Stop access for {centre}",
+    "trust": "Trust for 30 days",
+    "renew": "Renew for 30 days",
+    "trustNote": "A trusted centre can use your details for 30 days without asking at every visit. Only the person who asked at the counter gets access. You can trust up to {max} centres.",
+    "endedByYou": "Stopped by you",
+    "endedByCentre": "Ended by the centre",
+    "expired": "Time ran out",
+    "unknownCentre": "A centre",
+    "signedOut": "Sign in with your mobile number to see which centres can use your details.",
+    "stopConfirmTitle": "Stop access?",
+    "stopConfirmBody": "{centre} will not be able to use your details any more. They will have to ask you again next time.",
+    "stoppedTitle": "Access stopped",
+    "stoppedBody": "{centre} can no longer use your details.",
+    "trustConfirmTitle": "Trust this centre?",
+    "renewConfirmTitle": "Renew trust?",
+    "trustConfirmBody": "{centre} will be able to use your saved details and documents for the next 30 days without asking you again. Do this only for a centre you know well.",
+    "trustedTitle": "Centre trusted",
+    "trustedBody": "{centre} can use your details for 30 days. You can stop it here any time."
   },
   "cloud": {
     "errors": {

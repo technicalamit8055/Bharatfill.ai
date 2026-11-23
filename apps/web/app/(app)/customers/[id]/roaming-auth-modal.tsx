@@ -1,8 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Alert, Button, Card, SegmentedControl, TextField } from '@assistigo/ui';
+import {
+  Check,
+  Clock,
+  FileText,
+  Folder,
+  Info,
+  Landmark,
+  LoaderCircle,
+  Pencil,
+  Send,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
+import { Alert, Button, TextField, cn } from '@assistigo/ui';
 import {
   ROAMING_PURPOSE_LABELS,
   type RoamingAppRequestView,
@@ -20,6 +34,13 @@ const PURPOSES: readonly RoamingPurpose[] = [
   'document_access',
 ];
 const DURATIONS: readonly DurationMinutes[] = [60, 120, 240];
+
+const PURPOSE_ICONS: Record<RoamingPurpose, LucideIcon> = {
+  form_filling: FileText,
+  scheme_application: Landmark,
+  profile_update: Pencil,
+  document_access: Folder,
+};
 
 /** app: request to the citizen's BharatDoc app (0039). otp: WhatsApp code (0024). */
 type Method = 'app' | 'otp';
@@ -100,6 +121,16 @@ export function RoamingAuthModal({ customerId }: { customerId: string }) {
       clearInterval(poller);
     };
   }, [stage, request, customerId, router]);
+
+  // Escape closes the popup, the same as the ✕ button.
+  useEffect(() => {
+    if (stage === 'closed') return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') reset();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
 
   /** Tells the server we stopped waiting, so the citizen can no longer approve that request. */
   function cancelRequest() {
@@ -199,153 +230,394 @@ export function RoamingAuthModal({ customerId }: { customerId: string }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <Card
-        title={t('customers.roaming.modalTitle')}
-        className="w-full max-w-md"
-        actions={
-          <button
-            type="button"
-            aria-label={t('common.cancel')}
-            className="text-slate-400 hover:text-slate-700"
-            onClick={reset}
-          >
-            ✕
-          </button>
-        }
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-6 sm:items-center"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) reset();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="roaming-auth-title"
+        className="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl"
       >
-        {error ? (
-          <Alert tone="danger" className="mb-4">
-            {t(error)}
-          </Alert>
-        ) : null}
+        {/* Soft wash behind the illustration. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-gradient-to-bl from-blue-100/80 via-blue-50/50 to-transparent blur-2xl"
+        />
+        <ConsentIllustration className="pointer-events-none absolute right-10 top-5 w-20" />
 
-        {stage === 'form' ? (
-          <div className="space-y-4">
-            <div>
-              <p className="mb-1.5 text-sm font-medium text-slate-800">
-                {t('customers.roaming.methodLabel')}
-              </p>
-              <SegmentedControl
-                ariaLabel={t('customers.roaming.methodLabel')}
-                options={[
-                  { value: 'app', label: t('customers.roaming.methodApp') },
-                  { value: 'otp', label: t('customers.roaming.methodOtp') },
-                ]}
-                value={method}
-                onValueChange={(value) => chooseMethod(value as Method)}
-              />
-            </div>
+        <button
+          type="button"
+          aria-label={t('common.cancel')}
+          className="absolute right-2.5 top-2.5 z-10 rounded-full p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+          onClick={reset}
+        >
+          <X className="h-5 w-5" strokeWidth={1.75} />
+        </button>
 
-            <p className="text-sm text-slate-600">
-              {t(method === 'app' ? 'customers.roaming.appHelp' : 'customers.roaming.modalHelp')}
-            </p>
+        <div className="relative p-6">
+          <span aria-hidden="true" className="mb-3 block h-1 w-8 rounded-full bg-blue-600" />
+          <h2 id="roaming-auth-title" className="text-xl font-bold tracking-tight text-slate-950">
+            {t('customers.roaming.modalTitle')}
+          </h2>
+          <p className="mt-1 max-w-[70%] text-sm text-slate-500">
+            {t('customers.roaming.modalSubtitle')}
+          </p>
 
-            <div>
-              <p className="mb-1.5 text-sm font-medium text-slate-800">
-                {t('customers.roaming.purposeLabel')}
-              </p>
-              <SegmentedControl
-                ariaLabel={t('customers.roaming.purposeLabel')}
-                options={PURPOSES.map((value) => ({
-                  value,
-                  label: localised(ROAMING_PURPOSE_LABELS[value], locale),
-                }))}
-                value={purpose}
-                onValueChange={setPurpose}
-              />
-            </div>
+          {error ? (
+            <Alert tone="danger" className="mt-4">
+              {t(error)}
+            </Alert>
+          ) : null}
 
-            {method === 'otp' ? (
-              <div>
-                <p className="mb-1.5 text-sm font-medium text-slate-800">
-                  {t('customers.roaming.durationLabel')}
+          {stage === 'form' ? (
+            <>
+              <section className="mt-5">
+                <h3 className="text-sm font-semibold text-slate-900">
+                  {t('customers.roaming.methodLabel')}
+                </h3>
+                <div
+                  role="radiogroup"
+                  aria-label={t('customers.roaming.methodLabel')}
+                  className="mt-2 grid grid-cols-2 gap-2.5"
+                >
+                  <MethodOption
+                    selected={method === 'app'}
+                    label={t('customers.roaming.methodApp')}
+                    onSelect={() => chooseMethod('app')}
+                    icon={
+                      <Image
+                        src="/customers/bharatdoc-logo.png"
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="h-8 w-8 shrink-0 rounded-lg"
+                      />
+                    }
+                  />
+                  <MethodOption
+                    selected={method === 'otp'}
+                    label={t('customers.roaming.methodOtp')}
+                    onSelect={() => chooseMethod('otp')}
+                    icon={
+                      <Image
+                        src="/customers/whatsapp-logo.webp"
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="h-8 w-8 shrink-0"
+                      />
+                    }
+                  />
+                </div>
+                <p className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-slate-600">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-700" />
+                  <span>
+                    {t(method === 'app' ? 'customers.roaming.appHelp' : 'customers.roaming.modalHelp')}
+                  </span>
                 </p>
-                <SegmentedControl
-                  ariaLabel={t('customers.roaming.durationLabel')}
-                  options={DURATIONS.map((value) => ({
-                    value: String(value),
-                    label: t('customers.roaming.durationOption', { hours: value / 60 }),
-                  }))}
-                  value={String(durationMinutes)}
-                  onValueChange={(value) => setDurationMinutes(Number(value) as DurationMinutes)}
-                />
-              </div>
-            ) : null}
+              </section>
 
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={reset}>
-                {t('common.cancel')}
-              </Button>
-              {method === 'app' ? (
-                <Button type="button" loading={pending} onClick={() => void sendAppRequest()}>
-                  {t('customers.roaming.sendAppRequest')}
-                </Button>
-              ) : (
-                <Button type="button" loading={pending} onClick={() => void sendOtp()}>
-                  {t('customers.roaming.sendCode')}
-                </Button>
-              )}
-            </div>
-          </div>
-        ) : stage === 'waiting' ? (
-          <div className="space-y-4">
-            <p className="text-sm text-slate-600" aria-live="polite">
-              ⏳ {t('customers.roaming.appWaiting', { countdown })}
-            </p>
-            <div className="flex items-center justify-between gap-2">
-              <Button type="button" variant="link" onClick={() => chooseMethod('otp')}>
-                {t('customers.roaming.appUseOtp')}
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => chooseMethod('app')}>
-                {t('customers.roaming.appCancel')}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void verifyOtp();
-            }}
-          >
-            <p className="text-sm text-slate-600">
-              {t('customers.roaming.codeSentTo', {
-                mobile: mobileLast4 ? `•••••• ${mobileLast4}` : t('customers.roaming.theirPhone'),
-              })}
-            </p>
-            <TextField
-              label={t('customers.roaming.codeLabel')}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              autoFocus
-              required
-              value={otp}
-              onChange={(event) => setOtp(event.target.value.replace(/\D+/g, '').slice(0, 6))}
-            />
-            <div className="flex items-center justify-between gap-2">
-              <Button
-                type="button"
-                variant="link"
-                disabled={pending}
-                onClick={() => void sendOtp()}
-              >
-                {t('customers.roaming.resendCode')}
-              </Button>
-              <div className="flex gap-2">
+              <hr className="my-4 border-slate-200" />
+
+              <section>
+                <h3 className="text-sm font-semibold text-slate-900">
+                  {t('customers.roaming.purposeLabel')}
+                </h3>
+                <div
+                  role="radiogroup"
+                  aria-label={t('customers.roaming.purposeLabel')}
+                  className="mt-2 grid grid-cols-2 gap-2.5"
+                >
+                  {PURPOSES.map((value) => {
+                    const Icon = PURPOSE_ICONS[value];
+                    const selected = purpose === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => setPurpose(value)}
+                        className={cn(
+                          'relative flex items-center gap-2.5 rounded-xl border p-2.5 pr-7 text-left transition',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1',
+                          selected
+                            ? 'border-blue-600 bg-blue-50/70'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50',
+                        )}
+                      >
+                        {selected ? (
+                          <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white">
+                            <Check className="h-2.5 w-2.5" strokeWidth={3.5} />
+                          </span>
+                        ) : null}
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-800 ring-1 ring-blue-100">
+                          <Icon className="h-4 w-4" strokeWidth={1.75} />
+                        </span>
+                        <span className="text-sm font-medium leading-tight text-slate-800">
+                          {localised(ROAMING_PURPOSE_LABELS[value], locale)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              {method === 'otp' ? (
+                <section className="mt-4">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    {t('customers.roaming.durationLabel')}
+                  </h3>
+                  <div
+                    role="radiogroup"
+                    aria-label={t('customers.roaming.durationLabel')}
+                    className="mt-2 flex flex-wrap gap-2"
+                  >
+                    {DURATIONS.map((value) => {
+                      const selected = durationMinutes === value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          onClick={() => setDurationMinutes(value)}
+                          className={cn(
+                            'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition',
+                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1',
+                            selected
+                              ? 'border-blue-600 bg-blue-50/70 text-blue-700'
+                              : 'border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50',
+                          )}
+                        >
+                          <Clock className="h-3.5 w-3.5" />
+                          {t('customers.roaming.durationOption', { hours: value / 60 })}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
+
+              <div className="mt-5 flex items-center justify-end gap-2">
                 <Button type="button" variant="ghost" onClick={reset}>
                   {t('common.cancel')}
                 </Button>
-                <Button type="submit" loading={pending} disabled={otp.length !== 6}>
-                  {t('customers.roaming.verifyAndUnlock')}
+                <PrimaryAction
+                  pending={pending}
+                  onClick={() => void (method === 'app' ? sendAppRequest() : sendOtp())}
+                  label={t(
+                    method === 'app' ? 'customers.roaming.sendAppRequest' : 'customers.roaming.sendCode',
+                  )}
+                />
+              </div>
+            </>
+          ) : stage === 'waiting' ? (
+            <div className="mt-5 space-y-4">
+              <div
+                className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50/70 p-3.5"
+                aria-live="polite"
+              >
+                <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-blue-600" />
+                <p className="text-sm text-slate-700">
+                  {t('customers.roaming.appWaiting', { countdown })}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Button type="button" variant="link" onClick={() => chooseMethod('otp')}>
+                  {t('customers.roaming.appUseOtp')}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => chooseMethod('app')}>
+                  {t('customers.roaming.appCancel')}
                 </Button>
               </div>
             </div>
-          </form>
-        )}
-      </Card>
+          ) : (
+            <form
+              className="mt-5 space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void verifyOtp();
+              }}
+            >
+              <p className="flex items-start gap-2 text-sm text-slate-600">
+                <Image
+                  src="/customers/whatsapp-logo.webp"
+                  alt=""
+                  width={20}
+                  height={20}
+                  className="h-5 w-5 shrink-0"
+                />
+                <span>
+                  {t('customers.roaming.codeSentTo', {
+                    mobile: mobileLast4 ? `•••••• ${mobileLast4}` : t('customers.roaming.theirPhone'),
+                  })}
+                </span>
+              </p>
+              <TextField
+                label={t('customers.roaming.codeLabel')}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                autoFocus
+                required
+                value={otp}
+                onChange={(event) => setOtp(event.target.value.replace(/\D+/g, '').slice(0, 6))}
+              />
+              <div className="flex items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="link"
+                  disabled={pending}
+                  onClick={() => void sendOtp()}
+                >
+                  {t('customers.roaming.resendCode')}
+                </Button>
+                <div className="flex gap-2">
+                  <Button type="button" variant="ghost" onClick={reset}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button type="submit" loading={pending} disabled={otp.length !== 6}>
+                    {t('customers.roaming.verifyAndUnlock')}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
     </div>
+  );
+}
+
+function MethodOption({
+  selected,
+  label,
+  icon,
+  onSelect,
+}: {
+  selected: boolean;
+  label: string;
+  icon: ReactNode;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={cn(
+        'flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1',
+        selected
+          ? 'border-blue-600 bg-blue-50/70'
+          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50',
+      )}
+    >
+      {icon}
+      <span className="flex-1 text-sm font-semibold leading-tight text-slate-900">{label}</span>
+      <span
+        aria-hidden="true"
+        className={cn(
+          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition',
+          selected ? 'border-blue-600' : 'border-slate-300',
+        )}
+      >
+        {selected ? <span className="h-2 w-2 rounded-full bg-blue-600" /> : null}
+      </span>
+    </button>
+  );
+}
+
+function PrimaryAction({
+  pending,
+  label,
+  onClick,
+}: {
+  pending: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      aria-busy={pending}
+      onClick={onClick}
+      className={cn(
+        'flex items-center justify-center gap-2 rounded-lg bg-gradient-to-b from-blue-600 to-blue-700 px-4 py-2 text-sm font-semibold text-white',
+        'shadow-md shadow-blue-600/25 transition hover:from-blue-500 hover:to-blue-700',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+        'disabled:cursor-not-allowed disabled:opacity-70',
+      )}
+    >
+      {pending ? (
+        <LoaderCircle className="h-4 w-4 animate-spin" />
+      ) : (
+        <Send className="h-4 w-4" strokeWidth={2} />
+      )}
+      {label}
+    </button>
+  );
+}
+
+/** Decorative: a document guarded by a shield. Hidden from screen readers. */
+function ConsentIllustration({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 240 220" aria-hidden="true" className={className}>
+      <defs>
+        <linearGradient id="rq-blob" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#dbeafe" />
+          <stop offset="1" stopColor="#bfdbfe" stopOpacity="0.5" />
+        </linearGradient>
+        <linearGradient id="rq-shield" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#3b82f6" />
+          <stop offset="1" stopColor="#1d4ed8" />
+        </linearGradient>
+        <filter id="rq-shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="8" stdDeviation="8" floodColor="#1e40af" floodOpacity="0.18" />
+        </filter>
+      </defs>
+      <path
+        d="M30 120c0-46 34-78 80-82 40-4 64 14 92 30 26 15 34 48 18 76-18 31-60 44-104 42-50-2-86-24-86-66z"
+        fill="url(#rq-blob)"
+      />
+      <g transform="rotate(6 120 110)" filter="url(#rq-shadow)">
+        <rect x="70" y="36" width="110" height="140" rx="14" fill="#ffffff" />
+        <path d="M156 36h10a14 14 0 0 1 14 14v10z" fill="#dbeafe" />
+        <rect x="86" y="60" width="56" height="9" rx="4.5" fill="#fb923c" />
+        <rect x="86" y="80" width="76" height="9" rx="4.5" fill="#93c5fd" />
+        <rect x="86" y="100" width="62" height="9" rx="4.5" fill="#22c55e" />
+        <rect x="86" y="124" width="34" height="7" rx="3.5" fill="#bfdbfe" />
+        <rect x="86" y="140" width="26" height="7" rx="3.5" fill="#bfdbfe" />
+      </g>
+      <g filter="url(#rq-shadow)">
+        <path
+          d="M172 108l36 13v26c0 24-16 40-36 48-20-8-36-24-36-48v-26z"
+          fill="url(#rq-shield)"
+          stroke="#ffffff"
+          strokeWidth="4"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M156 150l11 11 22-24"
+          fill="none"
+          stroke="#ffffff"
+          strokeWidth="7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </g>
+      <g strokeLinecap="round" strokeWidth="6">
+        <path d="M186 22l-6 16" stroke="#fbbf24" />
+        <path d="M200 40l-12 9" stroke="#22c55e" />
+        <path d="M206 58l-14 3" stroke="#22c55e" />
+      </g>
+    </svg>
   );
 }

@@ -22,7 +22,7 @@ digital personal data under India's DPDP Act 2023 and DPDP Rules 2025.
 | AI provider retaining documents             | Provider is off by default; org-level opt-in; no training use; request-id-only audit         |
 | Forged WhatsApp/Telegram webhook delivery   | HMAC `X-Hub-Signature-256` / secret-token header, constant-time compare; unconfigured → 404  |
 | Leaked walk-in drop code                    | Add-only endpoint, 2 h session expiry, 10 files/session, 60 counter sessions/h, uniform 404  |
-| Visiting centre reading another's citizen   | Citizen-read OTP → 12 h-max grant naming one user; linking alone grants nothing              |
+| Visiting centre reading another's citizen   | Citizen-read OTP or in-app approval → 12 h-max grant naming one user (30 days only when the citizen trusts the centre in the app, 0042); linking alone grants nothing |
 | Internal staff reading customer records     | Panel reads counts only via three service-role RPCs; records still need a support grant      |
 | Console reached with a dashboard session    | Separate portal sign-in mints a signed, 12 h, user- and portal-bound console session         |
 | Citizen (phone) account acting as a centre  | Active membership only for a confirmed-email, non-anonymous, non-`citizen` principal (0037)  |
