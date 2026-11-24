@@ -13,10 +13,12 @@ import {
 } from '@assistigo/core';
 import type { z } from 'zod';
 import { logger } from '../api/logger';
+import { isMissingColumnError } from '../supabase/missing-column';
 import type { CitizenVaultDocumentRow } from '../supabase/database.types';
 import { VAULT_BUCKET } from './account';
 import {
   ensureAppCustomer,
+  mirrorFailure,
   mirrorPendingDocuments,
   mirrorVaultDocument,
   removeMirror,
@@ -52,6 +54,8 @@ export type VaultDocumentView = {
   status: 'pending' | 'ready';
   createdAt: string;
   updatedAt: string;
+  /** The centre that added it for the citizen (0047), so the phone can pull it in; else null. */
+  addedByCentre: string | null;
 };
 
 const COLUMNS =
@@ -71,6 +75,7 @@ function toView(row: CitizenVaultDocumentRow): VaultDocumentView {
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    addedByCentre: row.added_by_centre_name ?? null,
   };
 }
 
@@ -123,15 +128,40 @@ export async function listVaultDocuments(context: CitizenContext): Promise<Vault
   // The phone lists on every launch: a good moment to catch up on customer-side copies (0041).
   await mirrorQuietly(context);
 
-  const { data, error } = await context.admin
-    .from('citizen_vault_documents')
-    .select(COLUMNS)
-    .eq('citizen_id', context.citizenId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(500);
+  const query = (columns: string) =>
+    context.admin
+      .from('citizen_vault_documents')
+      .select(columns)
+      .eq('citizen_id', context.citizenId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(500);
+  let { data, error } = await query(`${COLUMNS}, added_by_centre_name`);
+  // A database that has not run 0047: nothing was added by a centre yet.
+  if (isMissingColumnError(error)) ({ data, error } = await query(COLUMNS));
   if (error) throw error;
-  return ((data ?? []) as CitizenVaultDocumentRow[]).map(toView);
+  return ((data ?? []) as unknown as CitizenVaultDocumentRow[]).map(toView);
+}
+
+/** How long the phone's download link for its own encrypted file lives. */
+const DOWNLOAD_URL_TTL_SECONDS = 120;
+
+/**
+ * A short-lived link to the encrypted bytes of one of the citizen's own ready documents, so the
+ * phone can pull in a file a centre added (0047). Ciphertext only: the phone decrypts it with
+ * the document key it already holds; the server hands out nothing it could not already read.
+ */
+export async function createDownloadUrl(
+  context: CitizenContext,
+  documentId: string,
+): Promise<{ downloadUrl: string }> {
+  const row = await loadOwnDocument(context, documentId);
+  if (row.status !== 'ready') throw notFound('errors.vault.document_missing');
+  const { data, error } = await context.admin.storage
+    .from(VAULT_BUCKET)
+    .createSignedUrl(row.storage_path, DOWNLOAD_URL_TTL_SECONDS);
+  if (error || !data) throw error ?? new Error('signed download url missing');
+  return { downloadUrl: data.signedUrl };
 }
 
 export type UploadIntent = {
@@ -234,7 +264,7 @@ export async function confirmUpload(
     logger.warn('citizen.mirror_failed', {
       citizenId: context.citizenId,
       documentId: ready.id,
-      reason: thrown instanceof Error ? thrown.name : 'unknown',
+      ...mirrorFailure(thrown),
     });
   }
   return toView(ready);
@@ -246,7 +276,7 @@ async function mirrorQuietly(context: CitizenContext): Promise<void> {
   } catch (thrown) {
     logger.warn('citizen.mirror_catch_up_failed', {
       citizenId: context.citizenId,
-      reason: thrown instanceof Error ? thrown.name : 'unknown',
+      ...mirrorFailure(thrown),
     });
   }
 }

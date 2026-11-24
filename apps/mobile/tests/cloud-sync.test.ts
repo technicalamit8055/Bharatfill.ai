@@ -5,7 +5,13 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { cloudTitle, planSync, syncFileKind } from '../lib/cloud/sync-plan';
+import {
+  cloudTitle,
+  planPulls,
+  planSync,
+  pulledDetails,
+  syncFileKind,
+} from '../lib/cloud/sync-plan';
 import {
   EMPTY_VAULT_INDEX,
   parseVaultIndex,
@@ -293,5 +299,81 @@ describe('everyday scans stay on the phone (design §15)', () => {
     const shared = indexOf(saved(A, { documentType: 'generic', category: 'identity' }));
     const moved = withDetails(shared, A, { category: null });
     expect(moved.documents[0]?.phoneOnly).toBe(false);
+  });
+});
+
+describe('pulling in what a centre added (0047)', () => {
+  const centre = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    status: 'ready' as const,
+    addedByCentre: 'Demo Seva Kendra',
+    ...extra,
+  });
+
+  it('pulls a ready centre-added document this phone does not hold', () => {
+    expect(planPulls(EMPTY_VAULT_INDEX, [centre(CLOUD_A)]).map((d) => d.id)).toEqual([CLOUD_A]);
+  });
+
+  it("never pulls the phone's own uploads, pending rows, or one already held", () => {
+    const index = withDocument(
+      EMPTY_VAULT_INDEX,
+      doc(A, { cloud: { id: CLOUD_A, title: 'Held', documentType: 'generic', category: 'other' } }),
+    );
+    const listed = [
+      centre(CLOUD_A),
+      centre(CLOUD_B, { status: 'pending' }),
+      centre('cccccccc-cccc-4ccc-8ccc-cccccccccccc', { addedByCentre: null }),
+    ];
+    expect(planPulls(index, listed)).toEqual([]);
+  });
+
+  it('never brings back a document whose delete is still queued here', () => {
+    const synced = withDocument(
+      EMPTY_VAULT_INDEX,
+      doc(A, { cloud: { id: CLOUD_A, title: 'Gone', documentType: 'generic', category: 'other' } }),
+    );
+    const deleted = withoutDocument(synced, A);
+    expect(planPulls(deleted, [centre(CLOUD_A)])).toEqual([]);
+  });
+
+  it('a pulled document causes no upload or update on the next sync', () => {
+    const details = pulledDetails({
+      title: 'Income certificate',
+      documentType: 'income_certificate',
+      category: 'certificate',
+    });
+    const index = withDocument(
+      EMPTY_VAULT_INDEX,
+      doc(A, {
+        source: 'gallery',
+        title: details.title,
+        documentType: details.documentType,
+        ...(details.category ? { category: details.category } : {}),
+        phoneOnly: false,
+        addedByCentre: 'Demo Seva Kendra',
+        cloud: {
+          id: CLOUD_A,
+          title: details.title,
+          documentType: details.documentType,
+          category: details.cloudCategory,
+        },
+      }),
+    );
+    expect(planSync(index, { cloudEnabled: true, untitled })).toEqual([]);
+    expect(parseVaultIndex(serialiseVaultIndex(index))?.documents[0]?.addedByCentre).toBe(
+      'Demo Seva Kendra',
+    );
+  });
+
+  it('maps unknown types to Other and cuts long titles to the vault limit', () => {
+    const details = pulledDetails({
+      title: 'x'.repeat(120),
+      documentType: 'unknown',
+      category: 'other',
+    });
+    expect(details.documentType).toBe('generic');
+    expect(details.category).toBeNull();
+    expect(details.cloudCategory).toBe('other');
+    expect(details.title).toHaveLength(80);
   });
 });

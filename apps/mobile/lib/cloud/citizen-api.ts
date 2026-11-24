@@ -143,6 +143,8 @@ const cloudDocumentSchema = z.object({
   status: z.enum(['pending', 'ready']),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** The centre that added it for the citizen (0047); absent from older servers. */
+  addedByCentre: z.string().min(1).max(160).nullable().optional(),
 });
 export type CloudDocument = z.infer<typeof cloudDocumentSchema>;
 
@@ -391,6 +393,15 @@ export function createCitizenApi(deps: CitizenApiDeps) {
         'GET',
         '/api/citizen/documents',
         z.object({ documents: z.array(cloudDocumentSchema) }).transform((v) => v.documents),
+        undefined,
+        { [CITIZEN_DEVICE_HEADER]: deviceId },
+      ),
+    /** A short-lived link to one of this citizen's encrypted files (to pull a centre's upload). */
+    getDocumentFileUrl: (deviceId: string, documentId: string) =>
+      call(
+        'GET',
+        `/api/citizen/documents/${encodeURIComponent(documentId)}/file`,
+        z.object({ downloadUrl: z.string().url() }).transform((value) => value.downloadUrl),
         undefined,
         { [CITIZEN_DEVICE_HEADER]: deviceId },
       ),

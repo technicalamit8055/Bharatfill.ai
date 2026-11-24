@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useId, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Alert, Button, ProgressBar, Select } from '@assistigo/ui';
 import {
   ALLOWED_UPLOAD_MIME_TYPES,
@@ -18,6 +18,7 @@ import { ExtractionModeSelect } from '@/components/documents/extraction-mode-sel
 import { SkipReadingToggle, storeOnlyState } from '@/components/documents/skip-reading-toggle';
 import { ActiveAiVendorNote } from '@/components/documents/active-ai-vendor-note';
 import { ExtractionWarningsAlert } from '@/components/documents/extraction-warnings';
+import { AppCopyAlert, type AppCopy } from '@/components/documents/app-copy-alert';
 import { formatBytes } from '@/lib/documents/format';
 import { ExtractionReview, type ReviewField } from '../../documents/[id]/extraction-review';
 
@@ -61,16 +62,21 @@ type ExtractionGetResponse = {
 export function UploadDocumentPanel({
   customerId,
   canReview,
+  defaultDocumentType = null,
 }: {
   customerId: string;
   canReview: boolean;
+  /** Pre-chosen type, when opened from a "Documents needed" row. Still changeable. */
+  defaultDocumentType?: DocumentType | null;
 }) {
+  // The panel can be on the page twice (Add details, and a checklist row), so ids are per instance.
+  const idBase = useId();
   const t = useTranslations();
   const { locale } = useI18n();
   const router = useRouter();
 
   const [file, setFile] = useState<File | null>(null);
-  const [documentType, setDocumentType] = useState('');
+  const [documentType, setDocumentType] = useState<string>(defaultDocumentType ?? '');
   const [extractionMode, setExtractionMode] = useState<ExtractionMode>('auto');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +88,8 @@ export function UploadDocumentPanel({
   /** The file went up as `storeOnly`: there is no extraction coming to wait for. */
   const [savedUnread, setSavedUnread] = useState(false);
   const [skipReading, setSkipReading] = useState(false);
+  /** Set only for a BharatDoc app customer's upload. */
+  const [appCopy, setAppCopy] = useState<AppCopy | null>(null);
 
   async function fetchExtraction(id: string) {
     try {
@@ -140,13 +148,14 @@ export function UploadDocumentPanel({
 
   function startOver() {
     setFile(null);
-    setDocumentType('');
+    setDocumentType(defaultDocumentType ?? '');
     setDocumentId(null);
     setDocumentStatus(null);
     setResult(null);
     setReviewed(false);
     setSavedUnread(false);
     setSkipReading(false);
+    setAppCopy(null);
     setError(null);
   }
 
@@ -208,7 +217,7 @@ export function UploadDocumentPanel({
       });
 
       const processJson = (await processResponse.json()) as
-        { data: { status: string } } | { error: { messageKey: string } };
+        { data: { status: string; appCopy?: AppCopy } } | { error: { messageKey: string } };
 
       if (!processResponse.ok || 'error' in processJson) {
         setError('error' in processJson ? processJson.error.messageKey : 'errors.internal');
@@ -219,8 +228,9 @@ export function UploadDocumentPanel({
       setDocumentId(intent.documentId);
       setDocumentStatus(processJson.data.status);
       setSavedUnread(storeOnly);
+      setAppCopy(processJson.data.appCopy ?? null);
       setFile(null);
-      setDocumentType('');
+      setDocumentType(defaultDocumentType ?? '');
       if (!storeOnly) await fetchExtraction(intent.documentId);
       // The Documents card below reads from the same server component tree, so this is what
       // makes the new row (and its status) show up without a full page reload.
@@ -244,11 +254,11 @@ export function UploadDocumentPanel({
       {documentId === null ? (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <label htmlFor="profile-upload-file" className="text-sm font-medium text-slate-800">
+            <label htmlFor={`${idBase}-file`} className="text-sm font-medium text-slate-800">
               {t('documents.file')}
             </label>
             <input
-              id="profile-upload-file"
+              id={`${idBase}-file`}
               name="file"
               type="file"
               required
@@ -267,11 +277,11 @@ export function UploadDocumentPanel({
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="profile-upload-type" className="text-sm font-medium text-slate-800">
+            <label htmlFor={`${idBase}-type`} className="text-sm font-medium text-slate-800">
               {t('documents.type')}
             </label>
             <Select
-              id="profile-upload-type"
+              id={`${idBase}-type`}
               value={documentType}
               onChange={(event) => setDocumentType(event.target.value)}
             >
@@ -286,7 +296,7 @@ export function UploadDocumentPanel({
           </div>
 
           <SkipReadingToggle
-            id="profile-upload-skip-reading"
+            id={`${idBase}-skip-reading`}
             documentType={documentType}
             checked={skipReading}
             onChange={setSkipReading}
@@ -296,7 +306,7 @@ export function UploadDocumentPanel({
           {storeOnly ? null : (
             <>
               <ExtractionModeSelect
-                id="profile-upload-mode"
+                id={`${idBase}-mode`}
                 value={extractionMode}
                 onChange={setExtractionMode}
                 disabled={pending}
@@ -325,6 +335,8 @@ export function UploadDocumentPanel({
               {t('documents.failedHelp')}
             </Alert>
           ) : null}
+
+          {appCopy ? <AppCopyAlert appCopy={appCopy} /> : null}
 
           {savedUnread ? (
             <Alert tone="success" title={t('documents.storeOnly.savedTitle')}>

@@ -65,6 +65,11 @@ const vaultDocumentSchema = z.object({
   /** The citizen set `phoneOnly` themselves, so a later folder move never changes it. */
   phoneOnlyChosen: z.boolean().optional(),
   /**
+   * The centre that added this document for the citizen (0047; design §17), as its name was
+   * then. Set only on documents pulled in from the cloud vault; shown as "Added by …".
+   */
+  addedByCentre: z.string().min(1).max(160).optional(),
+  /**
    * The cloud copy of this document, once synced: its server id and the type, title and folder
    * it was last synced with, so a later rename, retype or move is noticed and sent
    * (`lib/cloud/sync-plan.ts`). `category` is absent on copies synced before folders synced;

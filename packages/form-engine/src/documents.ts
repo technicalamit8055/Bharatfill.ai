@@ -83,6 +83,18 @@ function classifyText(text: string): SlotClass | null {
   return null;
 }
 
+/**
+ * Every specific document type a piece of text names, in `SLOT_TYPE_WORDS` order.
+ *
+ * `classifyText` stops at the first hit, which is right for an upload box ("Photo & Signature"
+ * is the signature box). A requirement that offers alternatives is different: "Address proof
+ * (Aadhaar / voter ID / electricity bill)" is met by either card, so a checklist needs both.
+ */
+export function documentTypesNamedIn(text: string): SlotDocumentType[] {
+  const normalized = normalizeSlotText(text);
+  return SLOT_TYPE_WORDS.filter(([, words]) => words.test(normalized)).map(([type]) => type);
+}
+
 type SlotTextField = Pick<
   DetectedField,
   'labelText' | 'ariaLabel' | 'placeholder' | 'name' | 'id' | 'nearbyText' | 'sectionHeading'

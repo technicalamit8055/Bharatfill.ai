@@ -3,6 +3,11 @@ import { extractionModeSchema } from '@assistigo/ai';
 import { requirePermission, resolveContext } from '@/lib/api/context';
 import { handler, ok } from '@/lib/api/response';
 import { processDocument } from '@/lib/documents/process';
+import {
+  loadOwnAppCustomerUpload,
+  processAppCustomerUpload,
+} from '@/lib/documents/app-customer-upload';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
 const idSchema = z.string().uuid();
 
@@ -38,6 +43,12 @@ export const POST = handler(
 
     const id = idSchema.parse((await ctx.params).id);
     const options = bodySchema.parse(await readBody(request));
+
+    // An upload this operator made for a BharatDoc app customer (0047) lives in the app
+    // organization, out of reach of the ordinary path's organization filter.
+    const admin = createSupabaseAdminClient();
+    const appUpload = await loadOwnAppCustomerUpload(context, admin, id);
+    if (appUpload) return ok(await processAppCustomerUpload(context, admin, appUpload, options));
 
     return ok(await processDocument(context, id, options));
   },

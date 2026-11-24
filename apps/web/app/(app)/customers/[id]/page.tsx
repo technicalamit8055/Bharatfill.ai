@@ -2,6 +2,7 @@ import { notFound as nextNotFound } from 'next/navigation';
 import Link from 'next/link';
 import { Badge, TBody, TD, TH, THead, TR, Table, cn, type Tone } from '@assistigo/ui';
 import {
+  CITIZEN_APP_ORGANIZATION_ID,
   CUSTOMER_FIELD_SECTIONS,
   fieldsInSection,
   formatIndianDate,
@@ -19,9 +20,11 @@ import type { AuditLogRow, CustomerRow } from '@/lib/supabase/database.types';
 import { buildCustomerSchemeReport } from '@/lib/schemes/service';
 import { activityDetail } from '@/lib/customers/activity';
 import { toReportView } from '@/lib/schemes/present';
+import { CHECKLIST_TARGET_PARAM, parseChecklistTargetId } from '@/lib/documents/checklist';
 import { OpportunitiesDrawer } from './opportunities-drawer';
 import { CustomerProfileSections, type ProfileSection } from './profile-sections';
 import { CustomerDocuments } from './customer-documents';
+import { DocumentChecklistCard } from './document-checklist-card';
 import { CustomerApplications } from './customer-applications';
 import { CustomerFillHistory } from './customer-fill-history';
 import { PortalLoginsCard } from './portal-logins-card';
@@ -179,7 +182,11 @@ export default async function CustomerProfilePage({
   const canReveal = session.permissions.has('customer.reveal_sensitive');
   const canUpdate = !isRoaming && session.permissions.has('customer.update');
   const canDelete = !isRoaming && session.permissions.has('customer.delete');
-  const canUploadDocument = !isRoaming && session.permissions.has('document.upload');
+  // The one write a visit allows (0047): adding a document for a BharatDoc app customer, which
+  // has no home centre of its own. The grant is re-proved server-side on every upload.
+  const isAppCustomer = row.organization_id === CITIZEN_APP_ORGANIZATION_ID;
+  const canUploadDocument =
+    (!isRoaming || isAppCustomer) && session.permissions.has('document.upload');
   const auditLogs = (auditRows ?? []) as AuditLogRow[];
 
   // Matched here rather than in the widget: the evaluation is pure and synchronous, so it costs
@@ -394,6 +401,15 @@ export default async function CustomerProfilePage({
 
         {canViewDocuments ? (
           <CustomerTabPanel value="documents">
+            <DocumentChecklistCard
+              customerId={row.id}
+              organizationId={row.organization_id}
+              viewerOrganizationId={session.organization.id}
+              targetId={parseChecklistTargetId(query[CHECKLIST_TARGET_PARAM])}
+              canUpload={canUploadDocument}
+              canPrepare={!isRoaming && session.permissions.has('documenttool.use')}
+              canReview={session.permissions.has('extraction.review')}
+            />
             {/* The customer's own organization_id, not the caller's: for a roaming session that is
               the home centre, and `documents_select` (migration 0024) admits the read via the
               live grant either way. */}

@@ -37,7 +37,8 @@ import type { ApiResult, CitizenApi } from './citizen-api';
 import { loadCloudDeviceId, loadCloudDocumentKey } from './cloud-store';
 import { cloudConfig } from './config';
 import { citizenApi, currentSession } from './session';
-import { planSync, type SyncAction, syncFileKind } from './sync-plan';
+import { pullDocument } from './pull';
+import { planPulls, planSync, type SyncAction, syncFileKind } from './sync-plan';
 
 /**
  * `other_account`: this phone's vault is bound to a different cloud account (someone else
@@ -210,6 +211,19 @@ async function runOnce(untitled: (source: DocumentSource) => string): Promise<Sy
   let failed = false;
   for (const action of planSync(index, { cloudEnabled: account.value.cloudEnabled, untitled })) {
     const step = await perform(run, index, action);
+    if (step === 'offline' || step === 'signed_out') return step;
+    if (step === 'failed') failed = true;
+  }
+
+  // Then pull in what a centre added for the citizen (0047), after every queued delete has run,
+  // so a document the citizen deleted here is never brought back.
+  const listed = await api.listDocuments(deviceId);
+  if (!listed.ok) {
+    const step = stepOf(listed);
+    return step === 'offline' || step === 'signed_out' ? step : 'partial';
+  }
+  for (const document of planPulls(await readVaultIndex(), listed.value)) {
+    const step = await pullDocument(run, document);
     if (step === 'offline' || step === 'signed_out') return step;
     if (step === 'failed') failed = true;
   }

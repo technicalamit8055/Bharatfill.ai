@@ -16,6 +16,7 @@ import type { ExtractionMode } from '@assistigo/ai/types';
 import { useI18n, useTranslations } from '@/lib/i18n/client';
 import { ExtractionModeSelect } from '@/components/documents/extraction-mode-select';
 import { SkipReadingToggle, storeOnlyState } from '@/components/documents/skip-reading-toggle';
+import { AppCopyAlert, type AppCopy } from '@/components/documents/app-copy-alert';
 import { formatBytes } from '@/lib/documents/format';
 
 type UploadIntent = {
@@ -25,7 +26,8 @@ type UploadIntent = {
   storagePath: string;
 };
 
-type CustomerOption = { id: string; label: string };
+/** `fromApp`: a BharatDoc app customer — the file also goes to their phone (0047). */
+type CustomerOption = { id: string; label: string; fromApp?: boolean };
 
 /**
  * Three steps, one button (§9.3):
@@ -56,6 +58,10 @@ export function UploadForm({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [skipReading, setSkipReading] = useState(false);
+  const [customerId, setCustomerId] = useState(defaultCustomerId ?? '');
+  /** An app customer's upload stays here to say whether their app got it, then links on. */
+  const [done, setDone] = useState<{ documentId: string; appCopy: AppCopy } | null>(null);
+  const toApp = customers.some((customer) => customer.id === customerId && customer.fromApp);
 
   const { storeOnly, needsType } = storeOnlyState(documentType, skipReading);
 
@@ -87,9 +93,6 @@ export function UploadForm({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!file || needsType) return;
-
-    const form = new FormData(event.currentTarget);
-    const customerId = String(form.get('customerId') ?? '');
 
     setPending(true);
     setError(null);
@@ -140,11 +143,18 @@ export function UploadForm({
       });
 
       const processJson = (await processResponse.json()) as
-        { data: unknown } | { error: { messageKey: string } };
+        { data: { appCopy?: AppCopy } } | { error: { messageKey: string } };
 
       if (!processResponse.ok || 'error' in processJson) {
         setError('error' in processJson ? processJson.error.messageKey : 'errors.internal');
         setPending(false);
+        return;
+      }
+
+      if (processJson.data.appCopy) {
+        setDone({ documentId: intent.documentId, appCopy: processJson.data.appCopy });
+        setPending(false);
+        router.refresh();
         return;
       }
 
@@ -154,6 +164,19 @@ export function UploadForm({
       setError('errors.internal');
       setPending(false);
     }
+  }
+
+  if (done) {
+    return (
+      <Card>
+        <div className="space-y-4">
+          <AppCopyAlert appCopy={done.appCopy} />
+          <Link href={`/documents/${done.documentId}`} className="text-sm font-medium underline">
+            {t('documents.view')}
+          </Link>
+        </div>
+      </Card>
+    );
   }
 
   return (
@@ -186,7 +209,12 @@ export function UploadForm({
           <label htmlFor="customerId" className="text-sm font-medium text-slate-800">
             {t('documents.customer')}
           </label>
-          <Select id="customerId" name="customerId" defaultValue={defaultCustomerId ?? ''}>
+          <Select
+            id="customerId"
+            name="customerId"
+            value={customerId}
+            onChange={(event) => setCustomerId(event.target.value)}
+          >
             <option value="">{t('documents.noCustomer')}</option>
             {customers.map((customer) => (
               <option key={customer.id} value={customer.id}>
@@ -195,6 +223,7 @@ export function UploadForm({
             ))}
           </Select>
           <p className="text-xs text-slate-500">{t('documents.customerHint')}</p>
+          {toApp ? <Alert tone="info">{t('documents.appCustomerUploadNote')}</Alert> : null}
         </div>
 
         <div className="space-y-1.5">

@@ -16,10 +16,14 @@ vi.mock('../env', () => ({
 vi.mock('../jobs/runner', () => ({ runDocumentJob: vi.fn(async () => ({ claimed: false })) }));
 
 import {
+  addCentreDocumentToVault,
+  centreDocumentTitle,
   customerNameFrom,
   deleteAppCustomer,
   ensureAppCustomer,
+  MirrorError,
   mirrorDocumentType,
+  mirrorFailure,
   mirrorFilename,
   mirrorPendingDocuments,
   mirrorVaultDocument,
@@ -28,8 +32,8 @@ import {
   syncAppCustomerName,
   updateMirror,
 } from './app-customer';
-import { newDocumentKey, wrapDocumentKey } from './secrets';
-import { sealVaultFile } from './vault-file';
+import { newDocumentKey, unwrapDocumentKey, wrapDocumentKey } from './secrets';
+import { openVaultFile, sealVaultFile } from './vault-file';
 
 type Row = Record<string, unknown>;
 
@@ -287,6 +291,33 @@ describe('mirrorVaultDocument', () => {
     expect(tables.documents).toHaveLength(1);
   });
 
+  it('names the failing step, so a silent operator-side gap can be traced', async () => {
+    const customerId = (await ensureAppCustomer(asDb(), { citizenId: CITIZEN, phone: PHONE }))!;
+    const vault = seedVaultDocument();
+    // The vault key was wrapped under a different VAULT_MASTER_KEY than this server's.
+    tables.citizen_vault_keys = [
+      {
+        citizen_id: CITIZEN,
+        wrapped_key: wrapDocumentKey(
+          CITIZEN,
+          newDocumentKey(),
+          Buffer.alloc(32, 7).toString('base64'),
+        ),
+      },
+    ];
+    const thrown = await mirrorVaultDocument(asDb(), CITIZEN, customerId, vault as never).catch(
+      (error: unknown) => error,
+    );
+    expect(thrown).toBeInstanceOf(MirrorError);
+    expect(mirrorFailure(thrown)).toMatchObject({ reason: 'MirrorError', step: 'unwrap_key' });
+
+    const mime = seedVaultDocument({ mime_type: 'image/jpeg' });
+    const mimeThrown = await mirrorVaultDocument(asDb(), CITIZEN, customerId, mime as never).catch(
+      (error: unknown) => error,
+    );
+    expect(mirrorFailure(mimeThrown)).toMatchObject({ step: 'mime_mismatch', code: null });
+  });
+
   it('catches up an account made before 0041: customer first, then its files', async () => {
     seedVaultDocument();
     await mirrorPendingDocuments(asDb(), { citizenId: CITIZEN, phone: PHONE });
@@ -394,5 +425,76 @@ describe('deletes reach the customer side', () => {
     tables.customers = [{ id: 'centre-customer', organization_id: 'some-centre' }];
     await deleteAppCustomer(asDb(), CITIZEN);
     expect(tables.customers).toHaveLength(1);
+  });
+});
+
+describe('a centre adds a document for an app customer (0047)', () => {
+  const CENTRE = '44444444-4444-4444-8444-444444444444';
+  const OPERATOR = '55555555-5555-4555-8555-555555555555';
+  const MIRROR = '66666666-6666-4666-8666-666666666666';
+
+  async function setUp(cloudEnabled = true) {
+    const customerId = (await ensureAppCustomer(asDb(), { citizenId: CITIZEN, phone: PHONE }))!;
+    (tables.citizen_accounts![0] as Row).cloud_enabled = cloudEnabled;
+    tables.citizen_vault_keys = [
+      { citizen_id: CITIZEN, wrapped_key: wrapDocumentKey(CITIZEN, newDocumentKey()) },
+    ];
+    return customerId;
+  }
+
+  const input = (customerId: string) => ({
+    documentId: MIRROR,
+    customerId,
+    bytes: PDF,
+    mimeType: 'application/pdf',
+    documentType: 'income_certificate',
+    filename: 'Income certificate.pdf',
+    centre: { organizationId: CENTRE, name: 'Demo Seva Kendra' },
+    operatorId: OPERATOR,
+  });
+
+  it('seals it into the vault the phone can open, linked to the customer-side copy', async () => {
+    const customerId = await setUp();
+    const vaultId = (await addCentreDocumentToVault(asDb(), input(customerId)))!;
+
+    const row = tables.citizen_vault_documents?.find((r) => r.id === vaultId) as Row;
+    expect(row).toMatchObject({
+      citizen_id: CITIZEN,
+      status: 'ready',
+      category: 'certificate',
+      title: 'Income certificate',
+      mirror_document_id: MIRROR,
+      added_by_organization_id: CENTRE,
+      added_by_centre_name: 'Demo Seva Kendra',
+      size_bytes: PDF.length,
+    });
+    const key = unwrapDocumentKey(CITIZEN, String(tables.citizen_vault_keys![0]!.wrapped_key));
+    const sealed = objects.get(`citizen-vault/${String(row.storage_path)}`)!;
+    expect(openVaultFile(CITIZEN, vaultId, sealed, key).equals(PDF)).toBe(true);
+    expect(tables.vault_access_events).toEqual([
+      expect.objectContaining({ action: 'added', organization_id: CENTRE, document_id: vaultId }),
+    ]);
+
+    // Already linked: the catch-up mirror never copies it back to the customer side.
+    await mirrorPendingDocuments(asDb(), { citizenId: CITIZEN, phone: PHONE });
+    expect(tables.documents ?? []).toHaveLength(0);
+  });
+
+  it('adds nothing when the citizen has turned cloud backup off', async () => {
+    const customerId = await setUp(false);
+    expect(await addCentreDocumentToVault(asDb(), input(customerId))).toBeNull();
+    expect(tables.citizen_vault_documents ?? []).toHaveLength(0);
+  });
+
+  it('files an untyped upload as Other and titles it from the filename', async () => {
+    const customerId = await setUp();
+    const vaultId = await addCentreDocumentToVault(asDb(), {
+      ...input(customerId),
+      documentType: 'unknown',
+      filename: 'scan_0001.JPG',
+    });
+    const row = tables.citizen_vault_documents?.find((r) => r.id === vaultId) as Row;
+    expect(row).toMatchObject({ document_type: 'generic', category: 'other' });
+    expect(centreDocumentTitle('scan_0001.JPG')).toBe('scan_0001');
   });
 });

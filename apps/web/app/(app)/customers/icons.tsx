@@ -8,6 +8,7 @@
 
 import type { LucideIcon } from 'lucide-react';
 import {
+  ListChecks,
   ArrowLeft,
   ArrowRight,
   Award,
@@ -111,6 +112,7 @@ export const BankingSectionIcon = icon(Landmark);
 
 export const AddDetailsIcon = icon(ClipboardPlus);
 export const DocumentsIcon = icon(FileText);
+export const ChecklistIcon = icon(ListChecks);
 
 // Document folders (same sections as the BharatDoc app vault)
 export const AllFoldersIcon = icon(FolderOpen);

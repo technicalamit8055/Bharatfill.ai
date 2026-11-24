@@ -215,6 +215,7 @@ export const VAULT_EVENT_ACTIONS = [
   'restored',
   'restore_refused',
   'pin_changed',
+  'added',
 ] as const;
 export type VaultEventAction = (typeof VAULT_EVENT_ACTIONS)[number];
 

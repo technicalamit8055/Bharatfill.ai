@@ -13,8 +13,9 @@ import {
  * AES-256-GCM, IV ‖ ciphertext ‖ tag, AAD `<citizen_id>:<document_id>:vault_document` — the
  * layout expo-crypto's `AESSealedData.combined()` produces on the phone.
  *
- * The server never encrypts a citizen's document in production (the phone does); `sealVaultFile`
- * exists so tests can prove the server opens exactly what the phone's format describes.
+ * The phone encrypts everything the citizen saves. The server seals only one thing: a document a
+ * centre uploaded for an app customer (0047, design §17), so the phone can pull it in; tests also
+ * use `sealVaultFile` to prove the server opens exactly what the phone's format describes.
  * `openVaultFile` is what the operator file route uses (step 4) after checking the grant.
  */
 

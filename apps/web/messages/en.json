@@ -619,6 +619,33 @@
         "whatsappTitle": "Bharatfill — your {portal} login",
         "printed": "Printed {date}"
       }
+    },
+    "checklist": {
+      "title": "Documents needed",
+      "pickLabel": "Preparing for",
+      "pickPlaceholder": "Choose a form or scheme…",
+      "groupForms": "Forms",
+      "groupSchemes": "Schemes",
+      "intro": "Choose what the customer is applying for to see which documents are ready and which still need uploading.",
+      "summary": "{ready} of {total} ready",
+      "allReady": "Everything required is on file.",
+      "sizeRange": "{min} to {max}",
+      "sizeMax": "up to {max}",
+      "uploadingFor": "Upload: {label}",
+      "states": {
+        "ready": "Ready",
+        "needs_preparing": "Needs resizing",
+        "missing": "Missing",
+        "check_manually": "Check yourself"
+      },
+      "stateHelp": {
+        "needs_preparing": "On file, but not yet resized for this portal.",
+        "check_manually": "This one cannot be told from the document type — check the customer’s documents."
+      },
+      "actions": {
+        "upload": "Upload",
+        "prepare": "Resize"
+      }
     }
   },
   "applications": {
@@ -1475,6 +1502,12 @@
     "size": "Size",
     "customer": "Customer",
     "customerHint": "Attach the document to a customer so extracted details can be saved to their profile.",
+    "appCustomerTag": "BharatDoc app",
+    "appCustomerUploadNote": "If the customer's BharatDoc app can receive it, this file is also added there under your centre's name. You will see the result after uploading.",
+    "appCopy": {
+      "added": "Saved to the customer's record and added to their BharatDoc app. It is sent to their phone at the next sync.",
+      "notAdded": "Saved to the customer's record, but not added to their BharatDoc app."
+    },
     "noCustomer": "Not attached to a customer",
     "details": "Details",
     "provider": "Read by",

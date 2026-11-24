@@ -1,4 +1,4 @@
-import { maskLast4 } from '@assistigo/core';
+import { CITIZEN_APP_ORGANIZATION_ID, maskLast4 } from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -27,13 +27,30 @@ export default async function UploadDocumentPage({
     .order('created_at', { ascending: false })
     .limit(50);
 
-  const customers = ((data ?? []) as Partial<CustomerRow>[]).map((customer) => {
+  // BharatDoc app customers this operator is in with right now (0047). RLS returns only the
+  // rows a live grant the citizen gave *this user* opens, so the filter is the policy itself.
+  const { data: appData } = await supabase
+    .from('customers')
+    .select('id, full_name, customer_code, mobile')
+    .eq('organization_id', CITIZEN_APP_ORGANIZATION_ID)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  const toOption = (customer: Partial<CustomerRow>, fromApp: boolean) => {
     const last4 = maskLast4(customer.mobile ?? null);
+    const name = String(customer.full_name ?? '');
+    const base = last4 ? `${name} · ••••${last4}` : name;
     return {
       id: String(customer.id),
-      label: last4 ? `${customer.full_name} · ••••${last4}` : String(customer.full_name ?? ''),
+      label: fromApp ? `${base} · ${t('documents.appCustomerTag')}` : base,
+      fromApp,
     };
-  });
+  };
+  const customers = [
+    ...((appData ?? []) as Partial<CustomerRow>[]).map((customer) => toOption(customer, true)),
+    ...((data ?? []) as Partial<CustomerRow>[]).map((customer) => toOption(customer, false)),
+  ];
 
   return (
     <div className="max-w-2xl space-y-6">

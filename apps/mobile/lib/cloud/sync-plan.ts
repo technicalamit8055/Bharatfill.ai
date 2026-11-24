@@ -16,9 +16,22 @@
  * citizen's cloud vault.
  */
 
-import { DISPLAY_NAME_MAX_LENGTH, type DocumentFolder, type DocumentType } from '@assistigo/core';
+import {
+  DISPLAY_NAME_MAX_LENGTH,
+  DOCUMENT_TYPES,
+  isDocumentFolder,
+  type DocumentFolder,
+  type DocumentType,
+} from '@assistigo/core';
 
-import type { DocumentSource, VaultDocument, VaultIndex } from '../vault/vault-index';
+import { VAULT_CATEGORIES, type VaultCategoryKey } from '../vault/categories';
+
+import {
+  type DocumentSource,
+  MAX_TITLE_LENGTH,
+  type VaultDocument,
+  type VaultIndex,
+} from '../vault/vault-index';
 
 export type SyncAction =
   | { readonly kind: 'delete'; readonly cloudId: string }
@@ -110,4 +123,59 @@ export function syncFileKind(document: VaultDocument): 'image' | 'pdf' {
   const [first] = document.pages;
   if (document.pages.length === 1 && first && first.mimeType !== 'image/heic') return 'image';
   return 'pdf';
+}
+
+/** What `planPulls` needs from a cloud document listing. */
+export type PullCandidate = {
+  readonly id: string;
+  readonly status: 'pending' | 'ready';
+  readonly addedByCentre?: string | null | undefined;
+};
+
+/**
+ * Cloud documents a centre added for the citizen (0047; design §17) that this phone does not
+ * hold yet, oldest listing order kept. Never one this phone already links to, and never one
+ * whose delete is queued here — a document the citizen deleted must not come back.
+ *
+ * Only centre-added documents are pulled: the phone's own uploads are already on some phone,
+ * and pulling those would be a restore, which has its own rules (design §3.3).
+ */
+export function planPulls<T extends PullCandidate>(index: VaultIndex, cloud: readonly T[]): T[] {
+  const held = new Set(index.documents.flatMap((document) => document.cloud?.id ?? []));
+  const deleting = new Set(index.cloudDeletes ?? []);
+  return cloud.filter(
+    (document) =>
+      document.status === 'ready' &&
+      typeof document.addedByCentre === 'string' &&
+      document.addedByCentre.length > 0 &&
+      !held.has(document.id) &&
+      !deleting.has(document.id),
+  );
+}
+
+/** The local details for a pulled document: the vault's own limits and vocabularies. */
+export function pulledDetails(document: {
+  readonly title: string;
+  readonly documentType: string;
+  readonly category: string;
+}): {
+  title: string;
+  documentType: DocumentType;
+  category: VaultCategoryKey | null;
+  cloudCategory: DocumentFolder;
+} {
+  const title =
+    document.title.replace(/\s+/g, ' ').trim().slice(0, MAX_TITLE_LENGTH).trim() || 'Document';
+  const known = (DOCUMENT_TYPES as readonly string[]).includes(document.documentType);
+  const documentType =
+    known && document.documentType !== 'unknown'
+      ? (document.documentType as DocumentType)
+      : 'generic';
+  const cloudCategory: DocumentFolder = isDocumentFolder(document.category)
+    ? document.category
+    : 'other';
+  const category = (VAULT_CATEGORIES as readonly string[]).includes(cloudCategory)
+    ? (cloudCategory as VaultCategoryKey)
+    : null;
+  return { title, documentType, category, cloudCategory };
 }

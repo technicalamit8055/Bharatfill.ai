@@ -11,6 +11,11 @@ import { writeAuditLog } from '@/lib/api/audit';
 import { loadEntitlementContext } from '@/lib/billing/entitlements';
 import { uploadIntentSchema } from '@/lib/documents/schema';
 import { createSignedUploadUrl } from '@/lib/documents/storage';
+import {
+  canUploadForAppCustomer,
+  reserveAppCustomerUpload,
+} from '@/lib/documents/app-customer-upload';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
 /**
  * POST /api/documents/upload-intent
@@ -37,7 +42,35 @@ export const POST = handler('api.documents.upload_intent', async (request) => {
       .maybeSingle();
 
     if (error) throw error;
-    if (!customer) throw notFound('errors.not_found');
+    if (!customer) {
+      // A BharatDoc app customer the citizen has let this operator in to (0047): the file goes
+      // onto their record and into their app. Any other foreign customer stays a 404.
+      if (!(await canUploadForAppCustomer(context.supabase, input.customerId))) {
+        throw notFound('errors.not_found');
+      }
+      const reserved = await reserveAppCustomerUpload(context, createSupabaseAdminClient(), {
+        ...input,
+        customerId: input.customerId,
+      });
+      await writeAuditLog(context, {
+        action: 'document.uploaded',
+        entityType: 'document',
+        entityId: reserved.documentId,
+        metadata: {
+          mimeType: input.mimeType,
+          sizeBytes: input.sizeBytes,
+          hasCustomer: true,
+          appCustomer: true,
+        },
+      });
+      return created({
+        documentId: reserved.documentId,
+        storagePath: reserved.storagePath,
+        bucket: DOCUMENT_BUCKET,
+        uploadUrl: reserved.uploadUrl,
+        uploadToken: reserved.uploadToken,
+      });
+    }
   }
 
   const entitlements = await loadEntitlementContext(context);

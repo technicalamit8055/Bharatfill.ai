@@ -84,6 +84,8 @@ export type DocumentDetailsView = {
   readonly phoneOnly: boolean | null;
   /** Offer Export for a form: a single photo or signature with portal presets. */
   readonly forPortal: boolean;
+  /** The centre that added it for the citizen (0047), or null. */
+  readonly addedByCentre?: string | null;
   readonly pages: readonly DocumentPage[];
 };
 
@@ -435,6 +437,11 @@ export function DocumentDetailsScreen({
                   : 'documentDetails.secure.body',
               )}
             </Text>
+            {document.addedByCentre ? (
+              <Text style={styles.secureBody}>
+                {t('documentDetails.secure.addedBy', { centre: document.addedByCentre })}
+              </Text>
+            ) : null}
           </View>
         </View>
 

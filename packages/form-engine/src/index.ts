@@ -16,5 +16,6 @@ export * from './mapper';
 export * from './script';
 export * from './education-level';
 export * from './documents';
+export * from './requirement-checklist';
 export * from './constraints';
 export * from './auto-match';

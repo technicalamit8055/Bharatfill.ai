@@ -95,7 +95,8 @@ export async function CustomerDocuments({
     sizeLabel: formatBytes(row.size_bytes ?? 0),
     addedOn: formatIndianDate(row.created_at?.slice(0, 10)) ?? '—',
     folder: documentFolder(row.document_type, row.folder),
-    fromApp: isAppCustomer || row.label === 'BharatDoc app',
+    // Synced from the phone; a file a centre added for the customer (0047) carries no tag.
+    fromApp: row.label === 'BharatDoc app',
   }));
 
   return (

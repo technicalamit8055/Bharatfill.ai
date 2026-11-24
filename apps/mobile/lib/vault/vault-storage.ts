@@ -247,6 +247,12 @@ export async function saveDocument(
   pages: readonly IncomingPage[],
   source: DocumentSource,
   details: DocumentDetails = {},
+  /**
+   * A document pulled in from the cloud vault (a centre added it, 0047): saved already linked
+   * to its cloud copy, in the same index write, so sync never uploads it back. Saving it again
+   * for a cloud copy this vault already holds returns the existing document's id.
+   */
+  pulled?: { readonly cloud: NonNullable<VaultDocument['cloud']>; readonly addedByCentre: string },
 ): Promise<string> {
   try {
     if (pages.length === 0 || pages.length > MAX_PAGES_PER_DOCUMENT) {
@@ -276,11 +282,22 @@ export async function saveDocument(
         pages: pages.map(({ mimeType }) => ({ mimeType })),
         ...details,
         // Written in the same index write as the document, before any sync can see it (§15).
-        phoneOnly: phoneOnlyForNewDocument(details),
+        phoneOnly: pulled ? false : phoneOnlyForNewDocument(details),
+        ...(pulled ? { cloud: pulled.cloud, addedByCentre: pulled.addedByCentre } : {}),
       };
-      await exclusive(async () =>
-        writeIndex(withDocument(await readIndexForUpdate(key), document), key),
-      );
+      const existing = await exclusive(async () => {
+        const index = await readIndexForUpdate(key);
+        const held = pulled
+          ? index.documents.find((candidate) => candidate.cloud?.id === pulled.cloud.id)
+          : undefined;
+        if (held) return held.id;
+        await writeIndex(withDocument(index, document), key);
+        return null;
+      });
+      if (existing) {
+        directory.delete();
+        return existing;
+      }
       signalVaultChanged();
       return id;
     } catch (error) {

@@ -89,6 +89,7 @@ type Shown = {
   readonly phoneOnly: boolean | null;
   /** The document can be exported to a portal preset (a single photo or signature). */
   readonly forPortal: boolean;
+  readonly addedByCentre?: string | null;
 };
 
 type Load =
@@ -182,6 +183,7 @@ export default function DocumentDetailsRoute() {
           phoneOnly: cloudConfig() ? document.phoneOnly === true : null,
           forPortal:
             portalPresetsFor(document.documentType ?? null, document.pages.length).length > 0,
+          addedByCentre: document.addedByCentre ?? null,
         };
         const pages: DocumentPage[] = document.pages.map(() => ({ kind: 'loading' }));
         setLoad({ status: 'ready', shown, pages: [...pages] });
@@ -236,6 +238,7 @@ export default function DocumentDetailsRoute() {
         starred: shown.starred,
         phoneOnly: shown.phoneOnly,
         forPortal: shown.forPortal,
+        addedByCentre: shown.addedByCentre ?? null,
         pages,
       },
     };

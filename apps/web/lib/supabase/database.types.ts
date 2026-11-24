@@ -879,6 +879,9 @@ export type CitizenVaultDocumentRow = Timestamps & {
   deleted_at: string | null;
   /** The `documents` row mirrored from this file for the citizen's customer record (0041). */
   mirror_document_id: string | null;
+  /** The centre that uploaded it for the citizen (0047); null when the phone synced it. */
+  added_by_organization_id?: string | null;
+  added_by_centre_name?: string | null;
 };
 
 export type VaultAccessGrantRow = {
@@ -931,6 +934,7 @@ export type VaultAccessEventRow = {
     | 'ended'
     | 'restored'
     | 'restore_refused'
-    | 'pin_changed';
+    | 'pin_changed'
+    | 'added';
   created_at: string;
 };

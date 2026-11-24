@@ -1,6 +1,7 @@
 import 'server-only';
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import type { ExtractionMode } from '@assistigo/ai';
 import {
   CITIZEN_APP_ORGANIZATION_ID,
   DOCUMENT_BUCKET,
@@ -9,6 +10,7 @@ import {
   isStoreOnlyDocumentType,
   mirrorFolderFrom,
   sniffMimeType,
+  storedVaultCategory,
   type DocumentType,
 } from '@assistigo/core';
 import { logger } from '../api/logger';
@@ -18,7 +20,7 @@ import { isMissingColumnError } from '../supabase/missing-column';
 import type { CitizenVaultDocumentRow } from '../supabase/database.types';
 import type { AssistigoSupabaseClient } from '../supabase/server';
 import { unwrapDocumentKey } from './secrets';
-import { openVaultFile } from './vault-file';
+import { openVaultFile, sealVaultFile } from './vault-file';
 
 /**
  * A BharatDoc app account as an ordinary customer (migration 0041; docs/VAULT_BRIDGE_DESIGN.md §13).
@@ -44,6 +46,55 @@ const VAULT_BUCKET = 'citizen-vault';
 
 /** How many old documents one sync call mirrors, so a big backlog never stalls the phone. */
 export const MIRROR_BATCH_LIMIT = 5;
+
+export type MirrorStep =
+  | 'key_lookup'
+  | 'download'
+  | 'unwrap_key'
+  | 'decrypt'
+  | 'mime_mismatch'
+  | 'upload'
+  | 'insert'
+  | 'link';
+
+/**
+ * A mirror that failed, and at which step. Mirror failures never reach the phone, so this is the
+ * only trace an operator-side "no documents" leaves; it carries the step and the database or
+ * storage error code — never a message, which can quote row values.
+ */
+export class MirrorError extends Error {
+  readonly step: MirrorStep;
+  readonly code: string | null;
+  constructor(step: MirrorStep, cause: unknown) {
+    super(`mirror failed at ${step}`);
+    this.name = 'MirrorError';
+    this.step = step;
+    this.code = errorCode(cause);
+  }
+}
+
+function errorCode(cause: unknown): string | null {
+  if (!cause || typeof cause !== 'object') return null;
+  const record = cause as { code?: unknown; statusCode?: unknown; name?: unknown };
+  const code = record.code ?? record.statusCode ?? record.name;
+  return typeof code === 'string' || typeof code === 'number' ? String(code).slice(0, 40) : null;
+}
+
+/** Log fields for a swallowed mirror failure: step and code only (docs/SECURITY.md — no PII). */
+export function mirrorFailure(thrown: unknown): {
+  reason: string;
+  step: string | null;
+  code: string | null;
+} {
+  if (thrown instanceof MirrorError) {
+    return { reason: thrown.name, step: thrown.step, code: thrown.code };
+  }
+  return {
+    reason: thrown instanceof Error ? thrown.name : 'unknown',
+    step: null,
+    code: errorCode(thrown),
+  };
+}
 
 const EXTENSION_BY_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -187,19 +238,30 @@ export async function mirrorVaultDocument(
     .select('wrapped_key')
     .eq('citizen_id', citizenId)
     .single();
-  if (keyError) throw keyError;
+  if (keyError) throw new MirrorError('key_lookup', keyError);
 
   const { data: blob, error: downloadError } = await db.storage
     .from(VAULT_BUCKET)
     .download(vault.storage_path);
-  if (downloadError || !blob) throw downloadError ?? new Error('vault object missing');
+  if (downloadError || !blob) throw new MirrorError('download', downloadError);
 
-  const key = unwrapDocumentKey(citizenId, (keyRow as { wrapped_key: string }).wrapped_key);
-  const plaintext = openVaultFile(citizenId, vault.id, Buffer.from(await blob.arrayBuffer()), key);
+  let key: Buffer;
+  try {
+    key = unwrapDocumentKey(citizenId, (keyRow as { wrapped_key: string }).wrapped_key);
+  } catch (thrown) {
+    // This server's VAULT_MASTER_KEY is not the one that wrapped the key.
+    throw new MirrorError('unwrap_key', thrown);
+  }
+  let plaintext: Buffer;
+  try {
+    plaintext = openVaultFile(citizenId, vault.id, Buffer.from(await blob.arrayBuffer()), key);
+  } catch (thrown) {
+    throw new MirrorError('decrypt', thrown);
+  }
 
   // The phone said what the file is; the bytes decide, as for any upload (docs/SECURITY.md §4).
   const sniffed = sniffMimeType(new Uint8Array(plaintext.subarray(0, 32)));
-  if (sniffed !== vault.mime_type) throw new Error('mirror mime mismatch');
+  if (sniffed !== vault.mime_type) throw new MirrorError('mime_mismatch', null);
 
   const documentId = randomUUID();
   const filename = mirrorFilename(vault.title, vault.mime_type);
@@ -216,7 +278,7 @@ export async function mirrorVaultDocument(
   const { error: uploadError } = await db.storage
     .from(DOCUMENT_BUCKET)
     .upload(storagePath, plaintext, { contentType: vault.mime_type, upsert: false });
-  if (uploadError) throw uploadError;
+  if (uploadError) throw new MirrorError('upload', uploadError);
 
   const row = {
     id: documentId,
@@ -241,7 +303,7 @@ export async function mirrorVaultDocument(
   }
   if (insertError) {
     await db.storage.from(DOCUMENT_BUCKET).remove([storagePath]);
-    throw insertError;
+    throw new MirrorError('insert', insertError);
   }
 
   // Link first, so a failure below never makes a second copy on the next sync.
@@ -255,7 +317,7 @@ export async function mirrorVaultDocument(
   if (linkError || !linked || (linked as unknown[]).length === 0) {
     await db.from('documents').delete().eq('id', documentId);
     await db.storage.from(DOCUMENT_BUCKET).remove([storagePath]);
-    if (linkError) throw linkError;
+    if (linkError) throw new MirrorError('link', linkError);
     const { data: existing } = await db
       .from('citizen_vault_documents')
       .select('mirror_document_id')
@@ -276,11 +338,15 @@ export async function mirrorVaultDocument(
  * in-flight idempotency keys still deduplicates. Never throws: the document already exists and
  * the job row (or "Read again") can finish it.
  */
-async function queueExtraction(db: Db, documentId: string): Promise<void> {
+export async function queueExtraction(
+  db: Db,
+  documentId: string,
+  extractionMode: ExtractionMode = 'auto',
+): Promise<void> {
   const { error } = await db.from('jobs').insert({
     organization_id: CITIZEN_APP_ORGANIZATION_ID,
     type: 'ocr.extract',
-    payload: { documentId, extractionMode: 'auto' },
+    payload: { documentId, extractionMode },
     idempotency_key: `ocr.extract:${documentId}`,
   });
   if (error && error.code !== '23505') {
@@ -289,7 +355,11 @@ async function queueExtraction(db: Db, documentId: string): Promise<void> {
   }
   if (serverEnv().JOB_INLINE_RUNNER === 'off') return;
   try {
-    await runDocumentJob(db, { documentId, workerId: 'inline-citizen' });
+    await runDocumentJob(db, {
+      documentId,
+      workerId: 'inline-citizen',
+      ...(extractionMode === 'auto' ? {} : { extractionMode }),
+    });
   } catch (thrown) {
     logger.warn('citizen.mirror_inline_failed', {
       documentId,
@@ -323,7 +393,7 @@ export async function mirrorPendingDocuments(
       logger.warn('citizen.mirror_failed', {
         citizenId: citizen.citizenId,
         documentId: row.id,
-        reason: thrown instanceof Error ? thrown.name : 'unknown',
+        ...mirrorFailure(thrown),
       });
     }
   }
@@ -407,4 +477,121 @@ export async function deleteAppCustomer(db: Db, citizenId: string): Promise<void
     .eq('organization_id', CITIZEN_APP_ORGANIZATION_ID);
   if (customerError) throw customerError;
   logger.info('citizen.app_customer_deleted', { citizenId, customerId });
+}
+
+/** What the operator uploaded, as the vault copy needs it. */
+export type CentreDocument = {
+  /** The `documents` row in the BharatDoc app organization; becomes `mirror_document_id`. */
+  documentId: string;
+  customerId: string;
+  bytes: Buffer;
+  mimeType: string;
+  documentType: string;
+  filename: string;
+  centre: { organizationId: string; name: string };
+  operatorId: string;
+};
+
+/** The vault title for a centre's upload: the filename without its extension. */
+export function centreDocumentTitle(filename: string): string {
+  const base = filename
+    .trim()
+    .replace(/\.[a-z0-9]{1,5}$/i, '')
+    .replace(/[\\/]+/g, ' ')
+    .trim()
+    .slice(0, 120)
+    .trim();
+  return base || 'Document';
+}
+
+/**
+ * A document a centre uploaded for an app customer, sealed into the citizen's cloud vault so the
+ * phone pulls it in (migration 0047; docs/VAULT_BRIDGE_DESIGN.md §17). The server seals it with
+ * the citizen's document key in the same v1 format the phone uses, linked to the customer-side
+ * row from the start, so the catch-up mirror never copies it back and the citizen's rename,
+ * retype and delete follow through as for anything they synced.
+ *
+ * Returns the vault row id, or null when nothing was added: no app account behind the customer,
+ * or the citizen has turned cloud backup off (their choice; the customer record keeps the file).
+ */
+export async function addCentreDocumentToVault(
+  db: Db,
+  input: CentreDocument,
+): Promise<string | null> {
+  const { data: account, error: accountError } = await db
+    .from('citizen_accounts')
+    .select('id, cloud_enabled')
+    .eq('customer_id', input.customerId)
+    .maybeSingle();
+  if (accountError) throw new MirrorError('key_lookup', accountError);
+  const citizen = account as { id: string; cloud_enabled: boolean } | null;
+  if (!citizen || !citizen.cloud_enabled) return null;
+
+  const { data: keyRow, error: keyError } = await db
+    .from('citizen_vault_keys')
+    .select('wrapped_key')
+    .eq('citizen_id', citizen.id)
+    .single();
+  if (keyError) throw new MirrorError('key_lookup', keyError);
+
+  let key: Buffer;
+  try {
+    key = unwrapDocumentKey(citizen.id, (keyRow as { wrapped_key: string }).wrapped_key);
+  } catch (thrown) {
+    throw new MirrorError('unwrap_key', thrown);
+  }
+
+  const vaultId = randomUUID();
+  const storagePath = `citizen/${citizen.id}/${vaultId}`;
+  const sealed = sealVaultFile(citizen.id, vaultId, input.bytes, key);
+  // The reader has not run yet; an untyped upload is "Other" until the citizen files it.
+  const documentType =
+    isDocumentType(input.documentType) && input.documentType !== 'unknown'
+      ? input.documentType
+      : 'generic';
+
+  const { error: uploadError } = await db.storage
+    .from(VAULT_BUCKET)
+    .upload(storagePath, sealed, { contentType: 'application/octet-stream', upsert: false });
+  if (uploadError) throw new MirrorError('upload', uploadError);
+
+  const { error: insertError } = await db.from('citizen_vault_documents').insert({
+    id: vaultId,
+    citizen_id: citizen.id,
+    document_type: documentType,
+    category: storedVaultCategory(documentType),
+    title: centreDocumentTitle(input.filename),
+    storage_path: storagePath,
+    mime_type: input.mimeType,
+    size_bytes: input.bytes.length,
+    page_count: 1,
+    sha256: createHash('sha256').update(sealed).digest('hex'),
+    status: 'ready',
+    mirror_document_id: input.documentId,
+    added_by_organization_id: input.centre.organizationId,
+    added_by_centre_name: input.centre.name.trim().slice(0, 160) || 'Centre',
+  });
+  if (insertError) {
+    await db.storage.from(VAULT_BUCKET).remove([storagePath]);
+    throw new MirrorError('insert', insertError);
+  }
+
+  // The citizen's own history: which centre added what kind of document. Never the title.
+  const { error: eventError } = await db.from('vault_access_events').insert({
+    citizen_id: citizen.id,
+    organization_id: input.centre.organizationId,
+    centre_name: input.centre.name.trim().slice(0, 160) || 'Centre',
+    operator_id: input.operatorId,
+    document_id: vaultId,
+    document_type: documentType,
+    action: 'added',
+  });
+  if (eventError) logger.warn('citizen.centre_document_event_failed', { documentId: vaultId });
+
+  logger.info('citizen.centre_document_added', {
+    citizenId: citizen.id,
+    documentId: vaultId,
+    mirrorDocumentId: input.documentId,
+  });
+  return vaultId;
 }

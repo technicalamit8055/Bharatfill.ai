@@ -403,8 +403,18 @@ Done:
       `…/:id/documents/:docId`
 - [x] Fill-sessions list + detail with "Create application"; form library with "Report form"
 - [x] Multi-stage fills link every stage's fill session to one application (see Phase 4)
+- [x] "Documents needed" on the customer's Documents tab: pick a form (adapter
+      `documentRequirements`) or a scheme (`requiredDocuments`) and each document shows ready /
+      needs resizing (no prepared file for that portal preset) / missing / check yourself, with
+      an inline upload of the right type or a Document Tools deep link —
+      `packages/form-engine/src/requirement-checklist.ts`, `apps/web/lib/documents/checklist.ts`.
+      Not yet clicked through in a browser
 
 Remaining:
+
+- [ ] Next on the documents-needed track: an honest "saved, not read" state; AI vision for
+      citizen-app photos behind the citizen's own consent; server-side Tesseract; "ask the
+      customer for missing documents" (needs a spec update first)
 
 - [ ] Customer profile application history, and acceptance pass against spec §9.7
 - [ ] Roaming customers cannot have applications created from the extension (see Phase 4)
@@ -697,6 +707,10 @@ Remaining:
       document; Save screen card "Ready for your cyber cafe" / "Only on this phone" with an
       override switch; moving an Other document into a section shares it. Older documents keep
       syncing — not yet run on a device
+- [x] Centres add documents for app customers (design §17, migration 0047): an operator with a
+      live grant uploads onto the app customer's record; the server seals a copy into the
+      citizen's cloud vault and the phone pulls it in ("Added by <centre>"). Migration not yet
+      applied; not yet run on a device
 - [x] Roaming customers join the centre's customer list (migration 0044): linked on every grant,
       listed with own customers (masked until access is live, approval each visit); customer
       codes hidden everywhere in favour of the masked mobile; same-mobile duplicate warning

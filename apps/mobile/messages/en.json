@@ -545,7 +545,8 @@
     "secure": {
       "title": "Stored Securely",
       "body": "Your document is encrypted and kept only in your vault on this phone.",
-      "sharedBody": "Encrypted on this phone and backed up, ready for a cyber cafe you approve."
+      "sharedBody": "Encrypted on this phone and backed up, ready for a cyber cafe you approve.",
+      "addedBy": "Added by {centre}. You can rename, move or delete it like any of your documents."
     },
     "move": "Move",
     "delete": "Delete",
