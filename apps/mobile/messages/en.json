@@ -984,7 +984,7 @@
     "privacyPolicy": "Privacy Policy",
     "legalSuffix": "",
     "privacyTitle": "Your Privacy is Our Priority",
-    "privacyBody": "Your documents are encrypted and never shared without your permission.",
+    "privacyBody": "Your documents are encrypted. Cyber cafes see them only with your permission. Documents you sync may be read by an AI service provider to fill in details.",
     "otpUnavailableTitle": "Coming soon",
     "otpUnavailableBody": "Sign-in with your mobile number is not live yet. You can keep using the app on this phone in the meantime.",
     "ok": "OK",
@@ -1053,7 +1053,7 @@
       "stateMissing": "Select your state."
     },
     "trustTitle": "Your information is safe with us",
-    "trustBody": "We only use this information to organize your documents. It is encrypted and never shared without your permission.",
+    "trustBody": "We only use this information to organize your documents. It is encrypted, and cyber cafes see it only with your permission.",
     "continue": "Continue",
     "saveUnavailableTitle": "Coming soon",
     "saveUnavailableBody": "Saving your profile is not live yet, so these details have not been saved. You can keep using the app on this phone in the meantime.",

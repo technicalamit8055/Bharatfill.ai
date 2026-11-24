@@ -21,7 +21,7 @@ These are product-level constraints, not preferences. A PR that violates one is 
 | 7   | No customer PII in logs, error reports, or portal adapter reports.                                        | §19.6, §24.2 |
 | 8   | No competitor branding, copy, layout or assets.                                                           | §1, §28.1    |
 | 9   | No product scope invented outside the master spec.                                                        | §28.1        |
-| 10  | Raw documents are never sent to an AI provider without org-level opt-in.                                  | §12.3, §19.3 |
+| 10  | AI reading is on for every centre and the citizen app, with no switch (product owner, 2026-11-24, interim until the self-hosted model; legal review pending). Vendor and model names are shown only to a Super Admin. | §12.3, §19.3 |
 | 11  | A saved portal password is typed only by the extension's login filler: on the operator's click, on an allow-listed `https:` portal host, never submitting. The form filler never fills a password field. | §19.7a |
 
 Rules 1–4 and 11 are additionally guarded by tests in `apps/extension/tests/` (rule 11:

@@ -99,10 +99,9 @@ export type ResolvedAiVendorSettings = {
   customPrompt: string | null;
 };
 
-/** The shared setup, plus the on/off switch that covers every centre. */
+/** The shared setup. */
 export type PlatformAiSettings = ResolvedAiVendorSettings & {
   hasApiKey: boolean;
-  enabled: boolean;
 };
 
 export function encryptPlatformAiApiKey(apiKey: string): Promise<string> {
@@ -147,7 +146,6 @@ export async function loadPlatformAiSettings(
     apiKey: await decryptKey(row.api_key_encrypted, PLATFORM_AAD),
     customPrompt: row.custom_prompt,
     hasApiKey: Boolean(row.api_key_encrypted),
-    enabled: row.enabled,
   };
 }
 

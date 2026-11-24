@@ -8,13 +8,13 @@ import {
   runExtraction,
   type OcrProviderConfig,
 } from '@assistigo/ai';
-import { isCitizenAppOrganization, isDocumentType, type AllowedUploadMimeType } from '@assistigo/core';
+import { isDocumentType, type AllowedUploadMimeType } from '@assistigo/core';
 import { downloadObject } from '../../documents/storage';
 import { serverEnv } from '../../env';
 import { logger } from '../../api/logger';
 import { AI_PROVIDER_PRESETS, loadOrgAiSettings, loadPlatformAiSettings } from '../../ai/vendor-settings';
 import type { AssistigoSupabaseClient } from '../../supabase/server';
-import type { DocumentRow, Json, OrganizationRow } from '../../supabase/database.types';
+import type { DocumentRow, Json } from '../../supabase/database.types';
 
 /**
  * `ocr.extract` — run the extraction pipeline for one uploaded document.
@@ -41,13 +41,9 @@ export type JobHandlerResult = { ok: true } | { ok: false; error: string };
 /**
  * The AI reader's endpoint and credentials.
  *
- * The shared setup (`platform_ai_settings`) covers every centre, switch included. Until a Super
+ * The shared setup (`platform_ai_settings`) covers every centre and the citizen app. Until a Super
  * Admin saves it, a centre's earlier row (`organization_ai_settings`) and then the environment
  * apply, as before 0049 (docs/AI_PIPELINE.md §2).
- *
- * The citizen app's organization is never covered by the shared setup: those documents belong to
- * citizens, who have not consented to an outside AI reader. `platformEnabled` is null when the
- * shared setup does not apply, and the caller falls back to the organization's own flag.
  *
  * Assembled here rather than in `@assistigo/ai` — that package is pure domain logic and
  * deliberately has no access to secrets, and no database access at all.
@@ -58,13 +54,9 @@ export async function resolveAiProviderConfig(
 ): Promise<{
   aiProviderName: string;
   providerConfig: OcrProviderConfig;
-  platformEnabled: boolean | null;
 }> {
-  const platform = isCitizenAppOrganization(organizationId)
-    ? null
-    : await loadPlatformAiSettings(supabase);
-  const platformEnabled = platform ? platform.enabled : null;
-  const orgSettings = platform ?? (await loadOrgAiSettings(supabase, organizationId));
+  const orgSettings =
+    (await loadPlatformAiSettings(supabase)) ?? (await loadOrgAiSettings(supabase, organizationId));
 
   if (orgSettings) {
     const preset = AI_PROVIDER_PRESETS[orgSettings.provider];
@@ -74,7 +66,6 @@ export async function resolveAiProviderConfig(
         : preset?.defaultModel ?? undefined;
 
     return {
-      platformEnabled,
       aiProviderName: 'org_ai_vendor',
       providerConfig: {
         apiKey: orgSettings.apiKey ?? undefined,
@@ -89,7 +80,6 @@ export async function resolveAiProviderConfig(
 
   const env = serverEnv();
   return {
-    platformEnabled,
     aiProviderName: env.OCR_AI_PROVIDER,
     providerConfig: {
       apiKey: env.OCR_AI_PROVIDER === 'deepseek' ? env.DEEPSEEK_API_KEY : env.ANTHROPIC_API_KEY,
@@ -120,22 +110,12 @@ export async function handleOcrExtract(
 
   const document = data as DocumentRow;
 
-  const { data: organization } = await supabase
-    .from('organizations')
-    .select('settings')
-    .eq('id', document.organization_id)
-    .maybeSingle();
-
-  const settings = ((organization as Pick<OrganizationRow, 'settings'> | null)?.settings ??
-    {}) as Record<string, unknown>;
-
   try {
     const bytes = await downloadObject(supabase, document.storage_path, document.storage_bucket);
-    const { aiProviderName, providerConfig, platformEnabled } = await resolveAiProviderConfig(
+    const { aiProviderName, providerConfig } = await resolveAiProviderConfig(
       supabase,
       document.organization_id,
     );
-    const aiProcessingEnabled = platformEnabled ?? settings.ai_processing_enabled === true;
 
     const { extraction, rawText, mode } = await runExtraction({
       bytes,
@@ -152,7 +132,9 @@ export async function handleOcrExtract(
       // warning rather than a crash.
       aiProviderName,
       providerConfig,
-      aiProcessingEnabled,
+      // Always on, for centres and the citizen app (product owner, 2026-11-24; DEVELOPMENT_RULES
+      // rule 10). The pipeline keeps its gate, so restoring a switch means changing only this.
+      aiProcessingEnabled: true,
     });
 
     // One extraction row per document. `upsert` on document_id keeps a retry from queueing the

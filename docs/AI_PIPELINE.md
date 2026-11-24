@@ -60,9 +60,11 @@ provider, the env wiring and a unit-tested `anthropic_messages` request builder 
 ### Organization vendor settings (migration 0017)
 
 **One setup for every centre.** A Super Admin sets it at `/admin/ai` (`platform_ai_settings`, 0049):
-vendor, key, prompt and the on/off switch. Once saved it replaces every centre's own row and
-`ai_processing_enabled` flag. It never covers the citizen app's organization — those documents need
-the citizen's own consent. Centres cannot change any of it (0048).
+vendor, key and prompt. Once saved it replaces every centre's own row and covers the citizen app
+too. There is no on/off switch (product owner, 2026-11-24): the handler always passes
+`aiProcessingEnabled: true`, and the pipeline's own gate stays for when a switch returns.
+`platform_ai_settings.enabled` and `ai_processing_enabled` are no longer read. Centres cannot change
+any of it (0048), and are never told the vendor or model.
 
 Until it is saved, the earlier per-centre row applies. When an organization has an
 `organization_ai_settings` row, `resolveAiProviderConfig` (`apps/web/lib/jobs/handlers/ocr-extract.ts`)
@@ -77,7 +79,7 @@ environment reader is used exactly as before.
 | `api_key`       | AES-256-GCM at rest; never returned — the API reports `hasApiKey` only                                                                                                                              |
 | `custom_prompt` | ≤ 8 000 chars; switches the reader into structured mode (below)                                                                                                                                     |
 
-Routes: `GET /api/organizations/ai-settings` (any member; provider, on/off and `hasApiKey` only),
+Routes: `GET /api/organizations/ai-settings` (any member; `hasApiKey` only),
 `PUT /api/admin/ai-settings` and `POST …/test-connection` (both
 `platform.team.manage`, Super Admin only; the test sends one trivial prompt, never a document, 15 s timeout). Configuring a vendor does **not** turn AI reading on —
 the PUT route's `enabled` flag writes `platform_ai_settings.enabled`, which
@@ -103,16 +105,14 @@ labelled with what it costs rather than what it is called.
 | Mode     | Behaviour                                                                            |
 | -------- | ------------------------------------------------------------------------------------ |
 | `non_ai` | Local reader only. **No byte leaves this server** — a guarantee, not a preference.   |
-| `ai`     | AI vision reader, subject to the opt-in gate below.                                  |
+| `ai`     | AI vision reader, subject to the gate below.                                            |
 | `auto`   | Local first; escalates to AI **only** when the local read produced no fields at all. |
 
 Three rules hold whichever method was picked, and are enforced in `packages/ai/src/pipeline.ts`:
 
 1. `non_ai` never touches the network.
-2. `ai` **yields to `organizations.settings.ai_processing_enabled`**, which an owner must switch
-   on after reading the AI-processing notice. A dropdown is not consent: an operator cannot opt
-   an organization into third-party processing (§12.3, §19.3, DEVELOPMENT_RULES §1 rule 10). The
-   provider refuses too, as defence in depth.
+2. `ai` needs `aiProcessingEnabled: true` from the caller. The handler always passes it (see above);
+   the pipeline and provider gates remain, so a switch can be restored in one place.
 3. No reading method can fail a document merely by being unavailable. A missing key, a revoked
    key, an outage or a timeout degrades to the other reader and records a warning saying so — an
    operator who can see "read by the basic reader" can act; a document stuck at `failed` tells

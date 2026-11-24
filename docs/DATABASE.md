@@ -70,7 +70,7 @@ only consumer, in `apps/web/lib/supabase/database.types.ts`.
 | `0045_roaming_customers_adopted.sql`           | Superseded by 0046 the same day: added `adopted_from_*` columns and triggers for copying an approved roaming customer into the visiting centre. 0046 drops all of it                                                                                                                                                                                                                                                                                                  |
 | `0046_citizen_centre_locks.sql`                | Undoes 0045. `customer_citizen_locks` (service-role writes, centre-member reads): the citizen locked the centre that created their record. The four read policies, `has_customer_access` and the storage read policy close the home-centre clause while locked; grants still open. `can_request_customer_access()` (link or own locked record). `roaming_customer_card` serves locked own records. `centre_customer_list` gains `is_locked` and masks locked own rows |
 | `0048_ai_settings_platform_managed.sql` | Drops tenant insert/update/delete on `organization_ai_settings`; `guard_organization_ai_processing()` stops a tenant session changing `settings.ai_processing_enabled`. AI is set by a Super Admin only |
-| `0049_platform_ai_settings.sql` | `platform_ai_settings` — the one AI setup every centre shares, with its on/off switch; single row, key encrypted, service role only. With no row, the earlier per-centre row applies. Never covers the citizen app organization |
+| `0049_platform_ai_settings.sql` | `platform_ai_settings` — the one AI setup every centre shares, with its on/off switch; single row, key encrypted, service role only. With no row, the earlier per-centre row applies. Since 2026-11-24 it also covers the citizen app organization and `enabled` is no longer read |
 
 Seed data is **separate from migrations** (`packages/database/src/seed/`), per spec §25.4.
 
@@ -187,7 +187,7 @@ A table of its own, not a key in `organizations.settings`, because it holds a se
 `api_key_encrypted` is AES-256-GCM ciphertext (AAD `<org id>:ai_vendor_api_key`); the settings
 API reports only whether a key is set. Any member may select the row (to show "read by"), only the
 service role, behind the Super Admin console, may write it (0048). Writing a row does **not** enable AI
-reading: `organizations.settings.ai_processing_enabled` is still the gate the pipeline checks.
+reading: `organizations.settings.ai_processing_enabled` is no longer read (2026-11-24).
 `provider` is a UI preset (`openai`, `anthropic`, `deepseek`, `gemini`, `vertex`, `ollama`,
 `openrouter`, `custom`); what is actually spoken is `wire_format` (`openai_compatible` |
 `anthropic_messages` | `vertex_generate_content`). 0033 widened both checks for `vertex`; nothing

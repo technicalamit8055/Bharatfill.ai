@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Select } from '@assistigo/ui';
+import { Select } from '@assistigo/ui';
 import { EXTRACTION_MODES, type ExtractionMode } from '@assistigo/ai/types';
 import { useTranslations } from '@/lib/i18n/client';
 
@@ -8,14 +8,9 @@ import { useTranslations } from '@/lib/i18n/client';
  * How the operator wants a document read (docs/AI_PIPELINE.md §2).
  *
  * The three options are a genuine trade-off, not a settings maze, so each one says what it costs
- * rather than what it is called: the basic reader is instant and keeps the file on our server but
- * cannot see a photograph; the AI reader reads a phone snap of a certificate but sends the page to
- * a third party.
- *
- * That last point is why picking "AI" surfaces a notice. Choosing it here is a request, not
- * consent — the pipeline still refuses unless the workspace owner has turned AI processing on
- * (§12.3, §19.3) — and an operator who is about to send a customer's certificate off our
- * infrastructure should be told, not have it happen behind a dropdown.
+ * rather than what it is called: the basic reader is instant but
+ * cannot see a photograph; the AI reader reads a phone snap of a certificate. No vendor or model
+ * is named here.
  */
 export function ExtractionModeSelect({
   id = 'extraction-mode',
@@ -48,10 +43,6 @@ export function ExtractionModeSelect({
         ))}
       </Select>
       <p className="text-xs text-slate-500">{t(`documents.extractionMode.hints.${value}`)}</p>
-
-      {value === 'ai' ? (
-        <Alert tone="warning">{t('documents.extractionMode.aiNotice')}</Alert>
-      ) : null}
     </div>
   );
 }

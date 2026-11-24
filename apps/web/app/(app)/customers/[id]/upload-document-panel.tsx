@@ -16,7 +16,7 @@ import type { ExtractionMode } from '@assistigo/ai/types';
 import { useI18n, useTranslations } from '@/lib/i18n/client';
 import { ExtractionModeSelect } from '@/components/documents/extraction-mode-select';
 import { SkipReadingToggle, storeOnlyState } from '@/components/documents/skip-reading-toggle';
-import { ActiveAiVendorNote } from '@/components/documents/active-ai-vendor-note';
+import { AiReaderStatus } from '@/components/documents/ai-reader-status';
 import { ExtractionWarningsAlert } from '@/components/documents/extraction-warnings';
 import { AppCopyAlert, type AppCopy } from '@/components/documents/app-copy-alert';
 import { formatBytes } from '@/lib/documents/format';
@@ -51,7 +51,6 @@ type ExtractionGetResponse = {
     id: string;
     status: 'pending' | 'completed' | 'review_required' | 'failed' | 'accepted' | 'rejected';
     documentType: string;
-    provider: string;
     confidence: number | null;
     reviewedAt: string | null;
     warnings: Warning[];
@@ -311,7 +310,7 @@ export function UploadDocumentPanel({
                 onChange={setExtractionMode}
                 disabled={pending}
               />
-              {extractionMode !== 'non_ai' ? <ActiveAiVendorNote /> : null}
+              {extractionMode !== 'non_ai' ? <AiReaderStatus /> : null}
             </>
           )}
 

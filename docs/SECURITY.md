@@ -19,7 +19,7 @@ digital personal data under India's DPDP Act 2023 and DPDP Rules 2025.
 | Malicious host page attacking the extension | Content script treats DOM as untrusted, Zod-validates every message, sanitises rendered text |
 | Extension exfiltrating data                 | Bundled code only, no remote scripts, minimal permissions, values never persisted            |
 | Support staff snooping                      | Support access grant table, time-boxed, reason-recorded, audited                             |
-| AI provider retaining documents             | Provider is off by default; org-level opt-in; no training use; request-id-only audit         |
+| AI provider retaining documents             | No opt-in gate since 2026-11-24 (interim, accepted by product owner); request-id-only audit   |
 | Forged WhatsApp/Telegram webhook delivery   | HMAC `X-Hub-Signature-256` / secret-token header, constant-time compare; unconfigured → 404  |
 | Leaked walk-in drop code                    | Add-only endpoint, 2 h session expiry, 10 files/session, 60 counter sessions/h, uniform 404  |
 | Visiting centre reading another's citizen   | Citizen-read OTP or in-app approval → 12 h-max grant naming one user (30 days only when the citizen trusts the centre in the app, 0042); linking alone grants nothing |
@@ -247,9 +247,9 @@ same protection as an operator upload). Controls:
   extractions stay closed to grant holders.
 - The citizen deleting a document or the account deletes the customer-side copy and its bytes
   first (`apps/web/lib/citizen/app-customer.ts`).
-- The app organization keeps `ai_processing_enabled = false`, so app documents are read by the
-  local OCR only (DEVELOPMENT_RULES §1 rule 10). Turning AI reading on for them is a product and
-  legal decision.
+- App documents are read by AI like a centre's, with no separate consent (product owner,
+  2026-11-24). The app says an AI service provider may read synced documents. **Legal review
+  pending** (DPDP consent and notice; existing citizens never agreed to this).
 
 Tests: `rls-tests/citizen_app_customers.test.ts`, `apps/web/lib/citizen/app-customer.test.ts`,
 `apps/web/lib/documents/scope.test.ts`.
@@ -653,6 +653,7 @@ time-boxed, org-approved, and every use writes an audit entry.
       sign-in is enabled for the citizen app
 - [ ] Migration 0038 applied and `rls-tests/citizen_vault.test.ts` passes; `VAULT_MASTER_KEY`
       set, backed up, distinct from `FIELD_ENCRYPTION_KEY`
+- [ ] Legal review: citizen documents read by an outside AI provider without separate consent
 - [ ] Legal review: citizen cloud vault, consent text (Hindi + English), under-18 citizens (DPDP §9)
 - [ ] Storage bucket is private; signed URL expiry ≤ 300 s
 - [ ] No PII appears in application logs during a full QA pass

@@ -15,8 +15,8 @@ import type { OrganizationAiProvider } from '@/lib/supabase/database.types';
 /**
  * `PUT /api/admin/ai-settings` — the one AI setup every centre uses (docs/AI_PIPELINE.md §2).
  *
- * Super Admin only (`platform.team.manage`). `enabled` is the gate the extraction pipeline checks
- * for every centre; it never covers citizen app documents. The key is never returned.
+ * Super Admin only (`platform.team.manage`). It covers every centre and the
+ * citizen app; there is no on/off switch. The key is never returned.
  */
 
 const providerSchema: z.ZodType<OrganizationAiProvider> = z.enum([
@@ -46,7 +46,6 @@ const putSchema = z.object({
   /** Reuse the saved key of a centre the caller owns. Wins over `apiKey`. */
   copyKeyFrom: z.string().uuid().optional(),
   customPrompt: z.string().trim().max(8000).optional(),
-  enabled: z.boolean().optional(),
 });
 
 export const PUT = handler('api.admin.aiSettings.put', async (request) => {
@@ -59,18 +58,17 @@ export const PUT = handler('api.admin.aiSettings.put', async (request) => {
     : input.apiKey;
   const existing = await loadPlatformAiSettings(context.supabase);
 
-  const enabled = input.enabled ?? existing?.enabled ?? false;
   const willHaveKey =
     newKey !== undefined ? newKey !== '' : (existing?.hasApiKey ?? false);
-  // On with no key would silently stop AI reading at every centre.
-  if (enabled && !willHaveKey) {
+  // No key would silently stop AI reading at every centre.
+  if (!willHaveKey) {
     throw validationFailed({ fields: { apiKey: 'admin.aiSettings.keyRequired' } });
   }
 
   const patch: Record<string, unknown> = {
     provider: input.provider,
     wire_format: AI_PROVIDER_PRESETS[input.provider].wireFormat,
-    enabled,
+    enabled: true,
     updated_by: context.userId,
   };
   if (input.baseUrl !== undefined) patch.base_url = input.baseUrl === '' ? null : input.baseUrl;
@@ -100,9 +98,8 @@ export const PUT = handler('api.admin.aiSettings.put', async (request) => {
       provider: input.provider,
       apiKeyChanged: newKey !== undefined,
       ...(input.copyKeyFrom ? { keyCopiedFrom: input.copyKeyFrom } : {}),
-      enabled,
     },
   });
 
-  return ok({ hasApiKey: willHaveKey, enabled });
+  return ok({ hasApiKey: willHaveKey });
 });

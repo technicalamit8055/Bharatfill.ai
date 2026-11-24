@@ -8,7 +8,6 @@ import { useTranslations } from '@/lib/i18n/client';
 import {
   AdminButton,
   AdminCard,
-  AdminCheckbox,
   AdminField,
   AdminInput,
   AdminNote,
@@ -22,7 +21,6 @@ type Initial = {
   model: string;
   customPrompt: string;
   hasApiKey: boolean;
-  enabled: boolean;
 };
 
 type FieldKey = { key: string; label: string };
@@ -65,7 +63,6 @@ export function AiSettingsForm({
   // The key itself stays on the server; only the centre's id is sent.
   const [copyFrom, setCopyFrom] = useState<AiKeySource | null>(null);
   const [customPrompt, setCustomPrompt] = useState(initial.customPrompt);
-  const [enabled, setEnabled] = useState(initial.enabled);
   const [hasApiKey, setHasApiKey] = useState(initial.hasApiKey);
 
   const [pending, setPending] = useState<'save' | 'test' | null>(null);
@@ -96,7 +93,7 @@ export function AiSettingsForm({
   }
 
   async function save() {
-    if (enabled && !hasApiKey && apiKey === '' && !copyFrom) {
+    if (!hasApiKey && apiKey === '' && !copyFrom) {
       setSaved(false);
       setError('admin.aiSettings.keyRequired');
       return;
@@ -120,7 +117,6 @@ export function AiSettingsForm({
               ? { apiKey }
               : {}),
           customPrompt,
-          enabled,
         }),
       });
 
@@ -317,15 +313,6 @@ export function AiSettingsForm({
           </div>
           <AdminNote tone="warning">{t('admin.aiSettings.promptSafetyNote')}</AdminNote>
         </div>
-      </AdminCard>
-
-      <AdminCard title={t('admin.aiSettings.processingTitle')}>
-        <AdminCheckbox
-          label={t('admin.aiSettings.enableLabel')}
-          checked={enabled}
-          onChange={(event) => setEnabled(event.target.checked)}
-        />
-        <p className="mt-2 text-xs text-slate-500">{t('admin.aiSettings.enableHint')}</p>
       </AdminCard>
 
       {error ? <AdminNote tone="danger">{t(error)}</AdminNote> : null}

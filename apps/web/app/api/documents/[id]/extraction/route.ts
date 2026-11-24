@@ -95,7 +95,6 @@ export const GET = handler(
         id: row.id,
         status: row.status,
         documentType: row.document_type,
-        provider: row.provider,
         confidence: row.confidence,
         reviewedAt: row.reviewed_at,
         warnings: storedWarningsSchema.parse(row.warnings),

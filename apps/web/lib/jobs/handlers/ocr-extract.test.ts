@@ -321,7 +321,7 @@ describe('the shared AI setup (0049)', () => {
     custom_prompt: null,
   };
 
-  it.each([true, false])("replaces a centre's own vendor and switch (enabled: %s)", async (on) => {
+  it.each([true, false])("replaces a centre's own vendor (stored switch: %s)", async (on) => {
     const { client } = stubClient(documentRow(), aadhaarText, {
       platformRow: platformRow(on),
       aiVendorRow: ownRow,
@@ -329,7 +329,6 @@ describe('the shared AI setup (0049)', () => {
 
     const result = await resolveAiProviderConfig(client, 'org-1');
 
-    expect(result.platformEnabled).toBe(on);
     expect(result.providerConfig.apiKey).toBe('sk-shared');
     expect(result.providerConfig.model).toBe('shared-model');
   });
@@ -339,23 +338,22 @@ describe('the shared AI setup (0049)', () => {
 
     const result = await resolveAiProviderConfig(client, 'org-1');
 
-    expect(result.platformEnabled).toBeNull();
     expect(result.providerConfig.model).toBe('own-model');
   });
 
-  it('never covers citizen app documents, whose owners have not consented', async () => {
+  it('covers citizen app documents too', async () => {
     const { client } = stubClient(documentRow(), aadhaarText, { platformRow: platformRow(true) });
 
     const result = await resolveAiProviderConfig(client, CITIZEN_APP_ORGANIZATION_ID);
 
-    expect(result.platformEnabled).toBeNull();
-    expect(result.providerConfig.apiKey).toBeUndefined();
+    expect(result.providerConfig.apiKey).toBe('sk-shared');
   });
 
   it.each([
     [true, false],
     [false, true],
-  ])('sends a document out only when the shared switch is on (%s, centre flag %s)', async (on, orgOn) => {
+    [false, false],
+  ])('reads with AI whatever the old switches say (shared %s, centre %s)', async (on, orgOn) => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('no network in tests'));
     const { client } = stubClient(documentRow(), aadhaarText, {
       platformRow: platformRow(on),
@@ -364,7 +362,7 @@ describe('the shared AI setup (0049)', () => {
 
     await handleOcrExtract(client, { documentId: documentRow().id, extractionMode: 'ai' });
 
-    expect(fetchSpy.mock.calls.length > 0).toBe(on);
+    expect(fetchSpy).toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
 });

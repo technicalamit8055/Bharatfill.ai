@@ -1484,7 +1484,6 @@
     },
     "noCustomer": "Not attached to a customer",
     "details": "Details",
-    "provider": "Read by",
     "view": "View",
     "reprocess": "Read again",
     "deleteConfirm": "Delete this document? The stored file is removed permanently.",
@@ -1493,7 +1492,6 @@
     "bulkDelete": "Delete ({count})",
     "bulkDeleteConfirm": "Delete {count} documents? The stored files are removed permanently.",
     "bulkDeleteFailed": "Some documents could not be deleted. Please try again.",
-    "processingTitle": "Reading the document",
     "processingHelp": "This usually takes a few seconds. This page updates on its own.",
     "failedTitle": "Could not read this document",
     "failedHelp": "Try uploading a clearer scan, or read it again.",
@@ -1590,10 +1588,8 @@
       "hints": {
         "auto": "Reads the document here first, and only asks the AI reader if that finds nothing.",
         "non_ai": "Instant and free. Reads PDFs that already contain text. Cannot read a photo or a scan.",
-        "ai": "Best for phone photos and scanned certificates. Sends the document to an AI provider."
+        "ai": "Best for phone photos and scanned certificates."
       },
-      "aiNotice": "The AI reader sends this document to an outside AI provider to be read. It only runs if Bharatfill has turned on AI processing for your workspace.",
-      "activeVendor": "Currently reads with: {vendor}.",
       "aiNotConfigured": "AI reading is not set up for this workspace yet. Contact Bharatfill support to set it up."
     },
     "download": "Download",
@@ -2573,12 +2569,12 @@
     },
     "aiSettings": {
       "title": "AI settings",
-      "subtitle": "One AI setup for every centre: which AI vendor reads documents, and whether AI reading is allowed at all.",
+      "subtitle": "One AI setup for every centre and the citizen app: which AI vendor reads documents.",
       "notSavedYet": "The shared setup has not been saved yet, so each centre still uses its earlier AI setting. Saving here replaces all of them. Use the key of a centre you own, or enter a new one.",
       "copyKey": "Use key from {name}",
       "copySelected": "The saved key from {name} will be used. Test the connection, then save.",
       "copyFailed": "This server could not use that centre's key. Enter the API key instead.",
-      "keyRequired": "Add an API key before turning AI reading on.",
+      "keyRequired": "Add an API key before saving.",
       "vendorTitle": "Vendor",
       "provider": "AI provider",
       "baseUrl": "Base URL",
@@ -2597,8 +2593,6 @@
       "promptVariablesTitle": "Customer field keys you can reference",
       "promptSafetyNote": "Every value the AI reader proposes is still checked before it can be saved to a profile — Aadhaar-like numbers are masked automatically, and high-risk fields always need a human review. This prompt only changes what the AI reader looks for.",
       "processingTitle": "AI processing",
-      "enableLabel": "Allow documents from every centre to be sent to this AI vendor",
-      "enableHint": "When off, uploads from every centre are only read on this server — no document byte leaves it. When on, it applies to every centre. Citizen app documents are not included: they need the citizen's own consent.",
       "saved": "AI settings saved."
     },
     "channels": {

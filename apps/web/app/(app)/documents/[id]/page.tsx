@@ -175,12 +175,6 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
               {formatConfidence(extraction?.confidence ?? null)}
             </dd>
           </div>
-          <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              {t('documents.provider')}
-            </dt>
-            <dd className="mt-1 text-sm text-slate-900">{extraction?.provider ?? '—'}</dd>
-          </div>
         </dl>
       </Card>
 

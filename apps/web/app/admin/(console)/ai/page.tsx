@@ -40,7 +40,6 @@ export default async function AdminAiSettingsPage() {
           model: stored?.model ?? '',
           customPrompt: stored?.customPrompt ?? '',
           hasApiKey: stored?.hasApiKey ?? false,
-          enabled: stored?.enabled ?? false,
         }}
         keySources={keySources}
         fieldKeys={fieldKeys}
