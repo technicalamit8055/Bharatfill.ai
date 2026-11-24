@@ -8,11 +8,11 @@ import {
   runExtraction,
   type OcrProviderConfig,
 } from '@assistigo/ai';
-import { isDocumentType, type AllowedUploadMimeType } from '@assistigo/core';
+import { isCitizenAppOrganization, isDocumentType, type AllowedUploadMimeType } from '@assistigo/core';
 import { downloadObject } from '../../documents/storage';
 import { serverEnv } from '../../env';
 import { logger } from '../../api/logger';
-import { AI_PROVIDER_PRESETS, loadOrgAiSettings } from '../../ai/vendor-settings';
+import { AI_PROVIDER_PRESETS, loadOrgAiSettings, loadPlatformAiSettings } from '../../ai/vendor-settings';
 import type { AssistigoSupabaseClient } from '../../supabase/server';
 import type { DocumentRow, Json, OrganizationRow } from '../../supabase/database.types';
 
@@ -41,11 +41,13 @@ export type JobHandlerResult = { ok: true } | { ok: false; error: string };
 /**
  * The AI reader's endpoint and credentials.
  *
- * An organization's own configured vendor (`organization_ai_settings`) takes priority over the
- * deployment-wide, environment-configured one — that is the whole point of letting an owner
- * bring their own key and model (docs/AI_PIPELINE.md §2). Falling back to the environment
- * config when an organization has never configured one keeps every existing single-tenant
- * deployment working exactly as it did before this feature existed.
+ * The shared setup (`platform_ai_settings`) covers every centre, switch included. Until a Super
+ * Admin saves it, a centre's earlier row (`organization_ai_settings`) and then the environment
+ * apply, as before 0049 (docs/AI_PIPELINE.md §2).
+ *
+ * The citizen app's organization is never covered by the shared setup: those documents belong to
+ * citizens, who have not consented to an outside AI reader. `platformEnabled` is null when the
+ * shared setup does not apply, and the caller falls back to the organization's own flag.
  *
  * Assembled here rather than in `@assistigo/ai` — that package is pure domain logic and
  * deliberately has no access to secrets, and no database access at all.
@@ -53,8 +55,16 @@ export type JobHandlerResult = { ok: true } | { ok: false; error: string };
 export async function resolveAiProviderConfig(
   supabase: AssistigoSupabaseClient,
   organizationId: string,
-): Promise<{ aiProviderName: string; providerConfig: OcrProviderConfig }> {
-  const orgSettings = await loadOrgAiSettings(supabase, organizationId);
+): Promise<{
+  aiProviderName: string;
+  providerConfig: OcrProviderConfig;
+  platformEnabled: boolean | null;
+}> {
+  const platform = isCitizenAppOrganization(organizationId)
+    ? null
+    : await loadPlatformAiSettings(supabase);
+  const platformEnabled = platform ? platform.enabled : null;
+  const orgSettings = platform ?? (await loadOrgAiSettings(supabase, organizationId));
 
   if (orgSettings) {
     const preset = AI_PROVIDER_PRESETS[orgSettings.provider];
@@ -64,6 +74,7 @@ export async function resolveAiProviderConfig(
         : preset?.defaultModel ?? undefined;
 
     return {
+      platformEnabled,
       aiProviderName: 'org_ai_vendor',
       providerConfig: {
         apiKey: orgSettings.apiKey ?? undefined,
@@ -78,6 +89,7 @@ export async function resolveAiProviderConfig(
 
   const env = serverEnv();
   return {
+    platformEnabled,
     aiProviderName: env.OCR_AI_PROVIDER,
     providerConfig: {
       apiKey: env.OCR_AI_PROVIDER === 'deepseek' ? env.DEEPSEEK_API_KEY : env.ANTHROPIC_API_KEY,
@@ -116,14 +128,14 @@ export async function handleOcrExtract(
 
   const settings = ((organization as Pick<OrganizationRow, 'settings'> | null)?.settings ??
     {}) as Record<string, unknown>;
-  const aiProcessingEnabled = settings.ai_processing_enabled === true;
 
   try {
     const bytes = await downloadObject(supabase, document.storage_path, document.storage_bucket);
-    const { aiProviderName, providerConfig } = await resolveAiProviderConfig(
+    const { aiProviderName, providerConfig, platformEnabled } = await resolveAiProviderConfig(
       supabase,
       document.organization_id,
     );
+    const aiProcessingEnabled = platformEnabled ?? settings.ai_processing_enabled === true;
 
     const { extraction, rawText, mode } = await runExtraction({
       bytes,

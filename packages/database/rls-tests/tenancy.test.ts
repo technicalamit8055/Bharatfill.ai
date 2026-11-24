@@ -86,7 +86,7 @@ beforeAll(async () => {
   });
   if (consentError) throw consentError;
 
-  const { error: aiSettingsError } = await owner
+  const { error: aiSettingsError } = await fixture.admin
     .from('organization_ai_settings')
     .insert({ organization_id: orgA.id, provider: 'deepseek' });
   if (aiSettingsError) throw aiSettingsError;

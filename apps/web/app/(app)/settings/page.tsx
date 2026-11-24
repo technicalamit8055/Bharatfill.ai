@@ -21,7 +21,6 @@ export default async function SettingsPage() {
       permission: 'org.settings',
     },
     { href: '/settings/security', labelKey: 'settings.security', permission: 'org.security' },
-    { href: '/settings/ai', labelKey: 'settings.ai.navLabel', permission: 'org.security' },
     { href: '/settings/data', labelKey: 'settings.dataRetention', permission: 'org.settings' },
     { href: '/billing', labelKey: 'nav.billing', permission: 'billing.view' },
   ] as const;

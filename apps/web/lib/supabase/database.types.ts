@@ -68,6 +68,12 @@ export type OrganizationAiSettingsRow = Timestamps & {
   updated_by: string | null;
 };
 
+/** The one AI setup every centre shares (0049). A single row. */
+export type PlatformAiSettingsRow = Omit<OrganizationAiSettingsRow, 'organization_id'> & {
+  id: true;
+  enabled: boolean;
+};
+
 export type OrgRoleValue = 'owner' | 'manager' | 'operator' | 'viewer' | 'billing_admin';
 
 export type OrganizationMemberRow = Timestamps & {

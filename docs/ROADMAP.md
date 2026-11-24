@@ -510,6 +510,8 @@ Console v2 (separate staff sign-in, redesign, tenant management):
 - [x] Tenants: status filter, totals and pagination, a detail page (`platform_tenant_detail()`),
       suspend / reactivate and manual plan override (`platform.tenants.manage`,
       `platform.billing.override`, Super Admin only; migration 0030)
+- [x] AI settings moved from the operator dashboard to `/admin/ai`: one setup for every centre
+      (Super Admin only; 0048 closes the tenant write path, 0049 adds the shared row)
 - [x] Audit log viewer at `/admin/audit` — platform rows only, filters by event, staff member,
       sensitivity, date and target
 - [x] Team page role guide: permissions and sign-in page per role

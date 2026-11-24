@@ -8,6 +8,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CITIZEN_APP_ORGANIZATION_ID } from '@assistigo/core';
 import { DEMO_DOCUMENT_BY_CODE, containsAadhaarLikeNumber } from '@assistigo/ai';
 
 // serverEnv() validates the whole server schema on first call, so the required keys must exist
@@ -38,6 +39,7 @@ function stubClient(
   options: {
     orgSettings?: Record<string, unknown>;
     aiVendorRow?: Record<string, unknown> | null;
+    platformRow?: Record<string, unknown> | null;
   } = {},
 ) {
   const captured: Captured[] = [];
@@ -54,6 +56,9 @@ function stubClient(
           if (table === 'documents') return Promise.resolve({ data: document, error: null });
           if (table === 'organizations') {
             return Promise.resolve({ data: { settings: orgSettings }, error: null });
+          }
+          if (table === 'platform_ai_settings') {
+            return Promise.resolve({ data: options.platformRow ?? null, error: null });
           }
           if (table === 'organization_ai_settings') {
             return Promise.resolve({ data: aiVendorRow, error: null });
@@ -293,5 +298,73 @@ describe('resolveAiProviderConfig', () => {
 
     expect(aiProviderName).toBe('org_ai_vendor');
     expect(providerConfig.apiKey).toBeUndefined();
+  });
+});
+
+describe('the shared AI setup (0049)', () => {
+  const platformRow = (enabled: boolean) => ({
+    id: true,
+    enabled,
+    provider: 'vertex',
+    wire_format: 'vertex_generate_content',
+    base_url: null,
+    model: 'shared-model',
+    api_key_encrypted: encryptField('sk-shared', 'platform:ai_vendor_api_key'),
+    custom_prompt: null,
+  });
+  const ownRow = {
+    provider: 'openai',
+    wire_format: 'openai_compatible',
+    base_url: null,
+    model: 'own-model',
+    api_key_encrypted: null,
+    custom_prompt: null,
+  };
+
+  it.each([true, false])("replaces a centre's own vendor and switch (enabled: %s)", async (on) => {
+    const { client } = stubClient(documentRow(), aadhaarText, {
+      platformRow: platformRow(on),
+      aiVendorRow: ownRow,
+    });
+
+    const result = await resolveAiProviderConfig(client, 'org-1');
+
+    expect(result.platformEnabled).toBe(on);
+    expect(result.providerConfig.apiKey).toBe('sk-shared');
+    expect(result.providerConfig.model).toBe('shared-model');
+  });
+
+  it('leaves the centre on its own setting until it is saved', async () => {
+    const { client } = stubClient(documentRow(), aadhaarText, { aiVendorRow: ownRow });
+
+    const result = await resolveAiProviderConfig(client, 'org-1');
+
+    expect(result.platformEnabled).toBeNull();
+    expect(result.providerConfig.model).toBe('own-model');
+  });
+
+  it('never covers citizen app documents, whose owners have not consented', async () => {
+    const { client } = stubClient(documentRow(), aadhaarText, { platformRow: platformRow(true) });
+
+    const result = await resolveAiProviderConfig(client, CITIZEN_APP_ORGANIZATION_ID);
+
+    expect(result.platformEnabled).toBeNull();
+    expect(result.providerConfig.apiKey).toBeUndefined();
+  });
+
+  it.each([
+    [true, false],
+    [false, true],
+  ])('sends a document out only when the shared switch is on (%s, centre flag %s)', async (on, orgOn) => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('no network in tests'));
+    const { client } = stubClient(documentRow(), aadhaarText, {
+      platformRow: platformRow(on),
+      orgSettings: { ai_processing_enabled: orgOn },
+    });
+
+    await handleOcrExtract(client, { documentId: documentRow().id, extractionMode: 'ai' });
+
+    expect(fetchSpy.mock.calls.length > 0).toBe(on);
+    fetchSpy.mockRestore();
   });
 });

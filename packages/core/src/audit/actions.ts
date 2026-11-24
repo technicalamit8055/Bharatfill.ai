@@ -653,6 +653,14 @@ export const AUDIT_ACTIONS = define([
     description: 'Suspended organization reactivated by platform staff',
   },
   {
+    // Critical: decides which outside vendor every centre's documents may be sent to, and can
+    // replace a stored key. `metadata` carries field names only.
+    action: 'platform.ai_settings_updated',
+    entityType: 'platform_ai_settings',
+    sensitivity: 'critical',
+    description: 'AI settings for all centres changed',
+  },
+  {
     // A billing override (spec §6.1): the plan a centre is on changed without the centre paying
     // for it or asking. `metadata` carries the from/to plan codes and the stated reason.
     action: 'platform.tenant_plan_overridden',

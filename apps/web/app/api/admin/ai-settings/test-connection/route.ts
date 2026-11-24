@@ -1,25 +1,26 @@
 import { z } from 'zod';
 import { AiVisionOcrProvider } from '@assistigo/ai';
 import { validationFailed } from '@assistigo/core';
-import { requirePermission, resolveContext } from '@/lib/api/context';
+import { requirePlatformPermission, resolvePlatformContext } from '@/lib/admin/context';
 import { logger } from '@/lib/api/logger';
+import { resolveOwnAiKey } from '@/lib/ai/key-sources';
 import { handler, ok, parseBody } from '@/lib/api/response';
 import {
   AI_PROVIDER_PRESETS,
   isAllowedVendorBaseUrl,
-  loadOrgAiSettings,
+  loadPlatformAiSettings,
 } from '@/lib/ai/vendor-settings';
 import type { OrganizationAiProvider } from '@/lib/supabase/database.types';
 
 /**
- * `POST /api/organizations/ai-settings/test-connection`
+ * `POST /api/admin/ai-settings/test-connection`
  *
- * Sends one trivial, harmless prompt to confirm an endpoint and key actually work, before an
- * owner saves them. Never sends a document — this exists precisely so a misconfigured vendor is
+ * Sends one trivial, harmless prompt to confirm an endpoint and key actually work, before
+ * they are saved. Never sends a document — this exists precisely so a misconfigured vendor is
  * caught here instead of on a customer's upload.
  *
- * Accepts the settings-page form's current draft (which may include a key the owner has not
- * saved yet); any field left out falls back to what is already stored, so testing after typing
+ * Accepts the settings-page form's current draft (which may include a key not saved
+ * yet); any field left out falls back to what is already stored, so testing after typing
  * only a new base URL still uses the saved key.
  */
 const bodySchema = z.object({
@@ -29,19 +30,24 @@ const bodySchema = z.object({
   baseUrl: z.string().trim().max(500).optional(),
   model: z.string().trim().max(200).optional(),
   apiKey: z.string().trim().max(500).optional(),
+  copyKeyFrom: z.string().uuid().optional(),
 });
 
-export const POST = handler('api.organizations.aiSettings.testConnection', async (request) => {
-  const context = await resolveContext(request);
-  requirePermission(context, 'org.security');
+export const POST = handler('api.admin.aiSettings.testConnection', async (request) => {
+  const context = await resolvePlatformContext(request);
+  requirePlatformPermission(context, 'platform.team.manage');
 
   const input = await parseBody(request, bodySchema);
-  const stored = await loadOrgAiSettings(context.supabase, context.organization.id);
+  const stored = await loadPlatformAiSettings(context.supabase);
 
   const provider: OrganizationAiProvider = input.provider ?? stored?.provider ?? 'deepseek';
   const preset = AI_PROVIDER_PRESETS[provider];
 
-  const apiKey = input.apiKey && input.apiKey !== '' ? input.apiKey : stored?.apiKey ?? undefined;
+  const apiKey = input.copyKeyFrom
+    ? await resolveOwnAiKey(context.supabase, context.userId, input.copyKeyFrom)
+    : input.apiKey && input.apiKey !== ''
+      ? input.apiKey
+      : (stored?.apiKey ?? undefined);
   if (!apiKey) {
     throw validationFailed({ fields: { apiKey: 'validation.ai_api_key_required' } });
   }
@@ -69,7 +75,7 @@ export const POST = handler('api.organizations.aiSettings.testConnection', async
     timeoutMs: 15_000,
   });
 
-  logger.debug('api.organizations.aiSettings.testConnection.request', {
+  logger.debug('api.admin.aiSettings.testConnection.request', {
     provider,
     baseUrl,
     model: model ?? '(default)',
@@ -79,7 +85,7 @@ export const POST = handler('api.organizations.aiSettings.testConnection', async
 
   const result = await vision.testConnection();
 
-  logger.debug('api.organizations.aiSettings.testConnection.result', { ok: result.ok });
+  logger.debug('api.admin.aiSettings.testConnection.result', { ok: result.ok });
 
   return ok(result);
 });

@@ -1,6 +1,6 @@
 /**
  * Save Document — between scan review and the vault. The scan at the top (swipe through the
- * pages of a booklet) with Edit Scan to go back to cropping, then the details the vault files
+ * pages of a booklet, tap one to see it full screen) with Edit Scan to go back to cropping, then the details the vault files
  * it under: a name, the document type, an optional folder and tags, and an optional expiry
  * reminder.
  *
@@ -38,6 +38,7 @@ import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   type LayoutChangeEvent,
   type NativeScrollEvent,
@@ -81,6 +82,7 @@ import {
 } from '../../lib/vault/vault-index';
 import { DateOfBirthSheet } from '../registration/DateOfBirthSheet';
 import { OptionSheet, type SheetOption } from '../registration/OptionSheet';
+import { PageZoomViewer } from '../scanner/PageZoomViewer';
 import { VAULT_CATEGORY_ICONS } from '../vault/categoryIcons';
 import { saveDocumentPalette as palette } from './palette';
 
@@ -525,6 +527,12 @@ function ScanPreview({
   const { t } = useTranslation();
   const [width, setWidth] = useState(0);
   const lastIndex = useRef(0);
+  /** The page open full screen, if any. */
+  const [zoomedIndex, setZoomedIndex] = useState<number | null>(null);
+  const zoomed = zoomedIndex === null ? null : pages[zoomedIndex]?.rendered;
+
+  const pageLabel = (index: number) =>
+    t('saveDocument.previewLabel', { number: index + 1, total: pages.length });
 
   const onLayout = (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width);
 
@@ -543,6 +551,7 @@ function ScanPreview({
         <ScrollView
           horizontal
           pagingEnabled
+          keyboardShouldPersistTaps="handled"
           showsHorizontalScrollIndicator={false}
           onScroll={onScroll}
           scrollEventThrottle={32}
@@ -550,16 +559,24 @@ function ScanPreview({
           {pages.map((page, index) => (
             <View key={page.id} style={[styles.previewPage, { width }]}>
               {page.rendered ? (
-                <Image
-                  source={{ uri: page.rendered.uri }}
-                  resizeMode="contain"
-                  accessibilityLabel={t('saveDocument.previewLabel', {
-                    number: index + 1,
-                    total: pages.length,
-                  })}
-                  accessibilityIgnoresInvertColors
-                  style={styles.previewImage}
-                />
+                // Tapping the page opens it full screen to pinch-zoom.
+                <Pressable
+                  accessibilityRole="imagebutton"
+                  accessibilityLabel={pageLabel(index)}
+                  accessibilityHint={t('scanReview.zoom')}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setZoomedIndex(index);
+                  }}
+                  style={({ pressed }) => [styles.previewImage, pressed && styles.pressed]}
+                >
+                  <Image
+                    source={{ uri: page.rendered.uri }}
+                    resizeMode="contain"
+                    accessibilityIgnoresInvertColors
+                    style={styles.previewImage}
+                  />
+                </Pressable>
               ) : (
                 <ActivityIndicator color={palette.brandBlue} />
               )}
@@ -576,6 +593,15 @@ function ScanPreview({
         <Crop color={palette.onEditPill} size={18} strokeWidth={2.2} />
         <Text style={styles.editPillLabel}>{t('saveDocument.editScan')}</Text>
       </Pressable>
+
+      {zoomed && zoomedIndex !== null ? (
+        <PageZoomViewer
+          uri={zoomed.uri}
+          size={zoomed}
+          label={pageLabel(zoomedIndex)}
+          onClose={() => setZoomedIndex(null)}
+        />
+      ) : null}
     </View>
   );
 }

@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  Bot,
   Building2,
   CalendarClock,
   CreditCard,
@@ -156,6 +157,14 @@ export const CONSOLE_NAV: ConsoleNavGroup[] = [
         permission: 'platform.team.manage',
         icon: MessagesSquare,
         keywords: 'whatsapp telegram bots webhook',
+      },
+      {
+        href: '/admin/ai',
+        segment: 'ai',
+        labelKey: 'admin.nav.aiSettings',
+        permission: 'platform.team.manage',
+        icon: Bot,
+        keywords: 'ai vendor provider api key model ocr reading gemini vertex',
       },
     ],
   },

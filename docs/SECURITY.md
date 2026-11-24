@@ -467,14 +467,16 @@ another row and still decrypt:
 | `customer_field_values.value_encrypted` (PAN, bank) | organization, customer and field |
 | `customer_portal_credentials.*_encrypted` (0036)    | organization, customer, row and part (`login_id` / `password` / `security_answer`) |
 | `organization_ai_settings.api_key_encrypted` (0017) | `<org id>:ai_vendor_api_key`     |
+| `platform_ai_settings.api_key_encrypted` (0049)     | `platform:ai_vendor_api_key`     |
 | `platform_channel_settings.*_encrypted` (0023)      | channel-scoped                   |
 | `extension_pairing_codes.session_payload` (0012)    | the pairing code's hash          |
 
 ### Third-party credentials
 
-- **Organization AI vendor key** — owner-only (`org.security`); the settings API reports only
-  whether one is set. A vendor base URL must be `https://` and may not be localhost, a private
-  range or the cloud metadata address, so an owner account cannot make the server probe
+- **AI vendor key** — one for all centres (`platform_ai_settings`, service role only); Super Admin only (`platform.team.manage`); tenants have no write
+  path to it or to `ai_processing_enabled` (0048), and the API reports only whether one is set.
+  A Super Admin may reuse the key of a centre they own; it is copied on the server and audited. A vendor base URL must be `https://` and may not be localhost, a private
+  range or the cloud metadata address, so the form cannot make the server probe
   internal infrastructure. For a Google `googleapis.com` endpoint the key is sent as a `key=`
   query parameter as well as a bearer header, so it can appear in that vendor's request logs.
 - **Walk-in channel tokens** — Super Admin only, encrypted at rest, never returned (§2).

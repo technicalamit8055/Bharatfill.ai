@@ -43,7 +43,7 @@ There are **two provider slots**, because a document has two very different read
 | local     | `OCR_PROVIDER`    | `tesseract`     | cheap local OCR for simple scans                                         | not implemented    |
 | AI vision | `OCR_AI_PROVIDER` | `deepseek`      | hosted vision model for photos and difficult layouts; `DEEPSEEK_API_KEY` | **off by default** |
 | AI vision | `OCR_AI_PROVIDER` | `anthropic`     | ditto, Anthropic messages wire format; `ANTHROPIC_API_KEY`               | **off by default** |
-| AI vision | per organization  | `org_ai_vendor` | the organization's own vendor from `organization_ai_settings` (below)    | owner-configured   |
+| AI vision | per organization  | `org_ai_vendor` | the organization's own vendor from `organization_ai_settings` (below)    | Super Admin        |
 
 The product is never hard-coded to one provider. `AiVisionOcrProvider`
 (`packages/ai/src/providers/ai-vision.ts`) speaks three wire formats — OpenAI chat-completions
@@ -59,7 +59,12 @@ provider, the env wiring and a unit-tested `anthropic_messages` request builder 
 
 ### Organization vendor settings (migration 0017)
 
-An owner may bring their own vendor instead of the deployment's. When an organization has an
+**One setup for every centre.** A Super Admin sets it at `/admin/ai` (`platform_ai_settings`, 0049):
+vendor, key, prompt and the on/off switch. Once saved it replaces every centre's own row and
+`ai_processing_enabled` flag. It never covers the citizen app's organization — those documents need
+the citizen's own consent. Centres cannot change any of it (0048).
+
+Until it is saved, the earlier per-centre row applies. When an organization has an
 `organization_ai_settings` row, `resolveAiProviderConfig` (`apps/web/lib/jobs/handlers/ocr-extract.ts`)
 uses it — provider name `org_ai_vendor` — in place of `OCR_AI_PROVIDER`; with no row, the
 environment reader is used exactly as before.
@@ -72,11 +77,11 @@ environment reader is used exactly as before.
 | `api_key`       | AES-256-GCM at rest; never returned — the API reports `hasApiKey` only                                                                                                                              |
 | `custom_prompt` | ≤ 8 000 chars; switches the reader into structured mode (below)                                                                                                                                     |
 
-Routes: `GET/PUT/DELETE /api/organizations/ai-settings` (read: any member; write: `org.security`,
-owner only) and `POST /api/organizations/ai-settings/test-connection` (owner; sends one trivial
-prompt, never a document, 15 s timeout). Configuring a vendor does **not** turn AI reading on —
-the same route's `enabled` flag writes `organizations.settings.ai_processing_enabled`, which
-remains the gate (rule 2 below). For a `googleapis.com` endpoint the key is also appended as a
+Routes: `GET /api/organizations/ai-settings` (any member; provider, on/off and `hasApiKey` only),
+`PUT /api/admin/ai-settings` and `POST …/test-connection` (both
+`platform.team.manage`, Super Admin only; the test sends one trivial prompt, never a document, 15 s timeout). Configuring a vendor does **not** turn AI reading on —
+the PUT route's `enabled` flag writes `platform_ai_settings.enabled`, which
+is the gate (rule 2 below). For a `googleapis.com` endpoint the key is also appended as a
 `key=` query parameter.
 
 `vertex` (migration 0033) is Vertex AI's API-key ("express mode") endpoint: `POST
@@ -159,7 +164,7 @@ engine, and drops a key that is not in the customer field registry with a warnin
 
 | Entrance        | Set by                                  | Asked for                               |
 | --------------- | --------------------------------------- | --------------------------------------- |
-| `customPrompt`  | an organization, in AI settings         | whatever the organization's prompt says |
+| `customPrompt`  | a Super Admin, in AI settings | whatever the organization's prompt says |
 | `dynamicSchema` | the pipeline, for one case only (below) | a mapping onto the field registry       |
 
 **The dynamic-schema escalation.** When a document was read but matched **no printed label at

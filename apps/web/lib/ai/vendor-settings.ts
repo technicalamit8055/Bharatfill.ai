@@ -2,7 +2,11 @@ import 'server-only';
 
 import type { AiWireFormat } from '@assistigo/ai/types';
 import type { AssistigoSupabaseClient } from '../supabase/server';
-import type { OrganizationAiProvider, OrganizationAiSettingsRow } from '../supabase/database.types';
+import type {
+  OrganizationAiProvider,
+  OrganizationAiSettingsRow,
+  PlatformAiSettingsRow,
+} from '../supabase/database.types';
 
 /**
  * An organization's own AI vendor configuration (docs/AI_PIPELINE.md §2, docs/SECURITY.md §4).
@@ -14,6 +18,7 @@ import type { OrganizationAiProvider, OrganizationAiSettingsRow } from '../supab
  */
 
 const AAD_SUFFIX = 'ai_vendor_api_key';
+const PLATFORM_AAD = 'platform:ai_vendor_api_key';
 
 export type ProviderPreset = {
   label: string;
@@ -94,21 +99,56 @@ export type ResolvedAiVendorSettings = {
   customPrompt: string | null;
 };
 
-/** Non-secret fields only. Safe to return from an API route to any org member. */
-export type AiVendorSettingsSummary = {
-  provider: OrganizationAiProvider;
-  wireFormat: AiWireFormat;
-  baseUrl: string | null;
-  model: string | null;
-  customPrompt: string | null;
+/** The shared setup, plus the on/off switch that covers every centre. */
+export type PlatformAiSettings = ResolvedAiVendorSettings & {
   hasApiKey: boolean;
   enabled: boolean;
 };
 
-export function encryptOrgAiApiKey(organizationId: string, apiKey: string): Promise<string> {
+export function encryptPlatformAiApiKey(apiKey: string): Promise<string> {
   return import('@assistigo/core/privacy/crypto').then(({ encryptField }) =>
-    encryptField(apiKey, `${organizationId}:${AAD_SUFFIX}`),
+    encryptField(apiKey, PLATFORM_AAD),
   );
+}
+
+async function decryptKey(ciphertext: string | null, aad: string): Promise<string | null> {
+  if (!ciphertext) return null;
+  try {
+    const { decryptField } = await import('@assistigo/core/privacy/crypto');
+    return decryptField(ciphertext, aad);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The one AI setup every centre shares (0049), or `null` until a Super Admin saves it — callers
+ * then fall back to the centre's earlier row. Needs the service-role client: RLS grants tenants
+ * nothing on this table. `apiKey` is decrypted, so pick fields before returning any of this.
+ */
+export async function loadPlatformAiSettings(
+  supabase: AssistigoSupabaseClient,
+): Promise<PlatformAiSettings | null> {
+  const { data, error } = await supabase
+    .from('platform_ai_settings')
+    .select('*')
+    .eq('id', true)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  const row = data as PlatformAiSettingsRow;
+  return {
+    provider: row.provider,
+    wireFormat: row.wire_format,
+    baseUrl: row.base_url,
+    model: row.model,
+    apiKey: await decryptKey(row.api_key_encrypted, PLATFORM_AAD),
+    customPrompt: row.custom_prompt,
+    hasApiKey: Boolean(row.api_key_encrypted),
+    enabled: row.enabled,
+  };
 }
 
 /**
@@ -135,15 +175,7 @@ export async function loadOrgAiSettings(
 
   const row = data as OrganizationAiSettingsRow;
 
-  let apiKey: string | null = null;
-  if (row.api_key_encrypted) {
-    try {
-      const { decryptField } = await import('@assistigo/core/privacy/crypto');
-      apiKey = decryptField(row.api_key_encrypted, `${organizationId}:${AAD_SUFFIX}`);
-    } catch {
-      apiKey = null;
-    }
-  }
+  const apiKey = await decryptKey(row.api_key_encrypted, `${organizationId}:${AAD_SUFFIX}`);
 
   return {
     provider: row.provider,

@@ -277,15 +277,15 @@ describe('operator can do day-to-day work but not admin actions', () => {
   });
 });
 
-describe('organization AI vendor settings are owner-only to write', () => {
-  it('lets an owner create the row', async () => {
-    const { error } = await fixture.orgA.usersByRole.owner.client
+describe('organization AI vendor settings are platform-managed (0048)', () => {
+  beforeAll(async () => {
+    const { error } = await fixture.admin
       .from('organization_ai_settings')
       .insert({ organization_id: fixture.orgA.id, provider: 'deepseek' });
-    expect(error).toBeNull();
+    if (error) throw error;
   });
 
-  it('lets any active member read it (but never returns the key column here — the app layer never selects it for a non-owner)', async () => {
+  it('lets any active member read which vendor is set', async () => {
     const { data, error } = await fixture.orgA.usersByRole.operator.client
       .from('organization_ai_settings')
       .select('organization_id, provider')
@@ -294,8 +294,8 @@ describe('organization AI vendor settings are owner-only to write', () => {
     expect(data).toHaveLength(1);
   });
 
-  it('blocks a manager from changing it — this is owner-only, unlike ordinary org settings', async () => {
-    const { data, error } = await fixture.orgA.usersByRole.manager.client
+  it.each(['owner', 'manager', 'operator'] as const)('blocks a %s from changing it', async (role) => {
+    const { data, error } = await fixture.orgA.usersByRole[role].client
       .from('organization_ai_settings')
       .update({ model: 'gpt-4o' })
       .eq('organization_id', fixture.orgA.id)
@@ -304,21 +304,36 @@ describe('organization AI vendor settings are owner-only to write', () => {
     expect(data).toEqual([]);
   });
 
-  it('blocks an operator from inserting one for their own org', async () => {
-    const { error } = await fixture.orgA.usersByRole.operator.client
+  it('blocks an owner from inserting one for their own org', async () => {
+    const { error } = await fixture.orgB.usersByRole.owner.client
       .from('organization_ai_settings')
-      .insert({ organization_id: fixture.orgA.id, provider: 'openai' });
+      .insert({ organization_id: fixture.orgB.id, provider: 'openai' });
     expect(error).not.toBeNull();
   });
 
-  it('blocks an owner from deleting another organization\'s row', async () => {
-    const { data, error } = await fixture.orgB.usersByRole.owner.client
+  it('blocks an owner from deleting it', async () => {
+    const { data, error } = await fixture.orgA.usersByRole.owner.client
       .from('organization_ai_settings')
       .delete()
       .eq('organization_id', fixture.orgA.id)
       .select('organization_id');
     expect(error).toBeNull();
     expect(data).toEqual([]);
+  });
+
+  it('hides the shared setup from tenants', async () => {
+    const { data, error } = await fixture.orgA.usersByRole.owner.client
+      .from('platform_ai_settings')
+      .select('provider');
+    expect(error !== null || data?.length === 0).toBe(true);
+  });
+
+  it('blocks an owner from turning AI processing on through organizations.settings', async () => {
+    const { error } = await fixture.orgA.usersByRole.owner.client
+      .from('organizations')
+      .update({ settings: { ai_processing_enabled: true } })
+      .eq('id', fixture.orgA.id);
+    expect(error).not.toBeNull();
   });
 });
 
