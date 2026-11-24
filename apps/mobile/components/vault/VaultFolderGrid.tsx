@@ -10,7 +10,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { documentCountMessage, rowLayout } from '../../lib/home/dashboard';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
 import { VAULT_CATEGORIES, type VaultCategoryKey } from '../../lib/vault/categories';
-import { VAULT_CATEGORY_ICONS } from './categoryIcons';
+import { ArtIcon } from '../art-icon/ArtIcon';
 import { vaultPalette as palette } from './palette';
 
 const FOUR_ACROSS_MIN_WIDTH = 112;
@@ -33,7 +33,6 @@ export function VaultFolderGrid({ width, counts, selected, onSelect }: VaultFold
   return (
     <View style={styles.grid}>
       {VAULT_CATEGORIES.map((category) => {
-        const Icon = VAULT_CATEGORY_ICONS[category];
         const colors = palette.categories[category];
         const isSelected = category === selected;
         const label = t(`home.vault.categories.${category}`);
@@ -59,7 +58,7 @@ export function VaultFolderGrid({ width, counts, selected, onSelect }: VaultFold
               pressed && styles.pressed,
             ]}
           >
-            <Icon color={colors.icon} size={34} strokeWidth={2} />
+            <ArtIcon name={category} size={34} />
             <View style={styles.text}>
               <Text numberOfLines={1} style={styles.label}>
                 {label}

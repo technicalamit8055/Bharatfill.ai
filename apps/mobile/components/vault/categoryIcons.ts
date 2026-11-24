@@ -1,4 +1,4 @@
-/** One icon per vault category, shared by Home's vault grid and the Vault tab's folders. */
+/** One line icon per vault category, for rows and lists. The tiles use `<ArtIcon>`. */
 
 import type { LucideIcon } from 'lucide-react-native';
 import { Award, Folder, GraduationCap, IdCard } from 'lucide-react-native';

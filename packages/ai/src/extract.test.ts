@@ -51,6 +51,20 @@ describe('buildFieldsFromStructuredOutput', () => {
     expect(fields[0]?.value).not.toContain('123456789012');
   });
 
+  it('keeps a twelve-digit university roll number the model read', () => {
+    const { fields } = buildFieldsFromStructuredOutput({
+      fields: [
+        field({
+          key: 'customer.education.graduation.roll_number',
+          label: 'University Roll No.',
+          value: '200000001132',
+        }),
+      ],
+    });
+
+    expect(fields[0]?.value).toBe('200000001132');
+  });
+
   it('reduces an aadhaar_last4 field to four digits regardless of what the model sent', () => {
     const { fields } = buildFieldsFromStructuredOutput({
       fields: [field({ key: 'customer.aadhaar_last4', value: '123456789012' })],

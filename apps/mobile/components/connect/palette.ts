@@ -48,11 +48,11 @@ export const connectPalette = {
   chevronIcon: '#1E293B',
 
   actions: {
-    find_nearby: { tile: '#EEF9F2', border: '#D8F0E1', badge: '#D3F1DF', icon: '#16A34A' },
-    share_document: { tile: '#EEF4FF', border: '#DCE8FF', badge: '#D6E6FF', icon: '#1D6BFF' },
-    connections: { tile: '#FFF5EB', border: '#FFE6CF', badge: '#FFE3C6', icon: '#EA6A0C' },
-    request_help: { tile: '#F5F1FF', border: '#E6DCFF', badge: '#E5D9FF', icon: '#7C3AED' },
-  } satisfies Record<string, Tint>,
+    find_nearby: { tile: '#EEF9F2', border: '#D8F0E1', icon: '#16A34A' },
+    share_document: { tile: '#EEF4FF', border: '#DCE8FF', icon: '#1D6BFF' },
+    connections: { tile: '#FFF5EB', border: '#FFE6CF', icon: '#EA6A0C' },
+    request_help: { tile: '#F5F1FF', border: '#E6DCFF', icon: '#7C3AED' },
+  } satisfies Record<string, Omit<Tint, 'badge'>>,
 
   services: {
     form_filling: { tile: '#FFF1F3', border: '#FDDDE3', badge: '#FDDDE3', icon: '#E11D48' },

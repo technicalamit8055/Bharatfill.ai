@@ -16,7 +16,7 @@ These are product-level constraints, not preferences. A PR that violates one is 
 | 2   | Assistigo never reads, solves or bypasses a CAPTCHA.                                                      | §14.5, §19.7 |
 | 3   | Assistigo never retrieves or auto-enters an OTP.                                                          | §14.5, §19.7 |
 | 4   | Payment credential fields are not autofilled in the MVP.                                                  | §14.5, §19.7 |
-| 5   | Full Aadhaar numbers may be stored (`identity_summary_json.aadhaar`) and used for form auto-fill, with customer consent. Always `high_risk`: always reviewed, masked on display, reveal audited. Never logged, searched or indexed. | §11.2, §19.3 |
+| 5   | Full Aadhaar numbers may be stored (`identity_summary_json.aadhaar`) and used for form auto-fill, with customer consent. Always `high_risk`: always reviewed, masked on display, reveal audited. Never logged, searched or indexed. Extraction masks any other 12-digit number, except a roll / registration / marksheet number (AI_PIPELINE §9). | §11.2, §19.3 |
 | 6   | No real citizen data in dev, test, seed or fixture data.                                                  | §32.1        |
 | 7   | No customer PII in logs, error reports, or portal adapter reports.                                        | §19.6, §24.2 |
 | 8   | No competitor branding, copy, layout or assets.                                                           | §1, §28.1    |
@@ -59,7 +59,9 @@ Rules 1–4 and 11 are additionally guarded by tests in `apps/extension/tests/` 
 ## 5. Privacy standards
 
 - Sensitive identifiers render masked by default. Revealing requires an explicit action, a role
-  permission, and writes an audit log entry.
+  permission, and writes an audit log entry. Exception (product owner, 2026-11-24): the operator
+  panel shows a customer's mobile in full to the centre that holds the record or a live grant. A
+  linked or locked customer, and the extension, still get the last four digits only.
 - `packages/core/src/privacy/redact.ts` is the only sanctioned path for building log payloads.
 - Never seed a real-format identity number that could collide with a real person. Use the
   documented invalid ranges in `docs/DATABASE.md` § Seed data.

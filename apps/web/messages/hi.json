@@ -227,7 +227,6 @@
     "call": "कॉल",
     "callCustomer": "इस ग्राहक को कॉल करें",
     "startApplication": "आवेदन शुरू करें",
-    "revealFailed": "नंबर नहीं दिखाया जा सका।",
     "pipelineTitle": "चल रहे आवेदन",
     "pipelineHint": "हर फॉर्म कहाँ पहुँचा है, और शुल्क मिला या नहीं।",
     "pipelineDeadline": "अंतिम तिथि {date}",

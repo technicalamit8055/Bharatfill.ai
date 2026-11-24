@@ -17,9 +17,10 @@ const querySchema = z.object({
  *
  * Fast lookup for the customer selector, in the dashboard and in the extension (§7.3.2, §7.4.3).
  *
- * The response carries only what is needed to pick the right person: name, code, district, and
- * the last four digits of the mobile. Never the full number, and never an identity document —
- * Aadhaar is not even searchable (§19.3).
+ * The response carries only what is needed to pick the right person: name, code, district and
+ * mobile. The dashboard gets the full number (product owner, 2026-11-24); the extension, which
+ * runs on portal pages, still gets the last four only. Never an identity document — Aadhaar is
+ * not even searchable (§19.3).
  */
 export const GET = handler('api.customers.search', async (request) => {
   const context = await resolveContext(request);
@@ -47,6 +48,7 @@ export const GET = handler('api.customers.search', async (request) => {
       displayName: row.full_name,
       customerCode: row.customer_code,
       mobileLast4: maskLast4(row.mobile),
+      ...(context.actorType === 'user' ? { mobile: row.mobile } : {}),
       district: row.district,
       state: row.state,
       verificationStatus: row.verification_status,

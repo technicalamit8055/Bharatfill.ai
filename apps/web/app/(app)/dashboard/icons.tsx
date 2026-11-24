@@ -21,7 +21,6 @@ import {
   Clipboard,
   Clock,
   CreditCard,
-  Eye,
   FileText,
   FileType2,
   Grid2x2,
@@ -88,7 +87,6 @@ export const PlayIcon = icon(Play);
 export const SearchIcon = icon(Search);
 export const ArrowRightIcon = icon(ArrowRight);
 export const ChevronRightIcon = icon(ChevronRight);
-export const EyeIcon = icon(Eye);
 
 // ── Walk-in intake ────────────────────────────────────────────────────────────
 export const QrIcon = icon(QrCode);

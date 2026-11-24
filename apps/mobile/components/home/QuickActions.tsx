@@ -5,31 +5,17 @@
  * bleeding to the screen edge so the next tile peeks in.
  */
 
-import type { LucideIcon } from 'lucide-react-native';
-import { FileText, FileUp, Files, IdCard, PenLine, SquareUser } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import {
-  QUICK_ACTIONS,
-  type QuickAction,
-  type QuickScanMode,
-  rowLayout,
-} from '../../lib/home/dashboard';
+import { QUICK_ACTIONS, type QuickScanMode, rowLayout } from '../../lib/home/dashboard';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
+import { ArtIcon } from '../art-icon/ArtIcon';
+import { artIconTint } from '../art-icon/tint';
 import { PAGE_PADDING } from './layout';
 import { homePalette as palette } from './palette';
 
 const TILE_MIN_WIDTH = 88;
 const GAP = 10;
-
-const ICONS: Record<QuickAction, LucideIcon> = {
-  document: FileText,
-  upload: FileUp,
-  id_card: IdCard,
-  photo: SquareUser,
-  signature: PenLine,
-  multi_page: Files,
-};
 
 export type QuickActionsProps = {
   /** Width of the page's content column. */
@@ -51,7 +37,6 @@ export function QuickActions({ width, onScan, onUpload }: QuickActionsProps) {
       contentContainerStyle={styles.row}
     >
       {QUICK_ACTIONS.map((action) => {
-        const Icon = ICONS[action];
         const colors = palette.quickActions[action];
         const label = t(`home.quickActions.${action}.label`);
         const caption = t(`home.quickActions.${action}.caption`);
@@ -68,8 +53,8 @@ export function QuickActions({ width, onScan, onUpload }: QuickActionsProps) {
               pressed && styles.pressed,
             ]}
           >
-            <View style={[styles.badge, { backgroundColor: colors.badge }]}>
-              <Icon color={colors.icon} size={23} strokeWidth={2.2} />
+            <View style={[styles.badge, { backgroundColor: artIconTint(action) }]}>
+              <ArtIcon name={action} size={30} />
             </View>
             <Text numberOfLines={1} style={styles.label}>
               {label}

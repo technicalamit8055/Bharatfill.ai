@@ -9,7 +9,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { documentCountMessage, rowLayout } from '../../lib/home/dashboard';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
 import { VAULT_CATEGORIES, type VaultCategoryKey } from '../../lib/vault/categories';
-import { VAULT_CATEGORY_ICONS as ICONS } from '../vault/categoryIcons';
+import { ArtIcon } from '../art-icon/ArtIcon';
+import { artIconTint } from '../art-icon/tint';
 import { homePalette as palette } from './palette';
 
 const FOUR_ACROSS_MIN_WIDTH = 104;
@@ -31,8 +32,6 @@ export function VaultCategoryGrid({ width, counts, onOpenVault }: VaultCategoryG
   return (
     <View style={styles.grid}>
       {VAULT_CATEGORIES.map((category) => {
-        const Icon = ICONS[category];
-        const colors = palette.vaultCategories[category];
         const label = t(`home.vault.categories.${category}`);
         const count = documentCountMessage(counts[category]);
         const countLabel = t(count.key, count.values);
@@ -45,8 +44,8 @@ export function VaultCategoryGrid({ width, counts, onOpenVault }: VaultCategoryG
             onPress={onOpenVault}
             style={({ pressed }) => [styles.card, { width: itemWidth }, pressed && styles.pressed]}
           >
-            <View style={[styles.badge, { backgroundColor: colors.badge }]}>
-              <Icon color={colors.icon} size={26} strokeWidth={2.1} />
+            <View style={[styles.badge, { backgroundColor: artIconTint(category) }]}>
+              <ArtIcon name={category} size={34} />
             </View>
             <Text numberOfLines={1} style={styles.label}>
               {label}

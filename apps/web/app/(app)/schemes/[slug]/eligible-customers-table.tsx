@@ -16,7 +16,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { EmptyState, cn } from '@assistigo/ui';
-import { maskLast4, type SchemeMatchStatus } from '@assistigo/core';
+import { formatMobile, type SchemeMatchStatus } from '@assistigo/core';
 import { useI18n } from '@/lib/i18n/client';
 import { whatsappLink } from '@/lib/schemes/view';
 import { CustomerAvatar } from '../../customers/customer-avatar';
@@ -224,7 +224,7 @@ export function EligibleCustomersPanel({
                         </Link>
                       </td>
                       <td className="px-4 py-3.5 tabular-nums text-slate-500">
-                        {maskLast4(customer.mobile) ? `•••••• ${maskLast4(customer.mobile)}` : '—'}
+                        {formatMobile(customer.mobile) ?? customer.mobile ?? '—'}
                       </td>
                       <td className="px-4 py-3.5 text-slate-600">{customer.ageAtCutoff ?? '—'}</td>
                       <td className="px-4 py-3.5">

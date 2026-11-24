@@ -5,7 +5,7 @@ import {
   APPLICATION_STATUS_LABELS,
   APPLICATION_STATUS_TONE,
   formatIndianDate,
-  maskLast4,
+  formatMobile,
 } from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
@@ -113,9 +113,9 @@ export default async function ApplicationDetailPage({
           {customer ? (
             <div>
               <p className="text-sm font-medium text-slate-900">{customer.full_name}</p>
-              {maskLast4(customer.mobile) ? (
+              {customer.mobile ? (
                 <p className="mt-0.5 text-xs tabular-nums text-slate-500">
-                  •••••• {maskLast4(customer.mobile)}
+                  {formatMobile(customer.mobile) ?? customer.mobile}
                 </p>
               ) : null}
               <Link

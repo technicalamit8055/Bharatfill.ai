@@ -22,7 +22,9 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= 'http://127.0.0.1:54321';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= 'test-anon-key';
 
 const { MAX_DROP_FILES_PER_SESSION, MAX_UPLOAD_BYTES } = await import('@assistigo/core');
-const { normalizeSenderMobile, resolveDropTarget, saveInboundDropFile } = await import('./service');
+const { normalizeSenderMobile, resolveDropTarget, saveInboundDropFile, senderLabel } = await import(
+  './service'
+);
 
 const ORG = '11111111-1111-4111-8111-111111111111';
 const SESSION = '22222222-2222-4222-8222-222222222222';
@@ -455,6 +457,21 @@ describe('resolveDropTarget', () => {
 // ---------------------------------------------------------------------------
 // normalizeSenderMobile
 // ---------------------------------------------------------------------------
+
+describe('senderLabel', () => {
+  it('shows a WhatsApp sender mobile in full', () => {
+    expect(senderLabel('whatsapp', '919900000123')).toBe('99000 00123');
+  });
+
+  it('never shows a Telegram chat id in full, even a mobile-shaped one', () => {
+    expect(senderLabel('telegram', '9900000123')).toBe('••••0123');
+  });
+
+  it('keeps the last four of a WhatsApp id that is not an Indian mobile', () => {
+    expect(senderLabel('whatsapp', '915500000123')).toBe('••••0123');
+    expect(senderLabel('whatsapp', null)).toBeNull();
+  });
+});
 
 describe('normalizeSenderMobile', () => {
   it('reduces a WhatsApp sender to the ten digits the app searches on', () => {

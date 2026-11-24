@@ -23,7 +23,7 @@
 
 import { extractFields, isKnownFieldLabel, meanConfidence } from './extract';
 import { ALL_EXTRACTABLE_FIELD_KEYS } from './rules';
-import { containsAadhaarLikeNumber } from './safety';
+import { aadhaarLikeNumbers, containsAadhaarLikeNumber } from './safety';
 import type { ExtractedField, ExtractionWarning, OcrResult } from './types';
 
 /**
@@ -198,9 +198,11 @@ export function extractFromText(input: ExtractFromTextInput): TextExtractionResu
     allowedKeys: allowed,
   });
 
-  // Only warn when the number was actually discarded — a `customer.aadhaar` field means it was
-  // kept, and telling the operator otherwise would be wrong.
-  if (hadAadhaarLikeNumber && !fields.some((field) => field.key === 'customer.aadhaar')) {
+  // Only warn when a number was actually discarded. A `customer.aadhaar` field, or a twelve-digit
+  // roll number (./safety.ts), means it was kept, and telling the operator otherwise would be wrong.
+  const kept = new Set(fields.flatMap((field) => aadhaarLikeNumbers(field.value)));
+  const discarded = aadhaarLikeNumbers(text).some((number) => !kept.has(number));
+  if (discarded && !fields.some((field) => field.key === 'customer.aadhaar')) {
     warnings.push({
       code: 'AADHAAR_REMOVED',
       messageKey: 'customers.paste.warnings.aadhaarRemoved',

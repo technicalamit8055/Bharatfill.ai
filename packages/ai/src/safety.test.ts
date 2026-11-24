@@ -1,11 +1,13 @@
 /**
  * Safety regression tests.
  * docs/DEVELOPMENT_RULES.md §1 rule 5 — `customer.aadhaar` may carry the full number; every
- * other field still has Aadhaar-like numbers masked out.
+ * other field still has Aadhaar-like numbers masked out, bar an education roll / registration /
+ * marksheet number's own digits (docs/AI_PIPELINE.md §9).
  */
 
 import { describe, expect, it } from 'vitest';
 import {
+  aadhaarLikeNumbers,
   containsAadhaarLikeNumber,
   maskIdentifiersInText,
   sanitizeExtractedFields,
@@ -66,6 +68,8 @@ describe('containsAadhaarLikeNumber', () => {
     expect(containsAadhaarLikeNumber('2000 0000 0000')).toBe(true);
     expect(containsAadhaarLikeNumber('2000 0000 0000')).toBe(true);
     expect(containsAadhaarLikeNumber('no numbers here')).toBe(false);
+    containsAadhaarLikeNumber('2000 0000 0000');
+    expect(aadhaarLikeNumbers('2000 0000 0000')).toEqual(['200000000000']);
   });
 });
 
@@ -114,6 +118,80 @@ describe('sanitizeExtractedFields', () => {
       field({ key: 'customer.address.printed', value: 'Rampur, ID 2000 0000 0000' }),
     ]);
     expect(result?.value).toBe('Rampur, ID XXXX XXXX 0000');
+  });
+
+  describe('education numbers that happen to be twelve digits', () => {
+    const roll = (overrides: Partial<ExtractedField> = {}) =>
+      field({
+        key: 'customer.education.graduation.roll_number',
+        label: 'University Roll No.',
+        value: '200000001132',
+        sourceText: 'University Roll No. : 200000001132',
+        ...overrides,
+      });
+
+    it.each([
+      'customer.education.class10.roll_number',
+      'customer.education.class12.roll_number',
+      'customer.education.graduation.roll_number',
+      'customer.education.graduation.registration_number',
+      'customer.education.class10.marksheet_number',
+    ])('keeps %s whole, value and source snippet both', (key) => {
+      const [result] = sanitizeExtractedFields([roll({ key })]);
+      expect(result?.value).toBe('200000001132');
+      expect(result?.sourceText).toBe('University Roll No. : 200000001132');
+    });
+
+    it('keeps one printed in groups', () => {
+      const [result] = sanitizeExtractedFields([
+        roll({ value: '2000 0000 1132', sourceText: 'Roll No : 2000 0000 1132' }),
+      ]);
+      expect(result?.value).toBe('2000 0000 1132');
+      expect(result?.sourceText).toBe('Roll No : 2000 0000 1132');
+    });
+
+    it.each(['Aadhaar No', 'Aadhar Number', 'Adhar', 'Adhaar', 'आधार संख्या', 'UID', 'UIDAI No'])(
+      'still masks a number printed beside "%s"',
+      (wording) => {
+        const [bySource] = sanitizeExtractedFields([
+          roll({ sourceText: `${wording} : 200000001132` }),
+        ]);
+        expect(bySource?.value).toBe('XXXX XXXX 1132');
+        expect(containsAadhaarLikeNumber(bySource?.sourceText ?? '')).toBe(false);
+
+        const [byLabel] = sanitizeExtractedFields([roll({ label: wording })]);
+        expect(byLabel?.value).toBe('XXXX XXXX 1132');
+      },
+    );
+
+    it('still masks the number this same document gave as the Aadhaar', () => {
+      const result = sanitizeExtractedFields([
+        roll(),
+        field({
+          key: 'customer.aadhaar',
+          value: '200000001132',
+          sourceText: 'Aadhaar : 2000 0000 1132',
+        }),
+      ]);
+      expect(result[0]?.value).toBe('XXXX XXXX 1132');
+    });
+
+    it('still masks any other twelve-digit number in the snippet or the value', () => {
+      const [snippet] = sanitizeExtractedFields([
+        roll({ sourceText: 'Roll No 200000001132 ID 2000 0000 0000' }),
+      ]);
+      expect(snippet?.sourceText).toBe('Roll No 200000001132 ID XXXX XXXX 0000');
+
+      const [value] = sanitizeExtractedFields([roll({ value: '12345 / 200000000000' })]);
+      expect(value?.value).toBe('12345 / XXXX XXXX 0000');
+    });
+
+    it('does not extend to other education fields', () => {
+      const [result] = sanitizeExtractedFields([
+        roll({ key: 'customer.education.graduation.unique_id' }),
+      ]);
+      expect(result?.value).toBe('XXXX XXXX 1132');
+    });
   });
 
   it('leaves ordinary fields untouched', () => {

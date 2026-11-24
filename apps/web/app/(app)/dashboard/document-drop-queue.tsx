@@ -49,7 +49,7 @@ type QueueSession = {
   sessionCode: string;
   channel: DropChannel;
   status: string;
-  senderMasked: string | null;
+  sender: string | null;
   senderName: string | null;
   createdAt: string;
   files: QueueFile[];
@@ -429,13 +429,12 @@ export function DocumentDropQueue({
                       </div>
 
                       {/*
-                       * The sender is shown masked. An operator matching the queue row to the
-                       * person in front of them needs the last four digits, not the number — and
-                       * reading the number is a separate audited action everywhere else (§19.3).
+                       * A WhatsApp sender's mobile is shown in full (product owner, 2026-11-24);
+                       * a Telegram chat id is not a phone number and keeps its last four digits.
                        */}
                       <p className="mt-1.5 truncate text-sm font-medium text-slate-900">
-                        {session.senderMasked
-                          ? t('documentDrop.queue.from', { number: session.senderMasked })
+                        {session.sender
+                          ? t('documentDrop.queue.from', { number: session.sender })
                           : t('documentDrop.queue.fromUnknown')}
                       </p>
 

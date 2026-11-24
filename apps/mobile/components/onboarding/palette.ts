@@ -40,14 +40,4 @@ export const onboardingPalette = {
   cta: '#0066FF',
   ctaPressed: '#0052CC',
   ctaLabel: '#FFFFFF',
-
-  /** Feature badges: icon colour on a pastel disc. */
-  featureScan: '#0284C7',
-  featureScanSurface: '#E0F2FE',
-  featureVault: '#16A34A',
-  featureVaultSurface: '#DCFCE7',
-  featureForms: '#EA580C',
-  featureFormsSurface: '#FFEDD5',
-  featureReach: '#7C3AED',
-  featureReachSurface: '#EDE9FE',
 } as const;

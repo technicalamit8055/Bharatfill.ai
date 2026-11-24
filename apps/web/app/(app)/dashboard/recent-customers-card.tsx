@@ -1,25 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { formatMobile } from '@assistigo/core';
 import { Badge, Button, Card, EmptyState, type Tone } from '@assistigo/ui';
 import { useI18n } from '@/lib/i18n/client';
 import { CustomerAvatar } from '../customers/customer-avatar';
 import { whatsappLink } from '@/lib/schemes/view';
-import { ArrowRightIcon, EyeIcon, PhoneIcon, PlusIcon, UploadIcon, WhatsappIcon } from './icons';
+import { ArrowRightIcon, PhoneIcon, PlusIcon, UploadIcon, WhatsappIcon } from './icons';
 
 export type RecentCustomerView = {
   id: string;
   customerCode: string;
   fullName: string;
-  /**
-   * The full number, used only to build the `tel:` and `wa.me` links the operator's own device
-   * opens — the same pattern the scheme outreach table uses. It is never rendered as text until
-   * an operator holding `customer.reveal_sensitive` asks for it through the audited endpoint.
-   */
+  /** Shown in full to the centre (product owner, 2026-11-24), and behind the call links. */
   mobile: string | null;
-  /** What the row shows by default (§19.3). */
-  mobileMasked: string | null;
   verificationStatus: string;
   createdOn: string | null;
 };
@@ -36,22 +30,17 @@ const VERIFICATION_TONE: Record<string, Tone> = {
 /**
  * The walk-in list: who came to the counter, and the two things the operator does next.
  *
- * Outreach is one click and needs no reveal — the number goes into a `wa.me` or `tel:` URL that
- * the operator's own device opens, and nothing is sent from here (the same pattern as the scheme
- * outreach table). *Reading* the digits is a separate, audited action: `customer.mobile` is a
- * sensitive field, so it renders masked until somebody holding `customer.reveal_sensitive` asks,
- * and that ask writes an audit entry (docs/SECURITY.md §4, DEVELOPMENT_RULES §5).
+ * Outreach is one click: the number goes into a `wa.me` or `tel:` URL that the operator's own
+ * device opens, and nothing is sent from here (the same pattern as the scheme outreach table).
  */
 export function RecentCustomersCard({
   customers,
   canCreate,
-  canReveal,
   canUploadDocument,
   canCreateApplication,
 }: {
   customers: RecentCustomerView[];
   canCreate: boolean;
-  canReveal: boolean;
   canUploadDocument: boolean;
   canCreateApplication: boolean;
 }) {
@@ -98,7 +87,6 @@ export function RecentCustomersCard({
             <CustomerRow
               key={customer.id}
               customer={customer}
-              canReveal={canReveal}
               canUploadDocument={canUploadDocument}
               canCreateApplication={canCreateApplication}
             />
@@ -115,43 +103,14 @@ const ROW_ACTION =
 
 function CustomerRow({
   customer,
-  canReveal,
   canUploadDocument,
   canCreateApplication,
 }: {
   customer: RecentCustomerView;
-  canReveal: boolean;
   canUploadDocument: boolean;
   canCreateApplication: boolean;
 }) {
   const { t } = useI18n();
-  const [revealed, setRevealed] = useState<string | null>(null);
-  const [revealing, setRevealing] = useState(false);
-  const [revealFailed, setRevealFailed] = useState(false);
-
-  async function reveal() {
-    setRevealing(true);
-    setRevealFailed(false);
-    try {
-      const response = await fetch(`/api/customers/${customer.id}/reveal`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ fieldKey: 'customer.mobile' }),
-      });
-      if (!response.ok) {
-        setRevealFailed(true);
-        return;
-      }
-      const json = (await response.json()) as { data: { value: string | null } };
-      setRevealed(json.data.value);
-    } catch {
-      // A failed reveal leaves the mask in place; the operator can retry or open the profile.
-      setRevealFailed(true);
-    } finally {
-      setRevealing(false);
-    }
-  }
-
   const digits = customer.mobile?.replace(/\D/g, '') ?? '';
   const wa = customer.mobile
     ? whatsappLink(customer.mobile, t('dashboard.whatsappGreeting'))
@@ -177,21 +136,9 @@ function CustomerRow({
           </Badge>
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
-          <span className="masked-value">{revealed ?? customer.mobileMasked ?? '—'}</span>
-          {canReveal && revealed === null && customer.mobileMasked ? (
-            <button
-              type="button"
-              onClick={() => void reveal()}
-              disabled={revealing}
-              className="inline-flex items-center gap-1 text-brand-700 underline-offset-2 hover:underline disabled:opacity-60"
-            >
-              <EyeIcon className="h-3.5 w-3.5" />
-              {revealing ? t('common.loading') : t('common.reveal')}
-            </button>
-          ) : null}
-          {revealFailed ? (
-            <span className="text-amber-700">{t('dashboard.revealFailed')}</span>
-          ) : null}
+          <span className="tabular-nums">
+            {formatMobile(customer.mobile) ?? customer.mobile ?? '—'}
+          </span>
           {customer.createdOn ? (
             <>
               <span aria-hidden>·</span>

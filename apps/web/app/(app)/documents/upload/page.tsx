@@ -1,4 +1,4 @@
-import { CITIZEN_APP_ORGANIZATION_ID, maskLast4 } from '@assistigo/core';
+import { CITIZEN_APP_ORGANIZATION_ID, formatMobile } from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -38,9 +38,9 @@ export default async function UploadDocumentPage({
     .limit(20);
 
   const toOption = (customer: Partial<CustomerRow>, fromApp: boolean) => {
-    const last4 = maskLast4(customer.mobile ?? null);
+    const mobile = formatMobile(customer.mobile) ?? customer.mobile;
     const name = String(customer.full_name ?? '');
-    const base = last4 ? `${name} · ••••${last4}` : name;
+    const base = mobile ? `${name} · ${mobile}` : name;
     return {
       id: String(customer.id),
       label: fromApp ? `${base} · ${t('documents.appCustomerTag')}` : base,

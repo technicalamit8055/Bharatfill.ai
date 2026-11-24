@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { maskLast4 } from '@assistigo/core';
+import { formatMobile } from '@assistigo/core';
 import type { AssistigoSupabaseClient } from '@/lib/supabase/server';
 import type { CustomerRow } from '@/lib/supabase/database.types';
 
@@ -25,10 +25,10 @@ export async function loadCustomerOptions(
     .limit(50);
 
   return ((data ?? []) as Partial<CustomerRow>[]).map((customer) => {
-    const last4 = maskLast4(customer.mobile ?? null);
+    const mobile = formatMobile(customer.mobile) ?? customer.mobile;
     return {
       id: String(customer.id),
-      label: last4 ? `${customer.full_name} · ••••${last4}` : String(customer.full_name ?? ''),
+      label: mobile ? `${customer.full_name} · ${mobile}` : String(customer.full_name ?? ''),
     };
   });
 }

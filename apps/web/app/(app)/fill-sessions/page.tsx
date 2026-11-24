@@ -2,7 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Badge, EmptyState, Table, TBody, TD, TH, THead, TR, type Tone } from '@assistigo/ui';
-import { formatIndianDate, maskLast4 } from '@assistigo/core';
+import { formatIndianDate, formatMobile } from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -106,8 +106,7 @@ type StatsRow = Pick<FillSessionRow, 'status' | 'filled_fields_count' | 'created
  * payment are never filled (DEVELOPMENT_RULES), and the safety column shows where they were met.
  *
  * Every query is scoped to the caller's organization here and again by RLS. The table reads the
- * counts the extension recorded, never a field value, and the customer's mobile number is masked
- * before it leaves the server.
+ * counts the extension recorded, never a field value.
  */
 export default async function FillSessionsPage({
   searchParams,
@@ -388,7 +387,7 @@ export default async function FillSessionsPage({
               </THead>
               <TBody>
                 {rows.map((row) => {
-                  const last4 = row.customers ? maskLast4(row.customers.mobile) : null;
+                  const mobile = row.customers?.mobile ?? null;
                   const title = row.page_title ?? originHost(row.page_origin);
                   const sessionHref = `/fill-sessions/${row.id}`;
                   const tone = STATUS_TONE[row.status] ?? 'neutral';
@@ -425,9 +424,9 @@ export default async function FillSessionsPage({
                               <span className="block truncate font-medium text-slate-900 group-hover:underline">
                                 {row.customers.full_name}
                               </span>
-                              {last4 ? (
+                              {mobile ? (
                                 <span className="block text-xs tabular-nums text-slate-500">
-                                  •••••• {last4}
+                                  {formatMobile(mobile) ?? mobile}
                                 </span>
                               ) : null}
                             </span>

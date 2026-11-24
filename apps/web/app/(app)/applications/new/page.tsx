@@ -1,7 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Lightbulb } from 'lucide-react';
-import { maskLast4 } from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -40,7 +39,7 @@ export default async function NewApplicationPage({
           .then((result) => {
             const row = result.data as Pick<CustomerRow, 'id' | 'full_name' | 'mobile'> | null;
             return row
-              ? { id: row.id, full_name: row.full_name, mobile_last4: maskLast4(row.mobile) }
+              ? { id: row.id, full_name: row.full_name, mobile: row.mobile }
               : null;
           })
       : Promise.resolve(null),

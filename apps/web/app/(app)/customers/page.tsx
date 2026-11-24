@@ -5,8 +5,8 @@ import { EmptyState, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
 import {
   formatGrantRemaining,
   formatIndianDate,
+  formatMobile,
   grantRemainingMs,
-  maskLast4,
 } from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
@@ -79,7 +79,8 @@ type ListRow = {
   isLocked: boolean;
   /** Full name for an own customer; "Rahul K." for a linked or locked one. */
   displayName: string;
-  mobileLast4: string | null;
+  /** As shown: the full number for an own customer, "•••••• 3210" for a linked or locked one. */
+  mobileLabel: string | null;
   district: string | null;
   addedAt: string;
   /** Linked or locked rows: the caller holds a live grant, and until when. */
@@ -125,8 +126,9 @@ type StateRow = { permanent_state: string | null; current_state: string | null }
  * who joined this month and where they come from, then the searchable, filterable table.
  *
  * Every query is scoped to the caller's organization here and again by RLS. The table reads
- * only what it renders — the district line of an address, never the whole address — and the
- * mobile number is masked before it leaves the server.
+ * only what it renders — the district line of an address, never the whole address. An own
+ * customer's mobile is shown in full (product owner, 2026-11-24); a linked or locked customer's
+ * stays masked until they approve.
  */
 export default async function CustomersPage({
   searchParams,
@@ -163,6 +165,25 @@ export default async function CustomersPage({
   };
 
   /**
+   * Full numbers for this centre's own rows; `centre_customer_list` returns the last four only.
+   * RLS hides a locked record here too (0046), so a lock cannot be read around.
+   */
+  const ownMobiles = async (ids: string[]): Promise<Map<string, string>> => {
+    if (ids.length === 0) return new Map();
+    const { data, error } = await supabase
+      .from('customers')
+      .select('id, mobile')
+      .eq('organization_id', organizationId)
+      .in('id', ids);
+    if (error) throw error;
+    return new Map(
+      ((data ?? []) as { id: string; mobile: string | null }[]).flatMap((row) =>
+        row.mobile ? [[row.id, formatMobile(row.mobile) ?? row.mobile] as const] : [],
+      ),
+    );
+  };
+
+  /**
    * Own customers and the roaming customers this centre has been given access to, in one list
    * (0044). Falls back to own customers on a database that has not run 0044.
    */
@@ -176,6 +197,9 @@ export default async function CustomersPage({
     });
     if (!isMissingFunction(combined.error)) {
       const data = (combined.data ?? []) as CentreListRow[];
+      const mobiles = await ownMobiles(
+        data.filter((row) => !row.is_linked && !row.is_locked).map((row) => row.customer_id),
+      );
       return {
         error: combined.error,
         count: Number(data[0]?.total_count ?? 0),
@@ -187,7 +211,9 @@ export default async function CustomersPage({
             row.is_linked || row.is_locked
               ? `${row.given_name ?? ''}${row.family_initial ? ` ${row.family_initial}.` : ''}`
               : (row.full_name ?? ''),
-          mobileLast4: row.mobile_last4 || null,
+          mobileLabel:
+            mobiles.get(row.customer_id) ??
+            (row.mobile_last4 ? `•••••• ${row.mobile_last4}` : null),
           district: row.district,
           addedAt: row.added_at,
           grantExpiresAt: row.has_active_grant ? row.grant_expires_at : null,
@@ -204,7 +230,7 @@ export default async function CustomersPage({
         isLinked: false,
         isLocked: false,
         displayName: row.full_name,
-        mobileLast4: maskLast4(row.mobile),
+        mobileLabel: formatMobile(row.mobile) ?? row.mobile,
         district: row.current_district ?? row.permanent_district,
         addedAt: row.created_at,
         grantExpiresAt: null,
@@ -556,7 +582,6 @@ function CustomerTableRow({
   openLabel: string;
 }) {
   const href = `/customers/${customer.id}`;
-  const last4 = customer.mobileLast4;
   const addedOn = formatIndianDate(istDayKey(customer.addedAt));
 
   return (
@@ -574,7 +599,9 @@ function CustomerTableRow({
           </span>
         </Link>
       </TD>
-      <TD className="py-3.5 tabular-nums text-slate-600">{last4 ? `•••••• ${last4}` : '—'}</TD>
+      <TD className="whitespace-nowrap py-3.5 tabular-nums text-slate-600">
+        {customer.mobileLabel ?? '—'}
+      </TD>
       <TD className="py-3.5 text-slate-600">{customer.district ?? '—'}</TD>
       <TD className="py-3.5 tabular-nums text-slate-500">{addedOn ?? '—'}</TD>
       <TD className="py-3.5 text-right">

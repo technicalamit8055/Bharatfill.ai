@@ -9,6 +9,7 @@ import {
   conflict,
   documentStoragePath,
   dropStoragePath,
+  formatMobile,
   generateCounterCode,
   generateDropSessionCode,
   isAllowedUploadMimeType,
@@ -591,8 +592,8 @@ export type DropQueueSession = {
   sessionCode: string;
   channel: DropChannel;
   status: string;
-  /** Masked. The full number is never sent to a client that has not asked for it (§19.3). */
-  senderMasked: string | null;
+  /** The WhatsApp sender's mobile; last four digits only for anything that is not a mobile. */
+  sender: string | null;
   senderName: string | null;
   expiresAt: string;
   createdAt: string;
@@ -649,7 +650,7 @@ export async function listDropSessions(
       sessionCode: row.session_code,
       channel: row.channel as DropChannel,
       status: row.status,
-      senderMasked: maskSender(row.sender_id),
+      sender: senderLabel(row.channel, row.sender_id),
       senderName: row.sender_name,
       expiresAt: row.expires_at,
       createdAt: row.created_at,
@@ -671,11 +672,16 @@ export async function listDropSessions(
 }
 
 /**
- * Last four digits only, which is all an operator needs to match the queue row to the person in
- * front of them (§19.3). A Telegram chat id is numeric too, so the same rule covers both.
+ * Who sent the files, for the operator matching the queue row to the person in front of them. A
+ * WhatsApp sender is a mobile and is shown in full (product owner, 2026-11-24). A Telegram chat
+ * id is numeric too but means nothing at the counter, so it keeps its last four digits only.
  */
-function maskSender(senderId: string | null): string | null {
+export function senderLabel(channel: string, senderId: string | null): string | null {
   if (!senderId) return null;
+  if (channel === 'whatsapp') {
+    const mobile = formatMobile(normalizeSenderMobile(senderId));
+    if (mobile) return mobile;
+  }
   const digits = senderId.replace(/\D+/g, '');
   if (digits.length < 4) return null;
   return `••••${digits.slice(-4)}`;

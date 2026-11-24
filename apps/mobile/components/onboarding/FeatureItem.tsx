@@ -4,26 +4,26 @@
  * decorative.
  */
 
-import type { LucideIcon } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { ArtIcon } from '../art-icon/ArtIcon';
+import type { ArtIconName } from '../art-icon/art-icons.generated';
+import { artIconTint } from '../art-icon/tint';
 import { onboardingPalette } from './palette';
 
 const BADGE_SIZE = 46;
 
 export type FeatureItemProps = {
-  readonly icon: LucideIcon;
-  readonly color: string;
-  readonly surface: string;
+  readonly icon: ArtIconName;
   readonly title: string;
   readonly body: string;
 };
 
-export function FeatureItem({ icon: Icon, color, surface, title, body }: FeatureItemProps) {
+export function FeatureItem({ icon, title, body }: FeatureItemProps) {
   return (
     <View style={styles.row} accessible accessibilityLabel={`${title}. ${body}`}>
-      <View style={[styles.badge, { backgroundColor: surface }]}>
-        <Icon color={color} size={22} strokeWidth={2.2} />
+      <View style={[styles.badge, { backgroundColor: artIconTint(icon) }]}>
+        <ArtIcon name={icon} size={30} />
       </View>
       <View style={styles.copy}>
         <Text style={styles.title}>{title}</Text>

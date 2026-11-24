@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Badge, Card, Input, Spinner } from '@assistigo/ui';
+import { formatMobile } from '@assistigo/core';
 import { useTranslations } from '@/lib/i18n/client';
 import { SearchIcon } from './icons';
 
@@ -10,7 +11,7 @@ type SearchResult = {
   id: string;
   displayName: string;
   customerCode: string;
-  mobileLast4: string | null;
+  mobile: string | null;
   district: string | null;
   state: string | null;
   verificationStatus: string;
@@ -98,7 +99,7 @@ export function CustomerSearchBox() {
                       <p className="truncate text-xs text-slate-500">
                         {/* Mobile + name identify a customer; the internal code is not shown. */}
                         {[
-                          result.mobileLast4 ? `•••••• ${result.mobileLast4}` : null,
+                          formatMobile(result.mobile) ?? result.mobile,
                           result.district,
                         ]
                           .filter(Boolean)

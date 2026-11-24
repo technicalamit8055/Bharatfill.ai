@@ -7,8 +7,8 @@ import {
   fieldsInSection,
   formatIndianDate,
   formatInr,
+  formatMobile,
   isSensitiveField,
-  maskLast4,
 } from '@assistigo/core';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
@@ -208,7 +208,9 @@ export default async function CustomerProfilePage({
         label: localised(field.label, locale),
         dataType: field.dataType,
         value: values[field.key] ?? null,
-        sensitive: isSensitiveField(field.key),
+        // The operator panel shows a customer's mobile in full (product owner, 2026-11-24). The
+        // registry still marks it sensitive, for logs and everything outside this panel.
+        sensitive: isSensitiveField(field.key) && field.dataType !== 'mobile',
         encrypted: field.storage.kind === 'encrypted',
         hasEncryptedValue: encryptedFieldsPresent.has(field.key),
         maxLength: field.maxLength ?? null,
@@ -315,9 +317,9 @@ export default async function CustomerProfilePage({
               <h1 className="truncate text-xl font-bold text-slate-900">{row.full_name}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 {/* Mobile + name identify a customer; the internal code is not shown. */}
-                {maskLast4(row.mobile) ? (
+                {row.mobile ? (
                   <>
-                    <span className="tabular-nums">•••••• {maskLast4(row.mobile)}</span>
+                    <span className="tabular-nums">{formatMobile(row.mobile) ?? row.mobile}</span>
                     <span aria-hidden>•</span>
                   </>
                 ) : null}

@@ -12,8 +12,7 @@ import {
 /**
  * GET /api/document-drop/sessions — the live walk-in queue (§9.1).
  *
- * Polled by the dashboard widget, so it is deliberately cheap and returns masked sender numbers
- * only. `document.view` rather than `document.upload`: a viewer is allowed to see that somebody
+ * Polled by the dashboard widget, so it is deliberately cheap. `document.view` rather than `document.upload`: a viewer is allowed to see that somebody
  * is waiting at the counter, they just cannot claim the intake.
  */
 export const GET = handler('api.document_drop.list', async (request) => {

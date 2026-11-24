@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Badge, Button, Input, Spinner } from '@assistigo/ui';
+import { formatMobile } from '@assistigo/core';
 import { useI18n } from '@/lib/i18n/client';
 
 /**
@@ -29,7 +30,7 @@ type LocalCustomer = {
   id: string;
   displayName: string;
   customerCode: string | null;
-  mobileLast4: string | null;
+  mobile: string | null;
   district: string | null;
 };
 
@@ -239,7 +240,7 @@ function LocalSearch({
                     </span>
                     <span className="block text-xs text-slate-500">
                       {[
-                        customer.mobileLast4 ? `••••${customer.mobileLast4}` : null,
+                        formatMobile(customer.mobile) ?? customer.mobile,
                         customer.district,
                       ]
                         .filter(Boolean)

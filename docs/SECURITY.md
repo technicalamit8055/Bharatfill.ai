@@ -437,7 +437,8 @@ Implemented once in `packages/core/src/auth/permissions.ts` and mirrored by RLS 
   field, `customer.reveal_sensitive`, audited `critical`) and `POST /api/forms/map`, which returns
   a value only for a portal field it actually mapped, for the extension to fill.
 - Extraction masks an Aadhaar-like number out of every field's value and source snippet except
-  `customer.aadhaar` itself — a stray number that leaked into an unrelated field is not the
+  `customer.aadhaar` itself and a twelve-digit roll / registration / marksheet number
+  (`docs/AI_PIPELINE.md` §9) — a stray number that leaked into an unrelated field is not the
   customer's reviewed Aadhaar value, and is still masked (`packages/ai/src/safety.ts`).
 - Display is always masked (`XXXX XXXX 1234`) — `GET /api/customers/:id` and the field-value
   `display_value` mask both Aadhaar keys; revealing it is an explicit audited action, exactly as

@@ -2514,7 +2514,9 @@ assistigo/
 
 ### 27.5 Privacy Standards
 
-- Default display masked values for sensitive identifiers.
+- Default display masked values for sensitive identifiers. A customer's mobile is the exception:
+  shown in full in the operator panel (product decision 2026-11-24), still masked before a
+  linked or locked customer consents, and in the extension.
 - Require explicit reveal action.
 - Audit reveal action.
 - Never seed real identity numbers.

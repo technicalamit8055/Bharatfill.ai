@@ -7,24 +7,18 @@
  * copy, so every card takes the full width.
  */
 
-import type { LucideIcon } from 'lucide-react-native';
-import { ChevronRight, FileUp, Headset, MapPin, Users } from 'lucide-react-native';
+import { ChevronRight } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { ConnectAction } from '../../lib/connect/connect-screen';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
+import { ArtIcon } from '../art-icon/ArtIcon';
+import { artIconTint } from '../art-icon/tint';
 import { connectPalette as palette } from './palette';
 
 const GAP = 12;
 /** Below this content width the cards stack in one column. */
 const STACK_BELOW = 300;
-
-const ICONS: Record<ConnectAction, LucideIcon> = {
-  find_nearby: MapPin,
-  share_document: FileUp,
-  connections: Users,
-  request_help: Headset,
-};
 
 const TALL: readonly ConnectAction[] = ['find_nearby', 'share_document'];
 const COMPACT: readonly ConnectAction[] = ['connections', 'request_help'];
@@ -61,18 +55,12 @@ type ActionCardProps = {
 function ActionCard({ action, width, tall = false, onPress }: ActionCardProps) {
   const { t } = useTranslation();
   const tint = palette.actions[action];
-  const Icon = ICONS[action];
   const title = t(`connect.actions.${action}.title`);
   const body = t(`connect.actions.${action}.body`);
 
   const badge = (
-    <View style={[tall ? styles.badgeTall : styles.badgeCompact, { backgroundColor: tint.badge }]}>
-      <Icon
-        color={tint.icon}
-        fill={action === 'find_nearby' ? tint.icon : 'none'}
-        size={tall ? 26 : 24}
-        strokeWidth={action === 'find_nearby' ? 1.6 : 2.2}
-      />
+    <View style={[tall ? styles.badgeTall : styles.badgeCompact, { backgroundColor: artIconTint(action) }]}>
+      <ArtIcon name={action} size={tall ? 34 : 30} />
     </View>
   );
   const chevron = (

@@ -38,7 +38,7 @@ type SessionResponse = {
 };
 
 type QueueResponse = {
-  sessions: { id: string; files: { id: string }[]; senderMasked: string | null; status: string }[];
+  sessions: { id: string; files: { id: string }[]; sender: string | null; status: string }[];
   channels: DropChannel[];
 };
 
@@ -168,7 +168,7 @@ export function DocumentDropModal({
         const mine = json.data?.sessions.find((row) => row.id === sessionId);
         if (!mine) return;
         setArrived(mine.files.length);
-        if (mine.senderMasked) setSenderSeen(true);
+        if (mine.sender) setSenderSeen(true);
       } catch {
         // A dropped poll is not worth showing the operator; the next one tries again.
       }

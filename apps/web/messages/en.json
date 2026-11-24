@@ -227,7 +227,6 @@
     "call": "Call",
     "callCustomer": "Call this customer",
     "startApplication": "Start application",
-    "revealFailed": "Could not show the number.",
     "pipelineTitle": "Applications in flight",
     "pipelineHint": "Where each form stands, and whether the fee is collected.",
     "pipelineDeadline": "Due {date}",

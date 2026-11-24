@@ -48,18 +48,11 @@ export const homePalette = {
   emptyBorder: '#CBD5E1',
 
   quickActions: {
-    document: { tile: '#EDF4FF', border: '#DCE8FF', badge: '#D6E6FF', icon: '#1D6BFF' },
-    upload: { tile: '#E8F7F8', border: '#D0EEF0', badge: '#C9ECEF', icon: '#0E8C95' },
-    id_card: { tile: '#EAF8F0', border: '#D5F0E0', badge: '#CFF0DC', icon: '#16A34A' },
-    photo: { tile: '#FDEEF0', border: '#FAD9DE', badge: '#FBD7DD', icon: '#E11D48' },
-    signature: { tile: '#F4EFFF', border: '#E6DCFF', badge: '#E5D9FF', icon: '#7C3AED' },
-    multi_page: { tile: '#FFF5E6', border: '#FFE6C2', badge: '#FFE3BA', icon: '#EA6A0C' },
-  },
-
-  vaultCategories: {
-    identity: { badge: '#DCE8FF', icon: '#1D6BFF' },
-    academic: { badge: '#D7F2E2', icon: '#16A34A' },
-    certificate: { badge: '#FFE6D3', icon: '#EA6A0C' },
-    form_asset: { badge: '#ECE3FF', icon: '#7C3AED' },
+    document: { tile: '#EDF4FF', border: '#DCE8FF' },
+    upload: { tile: '#E8F7F8', border: '#D0EEF0' },
+    id_card: { tile: '#EAF8F0', border: '#D5F0E0' },
+    photo: { tile: '#FDEEF0', border: '#FAD9DE' },
+    signature: { tile: '#F4EFFF', border: '#E6DCFF' },
+    multi_page: { tile: '#FFF5E6', border: '#FFE6C2' },
   },
 } as const;

@@ -20,14 +20,15 @@ import {
   UserRound,
   type LucideIcon,
 } from 'lucide-react';
+import { formatMobile } from '@assistigo/core';
 import { Alert, Badge, Button, Field, Input, Select, Textarea, cn } from '@assistigo/ui';
 import { useTranslations } from '@/lib/i18n/client';
 import { APPLICATION_CATEGORIES, APPLICATION_NOTES_MAX } from '@/lib/applications/schema';
 import { CustomerAvatar } from '../../customers/customer-avatar';
 
-/** Mobile + name identify a customer: the last four digits stand in for the internal code. */
-type CustomerOption = { id: string; full_name: string; mobile_last4: string | null };
-type SearchResult = { id: string; displayName: string; mobileLast4: string | null };
+/** Mobile + name identify a customer: the internal code is not shown. */
+type CustomerOption = { id: string; full_name: string; mobile: string | null };
+type SearchResult = { id: string; displayName: string; mobile: string | null };
 type AdapterOption = { id: string; portalName: string; formName: string };
 
 /** Both submit buttons create the application; they differ only in where the operator lands. */
@@ -251,9 +252,9 @@ export function NewApplicationForm({
                     <span className="truncate text-sm font-medium text-slate-900">
                       {customer.full_name}
                     </span>
-                    {customer.mobile_last4 ? (
+                    {customer.mobile ? (
                       <span className="shrink-0 text-xs tabular-nums text-slate-500">
-                        ••••{customer.mobile_last4}
+                        {formatMobile(customer.mobile) ?? customer.mobile}
                       </span>
                     ) : null}
                   </div>
@@ -315,7 +316,7 @@ export function NewApplicationForm({
                                 setCustomer({
                                   id: result.id,
                                   full_name: result.displayName,
-                                  mobile_last4: result.mobileLast4,
+                                  mobile: result.mobile,
                                 });
                                 setCustomerResults(null);
                                 setCustomerMissing(false);
@@ -331,8 +332,10 @@ export function NewApplicationForm({
                                   {result.displayName}
                                 </span>
                               </span>
-                              {result.mobileLast4 ? (
-                                <Badge tone="neutral">••••{result.mobileLast4}</Badge>
+                              {result.mobile ? (
+                                <Badge tone="neutral">
+                                  {formatMobile(result.mobile) ?? result.mobile}
+                                </Badge>
                               ) : null}
                             </button>
                           </li>

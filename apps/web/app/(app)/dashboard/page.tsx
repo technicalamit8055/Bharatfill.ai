@@ -2,7 +2,6 @@ import { Alert } from '@assistigo/ui';
 import {
   OPEN_STATUSES,
   formatIndianDate,
-  maskMobile,
   type ApplicationStatus,
 } from '@assistigo/core';
 import { requireSession } from '@/lib/auth/session';
@@ -259,7 +258,6 @@ export default async function DashboardPage({
     customerCode: customer.customer_code,
     fullName: customer.full_name,
     mobile: customer.mobile,
-    mobileMasked: maskMobile(customer.mobile),
     verificationStatus: customer.verification_status,
     createdOn: formatIndianDate(customer.created_at.slice(0, 10)),
   }));
@@ -395,7 +393,6 @@ export default async function DashboardPage({
             <RecentCustomersCard
               customers={recentCustomers}
               canCreate={session.permissions.has('customer.create')}
-              canReveal={session.permissions.has('customer.reveal_sensitive')}
               canUploadDocument={session.permissions.has('document.upload')}
               canCreateApplication={session.permissions.has('application.create')}
             />

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { formatMobile } from '@assistigo/core';
 import { Spinner } from '@assistigo/ui';
 import { useTranslations } from '@/lib/i18n/client';
 import { SearchIcon, PlusIcon } from './icons';
@@ -11,7 +12,7 @@ type JumpResult = {
   id: string;
   displayName: string;
   customerCode: string;
-  mobileLast4: string | null;
+  mobile: string | null;
   district: string | null;
 };
 
@@ -133,9 +134,8 @@ export function CustomerJumpSearch({ canCreateCustomer }: { canCreateCustomer: b
                         {result.displayName}
                       </span>
                       <span className="block truncate font-mono text-xs text-slate-500">
-                        {/* Last four only — the search API never sends more (§19.3). Mobile +
-                            name identify a customer; the internal code is not shown. */}
-                        {[result.mobileLast4 ? `••••${result.mobileLast4}` : null, result.district]
+                        {/* Mobile + name identify a customer; the internal code is not shown. */}
+                        {[formatMobile(result.mobile) ?? result.mobile, result.district]
                           .filter(Boolean)
                           .join(' · ')}
                       </span>

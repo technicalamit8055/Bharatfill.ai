@@ -14,7 +14,7 @@
  */
 
 import { StatusBar } from 'expo-status-bar';
-import { ChevronRight, Scan, ShieldCheck, Users, Zap, type LucideIcon } from 'lucide-react-native';
+import { ChevronRight } from 'lucide-react-native';
 import {
   Image,
   Pressable,
@@ -40,24 +40,8 @@ const WAVE_HEIGHT = 140;
 /** Keeps the split layout from sprawling on tablets. */
 const CONTENT_MAX_WIDTH = 560;
 
-type Feature = {
-  readonly key: 'scan' | 'vault' | 'forms' | 'reach';
-  readonly icon: LucideIcon;
-  readonly color: string;
-  readonly surface: string;
-};
-
-const FEATURES: readonly Feature[] = [
-  { key: 'scan', icon: Scan, color: palette.featureScan, surface: palette.featureScanSurface },
-  {
-    key: 'vault',
-    icon: ShieldCheck,
-    color: palette.featureVault,
-    surface: palette.featureVaultSurface,
-  },
-  { key: 'forms', icon: Zap, color: palette.featureForms, surface: palette.featureFormsSurface },
-  { key: 'reach', icon: Users, color: palette.featureReach, surface: palette.featureReachSurface },
-];
+/** In display order. Each is also the name of its icon. */
+const FEATURES = ['scan', 'vault', 'forms', 'reach'] as const;
 
 export type OnboardingScreenProps = {
   /** Called when the citizen taps Next. */
@@ -145,12 +129,10 @@ export function OnboardingScreen({ onNext, onSkip }: OnboardingScreenProps) {
             <View style={styles.features}>
               {FEATURES.map((feature) => (
                 <FeatureItem
-                  key={feature.key}
-                  icon={feature.icon}
-                  color={feature.color}
-                  surface={feature.surface}
-                  title={t(`onboarding.features.${feature.key}.title`)}
-                  body={t(`onboarding.features.${feature.key}.body`)}
+                  key={feature}
+                  icon={feature}
+                  title={t(`onboarding.features.${feature}.title`)}
+                  body={t(`onboarding.features.${feature}.body`)}
                 />
               ))}
             </View>

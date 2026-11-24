@@ -373,11 +373,15 @@ No real document is ever committed, in any form, including cropped or redacted.
 `packages/ai/src/safety.ts` is the single gate. Every extracted field, every source snippet and
 the retained raw text pass through it before anything is persisted:
 
-- `customer.aadhaar` is the one deliberate exception — its value (reduced to its last twelve
+- `customer.aadhaar` is the deliberate exception for an Aadhaar — its value (reduced to its last twelve
   digits) and source snippet both survive, since the product now stores and uses the full number
   (migration 0026; before it, structured mode refused this key and the label rule produced
   `aadhaar_last4`),
 - `customer.aadhaar_last4` is reduced to four digits whatever the extractor produced,
+- an education `roll_number`, `registration_number` or `marksheet_number` keeps its own twelve
+  digits (product owner, 2026-11-24): universities issue twelve-digit roll numbers and masking them
+  lost the number. Only when the whole value is that number, its label and snippet do not say
+  Aadhaar / आधार / UID, and the same digits were not read as this document's Aadhaar,
 - every other field, and all raw OCR retention, still has any twelve-digit Aadhaar-like run
   masked to `XXXX XXXX 1234` — deliberately broader than the Verhoeff check, because a misread
   Aadhaar is still an Aadhaar that must not leak into an unrelated field or the logs.
