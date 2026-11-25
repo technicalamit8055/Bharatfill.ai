@@ -1169,7 +1169,14 @@
       "customer.portal_credential_deleted": "Portal login removed",
       "customer.portal_credential_revealed": "Portal login detail viewed",
       "customer.portal_login_filled": "Portal login filled by the extension",
-      "customer.portal_credential_slip_issued": "Portal login slip printed or sent"
+      "customer.portal_credential_slip_issued": "Portal login slip printed or sent",
+      "auth.password_changed": "Password changed",
+      "auth.session_revoked": "Session signed out",
+      "member.invited": "Member invited",
+      "member.accepted": "Invitation accepted",
+      "member.removed": "Member removed",
+      "member.role_changed": "Member role changed",
+      "organization.updated": "Centre profile updated"
     }
   },
   "settings": {
@@ -1206,8 +1213,11 @@
       "browserOnOs": "{browser} on {os}",
       "unknownBrowser": "Unknown browser",
       "unknownOs": "unknown system",
-      "unknown": "Unknown",
-      "ipAddress": "IP address",
+      "location": "Location",
+      "unknownLocation": "Unknown location",
+      "localNetwork": "Local network",
+      "locationNote": "Locations are approximate. Mobile internet can show a nearby city.",
+      "locationCredit": "IP Geolocation by DB-IP",
       "signedIn": "Signed in",
       "lastActive": "Last active",
       "activeNow": "Active now",
@@ -1239,6 +1249,115 @@
       "saved": "Saved. The document tools will start with these settings.",
       "saveFailed": "This browser did not save your settings. Check that site data is allowed for this site, then try again.",
       "reset": "Reset to defaults"
+    },
+    "subtitle": "Your account, your team and how your centre is set up.",
+    "editProfile": "Edit profile",
+    "location": "Location",
+    "expires": "Expires",
+    "inviteLinkNote": "Email delivery is not set up yet, so share this link with the person you invited. It expires in 7 days and only works for that email address.",
+    "memberStatus": {
+      "active": "Active",
+      "invited": "Invited",
+      "suspended": "Suspended"
+    },
+    "groups": {
+      "account": "Your account",
+      "centre": "Your centre"
+    },
+    "tiles": {
+      "preferences": "Language and document tool defaults",
+      "sessions": "See and sign out your signed-in devices",
+      "security": "Password and account protection",
+      "extension": "Set up form filling in your browser",
+      "organization": "Centre name, contact details and location",
+      "members": "Invite staff and choose what they can do",
+      "data": "What is kept and for how long",
+      "billing": "Plan, usage and invoices"
+    },
+    "org": {
+      "subtitle": "Keep your centre’s name, contact details and location up to date.",
+      "profileTitle": "Centre profile",
+      "contactTitle": "Contact details",
+      "phone": "Phone number",
+      "email": "Email address",
+      "languageHint": "Used for messages customers get while sending you documents.",
+      "saved": "Your changes are saved.",
+      "nameInvalid": "Enter a business name of 2 to 160 characters.",
+      "phoneInvalid": "Enter a valid phone number."
+    },
+    "securityPage": {
+      "subtitle": "Protect your account and check how your data is kept safe.",
+      "passwordTitle": "Password",
+      "passwordBody": "We will email you a link to choose a new password. When you change it, every other device is signed out.",
+      "sendLink": "Email me a password link",
+      "linkSent": "Link sent. Check your email and open it in this browser.",
+      "linkFailed": "The link could not be sent. Wait a minute and try again.",
+      "noEmail": "Your account has no email address.",
+      "sessionsBody": "Check where your account is signed in, and sign out any device you do not recognise.",
+      "sessionsAction": "View sessions & devices",
+      "protectionsTitle": "Always on",
+      "protectionsSubtitle": "These protections apply to every centre and cannot be turned off.",
+      "protections": {
+        "noSubmit": "Bharatfill never submits a form. You always review and submit it yourself.",
+        "noOtp": "It never enters an OTP, solves a CAPTCHA or fills payment details on a form.",
+        "masked": "Sensitive customer details stay hidden until revealed, and each reveal is recorded.",
+        "links": "Document links expire within minutes."
+      },
+      "activityTitle": "Recent account activity",
+      "activitySubtitle": "Password, session, team and profile changes at your centre.",
+      "activityEmpty": "No account activity yet.",
+      "event": "Event",
+      "when": "When"
+    },
+    "data": {
+      "subtitle": "What Bharatfill keeps for your centre, and for how long.",
+      "policyTitle": "Current policy",
+      "policyBody": "Your customers and documents stay until someone at your centre deletes them. Automatic deletion after a set period is not available yet.",
+      "keptTitle": "What is kept",
+      "rows": {
+        "customers": {
+          "label": "Customer profiles",
+          "body": "Kept until deleted. Deleting one removes it from your dashboard; it is not yet permanently erased."
+        },
+        "documents": {
+          "label": "Documents",
+          "body": "Kept until deleted. Deleting a document also removes its stored file."
+        },
+        "walkIn": {
+          "label": "Walk-in files not saved to a customer",
+          "body": "Set to be removed automatically after two hours."
+        },
+        "activity": {
+          "label": "Activity log",
+          "body": "Entries cannot be edited or deleted."
+        }
+      },
+      "exportTitle": "Export or delete all data",
+      "exportBody": "Exporting or deleting your whole centre’s data from here is not available yet."
+    },
+    "extension": {
+      "title": "Browser extension",
+      "subtitle": "Fill forms from a customer’s profile, right in your browser.",
+      "statusTitle": "This browser",
+      "statusBody": "This checks only whether the extension is present in the browser you are using now.",
+      "detected": "Installed",
+      "notDetected": "Not detected",
+      "stepsTitle": "Set it up",
+      "steps": {
+        "install": {
+          "title": "Add it to Chrome",
+          "body": "Install the Bharatfill extension, then refresh this page."
+        },
+        "open": {
+          "title": "Open it",
+          "body": "Click the Bharatfill icon in the Chrome toolbar and choose to connect."
+        },
+        "connect": {
+          "title": "Connect your centre",
+          "body": "Check the centre name on the page that opens, then confirm."
+        }
+      },
+      "disconnectTitle": "Disconnecting"
     }
   },
   "roles": {

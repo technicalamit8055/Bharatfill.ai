@@ -1,3 +1,4 @@
+import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { requireSession } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { PreferencesForm } from './preferences-form';
@@ -17,12 +18,11 @@ export default async function PreferencesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-slate-900">{t('settings.preferences.title')}</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500">
-          {t('settings.preferences.subtitle')}
-        </p>
-      </div>
+      <SettingsPageHeader
+        section="preferences"
+        title={t('settings.preferences.title')}
+        subtitle={t('settings.preferences.subtitle')}
+      />
 
       <PreferencesForm canUseDocumentTools={session.permissions.has('documenttool.use')} />
     </div>

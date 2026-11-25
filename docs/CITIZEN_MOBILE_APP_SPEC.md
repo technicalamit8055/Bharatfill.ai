@@ -310,8 +310,17 @@ sample content (`components/*/demo.ts(x)`), which is not listed as built below.
   finger clean-up, gallery import, up to 24 pages) through a local native module
   (`apps/mobile/modules/platform-scanner`). Its pages join review already cropped and are not
   searched again; they start on the Original filter. Without Play services, on iOS, or if the
-  scanner will not open, the in-app camera is used; the ID card, photo and signature presets
-  always use it.
+  scanner will not open, the in-app camera is used. ID cards and signatures use Google's scanner
+  too. A passport photo uses the phone's camera app or gallery, never a page scanner.
+* **Built (not yet checked on a phone):** document checklist (`apps/mobile/lib/checklist`). Home
+  shows the everyday documents (Aadhaar, photo, signature, 10th marksheet, PAN) ticked against
+  the vault; `/checklist` adds education, state certificates and voter ID; `/form-checklist`
+  shows what one catalogue form usually asks for. A row opens the right scanner or Upload with
+  the type already chosen, and saving returns to the list. A document past its expiry date does
+  not count. Worked out on the phone; nothing is stored or sent. Bank passbook, ration card, EWS,
+  disability and birth certificates have no document type yet, so they read "Check this
+  yourself". State-wise differences are not built. ID Card, Photo and Signature are no longer
+  Home tiles.
 * **Built (not yet checked on a phone):** Upload from phone, without opening the camera —
   Home's Upload tile, and Vault's More menu and empty state (`apps/mobile/app/import.tsx`).
   Photos come from the phone's photo picker; PDF, JPG and PNG files from the system file picker

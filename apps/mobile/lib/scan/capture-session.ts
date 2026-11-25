@@ -22,11 +22,15 @@
  * A page from Google's document scanner (`platform` source, `platform-scanner.ts`) arrives
  * already cropped, flattened and cleaned: it is not searched for a page again, and it starts on
  * the Original filter so that clean-up is not done twice. The citizen can still pick another.
+ * A signature is the exception: it starts on its preset's filter, because its ink is found
+ * against white paper (`inkBounds`).
  * A page of an uploaded PDF (`pdf` source, `pdf-pages.ts`) is the page itself, drawn by the
  * phone's PDF renderer: it is treated the same way, and has no photo quality to warn about.
  *
  * A session also records where its pages come from (`origin`): the camera, or Upload
- * (`app/import.tsx`), so review returns to the right screen to add or replace a page.
+ * (`app/import.tsx`), so review returns to the right screen to add or replace a page. One started
+ * from a document checklist carries its `goal`: the document wanted, and the checklist to return
+ * to once it is saved.
  *
  * Every file a session creates is a plaintext temporary copy in the app's cache or tmp folder.
  * Saving seals the processed pages into the encrypted vault and deletes all of them; discarding
@@ -36,6 +40,7 @@
 import { useSyncExternalStore } from 'react';
 import { randomUUID } from 'expo-crypto';
 
+import type { ScanGoal } from '../checklist/scan-goal';
 import type { DocumentDetails } from '../vault/vault-index';
 import { discardIncoming, saveDocument } from '../vault/vault-storage';
 import {
@@ -64,6 +69,11 @@ export type SessionOrigin = 'camera' | 'import';
  */
 export function arrivesAsPage(source: PageSource): boolean {
   return source === 'platform' || source === 'pdf';
+}
+
+/** Whether a new page is shown as it came. Not a signature: its ink is found on white paper. */
+function startsOnOriginal(source: PageSource): boolean {
+  return arrivesAsPage(source) && state.preset !== 'signature';
 }
 
 export type SessionPage = {
@@ -105,6 +115,8 @@ export type SessionState = {
   /** What the scan is for: an ordinary document unless the camera was opened for a preset. */
   readonly preset: ScanPreset;
   readonly origin: SessionOrigin;
+  /** The document a checklist asked for, when one did. */
+  readonly goal: ScanGoal | null;
 };
 
 export const DEFAULT_FILTER: PageFilter = 'magic';
@@ -112,7 +124,13 @@ export const DEFAULT_FILTER: PageFilter = 'magic';
 /** A platform-scanned page is already cleaned: shown as it came, unless the citizen picks. */
 export const PLATFORM_FILTER: PageFilter = 'original';
 
-let state: SessionState = { pages: [], retakeId: null, preset: 'document', origin: 'camera' };
+let state: SessionState = {
+  pages: [],
+  retakeId: null,
+  preset: 'document',
+  origin: 'camera',
+  goal: null,
+};
 const listeners = new Set<() => void>();
 
 function setState(next: SessionState): void {
@@ -277,7 +295,7 @@ export function addPhotos(uris: readonly string[], source: SessionPage['source']
               ...page,
               photoUri,
               source,
-              filter: arrivesAsPage(source) ? PLATFORM_FILTER : page.filter,
+              filter: startsOnOriginal(source) ? PLATFORM_FILTER : page.filter,
               analysis: null,
               quad: null,
               rotation: 0,
@@ -306,7 +324,7 @@ export function addPhotos(uris: readonly string[], source: SessionPage['source']
     source,
     analysis: null,
     quad: null,
-    filter: arrivesAsPage(source)
+    filter: startsOnOriginal(source)
       ? PLATFORM_FILTER
       : (state.pages.at(-1)?.filter ?? presetDefaultFilter(state.preset)),
     rotation: 0,
@@ -402,11 +420,15 @@ export function discardSession(): void {
 
 /**
  * Throws away any session in progress, deleting its files, and starts an empty one for `preset`,
- * taking its pages from `origin`.
+ * taking its pages from `origin`, for a checklist's `goal` if it has one.
  */
-export function startSession(preset: ScanPreset, origin: SessionOrigin = 'camera'): void {
+export function startSession(
+  preset: ScanPreset,
+  origin: SessionOrigin = 'camera',
+  goal: ScanGoal | null = null,
+): void {
   const uris = state.pages.flatMap(pageFiles);
-  setState({ pages: [], retakeId: null, preset, origin });
+  setState({ pages: [], retakeId: null, preset, origin, goal });
   discardIncoming(uris);
 }
 

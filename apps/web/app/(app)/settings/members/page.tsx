@@ -1,5 +1,8 @@
-import { Badge, Card, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
+import { MailPlus, UsersRound } from 'lucide-react';
+import { Badge, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
 import { ORG_ROLE_LABELS, formatIndianDate, type OrgRole } from '@assistigo/core';
+import { SettingsCard } from '@/components/settings/settings-card';
+import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { requirePagePermission } from '@/lib/auth/session';
 import { getTranslations } from '@/lib/i18n/server';
 import { localised } from '@/lib/i18n';
@@ -41,14 +44,18 @@ export default async function MembersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-slate-900">{t('settings.membersTitle')}</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500">{t('settings.membersSubtitle')}</p>
-      </div>
+      <SettingsPageHeader
+        section="members"
+        title={t('settings.membersTitle')}
+        subtitle={t('settings.membersSubtitle')}
+      />
 
       {session.permissions.has('member.invite') ? <InviteForm actorRole={session.role} /> : null}
 
-      <Card title={t('settings.members')}>
+      <SettingsCard
+        icon={<UsersRound className="h-5 w-5" aria-hidden />}
+        title={t('settings.members')}
+      >
         <Table>
           <THead>
             <TR>
@@ -79,7 +86,7 @@ export default async function MembersPage() {
                 </TD>
                 <TD>
                   <Badge tone={member.status === 'active' ? 'success' : 'warning'}>
-                    {member.status}
+                    {t(`settings.memberStatus.${member.status}`)}
                   </Badge>
                 </TD>
                 <TD className="text-slate-500">
@@ -99,16 +106,19 @@ export default async function MembersPage() {
             ))}
           </TBody>
         </Table>
-      </Card>
+      </SettingsCard>
 
       {invitations.length > 0 ? (
-        <Card title={t('settings.pendingInvites')}>
+        <SettingsCard
+          icon={<MailPlus className="h-5 w-5" aria-hidden />}
+          title={t('settings.pendingInvites')}
+        >
           <Table>
             <THead>
               <TR>
                 <TH>{t('settings.inviteEmail')}</TH>
                 <TH>{t('settings.role')}</TH>
-                <TH>{t('settings.joined')}</TH>
+                <TH>{t('settings.expires')}</TH>
               </TR>
             </THead>
             <TBody>
@@ -123,7 +133,7 @@ export default async function MembersPage() {
               ))}
             </TBody>
           </Table>
-        </Card>
+        </SettingsCard>
       ) : null}
     </div>
   );

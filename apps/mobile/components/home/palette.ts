@@ -47,12 +47,17 @@ export const homePalette = {
   thumbnailSurface: '#F1F5F9',
   emptyBorder: '#CBD5E1',
 
+  /** Document checklist: ready, expired, and the progress bar. */
+  readySurface: '#E6F6EC',
+  readyText: '#136C34',
+  warningSurface: '#FFF3DC',
+  warningText: '#8A4B00',
+  progressFill: '#16A34A',
+  progressTrack: '#E3EAF5',
+
   quickActions: {
     document: { tile: '#EDF4FF', border: '#DCE8FF' },
     upload: { tile: '#E8F7F8', border: '#D0EEF0' },
-    id_card: { tile: '#EAF8F0', border: '#D5F0E0' },
-    photo: { tile: '#FDEEF0', border: '#FAD9DE' },
-    signature: { tile: '#F4EFFF', border: '#E6DCFF' },
     multi_page: { tile: '#FFF5E6', border: '#FFE6C2' },
   },
 } as const;

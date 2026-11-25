@@ -5,10 +5,11 @@
  * cannot do with straight edges alone. Android only; it runs entirely on the phone and pages
  * are never uploaded.
  *
- * Ordinary document scans use it when the phone has it (`choosePlatformEngine`). The ID card,
- * photo and signature presets keep the in-app camera, whose processing is shaped for them
- * (`presets.ts`). With no Play services, on iOS, or when the scanner fails to open, the scanner
- * route falls back to the in-app camera (`app/scanner.tsx`).
+ * Documents, ID cards and signatures use it when the phone has it (`chooseScanEngine`); what each
+ * preset then does with the page is `presets.ts`. A passport photo never does: the scanner looks
+ * for a page, not a face, so it uses the phone's own camera or gallery. With no Play services, on
+ * iOS, or when the scanner fails to open, the scanner route falls back to the in-app camera
+ * (`app/scanner.tsx`).
  *
  * Pages come back as JPEGs in the app's cache, already cropped and flattened, and enter the
  * capture session with the `platform` source: they are not searched for a page again, and the
@@ -92,9 +93,16 @@ export function platformPageRoom(scan: {
   return Math.max(0, Math.min(scan.pageLimit, MULTI_PAGE_LIMIT) - scan.pageCount);
 }
 
-/** Whether a scan for `preset` should use the platform scanner, when the phone has one. */
-export function choosePlatformEngine(preset: ScanPreset, available: boolean): boolean {
-  return available && preset === 'document';
+/**
+ * What takes the pages: Google's scanner (`platform`), the phone's own camera app or gallery
+ * (`photo`), or the in-app camera (VisionCamera + OpenCV).
+ */
+export type ScanEngine = 'platform' | 'photo' | 'in-app';
+
+/** The engine a scan for `preset` starts on; `available` is whether the phone has Google's. */
+export function chooseScanEngine(preset: ScanPreset, available: boolean): ScanEngine {
+  if (preset === 'photo') return 'photo';
+  return available ? 'platform' : 'in-app';
 }
 
 function nativeScanner(): NativePlatformScanner | null {

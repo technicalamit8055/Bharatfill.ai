@@ -1,6 +1,6 @@
 import {
   RouteLoading,
-  HeaderSkeleton,
+  HeroSkeleton,
   CardGridSkeleton,
   PanelSkeleton,
 } from '@/components/loading/page-skeletons';
@@ -8,7 +8,7 @@ import {
 export default function Loading() {
   return (
     <RouteLoading>
-      <HeaderSkeleton action={false} />
+      <HeroSkeleton />
       <PanelSkeleton rows={3} />
       <CardGridSkeleton count={4} />
     </RouteLoading>

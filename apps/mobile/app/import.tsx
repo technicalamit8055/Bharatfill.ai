@@ -2,6 +2,7 @@
  * Upload route — add a photo or PDF that is already on the phone, without opening the camera.
  * Opened from Home's Upload tile and the Vault tab (`/import`), and from review to add or
  * replace a page (back on top of it, or `?continue=1` when review has nothing to go back to).
+ * A document checklist adds `?preset=`, `?type=` and `?from=` (`lib/checklist/scan-goal.ts`).
  * The screen lives in `components/import/ImportScreen.tsx`.
  *
  * Photos come from the phone's photo picker, as in the scanner's Gallery button. Files come from
@@ -27,6 +28,7 @@ import { BackHandler } from 'react-native';
 import { type ImportBusy, ImportScreen } from '../components/import/ImportScreen';
 import { PdfPasswordSheet } from '../components/import/PdfPasswordSheet';
 import { showDialog } from '../lib/dialog/dialog-store';
+import { parseScanGoal } from '../lib/checklist/scan-goal';
 import { useTranslation } from '../lib/i18n/I18nProvider';
 import {
   addPhotos,
@@ -51,7 +53,7 @@ import {
   type RenderedPdf,
   renderPdfPages,
 } from '../lib/scan/pdf-pages';
-import { presetPageLimit } from '../lib/scan/presets';
+import { parseScanPreset, presetPageLimit } from '../lib/scan/presets';
 import { toFileUri } from '../lib/scan/scan-session';
 import { discardIncoming } from '../lib/vault/vault-storage';
 
@@ -69,7 +71,12 @@ type PdfOutcome = RenderedPdf | 'locked' | 'locked_unsupported' | 'unreadable';
 export default function ImportRoute() {
   const router = useRouter();
   const { t } = useTranslation();
-  const params = useLocalSearchParams<{ continue?: string }>();
+  const params = useLocalSearchParams<{
+    continue?: string;
+    preset?: string;
+    type?: string;
+    from?: string;
+  }>();
   const continuing = params.continue === '1';
 
   // Upload starts a fresh session; coming back from review keeps the one under review.
@@ -77,8 +84,14 @@ export default function ImportRoute() {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    if (!continuing) startSession('document', 'import');
-  }, [continuing]);
+    if (!continuing) {
+      startSession(
+        parseScanPreset(params.preset),
+        'import',
+        parseScanGoal(params.type, params.from),
+      );
+    }
+  }, [continuing, params.from, params.preset, params.type]);
 
   const session = useCaptureSession();
   const pageCount = session.pages.length;

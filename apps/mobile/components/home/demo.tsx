@@ -10,6 +10,7 @@
  * config allows under `components/**\/*.tsx`.
  */
 
+import { coreChecklist } from '../../lib/checklist/checklist';
 import type { HomeDashboard } from '../../lib/home/dashboard';
 import type { Translate } from '../../lib/i18n';
 
@@ -23,6 +24,7 @@ export function demoHomeDashboard(now: Date, t: Translate): HomeDashboard {
     citizenName: 'Amit Kumar',
     hasUnreadNotifications: true,
     documentCounts: { identity: 3, academic: 2, certificate: 4, form_asset: 3 },
+    checklist: coreChecklist([], now),
     recentDocuments: [
       {
         id: 'demo-aadhaar',

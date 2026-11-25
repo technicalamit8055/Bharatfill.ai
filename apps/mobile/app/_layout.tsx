@@ -59,6 +59,14 @@ function RootNavigator() {
           options={{ headerShown: false, animation: 'slide_from_right' }}
         />
         <Stack.Screen
+          name="checklist"
+          options={{ headerShown: false, animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="form-checklist"
+          options={{ headerShown: false, animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
           name="account-details"
           options={{ headerShown: false, animation: 'slide_from_right' }}
         />

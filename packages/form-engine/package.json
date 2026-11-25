@@ -10,7 +10,8 @@
     "./types": "./src/types.ts",
     "./safety": "./src/safety.ts",
     "./documents": "./src/documents.ts",
-    "./constraints": "./src/constraints.ts"
+    "./constraints": "./src/constraints.ts",
+    "./requirement-checklist": "./src/requirement-checklist.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

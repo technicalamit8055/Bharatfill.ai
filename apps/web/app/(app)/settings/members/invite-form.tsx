@@ -1,8 +1,10 @@
 'use client';
 
 import { useActionState } from 'react';
-import { Alert, Button, Card, Field, Input, Select } from '@assistigo/ui';
+import { UserPlus } from 'lucide-react';
+import { Alert, Button, Field, Input, Select } from '@assistigo/ui';
 import { ASSIGNABLE_ROLES, type OrgRole } from '@assistigo/core';
+import { SettingsCard } from '@/components/settings/settings-card';
 import { useTranslations } from '@/lib/i18n/client';
 import { inviteMemberAction, type MembersState } from './actions';
 
@@ -17,7 +19,10 @@ export function InviteForm({ actorRole }: { actorRole: OrgRole }) {
   if (roles.length === 0) return null;
 
   return (
-    <Card title={t('settings.invite')}>
+    <SettingsCard
+      icon={<UserPlus className="h-5 w-5" aria-hidden />}
+      title={t('settings.invite')}
+    >
       <form action={formAction} className="flex flex-wrap items-end gap-3">
         <Field
           label={t('settings.inviteEmail')}
@@ -60,10 +65,7 @@ export function InviteForm({ actorRole }: { actorRole: OrgRole }) {
         <Alert tone="success" className="mt-4" title={t(state.notice)}>
           {state.inviteUrl ? (
             <>
-              <p className="text-sm">
-                Email delivery is not configured yet, so share this link with the person you
-                invited. It expires in 7 days and only works for that email address.
-              </p>
+              <p className="text-sm">{t('settings.inviteLinkNote')}</p>
               <code className="mt-2 block break-all rounded bg-white/70 px-2 py-1 font-mono text-xs">
                 {state.inviteUrl}
               </code>
@@ -71,6 +73,6 @@ export function InviteForm({ actorRole }: { actorRole: OrgRole }) {
           ) : null}
         </Alert>
       ) : null}
-    </Card>
+    </SettingsCard>
   );
 }

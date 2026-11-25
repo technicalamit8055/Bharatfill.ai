@@ -10,23 +10,18 @@
 
 import type { ImageSourcePropType } from 'react-native';
 
+import type { DocumentChecklistItem } from '../checklist/checklist';
 import type { TranslateValues } from '../i18n';
 import { normaliseFullName } from '../profile/profile';
 import { VAULT_CATEGORIES, type VaultCategoryKey } from '../vault/categories';
 import type { VaultDocument } from '../vault/vault-index';
 
 /**
- * The scanner presets offered as shortcuts on Home, in display order: plain documents plus the
- * dedicated modes in `docs/CITIZEN_MOBILE_APP_SPEC.md` §3 Feature 1.5. Each has copy at
- * `home.quickActions.<mode>`.
+ * The scans offered as shortcuts on Home, in display order. Each has copy at
+ * `home.quickActions.<mode>`. ID cards, photos and signatures are added from the document
+ * checklist instead, which knows which document is wanted (`lib/checklist`).
  */
-export const QUICK_SCAN_MODES = [
-  'document',
-  'id_card',
-  'photo',
-  'signature',
-  'multi_page',
-] as const;
+export const QUICK_SCAN_MODES = ['document', 'multi_page'] as const;
 export type QuickScanMode = (typeof QUICK_SCAN_MODES)[number];
 
 /**
@@ -34,29 +29,17 @@ export type QuickScanMode = (typeof QUICK_SCAN_MODES)[number];
  * PDF already on the phone, `app/import.tsx`) second, next to the plain document scan. Each has
  * copy at `home.quickActions.<action>`.
  */
-export const QUICK_ACTIONS = [
-  'document',
-  'upload',
-  'id_card',
-  'photo',
-  'signature',
-  'multi_page',
-] as const satisfies readonly (QuickScanMode | 'upload')[];
+export const QUICK_ACTIONS = ['document', 'upload', 'multi_page'] as const satisfies readonly (
+  QuickScanMode | 'upload'
+)[];
 export type QuickAction = (typeof QUICK_ACTIONS)[number];
 
-/** Route params for `/scanner` (`app/scanner.tsx`): a page count, or a dedicated preset. */
-export type ScannerParams = { readonly mode: 'single' | 'multi' } | { readonly preset: string };
+/** Route params for `/scanner` (`app/scanner.tsx`). */
+export type ScannerParams = { readonly mode: 'single' | 'multi' };
 
-/** What a quick action opens: the ordinary scanner, or one of its presets. */
+/** What a quick action opens: the ordinary scanner, for one page or several. */
 export function quickScanParams(mode: QuickScanMode): ScannerParams {
-  switch (mode) {
-    case 'document':
-      return { mode: 'single' };
-    case 'multi_page':
-      return { mode: 'multi' };
-    default:
-      return { preset: mode };
-  }
+  return { mode: mode === 'multi_page' ? 'multi' : 'single' };
 }
 
 export type RecentDocument = {
@@ -72,6 +55,8 @@ export type HomeDashboard = {
   readonly citizenName: string | null;
   readonly hasUnreadNotifications: boolean;
   readonly documentCounts: Readonly<Record<VaultCategoryKey, number>>;
+  /** The everyday documents, ticked or not. Empty hides the card: the vault is not read yet. */
+  readonly checklist: readonly DocumentChecklistItem[];
   /** Newest first. */
   readonly recentDocuments: readonly RecentDocument[];
 };
@@ -81,6 +66,7 @@ export const EMPTY_HOME_DASHBOARD: HomeDashboard = {
   citizenName: null,
   hasUnreadNotifications: false,
   documentCounts: { identity: 0, academic: 0, certificate: 0, form_asset: 0 },
+  checklist: [],
   recentDocuments: [],
 };
 

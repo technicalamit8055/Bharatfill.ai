@@ -24,6 +24,10 @@ const alias = {
   '@assistigo/form-engine/safety': path.resolve(root, 'packages/form-engine/src/safety.ts'),
   '@assistigo/form-engine/documents': path.resolve(root, 'packages/form-engine/src/documents.ts'),
   '@assistigo/form-engine/constraints': path.resolve(root, 'packages/form-engine/src/constraints.ts'),
+  '@assistigo/form-engine/requirement-checklist': path.resolve(
+    root,
+    'packages/form-engine/src/requirement-checklist.ts',
+  ),
   '@assistigo/form-engine': path.resolve(root, 'packages/form-engine/src/index.ts'),
   '@assistigo/document-tools/autofit': path.resolve(root, 'packages/document-tools/src/autofit.ts'),
   '@assistigo/document-tools/browser/image': path.resolve(

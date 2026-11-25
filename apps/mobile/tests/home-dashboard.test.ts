@@ -221,12 +221,6 @@ describe('quickScanParams', () => {
     expect(quickScanParams('multi_page')).toEqual({ mode: 'multi' });
   });
 
-  it('opens a preset for the dedicated shortcuts', () => {
-    expect(quickScanParams('id_card')).toEqual({ preset: 'id_card' });
-    expect(quickScanParams('photo')).toEqual({ preset: 'photo' });
-    expect(quickScanParams('signature')).toEqual({ preset: 'signature' });
-  });
-
   it('covers every quick action', () => {
     for (const mode of QUICK_SCAN_MODES) expect(quickScanParams(mode)).toBeTruthy();
   });

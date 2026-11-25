@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Select, Slider, Switch } from '@assistigo/ui';
+import { FileText, Grid3x3, IdCard, Languages } from 'lucide-react';
+import { Alert, Button, Select, Slider, Switch } from '@assistigo/ui';
 import {
   CARD_COPIES_MAX,
   CARD_COPIES_MIN,
@@ -15,6 +16,7 @@ import {
   type GridPhotoSizeCode,
   type ToolPreferences,
 } from '@assistigo/document-tools';
+import { SettingsCard } from '@/components/settings/settings-card';
 import { LocaleSwitcher } from '@/components/app-shell/locale-switcher';
 import { readToolPreferences, writeToolPreferences } from '@/lib/document-tools/preferences';
 import { useI18n } from '@/lib/i18n/client';
@@ -71,16 +73,22 @@ export function PreferencesForm({ canUseDocumentTools }: { canUseDocumentTools: 
 
   return (
     <div className="space-y-6">
-      <Card title={t('settings.language')}>
+      <SettingsCard
+        icon={<Languages className="h-5 w-5" aria-hidden />}
+        title={t('settings.language')}
+      >
         <div className="flex flex-wrap items-center gap-4">
           <LocaleSwitcher />
           <p className="max-w-md text-xs text-slate-500">{t('settings.preferences.languageHint')}</p>
         </div>
-      </Card>
+      </SettingsCard>
 
       {canUseDocumentTools ? (
         <>
-          <Card title={t('settings.preferences.gridTitle')}>
+          <SettingsCard
+            icon={<Grid3x3 className="h-5 w-5" aria-hidden />}
+            title={t('settings.preferences.gridTitle')}
+          >
             <div className="space-y-4">
               <p className="text-sm text-slate-600">{t('settings.preferences.gridHint')}</p>
 
@@ -164,9 +172,12 @@ export function PreferencesForm({ canUseDocumentTools }: { canUseDocumentTools: 
                 onCheckedChange={(cutMarks) => updateGrid({ cutMarks })}
               />
             </div>
-          </Card>
+          </SettingsCard>
 
-          <Card title={t('settings.preferences.cardTitle')}>
+          <SettingsCard
+            icon={<IdCard className="h-5 w-5" aria-hidden />}
+            title={t('settings.preferences.cardTitle')}
+          >
             <div className="space-y-1.5 sm:max-w-xs">
               <label htmlFor="pref-card-copies" className="text-sm font-medium text-slate-800">
                 {t('documentTools.card.copies')}
@@ -186,9 +197,12 @@ export function PreferencesForm({ canUseDocumentTools }: { canUseDocumentTools: 
               </Select>
               <p className="text-xs text-slate-500">{t('documentTools.card.copiesHint')}</p>
             </div>
-          </Card>
+          </SettingsCard>
 
-          <Card title={t('settings.preferences.pdfTitle')}>
+          <SettingsCard
+            icon={<FileText className="h-5 w-5" aria-hidden />}
+            title={t('settings.preferences.pdfTitle')}
+          >
             <Switch
               label={t('documentTools.pdf.allowRasterise')}
               hint={t('documentTools.pdf.rasteriseOffHint')}
@@ -197,7 +211,7 @@ export function PreferencesForm({ canUseDocumentTools }: { canUseDocumentTools: 
                 update({ ...preferences, pdf: { allowRasterise } })
               }
             />
-          </Card>
+          </SettingsCard>
 
           <Alert tone="info">{t('settings.preferences.storageNote')}</Alert>
 

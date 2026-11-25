@@ -1,8 +1,11 @@
 import { CircleHelp, Monitor, Smartphone, Tablet, type LucideIcon } from 'lucide-react';
-import { Alert, Badge, Card } from '@assistigo/ui';
+import { Alert, Badge } from '@assistigo/ui';
 import type { DeviceClass } from '@assistigo/core';
+import { SettingsCard } from '@/components/settings/settings-card';
+import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { requireSession } from '@/lib/auth/session';
 import { listActiveSessions, type ActiveSession } from '@/lib/auth/active-sessions';
+import { formatPlace, locateIp } from '@/lib/auth/ip-location';
 import { getTranslations } from '@/lib/i18n/server';
 import { logger } from '@/lib/api/logger';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -54,30 +57,45 @@ export default async function SessionsPage() {
   const formatTime = (iso: string) => dateTime.format(new Date(iso));
   const now = Date.now();
 
+  // Resolved here, on the server: the raw IP address is not shown or sent to the browser.
+  const locations = await Promise.all(
+    (sessions ?? []).map(async (session) => {
+      const location = await locateIp(session.ipAddress);
+      if (location.kind === 'place') return formatPlace(location, locale);
+      return t(
+        location.kind === 'local'
+          ? 'settings.sessions.localNetwork'
+          : 'settings.sessions.unknownLocation',
+      );
+    }),
+  );
+
   const otherCount = sessions?.filter((session) => !session.isCurrent).length ?? 0;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-slate-900">{t('settings.sessions.title')}</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500">{t('settings.sessions.subtitle')}</p>
-      </div>
+      <SettingsPageHeader
+        section="sessions"
+        title={t('settings.sessions.title')}
+        subtitle={t('settings.sessions.subtitle')}
+      />
 
       {sessions === null ? (
         <Alert tone="danger" title={t('settings.sessions.loadFailedTitle')}>
           {t('settings.sessions.loadFailed')}
         </Alert>
       ) : (
-        <Card
+        <SettingsCard
+          icon={<Monitor className="h-5 w-5" aria-hidden />}
           title={t('settings.sessions.listTitle', { count: sessions.length })}
-          actions={otherCount > 0 ? <RevokeOthersButton count={otherCount} /> : undefined}
+          action={otherCount > 0 ? <RevokeOthersButton count={otherCount} /> : undefined}
         >
           {sessions.length === 0 ? (
             // Only reachable if the session behind this very request has already ended.
             <p className="text-sm text-slate-500">{t('settings.sessions.empty')}</p>
           ) : (
             <ul className="divide-y divide-slate-100">
-              {sessions.map((session) => {
+              {sessions.map((session, index) => {
                 const Icon = DEVICE_ICONS[session.device];
                 const activeNow = now - new Date(session.lastActiveAt).getTime() < ACTIVE_NOW_MS;
                 const browser = session.browser ?? t('settings.sessions.unknownBrowser');
@@ -104,10 +122,8 @@ export default async function SessionsPage() {
                         </p>
                         <dl className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                           <div className="flex gap-1">
-                            <dt>{t('settings.sessions.ipAddress')}:</dt>
-                            <dd className="font-mono">
-                              {session.ipAddress ?? t('settings.sessions.unknown')}
-                            </dd>
+                            <dt>{t('settings.sessions.location')}:</dt>
+                            <dd>{locations[index]}</dd>
                           </div>
                           <div className="flex gap-1">
                             <dt>{t('settings.sessions.signedIn')}:</dt>
@@ -138,7 +154,19 @@ export default async function SessionsPage() {
               })}
             </ul>
           )}
-        </Card>
+          <p className="mt-4 text-xs text-slate-500">
+            {t('settings.sessions.locationNote')}{' '}
+            {/* Required by the DB-IP Lite licence wherever its results are shown. */}
+            <a
+              href="https://db-ip.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-slate-700"
+            >
+              {t('settings.sessions.locationCredit')}
+            </a>
+          </p>
+        </SettingsCard>
       )}
 
       <Alert tone="info">{t('settings.sessions.extensionNote')}</Alert>

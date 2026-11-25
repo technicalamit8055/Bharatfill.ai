@@ -1,6 +1,6 @@
 /**
  * Home dashboard — the citizen's landing tab: greeting header, the scan hero, scanner
- * shortcuts, the Cyber Cafe / CSC banner, the vault categories and recent documents.
+ * shortcuts, the document checklist, the Cyber Cafe / CSC banner, the vault categories and recent documents.
  *
  * Presentational only: the route decides what the dashboard holds and what each tap does.
  * Light-only branded artwork like registration, so it does not read from `useTheme()`.
@@ -11,9 +11,11 @@ import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import type { DocumentChecklistItem } from '../../lib/checklist/checklist';
 import type { HomeDashboard, QuickScanMode, RecentDocument } from '../../lib/home/dashboard';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
 import { CscConnectBanner } from './CscConnectBanner';
+import { DocumentChecklistCard } from './DocumentChecklistCard';
 import { HomeHeader } from './HomeHeader';
 import { CONTENT_MAX_WIDTH, PAGE_PADDING } from './layout';
 import { homePalette as palette } from './palette';
@@ -29,6 +31,8 @@ export type HomeDashboardScreenProps = {
   readonly onScan: (mode: QuickScanMode) => void;
   /** Upload: a photo or PDF already on the phone. */
   readonly onUpload: () => void;
+  readonly onChecklistItem: (item: DocumentChecklistItem) => void;
+  readonly onOpenChecklist: () => void;
   readonly onOpenNotifications: () => void;
   readonly onOpenProfile: () => void;
   readonly onConnect: () => void;
@@ -41,6 +45,8 @@ export function HomeDashboardScreen({
   now,
   onScan,
   onUpload,
+  onChecklistItem,
+  onOpenChecklist,
   onOpenNotifications,
   onOpenProfile,
   onConnect,
@@ -66,6 +72,14 @@ export function HomeDashboardScreen({
           <ScanHeroCard onScan={() => onScan('document')} />
 
           <QuickActions width={contentWidth} onScan={onScan} onUpload={onUpload} />
+
+          {dashboard.checklist.length > 0 ? (
+            <DocumentChecklistCard
+              items={dashboard.checklist}
+              onItem={onChecklistItem}
+              onOpen={onOpenChecklist}
+            />
+          ) : null}
 
           <CscConnectBanner width={contentWidth} onConnect={onConnect} />
 

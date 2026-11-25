@@ -23,7 +23,7 @@ vi.mock('expo', () => ({
 }));
 
 const {
-  choosePlatformEngine,
+  chooseScanEngine,
   isPlatformScannerAvailable,
   parsePlatformScan,
   PLATFORM_SCANNER_MODULE,
@@ -101,13 +101,17 @@ describe('platformPageRoom', () => {
   });
 });
 
-describe('choosePlatformEngine', () => {
-  it('is used for ordinary documents only, and only when available', () => {
-    expect(choosePlatformEngine('document', true)).toBe(true);
-    expect(choosePlatformEngine('document', false)).toBe(false);
-    expect(choosePlatformEngine('id_card', true)).toBe(false);
-    expect(choosePlatformEngine('photo', true)).toBe(false);
-    expect(choosePlatformEngine('signature', true)).toBe(false);
+describe('chooseScanEngine', () => {
+  it("uses Google's scanner for pages, cards and signatures when the phone has it", () => {
+    for (const preset of ['document', 'id_card', 'signature'] as const) {
+      expect(chooseScanEngine(preset, true)).toBe('platform');
+      expect(chooseScanEngine(preset, false)).toBe('in-app');
+    }
+  });
+
+  it('never scans a passport photo as a page', () => {
+    expect(chooseScanEngine('photo', true)).toBe('photo');
+    expect(chooseScanEngine('photo', false)).toBe('photo');
   });
 });
 

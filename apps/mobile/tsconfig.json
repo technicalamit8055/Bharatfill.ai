@@ -24,6 +24,9 @@
       "@assistigo/core/*": [
         "../../packages/core/src/*"
       ],
+      "@assistigo/form-engine/requirement-checklist": [
+        "../../packages/form-engine/src/requirement-checklist.ts"
+      ],
       "@assistigo/document-tools": [
         "../../packages/document-tools/src/index.ts"
       ]

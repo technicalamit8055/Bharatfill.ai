@@ -43,18 +43,6 @@
         "label": "Upload",
         "caption": "Photo or PDF"
       },
-      "id_card": {
-        "label": "ID Card",
-        "caption": "Aadhaar, PAN"
-      },
-      "photo": {
-        "label": "Photo",
-        "caption": "Passport Size"
-      },
-      "signature": {
-        "label": "Signature",
-        "caption": "On White Paper"
-      },
       "multi_page": {
         "label": "Multi-Page",
         "caption": "PDF Scan"
@@ -261,7 +249,17 @@
       "body": "Google's scanner on this phone finds the page, flattens it and cleans off shadows and fingers. Your pages stay on this phone.",
       "opening": "Opening the scanner…",
       "scan": "Scan pages",
-      "useCamera": "Use the in-app camera instead"
+      "useCamera": "Use the in-app camera instead",
+      "idCard": {
+        "title": "ID card",
+        "body": "Scan the front, then add the back as a second page. Both sides go on one A4 page."
+      },
+      "photo": {
+        "title": "Passport photo",
+        "body": "Take a photo against a plain light wall, or choose one you already have. It is cut to passport size.",
+        "take": "Take photo",
+        "gallery": "Choose from gallery"
+      }
     },
     "presets": {
       "idCard": {
@@ -1374,5 +1372,47 @@
     "openNow": "Can see your documents now",
     "minutesLeft": "{minutes} min left",
     "signInFirst": "Sign in and open your vault on this phone to share it."
+  },
+  "checklist": {
+    "title": "Important documents",
+    "progress": "{ready} of {total} ready",
+    "openAll": "See all, or check for a form",
+    "openHint": "Opens the document",
+    "addHint": "Shows ways to add it",
+    "ifYourFormAsks": "Keep these ready if your form asks for them.",
+    "loadFailed": "Your vault could not be read. Please close the app and open it again.",
+    "groups": {
+      "core": "Needed for most forms",
+      "education": "Education",
+      "certificates": "State certificates",
+      "other": "Other ID"
+    },
+    "states": {
+      "ready": "Ready",
+      "missing": "Not added",
+      "expired": "Expired",
+      "check_manually": "Check this yourself"
+    },
+    "add": {
+      "title": "Add {name}",
+      "expired": "The one in your vault has passed its expiry date.",
+      "manual": "The app cannot tick this one yet. You can still save a copy; please check it yourself.",
+      "methods": {
+        "scan_card": "Scan card (front and back)",
+        "scan": "Scan paper",
+        "photo": "Take or choose a photo",
+        "upload": "Upload from phone"
+      }
+    },
+    "forms": {
+      "title": "Which form are you filling?",
+      "note": "See what a form usually asks for, and what you still need.",
+      "needed": "Documents usually asked for",
+      "disclaimer": "This is the usual list. It does not mean the form is open. Always check the official notice before you apply.",
+      "reservation": "For a reservation or fee benefit you may also need a caste, EWS or disability certificate.",
+      "official": "Open the official website",
+      "linkFailed": "The website could not be opened.",
+      "notFound": "This form is not in the list."
+    }
   }
 }

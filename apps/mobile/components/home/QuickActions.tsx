@@ -1,8 +1,7 @@
 /**
- * The shortcuts under the hero: Document, Upload, ID Card, Photo, Signature, Multi-Page. Upload
- * adds a photo or PDF already on the phone; the others open the scanner. All six sit across on
- * a wide screen; on a phone the tiles keep a readable width and the row scrolls sideways,
- * bleeding to the screen edge so the next tile peeks in.
+ * The shortcuts under the hero: Document, Upload, Multi-Page. Upload adds a photo or PDF already
+ * on the phone; the others open the scanner. All three sit across on a phone; if one is too
+ * narrow for readable tiles the row scrolls sideways, bleeding to the screen edge.
  */
 
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';

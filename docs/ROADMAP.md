@@ -57,10 +57,13 @@ Remaining:
 - [x] Password reset completion page (`/reset-password`) — recovery link → `/auth/callback` →
       new-password form; signs out other sessions and audits `auth.password_changed`.
 - [x] Sessions & devices roster at `/settings/sessions` (rest of AUTH-05): every member sees their
-      own sessions (browser, OS, IP, signed in, last active), signs one out or all others, audited
+      own sessions (browser, OS, approximate location, signed in, last active), signs one out or all others, audited
       `auth.session_revoked`. Migration 0031; server-side auth calls now forward the browser's
       User-Agent / IP to Supabase Auth. `sessions.test.ts` (RLS) written, not yet run — same
       Docker blocker as above.
+- [x] Settings redesign; `/settings/organization`, `/settings/security`, `/settings/data` and
+      `/settings/extension` built (they were linked but 404ed). A test checks every settings link has a
+      page. `/settings/data` is read-only until `retention.sweep` has a handler.
 - [ ] Legal pages, pricing page, demo request page
 
 Acceptance: user signs up and creates an org · owner invites an operator · operator cannot reach

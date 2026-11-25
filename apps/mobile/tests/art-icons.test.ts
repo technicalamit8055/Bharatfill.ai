@@ -16,6 +16,10 @@ const USED: readonly ArtIconName[] = [
   ...QUICK_ACTIONS,
   ...VAULT_CATEGORIES,
   ...CONNECT_ACTIONS,
+  // Document checklist rows.
+  'id_card',
+  'photo',
+  'signature',
   'scan',
   'vault',
   'forms',

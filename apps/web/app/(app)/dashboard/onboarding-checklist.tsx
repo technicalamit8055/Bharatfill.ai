@@ -74,7 +74,7 @@ export function OnboardingChecklist({
         <ChecklistRow
           done={false}
           label={t('onboarding.checklist.tryDemoForm')}
-          href="/demo-forms"
+          href="/demo-forms/index.html"
         />
       </ul>
     </Card>

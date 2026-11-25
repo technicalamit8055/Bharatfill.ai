@@ -11,6 +11,12 @@ const nextConfig = {
     '@assistigo/form-engine',
   ],
 
+  // The sessions page reads these by path at runtime, so file tracing cannot find them itself.
+  serverExternalPackages: ['maxmind'],
+  outputFileTracingIncludes: {
+    '/settings/sessions': ['../../node_modules/@ip-location-db/dbip-city-mmdb/*.mmdb'],
+  },
+
   experimental: {
     serverActions: {
       // The default is 1 MB, and a scheme banner may itself be 1 MB (migration 0028) before the

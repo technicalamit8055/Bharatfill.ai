@@ -379,6 +379,9 @@ functions, `list_my_auth_sessions()` and `revoke_my_auth_session(id)`, both scop
 - "Sign out all other sessions" is GoTrue's own `signOut({ scope: 'others' })`, as on password reset.
 - A paired extension holds the session of the browser it was paired from (docs/EXTENSION.md §3),
   so it is never its own row; signing that browser out disconnects it too. The page says so.
+- The roster shows an approximate place instead of the IP address (`lib/auth/ip-location.ts`). It is
+  looked up in database files installed with the app (DB-IP City Lite, CC BY 4.0, credited on the
+  page); no address leaves the server, and nothing new is stored.
 - The roster shows a coarse browser / OS / device class (`summarizeUserAgent`, no versions or
   models) and the session's IP. The raw User-Agent never leaves the server.
 - Sign-in, refresh and extension refresh all run on our server, so `lib/supabase/forwarded-client.ts`

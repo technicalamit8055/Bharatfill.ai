@@ -13,12 +13,18 @@
  * steady. Photos go into the capture session and on to `app/scan-review.tsx` for cropping,
  * filters and saving. The screen lives in `components/scanner/ScannerScreen.tsx`.
  *
- * An ordinary document scan uses Google's on-device document scanner instead, when the phone
- * has it (`lib/scan/platform-scanner.ts`): it opens straight away, and every time this screen
- * comes back into view (Add page, Retake, Back from review). Its pages, already cropped and
- * cleaned, go to review. Backing out of it with no pages leaves; with pages, the launcher
- * (`PlatformScanLauncher`) offers scan again, review, the in-app camera, or close. When it is not
- * available or fails to open, this screen falls back to the in-app camera.
+ * Documents, ID cards and signatures use Google's on-device document scanner instead, when the
+ * phone has it (`lib/scan/platform-scanner.ts`): it opens straight away, and every time this
+ * screen comes back into view with room for a page (Add page, Retake, Back from review). Its
+ * pages, already cropped and cleaned, go to review. Backing out of it with no pages leaves; with
+ * pages, the launcher (`PlatformScanLauncher`) offers scan again, review, the in-app camera, or
+ * close. When it is not available or fails to open, this screen falls back to the in-app camera.
+ *
+ * A passport photo is never scanned: the same launcher offers the phone's own camera app or the
+ * gallery. If the camera app will not open, the in-app camera takes over.
+ *
+ * A document checklist opens this with `?type=` and `?from=` (`lib/checklist/scan-goal.ts`): what
+ * the scan is filed as, and the checklist to return to once it is saved.
  */
 
 import { Lightbulb, Trash2 } from 'lucide-react-native';
@@ -42,6 +48,7 @@ import {
   type ScannerStatus,
 } from '../components/scanner/ScannerScreen';
 import { useLiveDocumentDetection } from '../components/scanner/useLiveDocumentDetection';
+import { parseScanGoal } from '../lib/checklist/scan-goal';
 import { useTranslation } from '../lib/i18n/I18nProvider';
 import {
   addPhotos,
@@ -53,10 +60,11 @@ import {
 } from '../lib/scan/capture-session';
 import { steadyProgress } from '../lib/scan/geometry';
 import {
-  choosePlatformEngine,
+  chooseScanEngine,
   isPlatformScannerAvailable,
   PlatformScannerUnavailableError,
   platformPageRoom,
+  type ScanEngine,
   scanWithPlatformML,
 } from '../lib/scan/platform-scanner';
 import {
@@ -69,9 +77,6 @@ import { type CaptureMode, parseScanPageMode, toFileUri } from '../lib/scan/scan
 
 /** After a shot in multi-page mode, wait this long before auto-capturing the next page. */
 const AUTO_CAPTURE_COOLDOWN_MS = 2000;
-
-/** Google's document scanner, or the in-app camera (VisionCamera + OpenCV). */
-type ScanEngine = 'platform' | 'in-app';
 
 function useAppActive(): boolean {
   const [active, setActive] = useState(AppState.currentState === 'active');
@@ -87,7 +92,13 @@ function useAppActive(): boolean {
 export default function ScannerRoute() {
   const router = useRouter();
   const { t } = useTranslation();
-  const params = useLocalSearchParams<{ mode?: string; preset?: string; continue?: string }>();
+  const params = useLocalSearchParams<{
+    mode?: string;
+    preset?: string;
+    continue?: string;
+    type?: string;
+    from?: string;
+  }>();
   const continuing = params.continue === '1';
   /** Fixed for this camera: the preset asked for, or, when adding a page, the scan's own. */
   const [preset] = useState<ScanPreset>(() =>
@@ -95,7 +106,7 @@ export default function ScannerRoute() {
   );
   const pageLimit = presetPageLimit(preset);
   const [engine, setEngine] = useState<ScanEngine>(() =>
-    choosePlatformEngine(preset, isPlatformScannerAvailable()) ? 'platform' : 'in-app',
+    chooseScanEngine(preset, isPlatformScannerAvailable()),
   );
   /** Google's scanner is opening or open. The ref guards against opening it twice. */
   const [platformBusy, setPlatformBusy] = useState(false);
@@ -118,8 +129,8 @@ export default function ScannerRoute() {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    if (!continuing) startSession(preset);
-  }, [continuing, preset]);
+    if (!continuing) startSession(preset, 'camera', parseScanGoal(params.type, params.from));
+  }, [continuing, params.from, params.type, preset]);
 
   const permission = useCameraPermission();
   const asked = useRef(false);
@@ -260,55 +271,60 @@ export default function ScannerRoute() {
   /**
    * Opens Google's document scanner for as many pages as fit, then hands what it scanned to
    * review. Backing out of it with nothing taken leaves; when it cannot be used here, the
-   * in-app camera takes over.
+   * in-app camera takes over. `asked`: the citizen tapped for it, so a full scan says why not.
    */
-  const launchPlatform = useCallback(async () => {
-    if (platformOpen.current) return;
-    const current = getSession();
-    const isRetake = current.retakeId !== null;
-    const room = platformPageRoom({
-      retaking: isRetake,
-      pageCount: current.pages.length,
-      pageLimit,
-    });
-    if (room <= 0) {
-      showDialog(
-        t('scanner.errors.title'),
-        t('scanner.errors.pageLimit', { max: pageLimit }),
-        [{ text: t('common.ok') }],
-        { tone: 'warning' },
-      );
-      return;
-    }
-
-    platformOpen.current = true;
-    setPlatformBusy(true);
-    try {
-      const scanned = await scanWithPlatformML({ maxPages: room, allowGalleryImport: true });
-      if (!scanned) {
-        if (getSession().pages.length === 0) leave();
+  const launchPlatform = useCallback(
+    async (asked: boolean) => {
+      if (platformOpen.current) return;
+      const current = getSession();
+      const isRetake = current.retakeId !== null;
+      const room = platformPageRoom({
+        retaking: isRetake,
+        pageCount: current.pages.length,
+        pageLimit,
+      });
+      if (room <= 0) {
+        if (asked) {
+          showDialog(
+            t('scanner.errors.title'),
+            t('scanner.errors.pageLimit', { max: pageLimit }),
+            [{ text: t('common.ok') }],
+            { tone: 'warning' },
+          );
+        }
         return;
       }
-      const [pageId] = addPhotos(
-        scanned.map((page) => page.uri),
-        'platform',
-      );
-      openReview(isRetake ? pageId : undefined);
-    } catch (error) {
-      if (error instanceof PlatformScannerUnavailableError) setEngine('in-app');
-      else {
-        showDialog(
-          t('scanner.errors.title'),
-          t('scanner.errors.captureFailed'),
-          [{ text: t('common.ok') }],
-          { tone: 'danger' },
+
+      platformOpen.current = true;
+      setPlatformBusy(true);
+      try {
+        const scanned = await scanWithPlatformML({ maxPages: room, allowGalleryImport: true });
+        if (!scanned) {
+          if (getSession().pages.length === 0) leave();
+          return;
+        }
+        const [pageId] = addPhotos(
+          scanned.map((page) => page.uri),
+          'platform',
         );
+        openReview(isRetake ? pageId : undefined);
+      } catch (error) {
+        if (error instanceof PlatformScannerUnavailableError) setEngine('in-app');
+        else {
+          showDialog(
+            t('scanner.errors.title'),
+            t('scanner.errors.captureFailed'),
+            [{ text: t('common.ok') }],
+            { tone: 'danger' },
+          );
+        }
+      } finally {
+        platformOpen.current = false;
+        setPlatformBusy(false);
       }
-    } finally {
-      platformOpen.current = false;
-      setPlatformBusy(false);
-    }
-  }, [leave, openReview, pageLimit, t]);
+    },
+    [leave, openReview, pageLimit, t],
+  );
 
   // Google's scanner opens whenever this screen comes into view: on arrival, and on returning
   // from review to add a page, retake one, or go back. Keyed on the engine only, so a change in
@@ -317,9 +333,47 @@ export default function ScannerRoute() {
   launchRef.current = launchPlatform;
   useFocusEffect(
     useCallback(() => {
-      if (engine === 'platform') void launchRef.current();
+      if (engine === 'platform') void launchRef.current(false);
     }, [engine]),
   );
+
+  /** Takes a passport photo with the phone's own camera app. */
+  const takePhoto = useCallback(async () => {
+    if (platformOpen.current) return;
+    platformOpen.current = true;
+    setPlatformBusy(true);
+    try {
+      const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+      if (!granted) {
+        showDialog(
+          t('scanner.access.title'),
+          t('scanner.access.body'),
+          [
+            { text: t('scanResult.cancel'), style: 'cancel' },
+            { text: t('scanner.access.action'), onPress: () => void Linking.openSettings() },
+          ],
+          { tone: 'warning' },
+        );
+        return;
+      }
+      const taken = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        quality: 1,
+        exif: false,
+      });
+      const uri = taken.canceled ? undefined : taken.assets[0]?.uri;
+      if (!uri?.startsWith('file://')) return;
+      const isRetake = getSession().retakeId !== null;
+      const [pageId] = addPhotos([uri], 'camera');
+      openReview(isRetake ? pageId : undefined);
+    } catch {
+      // No camera app, or it would not open.
+      setEngine('in-app');
+    } finally {
+      platformOpen.current = false;
+      setPlatformBusy(false);
+    }
+  }, [openReview, t]);
 
   const close = useCallback(() => {
     if (pageCount === 0) {
@@ -374,14 +428,19 @@ export default function ScannerRoute() {
           : 'tap'
         : 'searching';
 
-  if (engine === 'platform') {
+  if (engine !== 'in-app') {
+    const photo = engine === 'photo';
+    const full = !retaking && pageCount >= pageLimit;
     return (
       <PlatformScanLauncher
+        kind={photo ? 'photo' : preset === 'id_card' ? 'idCard' : 'document'}
         busy={platformBusy}
         pageCount={pageCount}
-        onScan={() => void launchPlatform()}
+        full={full}
+        onScan={() => void (photo ? takePhoto() : launchPlatform(true))}
+        onGallery={photo ? () => void pickFromGallery() : null}
         onReview={() => openReview()}
-        onUseCamera={() => setEngine('in-app')}
+        onUseCamera={photo ? null : () => setEngine('in-app')}
         onClose={close}
       />
     );

@@ -152,6 +152,25 @@ describe('platform scanner pages', () => {
   });
 });
 
+describe('a signature from the platform scanner', () => {
+  it('is cleaned, so its ink can be found on white paper', async () => {
+    session.startSession('signature');
+    session.addPhotos(['file:///cache/ml.jpg'], 'platform');
+    await settle();
+    expect(session.getSession().pages[0]?.filter).toBe('magic');
+  });
+});
+
+describe('a checklist goal', () => {
+  it('lasts for its session only', () => {
+    const goal = { documentType: 'pan', returnTo: '/checklist' } as const;
+    session.startSession('id_card', 'camera', goal);
+    expect(session.getSession().goal).toEqual(goal);
+    session.discardSession();
+    expect(session.getSession().goal).toBeNull();
+  });
+});
+
 describe('uploaded PDF pages', () => {
   it('are the page itself: not searched, on Original, with no photo quality to warn about', async () => {
     nextIssues = ['dark'];

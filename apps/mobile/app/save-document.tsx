@@ -6,6 +6,8 @@
  * Save to Vault schedules the expiry reminder first, when there is one, then seals the pages
  * and the details into one encrypted vault document. If sealing fails the reminder is cancelled
  * again; if only the reminder fails the document is still saved and the citizen is told.
+ * A scan started from a document checklist goes back to that checklist, now ticked, instead of
+ * on to the scan result.
  */
 
 import { BellOff } from 'lucide-react-native';
@@ -31,7 +33,7 @@ import type { DocumentDetails } from '../lib/vault/vault-index';
 export default function SaveDocumentRoute() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { pages, preset } = useCaptureSession();
+  const { pages, preset, goal } = useCaptureSession();
   const [saving, setSaving] = useState(false);
 
   const back = useCallback(() => {
@@ -118,7 +120,7 @@ export default function SaveDocumentRoute() {
 
       // Close the camera, review and this screen, so Done on the result goes back to the tabs.
       router.dismissAll();
-      router.push({ pathname: '/scan-result', params: { id: documentId } });
+      router.push(goal?.returnTo ?? { pathname: '/scan-result', params: { id: documentId } });
       if (reminderFailed) {
         showDialog(
           t('saveDocument.reminder.failedTitle'),
@@ -128,14 +130,14 @@ export default function SaveDocumentRoute() {
         );
       }
     },
-    [router, scheduleReminder, t],
+    [goal, router, scheduleReminder, t],
   );
 
   return (
     <SaveDocumentScreen
       pages={pages}
       saving={saving}
-      initialType={PRESET_DOCUMENT_TYPE[preset]}
+      initialType={goal?.documentType ?? PRESET_DOCUMENT_TYPE[preset]}
       cloudSync={cloudConfig() !== null}
       onBack={back}
       onEditScan={back}

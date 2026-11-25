@@ -10,8 +10,8 @@
  *
  * Development builds show the design mockup's sample content (`components/home/demo.tsx`) while
  * the phone's vault is empty, so the layout can be reviewed full. The quick actions open the
- * scanner or one of its presets (ID card, photo, signature), or Upload (`app/import.tsx`) for a
- * photo or PDF already on the phone. Features the dashboard points at
+ * scanner, or Upload (`app/import.tsx`) for a photo or PDF already on the phone; the document
+ * checklist adds one particular document, or opens `/checklist`. Features the dashboard points at
  * that do not exist yet — notifications — say so plainly, and nothing is sent.
  */
 
@@ -30,6 +30,8 @@ import {
   type RecentDocument,
   vaultDashboardSummary,
 } from '../../lib/home/dashboard';
+import { coreChecklist } from '../../lib/checklist/checklist';
+import { useChecklistActions } from '../../lib/checklist/use-checklist-actions';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
 import type { VaultDocument } from '../../lib/vault/vault-index';
 import { listDocuments, readPageDataUri } from '../../lib/vault/vault-storage';
@@ -58,10 +60,12 @@ export default function HomeRoute() {
   const load = useCallback(async () => {
     const ticket = ++latestLoad.current;
     let documents: readonly VaultDocument[];
+    let readable = true;
     try {
       documents = await listDocuments();
     } catch {
       documents = [];
+      readable = false;
     }
     const openedAt = new Date();
 
@@ -85,7 +89,13 @@ export default function HomeRoute() {
     if (ticket !== latestLoad.current) return;
     vaultIds.current = new Set(recent.map((document) => document.id));
     setNow(openedAt);
-    setDashboard({ ...EMPTY_HOME_DASHBOARD, documentCounts, recentDocuments });
+    setDashboard({
+      ...EMPTY_HOME_DASHBOARD,
+      documentCounts,
+      recentDocuments,
+      // A vault that cannot be read hides the checklist, rather than calling everything missing.
+      checklist: readable ? coreChecklist(documents, openedAt) : [],
+    });
   }, [t]);
 
   useFocusEffect(
@@ -110,6 +120,12 @@ export default function HomeRoute() {
 
   const handleUpload = useCallback(() => {
     router.push('/import');
+  }, [router]);
+
+  const handleChecklistItem = useChecklistActions({ screen: 'home' });
+
+  const handleOpenChecklist = useCallback(() => {
+    router.push('/checklist');
   }, [router]);
 
   const handleOpenVault = useCallback(() => {
@@ -148,6 +164,8 @@ export default function HomeRoute() {
         now={now}
         onScan={handleScan}
         onUpload={handleUpload}
+        onChecklistItem={handleChecklistItem}
+        onOpenChecklist={handleOpenChecklist}
         onOpenNotifications={handleOpenNotifications}
         onOpenProfile={handleOpenProfile}
         onConnect={handleConnect}
