@@ -1,12 +1,11 @@
 # Assistigo.ai — agent instructions
 
-## Read first
+## Docs (search them, don't read them whole)
 
-1. `docs/MASTER_BUILD_SPEC.md` — the single source of truth for product scope.
-2. `docs/DEVELOPMENT_RULES.md` — coding standards and the non-negotiable product rules.
-3. The doc for the area you are touching: `ARCHITECTURE`, `DATABASE`, `SECURITY`,
-   `AI_PIPELINE`, `EXTENSION`, `FORM_ENGINE`, and `CITIZEN_MOBILE_APP_SPEC` for `apps/mobile`.
-4. `docs/ROADMAP.md` — current phase and status.
+`docs/MASTER_BUILD_SPEC.md` is the source of truth for scope; `docs/DEVELOPMENT_RULES.md` holds
+the non-negotiable product rules; `docs/ROADMAP.md` holds phase/status. Area docs: `ARCHITECTURE`,
+`DATABASE`, `SECURITY`, `AI_PIPELINE`, `EXTENSION`, `FORM_ENGINE`, `CITIZEN_MOBILE_APP_SPEC` (for
+`apps/mobile`). These are large — grep for the relevant section and read only that.
 
 ## Never do these
 
@@ -19,27 +18,9 @@
 
 ## Working loop
 
-```text
-read the relevant docs → plan a small task → implement → test → self-review → fix → summarise
-```
-
-Before coding, state: what you will build, which files you will touch, which tests you will add,
-and any privacy/security risk. After coding, run the checks and report the real output.
-
-## Commands
-
-```bash
-npm run dev            # dashboard on :3000
-npm run build:extension
-npm run dev:mobile     # Metro for the Expo citizen app (needs a dev build)
-npm run typecheck
-npm run lint
-npm test               # every Vitest project: unit, extension, mobile, rls
-npm run test:mobile
-npm run test:rls       # needs a local Supabase running
-npm run db:reset       # migrations
-npm run db:seed        # fake demo data
-```
+Before coding, state what you will build, files touched, tests added, and any privacy/security
+risk. Implement → test → self-review → fix. After coding, run `typecheck`, `lint`, `test` and
+report the real output.
 
 ## Conventions
 
@@ -50,8 +31,14 @@ npm run db:seed        # fake demo data
 - Authorization is checked server-side in every route handler, and again by RLS.
 - Every user-facing string goes through a translation key (`en` + `hi`).
 
+## Gotchas
+
+- `npm test` includes the `rls` project, which throws without a running local Supabase — that is
+  an environment failure, not a code bug. Use `--project unit` etc. to skip it, or see the
+  `local-supabase` skill.
+- `npm run dev:mobile` needs an Expo dev build, not Expo Go.
+
 ## Escalate, do not guess
 
-Stop and ask the product owner when a decision affects privacy, billing or legal risk —
-for example storing a new sensitive field, sending data to a third party, or changing what is
-retained.
+Stop and ask the product owner when a decision affects privacy, billing or legal risk — e.g.
+storing a new sensitive field, sending data to a third party, or changing what is retained.
