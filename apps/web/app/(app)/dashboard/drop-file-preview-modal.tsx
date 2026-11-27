@@ -5,6 +5,7 @@ import { Alert, Button, Spinner } from '@assistigo/ui';
 import { DOCUMENT_TYPE_LABELS, isDocumentType } from '@assistigo/core';
 import { useI18n } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/documents/format';
+import { DropFileQrCheck, type DropQrState } from './drop-file-qr-check';
 
 /**
  * A look at one staged walk-in file before it becomes anybody's document (§9.1).
@@ -18,6 +19,10 @@ import { formatBytes } from '@/lib/documents/format';
  * an `<img>` or `<iframe>` source, so the file lives in the browser's cache for five minutes and
  * nowhere else — the same handling as a document read, because a staged Aadhaar is no less
  * sensitive for not having been claimed yet.
+ *
+ * "Check QR code" reads the file's QR in this browser (`drop-file-qr-check.tsx`): the bytes are
+ * fetched from the same signed URL into a local variable, searched, and dropped; only the result
+ * is kept in state, and only while the modal is open.
  */
 
 type PreviewFile = {
@@ -43,6 +48,14 @@ export function DropFilePreviewModal({
   const [preview, setPreview] = useState<SignedPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [qr, setQr] = useState<DropQrState>({ status: 'idle' });
+  const open = useRef(true);
+  useEffect(() => {
+    open.current = true;
+    return () => {
+      open.current = false;
+    };
+  }, []);
   const closeRef = useRef<HTMLButtonElement | null>(null);
 
   const sign = useCallback(async (): Promise<SignedPreview | null> => {
@@ -115,6 +128,31 @@ export function DropFilePreviewModal({
     }
   }
 
+  async function checkQr() {
+    setQr({ status: 'checking' });
+    try {
+      // The preview URL may have lapsed while the operator looked: sign again if it has.
+      let response = preview ? await fetch(preview.url) : null;
+      if (!response?.ok) {
+        const signed = await sign();
+        response = signed ? await fetch(signed.url) : null;
+      }
+      if (!response?.ok) {
+        if (open.current) setQr({ status: 'failed' });
+        return;
+      }
+      const blob = await response.blob();
+      const { checkFileQr } = await import('@assistigo/document-tools/browser/qr');
+      const check = await checkFileQr(blob, file.mimeType, { cancelled: () => !open.current });
+      if (!open.current) return;
+      setQr(check ? { status: 'done', check } : { status: 'none' });
+    } catch (caught) {
+      if (!open.current) return;
+      const code = (caught as { code?: string }).code;
+      setQr({ status: code === 'PDF_PASSWORD_REQUIRED' ? 'locked' : 'failed' });
+    }
+  }
+
   const isImage = file.mimeType.startsWith('image/');
   const isPdf = file.mimeType === 'application/pdf';
   const typeLabel = isDocumentType(file.suggestedDocumentType)
@@ -153,6 +191,9 @@ export function DropFilePreviewModal({
         </header>
 
         <div className="min-h-0 flex-1 overflow-auto bg-slate-50 p-4">
+          <div className={qr.status === 'idle' ? undefined : 'mb-3'}>
+            <DropFileQrCheck state={qr} />
+          </div>
           {error ? (
             <Alert tone="danger">{t(error)}</Alert>
           ) : preview === null ? (
@@ -182,6 +223,17 @@ export function DropFilePreviewModal({
         </div>
 
         <footer className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3">
+          {isImage || isPdf ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={qr.status === 'checking'}
+              disabled={preview === null}
+              onClick={() => void checkQr()}
+            >
+              {t(qr.status === 'idle' ? 'documentDrop.qr.check' : 'documentDrop.qr.checkAgain')}
+            </Button>
+          ) : null}
           <Button variant="secondary" size="sm" loading={downloading} onClick={() => void download()}>
             {t('documentDrop.queue.download')}
           </Button>

@@ -19,6 +19,7 @@ const alias = {
     'packages/core/src/portal-credentials/hosts.ts',
   ),
   '@assistigo/core': path.resolve(root, 'packages/core/src/index.ts'),
+  '@assistigo/ai/on-device': path.resolve(root, 'packages/ai/src/on-device.ts'),
   '@assistigo/ai': path.resolve(root, 'packages/ai/src/index.ts'),
   '@assistigo/form-engine/types': path.resolve(root, 'packages/form-engine/src/types.ts'),
   '@assistigo/form-engine/safety': path.resolve(root, 'packages/form-engine/src/safety.ts'),
@@ -30,6 +31,7 @@ const alias = {
   ),
   '@assistigo/form-engine': path.resolve(root, 'packages/form-engine/src/index.ts'),
   '@assistigo/document-tools/autofit': path.resolve(root, 'packages/document-tools/src/autofit.ts'),
+  '@assistigo/document-tools/qr': path.resolve(root, 'packages/document-tools/src/qr/index.ts'),
   '@assistigo/document-tools/browser/image': path.resolve(
     root,
     'packages/document-tools/src/browser/image.ts',

@@ -27,6 +27,7 @@ export default async function OrganizationPage() {
           district: organization.district ?? '',
           state: organization.state ?? '',
           preferredLocale: organization.preferred_locale,
+          upiId: organization.upi_id ?? '',
         }}
       />
     </div>

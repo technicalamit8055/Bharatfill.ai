@@ -336,7 +336,22 @@ sample content (`components/*/demo.ts(x)`), which is not listed as built below.
 * **Built:** the §3 Feature 1.5 presets, opened by Home's ID Card / Photo / Signature shortcuts:
   ID card front then back, laid out on one A4 page at true ID-1 size at 300 dpi; passport photo
   cut to 35 × 45 mm (413 × 531 px at 300 dpi) with a gentle brightness correction only; signature
-  cleaned and cropped tight to its ink. The photo's background is left as photographed.
+  cleaned and cropped tight to its ink.
+* **Built (not yet checked on a phone):** studio passport photo. On Android with Google Play
+  services, Google's on-device face finder and person mask (ML Kit, local module
+  `apps/mobile/modules/on-device-vision`; models downloaded by Play services) frame the photo
+  around the face and replace the background with plain White (default) or Light blue, offered
+  as the photo's looks on review beside the photo as taken; saved as a JPEG within 50 KB
+  (`lib/scan/studio-photo.ts`). Without them, or with no face found, the background is left as
+  photographed and review says so.
+* **Built (not yet checked on a phone):** on-device OCR and auto-filing (`apps/mobile/lib/ocr`).
+  Save Document reads the pages on the phone (English and Devanagari), recognises the document
+  with the operator dashboard's classifier, fills in its type, name and folder unless the
+  citizen picked one, and shows the name, date of birth, roll / registration number and other
+  details it read. Vault search also finds documents by the text printed on them; documents
+  saved earlier are read in the background. The text and details stay on the phone, encrypted,
+  and are never synced; Aadhaar-like numbers are masked to their last four digits, and identity
+  numbers are not kept as details. They are shown, not yet written into the profile.
 * **Built:** Home reads the vault (counts per category, recent documents). The first run and the
   chosen language are remembered on the phone (no personal data), so later launches skip
   onboarding.
@@ -350,6 +365,61 @@ sample content (`components/*/demo.ts(x)`), which is not listed as built below.
   the Vault PIN). Locks on cold start and after a minute in the background; wrong PINs make the
   citizen wait (30 s doubling to an hour) but never erase anything. Set from registration step 3
   (offline builds) or Profile → Security.
+* **Built (not yet checked on a phone):** family profiles, "Ek Phone, Poora Parivar"
+  (`docs/RD_DAILY_STANDARD_BLUEPRINT.md` §3.1; `apps/mobile/lib/family`). Up to 8 members
+  (relation such as Papa / Mummy / Sister, optional name) kept in the encrypted vault index; each
+  document has an optional owner. A switcher (You · Papa · Mummy · + Add) on Home and the Vault
+  tab picks whose documents, counts and checklists show; a red dot marks a person with a
+  document expired or expiring within 30 days. Save Document files a scan under the person on
+  show, with "Whose document" to change it; Document Details → Move to family member moves it
+  later. Profile → Family members adds, renames, changes the relation, removes (deleting that
+  member's documents after saying how many), and shows each person's document count and
+  expired / expiring-soon count. Expiry reminders say whose document it is by relation only
+  ("Papa's document expires on …"), never a name or document. The switcher starts on the
+  citizen at every cold start. **A family member's documents stay on this phone only**: never
+  uploaded, never visible to centres; moving a synced document to a member deletes its cloud
+  copy. Sharing family documents with centres or backing them up needs a product-owner and
+  legal decision first (see Deviations).
+* **Built (not yet checked on a phone):** everyday papers and smart reminders, product owner
+  2026-11-26 (`apps/mobile/lib/vault/everyday.ts`). Save Document's type list also offers
+  Electricity Bill, Gas Bill, Vehicle RC, Vehicle Insurance, PUC Certificate, School Fee
+  Receipt, Land Record (Khatauni / Jamabandi), Medical Prescription and Warranty Card. Each is
+  stored as an "Other" document with an `everydayKind` kept only in the encrypted on-phone index,
+  so the `VAULT_BRIDGE_DESIGN.md` §15 rule keeps it **only on this phone**: never uploaded, never
+  read by the AI reader, never seen by a centre. The citizen can still share one on purpose with
+  the Save screen switch (a Khatauni for a PM-Kisan form), as with any "Other" document; the kind
+  itself is never synced. The Vault tab has an "Everyday" filter. Reminders are timed per kind:
+  bills 3 days before the due date, PUC 7 days, RC 60 days, insurance and certificates 30 days,
+  a prescription's follow-up 1 day, falling back to a later lead once one has passed. Insurance,
+  PUC and warranty cards start the date picker on a suggested validity (12 / 6 / 12 months) that
+  the citizen checks against the paper. A shorter guess only reminds early. Home shows "Coming
+  up": up to three dates inside their window ("PUC Certificate · Expires in 7 days"), or recently
+  passed (expired papers for 30 days, due dates for 3), with "Renew now" (certificates, RC,
+  insurance) or "Pay now" (bills) opening the nearby-centre finder. The lock-screen notification
+  still names no document: "A document in your vault expires in 7 days, on …" or "A due date
+  saved in your vault is in 3 days, on …". Open: one notification per document (iOS caps an app
+  at 64 pending); a reminder date cannot yet be changed after saving.
+
+* **Built (product owner request, 2026-11-26; not yet run on a phone with a real e-Aadhaar):**
+  DigiLocker / e-Aadhaar import and official QR verification. A layer on top of DigiLocker, not a
+  replacement (`MASTER_BUILD_SPEC` §4 non-goal stands): Upload → "DigiLocker or e-Aadhaar PDF"
+  picks a downloaded PDF (with a link to DigiLocker to download one first). A locked e-Aadhaar asks
+  only for the year of birth; the four name letters of UIDAI's rule are filled in from the
+  account name and editable, at most two readings are tried, and nothing typed is stored. Save
+  Document then checks the pages' QR code on the phone (`@assistigo/document-tools/qr`):
+  an Aadhaar Secure QR is verified against UIDAI's published public keys (all seven certificates
+  on uidai.gov.in/en/data-and-download, embedded with their SHA-256 fingerprints; "not
+  confirmed", never "fake", when no key matches); the pre-2019 XML QR is shown as unsigned; an
+  e-District / DigiLocker certificate's link is shown as official only for `*.gov.in` /
+  `*.nic.in` and opened on tap; a PAN QR is pointed to the Income Tax Department's reader.
+  The check runs by itself for PDFs, ID-card scans and Aadhaar / PAN / certificate types, and on
+  "Check QR code" otherwise; Document Details can check a saved document. Only a summary is kept
+  in the encrypted index (`qrCheck`: result, time, link host) — never the code's name, address,
+  number or full link — and it is never synced. Operators get the same check in their own
+  browser on a walk-in file's preview (Dashboard → document drop → Preview → Check QR code), so
+  the dashboard never trusts the phone's claim. The Secure QR byte layout follows UIDAI's
+  reference readers (UIDAI's specification PDF is no longer online): to confirm on a real
+  e-Aadhaar before release.
 
 ### Phase 2 — partly built, switched off by default
 Designed in `docs/VAULT_BRIDGE_DESIGN.md`, which replaces §5's schema (migration 0038).
@@ -378,8 +448,8 @@ them the app is offline-only and nothing leaves the phone.
 * **Not built:** access-alert push notifications, access modes A / B / C.
 
 ### Other features in the spec, not built
-Passport-photo background replacement; dewarping of curled pages; finger
-removal in the in-app camera (Google's scanner does its own); on-device OCR field extraction.
+Dewarping of curled pages; finger removal in the in-app camera (Google's scanner does its own);
+offering on-device details into the citizen's profile.
 
 ### Deviations from this spec
 * **Uploaded PDFs are kept as page images**, like scans, so the vault viewer, portal-size export
@@ -406,3 +476,10 @@ removal in the in-app camera (Google's scanner does its own); on-device OCR fiel
   expiry date; no server) and a Connect tab with a nearby-CSC finder and centre details. The
   finder has no centre directory or location access yet, so release builds show no centres; its
   directions, calling and Connect & Share actions are not built.
+* **Added beyond §3 — family profiles (needs product-owner and legal review):** the citizen
+  stores other people's documents, including adults'. These stay on the phone because the cloud
+  vault, share codes and centre approvals all belong to one signed-in citizen, so a synced Papa's
+  Aadhaar would reach a centre as the citizen's own. Open questions before family documents may
+  sync or be shared: whether an adult member must consent (DPDP Act 2023) and how, whether a
+  centre may fill a form for a member from the citizen's approval, and how a member's
+  documents are kept apart in the cloud vault and the operator dashboard.

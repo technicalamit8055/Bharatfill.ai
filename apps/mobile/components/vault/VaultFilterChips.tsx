@@ -1,9 +1,10 @@
 /**
- * All / Folders / Recent / Starred. The chips share the row equally, and the chosen one fills
- * with brand blue.
+ * All / Folders / Everyday / Recent / Starred. The chips stretch to fill the row when they fit,
+ * and the row scrolls sideways on a narrow phone or in Hindi instead of squeezing the labels. The
+ * chosen one fills with brand blue.
  */
 
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
 import { useTranslation } from '../../lib/i18n/I18nProvider';
 import { VAULT_FILTERS, type VaultFilter } from '../../lib/vault/vault-screen';
@@ -18,7 +19,12 @@ export function VaultFilterChips({ selected, onSelect }: VaultFilterChipsProps) 
   const { t } = useTranslation();
 
   return (
-    <View style={styles.row} accessibilityRole="tablist">
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.row}
+      accessibilityRole="tablist"
+    >
       {VAULT_FILTERS.map((filter) => {
         const isSelected = filter === selected;
         return (
@@ -33,30 +39,25 @@ export function VaultFilterChips({ selected, onSelect }: VaultFilterChipsProps) 
               pressed && !isSelected && styles.pressed,
             ]}
           >
-            <Text
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.85}
-              style={[styles.label, isSelected && styles.labelSelected]}
-            >
+            <Text numberOfLines={1} style={[styles.label, isSelected && styles.labelSelected]}>
               {t(`vault.filters.${filter}`)}
             </Text>
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
+    flexGrow: 1,
     gap: 8,
   },
   chip: {
-    flex: 1,
+    flexGrow: 1,
     height: 42,
-    paddingHorizontal: 6,
+    paddingHorizontal: 14,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,

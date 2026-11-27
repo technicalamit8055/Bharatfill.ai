@@ -13,18 +13,45 @@
 import { coreChecklist } from '../../lib/checklist/checklist';
 import type { HomeDashboard } from '../../lib/home/dashboard';
 import type { Translate } from '../../lib/i18n';
+import { localDateParts, toIsoDate } from '../../lib/profile/date-of-birth';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
 export function demoHomeDashboard(now: Date, t: Translate): HomeDashboard {
   const ago = (ms: number) => new Date(now.getTime() - ms);
+  const inDays = (days: number) =>
+    toIsoDate(localDateParts(new Date(now.getTime() + days * DAY_MS)));
 
   return {
     citizenName: 'Amit Kumar',
     hasUnreadNotifications: true,
     documentCounts: { identity: 3, academic: 2, certificate: 4, form_asset: 3 },
     checklist: coreChecklist([], now),
+    upcoming: [
+      {
+        id: 'demo-puc',
+        title: t('everydayKinds.vehicle_puc'),
+        expiresOn: inDays(7),
+        days: 7,
+        state: 'soon',
+        dateMeaning: 'expires',
+        action: null,
+        documentType: 'generic',
+        everydayKind: 'vehicle_puc',
+      },
+      {
+        id: 'demo-income',
+        title: t('documentTypes.income_certificate'),
+        expiresOn: inDays(30),
+        days: 30,
+        state: 'soon',
+        dateMeaning: 'expires',
+        action: 'renew',
+        documentType: 'income_certificate',
+        everydayKind: null,
+      },
+    ],
     recentDocuments: [
       {
         id: 'demo-aadhaar',

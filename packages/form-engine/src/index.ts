@@ -19,3 +19,6 @@ export * from './documents';
 export * from './requirement-checklist';
 export * from './constraints';
 export * from './auto-match';
+export * from './contributions';
+export * from './portal-targets';
+export * from './ai-mapping';

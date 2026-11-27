@@ -16,6 +16,7 @@ import { normaliseFullName } from './profile';
 /** The settings rows under the account card, in display order. Copy at `profile.menu.<item>`. */
 export const PROFILE_MENU_ITEMS = [
   'personal',
+  'family',
   'security',
   'centres',
   'notifications',

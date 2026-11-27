@@ -56,6 +56,12 @@ export type VaultDocumentView = {
   updatedAt: string;
   /** The centre that added it for the citizen (0047), so the phone can pull it in; else null. */
   addedByCentre: string | null;
+  /**
+   * Whether a centre the citizen approves can use it: the customer-side copy (0041) exists.
+   * False for a ready file whose copy failed, so the phone can say so — copying is retried on
+   * every list, and a failure is otherwise invisible to the citizen.
+   */
+  centreReady: boolean;
 };
 
 const COLUMNS =
@@ -76,6 +82,7 @@ function toView(row: CitizenVaultDocumentRow): VaultDocumentView {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     addedByCentre: row.added_by_centre_name ?? null,
+    centreReady: row.status === 'ready' && Boolean(row.mirror_document_id),
   };
 }
 
@@ -256,10 +263,15 @@ export async function confirmUpload(
   const ready = updated as CitizenVaultDocumentRow;
 
   // Now the operator side: the same file as a customer document, read like any upload (0041).
-  // Never fails the phone's sync — `listVaultDocuments` retries anything left behind.
+  // Never fails the phone's sync — `listVaultDocuments` retries anything left behind — but the
+  // view says whether it worked, so the phone can tell the citizen.
+  let mirrorId: string | null = null;
   try {
     const customerId = await ensureAppCustomer(context.admin, context);
-    if (customerId) await mirrorVaultDocument(context.admin, context.citizenId, customerId, ready);
+    if (customerId) {
+      mirrorId =
+        (await mirrorVaultDocument(context.admin, context.citizenId, customerId, ready)) || null;
+    }
   } catch (thrown) {
     logger.warn('citizen.mirror_failed', {
       citizenId: context.citizenId,
@@ -267,7 +279,7 @@ export async function confirmUpload(
       ...mirrorFailure(thrown),
     });
   }
-  return toView(ready);
+  return toView({ ...ready, mirror_document_id: mirrorId });
 }
 
 async function mirrorQuietly(context: CitizenContext): Promise<void> {

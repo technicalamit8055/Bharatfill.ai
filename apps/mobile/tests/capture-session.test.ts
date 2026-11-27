@@ -20,6 +20,8 @@ let composeFails = false;
 const renderedPresets: string[] = [];
 /** Per photo analysed, whether the page was searched for (`findPage`). */
 const searchedForPage: boolean[] = [];
+/** Whether the mocked phone can cut a person out for a studio passport photo. */
+let studioAvailable = false;
 
 vi.mock('expo-crypto', () => {
   let next = 0;
@@ -34,6 +36,7 @@ vi.mock('../lib/vault/vault-storage', () => ({
 }));
 
 vi.mock('../lib/scan/document-vision', () => ({
+  studioPhotoAvailable: () => studioAvailable,
   composeIdCardSheet: async (sides: readonly { uri: string }[]) => {
     if (composeFails) throw new Error('compose failed');
     composed.push(sides.map((side) => side.uri));
@@ -149,6 +152,16 @@ describe('platform scanner pages', () => {
     session.addPhotos(['file:///cache/ml.jpg'], 'platform');
     await session.saveSession();
     expect(vi.mocked(vault.saveDocument).mock.calls[0]?.[1]).toBe('scanner');
+  });
+
+  it('save the text the phone read off them with the document, for search', async () => {
+    session.addPhotos(['file:///cache/ml.jpg'], 'platform');
+    await session.saveSession({ title: 'Marksheet' }, 'ROLL NO 1234567');
+    expect(vi.mocked(vault.saveDocument).mock.calls[0]?.slice(2)).toEqual([
+      { title: 'Marksheet' },
+      undefined,
+      'ROLL NO 1234567',
+    ]);
   });
 });
 
@@ -438,6 +451,19 @@ describe('presets', () => {
     expect(session.getSession().pages[0]?.filter).toBe('magic');
   });
 
+  it('starts a passport photo on plain white when the phone can cut the person out', async () => {
+    studioAvailable = true;
+    try {
+      session.startSession('photo');
+      // Even a photo from the gallery: it is a portrait, not a page that arrives cleaned.
+      session.addPhotos(['file:///cache/selfie.jpg'], 'gallery');
+      expect(session.getSession().pages[0]?.filter).toBe('studioWhite');
+      await settle();
+    } finally {
+      studioAvailable = false;
+    }
+  });
+
   it('goes back to an ordinary document once the session is discarded', () => {
     session.startSession('signature');
     session.discardSession();
@@ -507,6 +533,8 @@ describe('saving an ID card', () => {
       [{ uri: 'file:///cache/sheet.jpg', mimeType: 'image/jpeg' }],
       'scanner',
       { title: 'Card' },
+      undefined,
+      undefined,
     );
     expect(discarded).toContain('file:///cache/sheet.jpg');
     expect(session.getSession()).toMatchObject({ pages: [], preset: 'document' });
@@ -521,6 +549,8 @@ describe('saving an ID card', () => {
       sides.map((uri) => ({ uri, mimeType: 'image/jpeg' })),
       'scanner',
       {},
+      undefined,
+      undefined,
     );
   });
 

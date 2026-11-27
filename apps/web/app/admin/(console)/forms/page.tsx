@@ -2,7 +2,15 @@ import { z } from 'zod';
 import { requirePlatformPagePermission } from '@/lib/admin/session';
 import { getTranslations } from '@/lib/i18n/server';
 import type { PortalAdapterRow } from '@/lib/supabase/database.types';
-import { AdminCard, AdminEmpty, AdminNote, AdminPageHeader, AdminTable, TH } from '../ui';
+import {
+  AdminCard,
+  AdminEmpty,
+  AdminLinkButton,
+  AdminNote,
+  AdminPageHeader,
+  AdminTable,
+  TH,
+} from '../ui';
 import { AdapterRow } from './adapter-row';
 
 export const metadata = { title: 'Portal forms' };
@@ -50,7 +58,15 @@ export default async function AdminFormsPage({
 
   return (
     <>
-      <AdminPageHeader title={t('admin.forms.title')} description={t('admin.forms.subtitle')} />
+      <AdminPageHeader
+        title={t('admin.forms.title')}
+        description={t('admin.forms.subtitle')}
+        actions={
+          <AdminLinkButton href="/admin/forms/contributions">
+            {t('admin.forms.contributionsLink')}
+          </AdminLinkButton>
+        }
+      />
 
       <AdminNote>{t('admin.forms.safetyNote')}</AdminNote>
 

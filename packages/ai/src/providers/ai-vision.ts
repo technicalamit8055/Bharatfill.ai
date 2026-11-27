@@ -354,6 +354,20 @@ export class AiVisionOcrProvider implements OcrProvider {
   }
 
   /**
+   * A text-only completion over the same three wire formats, for callers that are not reading a
+   * document — AI-assisted field mapping (packages/form-engine/src/ai-mapping.ts), which sends
+   * cleaned form metadata and no customer data. Unlike `extract`, there is no document opt-in to
+   * check here: what is sent is decided and cleaned by the caller. Throws a typed provider error
+   * on failure or timeout; the vendor's reply is returned as-is for the caller to validate.
+   */
+  async completeText(
+    systemPrompt: string,
+    userText: string,
+  ): Promise<{ text: string; requestId: string | null }> {
+    return this.complete(systemPrompt, [{ type: 'text', text: userText }]);
+  }
+
+  /**
    * Sends a trivial, harmless prompt so a settings page can confirm an endpoint and key work
    * without processing any document. Never throws: a settings UI wants a pass/fail and a reason,
    * not an exception to catch (§7.3.4.12).

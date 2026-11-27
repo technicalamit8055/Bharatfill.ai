@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./types": "./src/types.ts",
+    "./on-device": "./src/on-device.ts",
     "./providers": "./src/providers/index.ts"
   },
   "scripts": {

@@ -19,11 +19,12 @@ export type PipelineApplicationView = {
   customerName: string | null;
   deadlineOn: string | null;
   amountCharged: number | null;
-  paymentStatus: 'unpaid' | 'paid' | 'refunded' | null;
+  paymentStatus: 'unpaid' | 'partial' | 'paid' | 'refunded' | null;
 };
 
 const PAYMENT_TONE: Record<string, Tone> = {
   unpaid: 'warning',
+  partial: 'warning',
   paid: 'success',
   refunded: 'neutral',
 };

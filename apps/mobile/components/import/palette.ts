@@ -29,6 +29,9 @@ export const importPalette = {
   photosIcon: '#1D6BFF',
   filesTile: '#E8F7F8',
   filesIcon: '#0E8C95',
+  /** DigiLocker / e-Aadhaar: saffron, set apart from the everyday choices. */
+  officialTile: '#FFF3E6',
+  officialIcon: '#B45309',
 
   /** The privacy note. */
   noteSurface: '#EEF6EF',

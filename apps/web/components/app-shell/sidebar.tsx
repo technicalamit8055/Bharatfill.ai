@@ -13,6 +13,7 @@ import {
   DocumentsIcon,
   ToolsIcon,
   ApplicationsIcon,
+  KhataIcon,
   LibraryIcon,
   FillSessionsIcon,
   BillingIcon,
@@ -54,6 +55,8 @@ const PRIMARY: NavItem[] = [
     icon: ApplicationsIcon,
     permission: 'application.view',
   },
+  // The counter's cash book (migration 0050): the first screen of the morning at most centres.
+  { href: '/khata', labelKey: 'nav.khata', icon: KhataIcon, permission: 'application.view' },
   // Sits in the primary group: it is the first thing an operator opens when a walk-in has no
   // specific form in mind, which is most walk-ins.
   { href: '/schemes', labelKey: 'nav.schemes', icon: SchemesIcon, permission: 'customer.view' },

@@ -108,6 +108,11 @@ export default function ProfileRoute() {
         router.push('/account-details');
         return;
       }
+      // Family members live in the on-phone vault: signed in or not, in every build.
+      if (item === 'family') {
+        router.push('/family');
+        return;
+      }
       // App lock is on the phone alone, so it works signed in or not, and in every build.
       if (item === 'security') {
         router.push('/security');

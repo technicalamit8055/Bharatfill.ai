@@ -118,6 +118,13 @@ const serverSchema = z.object({
    */
   SCRAPER_HTTP_ENABLED: z.enum(['on', 'off']).default('off'),
   /**
+   * AI-assisted field mapping (§14.3 priority 5, docs/FORM_ENGINE.md §6d). On by default, like
+   * AI document reading (DEVELOPMENT_RULES rule 10). It sends cleaned field metadata only — never
+   * a customer value. `off` is an operational kill switch (cost, vendor outage), not a per-centre
+   * consent setting.
+   */
+  AI_FIELD_MAPPING: z.enum(['on', 'off']).default('on'),
+  /**
    * Whether "Continue with Google" on the sign-in screen starts an OAuth flow.
    *
    * Off by default. Turning it on also needs the Google provider configured in Supabase Auth,

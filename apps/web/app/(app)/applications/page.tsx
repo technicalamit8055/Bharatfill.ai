@@ -26,6 +26,7 @@ const BUTTON_LINK =
 
 const PAYMENT_TONE: Record<string, 'neutral' | 'success' | 'warning'> = {
   unpaid: 'warning',
+  partial: 'warning',
   paid: 'success',
   refunded: 'neutral',
 };

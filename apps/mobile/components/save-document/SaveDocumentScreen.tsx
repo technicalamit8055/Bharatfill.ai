@@ -5,7 +5,10 @@
  * reminder.
  *
  * Picking a type names the document after it until the citizen types a name of their own, and
- * files it in that type's folder until they pick one. A preset scan (a passport photo, a signature)
+ * files it in that type's folder until they pick one. The picker also lists everyday papers (an
+ * electricity bill, a bike's PUC, a warranty card): saved as "Other", they stay on this phone,
+ * and the reminder card speaks of a due date for a bill and starts the picker on a suggested
+ * date (insurance a year out) that the citizen checks against the paper. A preset scan (a passport photo, a signature)
  * arrives with its type already picked. With cloud sync on, the security card says whether the
  * document will be ready for a cyber cafe or stay on this phone: set from the type (Aadhaar is
  * shared, "Other" stays here), so most people never touch its switch. The form lives here; the route
@@ -26,15 +29,15 @@ import {
   CloudUpload,
   ChevronLeft,
   Crop,
-  FileText,
   FolderOpen,
   Plus,
   ShieldCheck,
   Smartphone,
+  Users,
   X,
   XCircle,
 } from 'lucide-react-native';
-import { useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -54,24 +57,30 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { memberIdFromValue, SELF } from '../../lib/family/family';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
+import type { ReadingState } from '../../lib/ocr/use-document-reading';
 import { formatDateOfBirth, MONTH_KEYS } from '../../lib/profile/date-of-birth';
 import type { SessionPage } from '../../lib/scan/capture-session';
 import { categoryOf, VAULT_CATEGORIES, type VaultCategoryKey } from '../../lib/vault/categories';
+import { type EverydayKind, reminderRuleFor, suggestedDate } from '../../lib/vault/everyday';
 import {
   addTag,
   categoryAfterTypeChange,
-  documentTypeLabelKey,
   expiryYearOptions,
   MAX_EXPIRY_YEARS,
   phoneOnlyFor,
   reminderTime,
   removeTag,
-  SAVE_DOCUMENT_TYPES,
+  resolveTypeChoice,
+  SAVE_TYPE_CHOICES,
   type SaveDocumentErrors,
   type ScanStatus,
   scanStatus,
   titleAfterTypeChange,
+  type TypeChoice,
+  typeChoiceLabelKey,
+  typeChoiceOf,
   validateSaveDocument,
 } from '../../lib/vault/save-document';
 import {
@@ -83,13 +92,15 @@ import {
 import { DateOfBirthSheet } from '../registration/DateOfBirthSheet';
 import { OptionSheet, type SheetOption } from '../registration/OptionSheet';
 import { PageZoomViewer } from '../scanner/PageZoomViewer';
-import { VAULT_CATEGORY_ICONS } from '../vault/categoryIcons';
+import { documentIcon } from '../vault/everydayIcons';
 import { saveDocumentPalette as palette } from './palette';
+import { ReadingCard } from './ReadingCard';
 
 const NO_FOLDER = 'none';
+const NOT_READING: ReadingState = { status: 'idle' };
 type FolderChoice = VaultCategoryKey | typeof NO_FOLDER;
 
-type Sheet = 'type' | 'folder' | 'expiry' | null;
+type Sheet = 'owner' | 'type' | 'folder' | 'expiry' | null;
 
 type TagNotice = 'duplicate' | 'full' | null;
 
@@ -106,25 +117,49 @@ export type SaveDocumentScreenProps = {
   readonly onEnableReminder: () => Promise<boolean>;
   /** The validated details; `expiresOn` is set when the reminder is on. */
   readonly onSave: (details: DocumentDetails) => void;
+  /**
+   * Whose document it is: "You" (`SELF`) and each family member. Fewer than two hides the
+   * choice. A family member's document always stays on this phone.
+   */
+  readonly owners?: readonly SheetOption<string>[];
+  /** The person picked on Home or the Vault tab. */
+  readonly initialOwner?: string;
+  /**
+   * What the phone read off the pages (`lib/ocr`). A type it recognises is filled in while the
+   * citizen has not picked one, naming the document and choosing its folder like a pick would.
+   */
+  readonly reading?: ReadingState;
+  /** The QR check card, shown under the scan (`QrCheckCard`); the route runs the check. */
+  readonly qrCard?: ReactNode;
+  /**
+   * A type the document's QR code points to (an Aadhaar Secure QR → Aadhaar), filled in once
+   * while the citizen has not picked a type themselves.
+   */
+  readonly suggestedType?: DocumentType | null;
 };
 
 export function SaveDocumentScreen({
   pages,
   saving,
   initialType,
+  owners = [],
+  initialOwner = SELF,
   cloudSync,
   onBack,
   onEditScan,
   onEnableReminder,
   onSave,
+  reading = NOT_READING,
+  qrCard,
+  suggestedType = null,
 }: SaveDocumentScreenProps) {
   const { t } = useTranslation();
   const [now] = useState(() => new Date());
 
-  const [title, setTitle] = useState(() =>
-    initialType ? t(documentTypeLabelKey(initialType)) : '',
-  );
+  const [title, setTitle] = useState(() => (initialType ? t(typeChoiceLabelKey(initialType)) : ''));
   const [documentType, setDocumentType] = useState<DocumentType | null>(initialType);
+  const [everydayKind, setEverydayKind] = useState<EverydayKind | null>(null);
+  const typeChoice = typeChoiceOf(documentType, everydayKind);
   const [category, setCategory] = useState<VaultCategoryKey | null>(() =>
     initialType ? categoryOf(initialType) : null,
   );
@@ -135,6 +170,11 @@ export function SaveDocumentScreen({
   /** The citizen's own sharing choice; null follows the type and folder. */
   const [phoneOnlyChoice, setPhoneOnlyChoice] = useState<boolean | null>(null);
   const [askingPermission, setAskingPermission] = useState(false);
+  const [owner, setOwner] = useState(() =>
+    owners.some((option) => option.value === initialOwner) ? initialOwner : SELF,
+  );
+  const ownerLabel = owners.find((option) => option.value === owner)?.label ?? null;
+  const forFamily = owner !== SELF;
 
   const [sheet, setSheet] = useState<Sheet>(null);
   const [errors, setErrors] = useState<Readonly<SaveDocumentErrors>>({});
@@ -147,13 +187,20 @@ export function SaveDocumentScreen({
       return next;
     });
 
-  const typeLabel = (type: DocumentType) => t(documentTypeLabelKey(type));
+  const typeLabel = (choice: TypeChoice) => t(typeChoiceLabelKey(choice));
   const monthNames = useMemo(() => MONTH_KEYS.map((key) => t(`profileSetup.months.${key}`)), [t]);
   const expiryYears = useMemo(() => expiryYearOptions(now), [now]);
+  /** How this type's date is read and reminded: a bill has a due date, a PUC expires. */
+  const rule = reminderRuleFor({
+    ...(documentType ? { documentType } : {}),
+    ...(everydayKind ? { everydayKind } : {}),
+  });
+  const due = rule.dateMeaning === 'due';
+  const suggested = suggestedDate(rule, now);
 
-  const typeOptions = useMemo<SheetOption<DocumentType>[]>(
+  const typeOptions = useMemo<SheetOption<TypeChoice>[]>(
     () =>
-      SAVE_DOCUMENT_TYPES.map((type) => ({ value: type, label: t(documentTypeLabelKey(type)) })),
+      SAVE_TYPE_CHOICES.map((choice) => ({ value: choice, label: t(typeChoiceLabelKey(choice)) })),
     [t],
   );
   const folderOptions = useMemo<SheetOption<FolderChoice>[]>(
@@ -164,14 +211,51 @@ export function SaveDocumentScreen({
     [t],
   );
 
-  const pickType = (next: DocumentType) => {
+  const pickType = (next: TypeChoice) => {
+    const resolved = resolveTypeChoice(next);
     setTitle((current) =>
-      titleAfterTypeChange(current, documentType ? typeLabel(documentType) : null, typeLabel(next)),
+      titleAfterTypeChange(current, typeChoice ? typeLabel(typeChoice) : null, typeLabel(next)),
     );
-    setDocumentType(next);
-    setCategory((current) => categoryAfterTypeChange(current, categoryChosen, next));
+    setDocumentType(resolved.documentType);
+    setEverydayKind(resolved.everydayKind);
+    setCategory((current) =>
+      categoryAfterTypeChange(current, categoryChosen, resolved.documentType),
+    );
     clearError('documentType', 'title');
   };
+
+  /** The type the reading filled in, while it stands; the citizen's own pick clears it. */
+  const [filledByReading, setFilledByReading] = useState<TypeChoice | null>(null);
+  const typePicked = useRef(false);
+  const suggestion = reading.status === 'done' ? reading.reading.suggestedType : null;
+  useEffect(() => {
+    if (!suggestion || typePicked.current || documentType !== null) return;
+    if (!SAVE_TYPE_CHOICES.includes(suggestion)) return;
+    pickType(suggestion);
+    setFilledByReading(suggestion);
+    // Once per suggestion: `pickType` reads the form as it is when the reading lands.
+  }, [suggestion]);
+
+  const pickTypeByHand = (next: TypeChoice) => {
+    typePicked.current = true;
+    setFilledByReading(null);
+    pickType(next);
+  };
+
+  // The QR check finishes after the screen opens. Its type is filled in once, never over the
+  // citizen's own pick; it may replace a type the reading guessed, a code being the surer sign.
+  const qrSuggestionApplied = useRef(false);
+  const pickTypeRef = useRef(pickType);
+  pickTypeRef.current = pickType;
+  const guessedByReading = filledByReading !== null && typeChoice === filledByReading;
+  useEffect(() => {
+    if (!suggestedType || qrSuggestionApplied.current || typePicked.current) return;
+    if (documentType !== null && !guessedByReading) return;
+    qrSuggestionApplied.current = true;
+    if (documentType === suggestedType) return;
+    pickTypeRef.current(suggestedType);
+    setFilledByReading(null);
+  }, [documentType, guessedByReading, suggestedType]);
 
   const pickFolder = (next: FolderChoice) => {
     setCategory(next === NO_FOLDER ? null : next);
@@ -205,10 +289,12 @@ export function SaveDocumentScreen({
       {
         title,
         documentType,
+        everydayKind,
         category,
         tags,
         expiresOn: reminderOn ? expiresOn : null,
         phoneOnly: cloudSync ? phoneOnlyChoice : null,
+        memberId: memberIdFromValue(owner),
       },
       new Date(),
     );
@@ -278,6 +364,33 @@ export function SaveDocumentScreen({
               <StatusCard status={status} />
             </View>
 
+            {/* ---- What the document's QR code proves (route-owned) ---- */}
+            {qrCard ?? null}
+
+            {/* ---- What the phone read ---- */}
+            <ReadingCard
+              state={reading}
+              filledType={
+                filledByReading !== null && typeChoice === filledByReading
+                  ? typeLabel(filledByReading)
+                  : null
+              }
+            />
+
+            {/* ---- Whose document ---- */}
+            {owners.length > 1 ? (
+              <>
+                <FieldLabel label={t('family.saveFor.label')} />
+                <SelectField
+                  icon={Users}
+                  value={ownerLabel}
+                  placeholder={t('family.you')}
+                  accessibilityLabel={t('family.saveFor.label')}
+                  onPress={() => setSheet('owner')}
+                />
+              </>
+            ) : null}
+
             {/* ---- Name ---- */}
             <FieldLabel label={t('saveDocument.name.label')} />
             <NameField
@@ -293,9 +406,9 @@ export function SaveDocumentScreen({
             {/* ---- Type ---- */}
             <FieldLabel label={t('saveDocument.type.label')} />
             <SelectField
-              icon={documentType ? typeIcon(documentType) : FileText}
+              icon={documentIcon(documentType, everydayKind)}
               iconBadge
-              value={documentType ? typeLabel(documentType) : null}
+              value={typeChoice ? typeLabel(typeChoice) : null}
               placeholder={t('saveDocument.type.placeholder')}
               accessibilityLabel={t('saveDocument.type.label')}
               invalid={errors.documentType !== undefined}
@@ -320,7 +433,19 @@ export function SaveDocumentScreen({
             <TagEditor tags={tags} onChange={setTags} />
 
             {/* ---- Security note, or where the document will be ---- */}
-            {cloudSync ? (
+            {forFamily ? (
+              <View style={styles.secureCard}>
+                <View style={styles.secureBadge}>
+                  <Smartphone color={palette.onBrand} size={26} strokeWidth={2} />
+                </View>
+                <View style={styles.cardCopy}>
+                  <Text style={styles.cardTitle}>
+                    {t('family.saveFor.phoneTitle', { name: ownerLabel ?? '' })}
+                  </Text>
+                  <Text style={styles.cardBody}>{t('family.saveFor.phoneBody')}</Text>
+                </View>
+              </View>
+            ) : cloudSync ? (
               <SharingCard
                 phoneOnly={phoneOnly}
                 onChange={(shared) => setPhoneOnlyChoice(!shared)}
@@ -355,10 +480,10 @@ export function SaveDocumentScreen({
                   </Text>
                   <Text style={styles.cardBody}>
                     {reminderOn && expiresOn
-                      ? t('saveDocument.reminder.expiresOn', {
+                      ? t(due ? 'saveDocument.reminder.dueOn' : 'saveDocument.reminder.expiresOn', {
                           date: formatDateOfBirth(expiresOn, monthNames) ?? expiresOn,
                         })
-                      : t('saveDocument.reminder.body')}
+                      : t(due ? 'saveDocument.reminder.bodyDue' : 'saveDocument.reminder.body')}
                   </Text>
                 </View>
                 {askingPermission ? (
@@ -378,8 +503,12 @@ export function SaveDocumentScreen({
                 <View style={styles.reminderFooter}>
                   <Text style={styles.reminderHint}>
                     {t('saveDocument.reminder.when', {
-                      date: formatReminderDate(reminderTime(expiresOn, now), monthNames),
+                      date: formatReminderDate(
+                        reminderTime(expiresOn, now, rule.leadDays),
+                        monthNames,
+                      ),
                     })}
+                    {expiresOn === suggested ? `\n${t('saveDocument.reminder.checkPaper')}` : ''}
                   </Text>
                   <Pressable
                     accessibilityRole="button"
@@ -431,13 +560,26 @@ export function SaveDocumentScreen({
         </View>
       </SafeAreaView>
 
+      {sheet === 'owner' ? (
+        <OptionSheet
+          title={t('family.saveFor.sheetTitle')}
+          closeLabel={t('saveDocument.sheetClose')}
+          options={owners}
+          selected={owner}
+          onSelect={(next) => {
+            setOwner(next);
+            setSheet(null);
+          }}
+          onClose={() => setSheet(null)}
+        />
+      ) : null}
       {sheet === 'type' ? (
         <OptionSheet
           title={t('saveDocument.type.sheetTitle')}
           closeLabel={t('saveDocument.sheetClose')}
           options={typeOptions}
-          selected={documentType}
-          onSelect={pickType}
+          selected={typeChoice}
+          onSelect={pickTypeByHand}
           onClose={() => setSheet(null)}
         />
       ) : null}
@@ -453,9 +595,11 @@ export function SaveDocumentScreen({
       ) : null}
       {sheet === 'expiry' ? (
         <DateOfBirthSheet
-          title={t('saveDocument.reminder.sheetTitle')}
+          title={t(
+            due ? 'saveDocument.reminder.sheetTitleDue' : 'saveDocument.reminder.sheetTitle',
+          )}
           years={expiryYears}
-          value={expiresOn}
+          value={expiresOn ?? suggested}
           onConfirm={confirmExpiry}
           onClose={() => setSheet(null)}
         />
@@ -506,11 +650,6 @@ function SharingCard({
 function formatReminderDate(at: Date | null, monthNames: readonly string[]): string {
   if (!at) return '';
   return `${at.getDate()} ${monthNames[at.getMonth()] ?? at.getMonth() + 1} ${at.getFullYear()}`;
-}
-
-function typeIcon(type: DocumentType): LucideIcon {
-  const category = categoryOf(type);
-  return category ? VAULT_CATEGORY_ICONS[category] : FileText;
 }
 
 // ---- Scan preview ---------------------------------------------------------------------------

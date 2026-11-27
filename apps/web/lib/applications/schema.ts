@@ -3,7 +3,11 @@
  */
 
 import { z } from 'zod';
-import { APPLICATION_DOCUMENT_STATUSES, APPLICATION_STATUSES } from '@assistigo/core';
+import {
+  APPLICATION_DOCUMENT_STATUSES,
+  APPLICATION_STATUSES,
+  MAX_BILL_AMOUNT,
+} from '@assistigo/core';
 
 const trimmedString = (max: number) => z.string().trim().max(max);
 
@@ -19,7 +23,18 @@ export const APPLICATION_CATEGORIES = [
 ] as const;
 export type ApplicationCategory = (typeof APPLICATION_CATEGORIES)[number];
 
+/**
+ * The statuses an operator may still set by hand on an application with no counter bill. Once
+ * fees are set the database derives the status from the khata (migration 0050), adding 'partial'.
+ */
 export const APPLICATION_PAYMENT_STATUSES = ['unpaid', 'paid', 'refunded'] as const;
+
+const feeLine = z.coerce
+  .number()
+  .finite()
+  .nonnegative()
+  .max(MAX_BILL_AMOUNT)
+  .transform((value) => Math.round(value * 100) / 100);
 
 /** Shared with the create form's character counter, so the UI cap and the API cap agree. */
 export const APPLICATION_NOTES_MAX = 2000;
@@ -54,6 +69,9 @@ export const createApplicationSchema = z.object({
   deadlineAt: z.string().trim().optional(),
   amountCharged: z.coerce.number().nonnegative().optional(),
   paymentStatus: z.enum(APPLICATION_PAYMENT_STATUSES).optional(),
+  /** Counter bill lines (0050). When either is given, it replaces `amountCharged`. */
+  govtFee: feeLine.optional(),
+  serviceCharge: feeLine.optional(),
   assignedTo: z.string().uuid().optional(),
   notes: trimmedString(APPLICATION_NOTES_MAX).optional(),
   /**

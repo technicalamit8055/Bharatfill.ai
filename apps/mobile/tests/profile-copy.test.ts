@@ -16,9 +16,14 @@ const ROWS_WITH_SUBTITLES = PROFILE_MENU_ITEMS.filter(
   (item) => item !== 'language' && item !== 'appearance',
 );
 
-/** Everything the route can say is not live yet: every row but Language and About, and more. */
+/**
+ * Everything the route can say is not live yet: every row but Language, About and Family
+ * (which is on the phone, so always there), and more.
+ */
 const UNAVAILABLE_REASONS = [
-  ...PROFILE_MENU_ITEMS.filter((item) => item !== 'language' && item !== 'about'),
+  ...PROFILE_MENU_ITEMS.filter(
+    (item) => item !== 'language' && item !== 'about' && item !== 'family',
+  ),
   'settings',
   'photo',
   'plan',

@@ -68,6 +68,7 @@ describe('profile screen', () => {
   it('lists the settings rows in the mockup order', () => {
     expect(PROFILE_MENU_ITEMS).toEqual([
       'personal',
+      'family',
       'security',
       'centres',
       'notifications',

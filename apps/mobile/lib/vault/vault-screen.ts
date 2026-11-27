@@ -13,11 +13,16 @@ import type { ImageSourcePropType } from 'react-native';
 import type { Translate } from '../i18n';
 import { MONTH_KEYS } from '../profile/date-of-birth';
 import type { Message } from '../home/dashboard';
+import { textMatches } from '../ocr/document-reading';
 import { VAULT_CATEGORIES, type VaultCategoryKey } from './categories';
 import type { PageMimeType } from './vault-index';
 
-/** The chips under the header, in display order. Each has copy at `vault.filters.<filter>`. */
-export const VAULT_FILTERS = ['all', 'folders', 'recent', 'starred'] as const;
+/**
+ * The chips under the header, in display order. Each has copy at `vault.filters.<filter>`.
+ * "Everyday" gathers the bills, vehicle papers and other everyday papers (`everyday.ts`), which
+ * have no folder of their own because they never leave the phone.
+ */
+export const VAULT_FILTERS = ['all', 'folders', 'everyday', 'recent', 'starred'] as const;
 export type VaultFilter = (typeof VAULT_FILTERS)[number];
 
 /** List orders offered by "Sort by". Each has copy at `vault.sort.options.<sort>`. */
@@ -52,6 +57,13 @@ export type VaultItem = {
   readonly tag: string | null;
   /** The citizen's own tags from Save Document. Search matches them; the card does not show them. */
   readonly tags?: readonly string[];
+  /**
+   * What the phone read off the document (`lib/ocr`) and the details it found, for search.
+   * Held in memory only, while the Vault tab is open.
+   */
+  readonly searchText?: string;
+  /** An everyday paper (a bill, a PUC): listed under "Everyday". */
+  readonly everyday?: boolean;
   readonly createdAt: Date;
   readonly pageCount: number;
   readonly mimeType: PageMimeType;
@@ -59,6 +71,8 @@ export type VaultItem = {
   readonly sizeBytes: number | null;
   readonly starred: boolean;
   readonly thumbnail: VaultThumbnail;
+  /** Backed up, but the copy cyber cafes use failed on the server (`centreCopyFailed`). */
+  readonly centreCopyFailed?: boolean;
 };
 
 export type VaultQuery = {
@@ -77,9 +91,20 @@ export function isRecent(createdAt: Date, now: Date): boolean {
 function matchesSearch(item: VaultItem, search: string): boolean {
   const needle = search.trim().toLocaleLowerCase();
   if (needle.length === 0) return true;
-  return [item.title, item.tag ?? '', ...(item.tags ?? [])].some((text) =>
-    text.toLocaleLowerCase().includes(needle),
+  return (
+    [item.title, item.tag ?? '', ...(item.tags ?? [])].some((text) =>
+      text.toLocaleLowerCase().includes(needle),
+    ) || matchedInText(item, search)
   );
+}
+
+/**
+ * Whether a search found this document by what is printed on it (a roll number, a name), not
+ * by its name or tags. A number matches however it is spaced.
+ */
+export function matchedInText(item: VaultItem, search: string): boolean {
+  if (search.trim().length === 0 || !item.searchText) return false;
+  return textMatches(item.searchText, search);
 }
 
 function compare(sort: VaultSort): (a: VaultItem, b: VaultItem) => number {
@@ -101,6 +126,7 @@ export function visibleItems(items: readonly VaultItem[], query: VaultQuery): Va
     .filter((item) => {
       if (query.category !== null && item.category !== query.category) return false;
       if (query.filter === 'starred' && !item.starred) return false;
+      if (query.filter === 'everyday' && item.everyday !== true) return false;
       if (query.filter === 'recent' && !isRecent(item.createdAt, query.now)) return false;
       return matchesSearch(item, query.search);
     })
@@ -126,6 +152,7 @@ export function emptyListMessage(itemCount: number, query: VaultQuery): Message 
     return { key: 'vault.empty.search', values: { search: query.search.trim() } };
   }
   if (query.filter === 'starred') return { key: 'vault.empty.starred' };
+  if (query.filter === 'everyday') return { key: 'vault.empty.everyday' };
   if (query.filter === 'recent')
     return { key: 'vault.empty.recent', values: { days: RECENT_DAYS } };
   return { key: 'vault.empty.category' };

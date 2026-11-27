@@ -11,6 +11,7 @@
     "prebuild": "expo prebuild"
   },
   "dependencies": {
+    "@assistigo/ai": "*",
     "@assistigo/core": "*",
     "@assistigo/document-tools": "*",
     "@assistigo/form-engine": "*",

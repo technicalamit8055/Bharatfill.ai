@@ -7,7 +7,7 @@ import {
   BookOpen,
   Calendar,
   ChevronDown,
-  CreditCard,
+  Landmark,
   FileText,
   IndianRupee,
   LayoutGrid,
@@ -189,11 +189,13 @@ export function NewApplicationForm({
       formName: optional('formName'),
       portalUrl: optional('portalUrl'),
       deadlineAt: optional('deadlineAt'),
-      paymentStatus: optional('paymentStatus'),
       notes: optional('notes'),
     };
-    const fee = optional('amountCharged');
-    if (fee) payload.amountCharged = Number(fee);
+    // The counter bill (migration 0050): the database sums the two lines and issues a bill number.
+    const govtFee = optional('govtFee');
+    const serviceCharge = optional('serviceCharge');
+    if (govtFee) payload.govtFee = Number(govtFee);
+    if (serviceCharge) payload.serviceCharge = Number(serviceCharge);
 
     setPending(intent);
     setError(null);
@@ -467,11 +469,11 @@ export function NewApplicationForm({
               <Input id={`${ids}-deadline`} name="deadlineAt" type="date" className={CONTROL} />
             </Field>
           </FieldRow>
-          <FieldRow icon={IndianRupee} tone="emerald">
-            <Field label={t('applications.form.fee')} htmlFor={`${ids}-fee`}>
+          <FieldRow icon={Landmark} tone="emerald">
+            <Field label={t('khata.govtFee')} htmlFor={`${ids}-govt-fee`}>
               <Input
-                id={`${ids}-fee`}
-                name="amountCharged"
+                id={`${ids}-govt-fee`}
+                name="govtFee"
                 type="number"
                 min="0"
                 step="0.01"
@@ -481,19 +483,18 @@ export function NewApplicationForm({
               />
             </Field>
           </FieldRow>
-          <FieldRow icon={CreditCard} tone="violet">
-            <Field label={t('applications.form.paymentStatus')} htmlFor={`${ids}-payment`}>
-              <Select
-                id={`${ids}-payment`}
-                name="paymentStatus"
-                defaultValue=""
+          <FieldRow icon={IndianRupee} tone="violet">
+            <Field label={t('khata.serviceCharge')} htmlFor={`${ids}-service-charge`}>
+              <Input
+                id={`${ids}-service-charge`}
+                name="serviceCharge"
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                placeholder={t('applications.form.feePlaceholder')}
                 className={CONTROL}
-              >
-                <option value="">{t('applications.form.paymentStatusPlaceholder')}</option>
-                <option value="unpaid">{t('applications.payment.unpaid')}</option>
-                <option value="paid">{t('applications.payment.paid')}</option>
-                <option value="refunded">{t('applications.payment.refunded')}</option>
-              </Select>
+              />
             </Field>
           </FieldRow>
         </div>

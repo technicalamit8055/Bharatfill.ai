@@ -13,10 +13,15 @@ import {
   pageFileName,
   pageMimeTypeFromName,
   pageMimeTypeOf,
+  documentsToRead,
+  parseSearchText,
   parseVaultIndex,
+  serialiseSearchText,
   serialiseVaultIndex,
+  textAssociatedData,
   type VaultDocument,
   withDetails,
+  withReading,
   withDocument,
   withoutDocument,
   withStarred,
@@ -242,5 +247,56 @@ describe('editing details after saving', () => {
     expect(() =>
       withDetails(index, SAVED.id, { tags: Array.from({ length: 11 }, (_, i) => `t${i}`) }),
     ).toThrow();
+  });
+});
+
+describe('what the phone read off a document', () => {
+  const reading = {
+    version: 1,
+    fields: [
+      { key: 'customer.education.class10.roll_number', value: '2112345' },
+      { key: 'customer.full_name_hi', value: 'आशा देवी' },
+    ],
+  };
+
+  it('is kept with the document and survives a round trip, Hindi included', () => {
+    const index = withReading(withDocument(EMPTY_VAULT_INDEX, OLDER), OLDER.id, reading);
+    expect(findDocument(index, OLDER.id)?.reading).toEqual(reading);
+    expect(parseVaultIndex(serialiseVaultIndex(index))).toEqual(index);
+  });
+
+  it('survives a rename', () => {
+    const index = withReading(withDocument(EMPTY_VAULT_INDEX, OLDER), OLDER.id, reading);
+    expect(findDocument(withDetails(index, OLDER.id, { title: 'Marksheet' }), OLDER.id)?.reading)
+      .toEqual(reading);
+  });
+
+  it('refuses details that are not customer fields, or too many', () => {
+    const index = withDocument(EMPTY_VAULT_INDEX, OLDER);
+    expect(() =>
+      withReading(index, OLDER.id, { version: 1, fields: [{ key: 'password', value: 'x' }] }),
+    ).toThrow();
+    const many = Array.from({ length: 13 }, (_, n) => ({ key: `customer.f${n}`, value: 'x' }));
+    expect(() => withReading(index, OLDER.id, { version: 1, fields: many })).toThrow();
+  });
+
+  it('lists the documents still to read, and those read by an older reader', () => {
+    let index = withDocument(withDocument(EMPTY_VAULT_INDEX, OLDER), NEWER);
+    index = withReading(index, OLDER.id, { version: 1, fields: [] });
+    expect(documentsToRead(index, 1).map((each) => each.id)).toEqual([NEWER.id]);
+    expect(documentsToRead(index, 2).map((each) => each.id).sort()).toEqual(
+      [OLDER.id, NEWER.id].sort(),
+    );
+  });
+
+  it('seals its text as ASCII bound to the document', () => {
+    const text = 'Roll No 2112345\nआय प्रमाण पत्र';
+    const sealed = serialiseSearchText(text);
+    expect(sealed).toMatch(/^[ -~]*$/);
+    expect(parseSearchText(sealed)).toBe(text);
+    expect(parseSearchText('{"not":"text"}')).toBeNull();
+    expect(parseSearchText('not json')).toBeNull();
+    expect(textAssociatedData(OLDER.id)).toContain(OLDER.id);
+    expect(textAssociatedData(OLDER.id)).not.toBe(textAssociatedData(NEWER.id));
   });
 });

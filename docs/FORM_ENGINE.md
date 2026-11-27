@@ -68,7 +68,7 @@ Resolution order — first hit wins, and the reason is recorded so the operator 
 2. `org_custom` — organization-specific override
 3. `history` — a mapping previously confirmed for the same portal + field signature
 4. `dictionary` — rules-based synonym dictionary (English + Hindi + Hinglish)
-5. `ai` — AI-assisted mapping using **field metadata only** (never customer values)
+5. `ai` — AI-assisted mapping using **field metadata only** (never customer values); §6d
 6. `manual` — the operator maps it by hand
 
 ## 4. Scoring
@@ -449,6 +449,73 @@ The registry checks in `adapter-registry.test.ts` also apply. **Not yet smoke-te
 portal.** A `portal_adapters` row for `ssc-portal` still beats this file (§6), so a database seeded
 with 1.1.0 keeps the old mapping until `npm run db:seed:adapters` is run again.
 
+## 6c. Operator teaching and contributions (§14.3 priorities 2 and 6)
+
+How adapters grow past the two hand-written ones without anybody guessing label patterns for a
+portal they cannot see. Code: `contributions.ts`, `portal-targets.ts`; route
+`POST /api/forms/org-mappings`; table `mapping_contributions` (migration 0051); review at
+`/admin/forms/contributions`.
+
+1. **Teach.** In the side panel, a box nothing recognised is listed under **Not recognised**
+   (safety classes, file, password, hidden, disabled and read-only boxes are excluded). A box the
+   dictionary, history or an override got wrong has **Wrong field?** on its row. Adapter rows do not:
+   the adapter outranks an override, so a correction there would never take effect. The operator
+   picks a registry field. The worker sends the box's metadata from the tab's detection, never a value.
+2. **Override.** The route re-runs the safety classifier (`unteachableReason`), checks the key is in
+   the registry, and upserts `org_field_mappings` with the dictionary's transform for that field
+   (none on a native date box). The panel re-maps at once, so the box fills on this visit.
+3. **Share** (ticked by default). `buildMappingContribution` keeps the portal side only: label,
+   aria-label, placeholder and section heading through `sanitiseContributionText` (text containing an
+   email or a PAN-shaped token is dropped whole; runs of 4+ digits become `#`), `name`/`id` only when
+   developer-named (`ctrl_12`, `mat-input-3` and long-number ids are dropped), and the path with
+   id-like segments as `*`. `nearbyText` is never stored. One row per centre per box; a changed
+   answer goes back to `pending`.
+4. **Review.** Groups are keyed by origin + first match text + customer field and show the number of
+   distinct centres, never their names. A box centres disagree on shows the other answers as a conflict.
+5. **Approve.** `mergeContributionIntoAdapter` adds one field to the adapter the page would use today
+   (global row, else the built-in, which is inserted whole so its hand-written fields survive, else a
+   new `crowd-<host>` adapter in `testing`). Approved fields are always `labelMatch: 'exact'` (adapters.ts;
+   a contributed "Name" must not claim "Father's Name"), always `reviewRequired`, keyed `crowd_*` so they
+   never token-match a portal's `name`, and tagged `origin: 'contribution'`. A hand-written field that
+   already claims the box wins, and approval is refused. The patch version is bumped.
+
+`PORTAL_TARGETS` lists the next portals to cover (NTA, RRB, IBPS, UPSC, Sarathi, Vahan, PAN via
+Protean and UTIITSL, Passport Seva, EPFO, PM-JAY, NSP, and the UP, MP, Rajasthan, Maharashtra and
+Jharkhand e-District portals). The admin page shows adapter coverage and contribution counts per
+target. Hosts other than SSC and RTPS are `hostsVerified: false`: they were written from public
+knowledge, not from a live session.
+
+## 6d. AI-assisted mapping (§14.3 priority 5)
+
+Code: `ai-mapping.ts` (pure: candidates, request, prompt, parser), `mapper.ts` step 5,
+`apps/web/lib/forms/ai-mapping.ts` (vendor call, time budget, cache), `POST /api/forms/map`.
+
+- **When.** After steps 1–4, only for boxes left `no_mapping` that are visible, editable and pass
+  `unteachableReason` (no CAPTCHA, OTP, payment, submit, file, password or hidden box). At most 40
+  per request. The mapper then runs again with the answers.
+- **What is sent.** Per box: tag, input type, label, aria-label, placeholder, section heading,
+  nearby text (160 chars), developer-named `name`/`id`, option *labels* (25), required, maxLength.
+  Every text goes through `sanitiseContributionText` (§6c). Also the portal host and the path with
+  id-like segments as `*`. Never a customer value, option values, the query string or the field
+  signature (the reply refers to `f1`, `f2` …, mapped back on the server).
+- **What is trusted.** `parseAiMappingResponse` keeps only registry keys and refs that were asked
+  about. Answers under 0.5 are dropped; the rest are capped at 0.85, below the high band. With
+  `source === 'ai'` also forcing review, an AI mapping is never filled without the operator's tick.
+  The safety classifier still runs before step 5, so a model answer can never reach a CAPTCHA/OTP box.
+- **Vendor.** The shared AI setup used for document reading (`platform_ai_settings`, then a
+  centre's earlier row, then the environment), through `AiVisionOcrProvider.completeText`. The
+  organization's document prompt is not used. On by default like AI document reading (rule 10);
+  `AI_FIELD_MAPPING=off` is a deployment kill switch. The panel says "Suggested by AI" and names no vendor.
+- **Budget.** 8 s. Any failure (no key, timeout, garbled reply, cache outage) returns the proposal
+  without AI rows; it is never an error for the operator.
+- **Cache.** `ai_field_mapping_cache` (migration 0052, service-role only, no policies) stores one
+  answer per sha256 of prompt version + host + box description, shared by every centre, for 30
+  days. "No match" is cached too. Only boxes the model actually answered are written, and the cache
+  is read even when no vendor key is configured.
+- **Correcting it.** AI rows have **Wrong field?** (§6c), which saves an override (priority 2, so it
+  wins next time) and can be shared for review like any other taught mapping.
+- **Audit.** `fill_session.started` metadata carries counts only: asked, cached, suggested, status.
+
 ## 7. Transforms
 
 Named, pure, unit-tested functions in `packages/form-engine/src/transforms.ts`:
@@ -551,3 +618,8 @@ Generic mapping still runs. Anything below the low threshold requires confirmati
 can file a form report containing URL origin + path, anonymised field metadata, adapter id if any,
 browser/extension version, and a free-text note. **No customer values are included by default**,
 and a screenshot is attached only if the operator explicitly opts in for that report.
+
+As built, `POST /api/form-reports` stores origin, path, title and note only. The extension sent
+`{ page, fields, … }` until 2026-11-27, which failed the route's schema, so no extension report had
+ever arrived. Field metadata is not sent until the route stores it. A single unrecognised box is
+better taught (§6c) than reported.

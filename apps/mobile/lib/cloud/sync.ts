@@ -26,6 +26,7 @@ import {
   type DocumentSource,
   findDocument,
   type VaultIndex,
+  withCentreReadiness,
   withCloudAccount,
   withCloudDeleteDone,
   withCloudForgotten,
@@ -129,6 +130,9 @@ async function upload(
       title: action.title,
       documentType: action.documentType,
       category: action.category,
+      ...(confirmed.value.centreReady === undefined
+        ? {}
+        : { centreReady: confirmed.value.centreReady }),
     }),
   );
   return 'ok';
@@ -221,6 +225,16 @@ async function runOnce(untitled: (source: DocumentSource) => string): Promise<Sy
   if (!listed.ok) {
     const step = stepOf(listed);
     return step === 'offline' || step === 'signed_out' ? step : 'partial';
+  }
+  // The list is made after the server retried any failed cyber cafe copies, so it is current.
+  const readiness = new Map<string, boolean>();
+  for (const document of listed.value) {
+    if (document.centreReady !== undefined) readiness.set(document.id, document.centreReady);
+  }
+  // Most runs change nothing here; only rewrite the encrypted index when something did.
+  const before = await readVaultIndex();
+  if (readiness.size > 0 && withCentreReadiness(before, readiness) !== before) {
+    await updateVaultIndex((current) => withCentreReadiness(current, readiness));
   }
   for (const document of planPulls(await readVaultIndex(), listed.value)) {
     const step = await pullDocument(run, document);

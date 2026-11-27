@@ -4,7 +4,7 @@
  * same pieces under a larger thumbnail. Tapping the thumbnail or the text opens the document.
  */
 
-import { EllipsisVertical, Star } from 'lucide-react-native';
+import { EllipsisVertical, Star, TriangleAlert } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTranslation } from '../../lib/i18n/I18nProvider';
@@ -19,6 +19,8 @@ export type DocumentCardProps = {
   readonly onOpen: (item: VaultItem) => void;
   readonly onToggleStar: (item: VaultItem) => void;
   readonly onMore: (item: VaultItem) => void;
+  /** The search found this document by the text printed on it, not its name or tags. */
+  readonly foundInText?: boolean;
 };
 
 export function DocumentCard({
@@ -28,6 +30,7 @@ export function DocumentCard({
   onOpen,
   onToggleStar,
   onMore,
+  foundInText = false,
 }: DocumentCardProps) {
   const { t } = useTranslation();
   const meta = metaLine(item, t);
@@ -37,7 +40,11 @@ export function DocumentCard({
     <View style={[styles.card, grid ? styles.gridCard : styles.listCard]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${item.title}, ${meta}`}
+        accessibilityLabel={
+          item.centreCopyFailed
+            ? `${item.title}, ${meta}, ${t('vault.centreCopyFailed')}`
+            : `${item.title}, ${meta}`
+        }
         onPress={() => onOpen(item)}
         style={({ pressed }) => [styles.open, grid && styles.gridOpen, pressed && styles.pressed]}
       >
@@ -55,6 +62,19 @@ export function DocumentCard({
           <Text numberOfLines={1} style={[styles.meta, grid && styles.gridMeta]}>
             {meta}
           </Text>
+          {foundInText ? (
+            <Text numberOfLines={1} style={styles.foundInText}>
+              {t('reading.foundInText')}
+            </Text>
+          ) : null}
+          {item.centreCopyFailed ? (
+            <View style={styles.centreFailed}>
+              <TriangleAlert color={palette.error} size={14} strokeWidth={2.4} />
+              <Text numberOfLines={1} style={styles.centreFailedText}>
+                {t('vault.centreCopyFailed')}
+              </Text>
+            </View>
+          ) : null}
           <Tags item={item} />
         </View>
       </Pressable>
@@ -186,6 +206,24 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 19,
     color: palette.textMuted,
+  },
+  foundInText: {
+    marginTop: 2,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: palette.brandBlue,
+  },
+  centreFailed: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 3,
+  },
+  centreFailedText: {
+    flexShrink: 1,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: palette.error,
   },
   gridMeta: {
     fontSize: 12.5,

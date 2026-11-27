@@ -267,8 +267,31 @@ Done (added since):
       types, and `accept` / `disabled` / `readOnly` / `order` / `blockedFrames` on detected fields.
       Adapters have no stage field — each page of a multi-page form is matched on its own.
 - [x] Form-engine suite: 7 files, 248 tests passing (2026-09-27).
+- [x] Operator teaching + crowd-sourced mappings (2026-11-27, `FORM_ENGINE.md` §6c). Side panel
+      "Not recognised" list and "Wrong field?" on non-adapter rows save an org override (priority 2,
+      until now read but never written) and re-map at once. Sharing is ticked by default and sends
+      cleaned portal metadata only to `mapping_contributions` (migration 0051, applied). The
+      `/admin/forms/contributions` review queue counts distinct centres and flags disagreement.
+      Approval writes an exact-label, always-reviewed field into the global adapter. Adapter fields
+      gained `labelMatch: 'exact'` and `origin`. `PORTAL_TARGETS` lists the next ~19 portals with a
+      coverage table in admin; hosts outside SSC/RTPS are unverified.
+- [x] AI-assisted mapping, priority 5 (2026-11-27, `FORM_ENGINE.md` §6d). Only boxes steps 1–4
+      left unmapped; cleaned field metadata only; answers restricted to registry keys, capped at
+      0.85 and always reviewed; 8 s budget, never fatal; shared cache in `ai_field_mapping_cache`
+      (migration 0052, applied). On by default with an `AI_FIELD_MAPPING=off` kill switch, rather
+      than the per-org opt-in first planned, to match rule 10.
+- [x] Fixed: the extension's "Report this form" sent a body `POST /api/form-reports` rejected, so
+      no report from the extension had ever been stored.
 
 Remaining:
+
+- [ ] Adapters for the `PORTAL_TARGETS` list, written from real sessions: let contributions
+      accumulate, then hand-write each adapter from the live labels (and verify its hosts)
+- [ ] Live test of the teaching loop: teach a box on a real portal, approve it in /admin, and
+      confirm a second centre gets it filled
+- [ ] A way for a centre to clear an override back to automatic (today it can only re-teach)
+- [ ] Route tests under `apps/web/app/**` are in no vitest project and there is no `@` alias, so
+      `customers/search/route.test.ts` never runs
 
 - [ ] Promote `bihar-rtps-serviceonline` from `testing` to `active` after a manual smoke test
       against the live portal — the adapter is written from the portal's rendered labels, and
@@ -277,8 +300,12 @@ Remaining:
 - [ ] Same for `ssc-portal`: live smoke test, then `active` + `lastVerifiedAt`
 - [ ] Seed the remaining demo adapters into `portal_adapters`
 - [ ] Adapter admin / import UI and the health dashboard
-- [ ] `POST /api/form-reports`
-- [ ] AI-assisted mapping (priority 5), gated on org opt-in
+- [ ] `POST /api/form-reports` — accepts and stores reports; field metadata and screenshots are
+      not stored yet
+- [ ] Measure AI-assisted mapping against `mapping_contributions` (approved contributions are
+      labelled examples) before trusting its confidence numbers; live-test it on a real portal
+- [ ] Legal review: AI mapping sends cleaned form metadata (no customer values) to the AI vendor,
+      on by default like document reading (rule 10)
 
 ## Phase 6 — Document tools ◐
 
@@ -412,8 +439,27 @@ Done:
       an inline upload of the right type or a Document Tools deep link —
       `packages/form-engine/src/requirement-checklist.ts`, `apps/web/lib/documents/checklist.ts`.
       Not yet clicked through in a browser
+- [x] Counter billing & udhar khata (spec §21.2, §33 V1.5 "Receipts for customers";
+      `docs/RD_DAILY_STANDARD_BLUEPRINT.md` §2.1; migration 0050): govt fee + service charge on
+      every application, an insert-only `application_payments` ledger (cash / UPI / other; refunds
+      owner/manager only, `payment.refund`), DB-derived `amount_paid` / `balance_due` /
+      `payment_status` ('partial' added) and a per-centre bill number (B00001…). "Bill & khata"
+      card on the application: take payment, refund, 80/58 mm thermal receipt, WhatsApp receipt to
+      the customer's own mobile (platform number, same channel as the login slip), on-screen
+      UPI QR from the centre's own UPI ID (Settings → Organization). `/khata` day book (cash, UPI,
+      refunds, net; outstanding udhar, oldest first) and "Today's counter" on the dashboard —
+      `packages/core/src/khata`, `apps/web/lib/khata`. Migration not yet applied; RLS suite
+      `counter_khata.test.ts` not yet run; not yet clicked through in a browser
+  - Decisions (2026-11-26, delegated): money is never taken or verified by Assistigo — the QR
+    opens the citizen's own UPI app and the operator records receipt by hand; no overpayment
+    (an advance can never exceed the bill); corrections are refund entries, never edits; rows
+    from before 0050 keep their manual payment status until fees are set on them
 
 Remaining:
+
+- [ ] Counter khata follow-ups: walk-in token queue (blueprint §2.1, not built — needs a spec
+      line first); WhatsApp receipts outside Meta's 24-hour window need an approved template;
+      GST lines on receipts if a centre is GST-registered
 
 - [ ] Next on the documents-needed track: an honest "saved, not read" state; AI vision for
       citizen-app photos behind the citizen's own consent; server-side Tesseract; "ask the
@@ -747,7 +793,29 @@ Remaining:
       form (`lib/vault/portal-presets.ts`, `portal-export.ts`, presets from `document-tools`)
 - [ ] **On a device:** Export for a form on real photos and signatures — size within the
       portal's KB window, framing, DPI
-- [ ] On-device OCR; passport-photo background replacement
+- [x] Studio passport photo (`lib/scan/studio-photo.ts`, local module
+      `modules/on-device-vision`): Google's on-device face finder and person mask (ML Kit through
+      Play services, no APK growth) frame the photo around the face — head about 74% of the
+      height, a clear margin above the crown — cut it to 35 × 45 mm at 300 dpi, and lay the
+      person on plain White or Light blue (new photo looks on review, starting on White). Saved as
+      the best JPEG within 50 KB. No face or no Play services: the photo keeps its own background
+      and review says so
+- [x] On-device OCR and auto-filing (`lib/ocr`): Save Document reads the pages (English and
+      Devanagari models), classifies them with `@assistigo/ai`'s classifier
+      (`@assistigo/ai/on-device`), fills in the type, name and folder until the citizen picks
+      their own, and shows the details read (name, father / mother, DOB, roll / registration
+      number, passing year, certificate number and date). Identity numbers are not kept as
+      details; Aadhaar-like numbers are masked to the last four in the stored text. Details go in
+      the encrypted index, the text in an encrypted `text.enc` beside the pages; neither syncs.
+      Vault search matches the text inside documents (numbers however spaced) and says "Found in
+      the document's text"; documents saved earlier are read in the background from the Vault tab
+      (decrypted pages go to the reader as base64, never to disk). Document Details shows the
+      details
+- [ ] **On a device:** studio photo framing and hair edges on real selfies (white wall, patterned
+      wall, glasses, two people), the 50 KB cap, light blue on prints; OCR accuracy on real
+      marksheets, Aadhaar and certificates in English and Hindi; first-run model download
+- [ ] On-device details are shown, not yet offered into the citizen's profile (needs a review
+      step like the operator side's)
 - [ ] Dewarping, finger removal
 - [ ] **On a device:** check the new OpenCV paths (low-contrast fallback, ID card sheet, photo
       and signature presets) and the quality thresholds on real photos — tests cover only the

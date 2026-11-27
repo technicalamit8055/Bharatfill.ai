@@ -193,6 +193,22 @@ describe('upload', () => {
     expect(tables.citizen_vault_documents?.[0]?.sha256).toBe(sha);
   });
 
+  it('tells the phone when no centre can use the file yet, and once one can', async () => {
+    const { document } = await createUploadIntent(context, INTENT);
+    expect(document.centreReady).toBe(false);
+    const sealed = Buffer.alloc(INTENT.sizeBytes + VAULT_FILE_OVERHEAD_BYTES, 7);
+    objects.set(`citizen/${CITIZEN}/${document.id}`, sealed);
+    const sha = createHash('sha256').update(sealed).digest('hex');
+
+    // This stand-in has no customer row to copy into, so the customer-side copy fails.
+    const confirmed = await confirmUpload(context, document.id, sha);
+    expect(confirmed.centreReady).toBe(false);
+    expect((await listVaultDocuments(context))[0]?.centreReady).toBe(false);
+
+    tables.citizen_vault_documents![0]!.mirror_document_id = '66666666-6666-4666-8666-666666666666';
+    expect((await listVaultDocuments(context))[0]?.centreReady).toBe(true);
+  });
+
   it('removes both row and bytes when the upload does not match', async () => {
     const { document } = await createUploadIntent(context, INTENT);
     const path = `citizen/${CITIZEN}/${document.id}`;

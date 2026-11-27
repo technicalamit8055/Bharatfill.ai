@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { PAGE_FILTERS } from '../lib/scan/filters';
+import { PAGE_FILTERS, PHOTO_FILTERS } from '../lib/scan/filters';
 import type { PixelRect } from '../lib/scan/geometry';
 import {
   A4_SHEET,
@@ -266,5 +266,20 @@ describe('padRect', () => {
       width: 30,
       height: 20,
     });
+  });
+});
+
+describe('studio passport photo looks', () => {
+  it('offers white, light blue and the photo as taken, starting on white', () => {
+    expect(presetFilters('photo', true)).toEqual(PHOTO_FILTERS);
+    expect(presetDefaultFilter('photo', true)).toBe('studioWhite');
+    expect(presetFilters('photo', true)).toContain(presetDefaultFilter('photo', true));
+  });
+
+  it('never gives a document the studio looks', () => {
+    for (const preset of ['document', 'id_card', 'signature'] as const) {
+      expect(presetFilters(preset, true)).toEqual(PAGE_FILTERS);
+      expect(presetDefaultFilter(preset, true)).toBe('magic');
+    }
   });
 });

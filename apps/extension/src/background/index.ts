@@ -1029,27 +1029,58 @@ async function route(message: Message, sender?: chrome.runtime.MessageSender): P
       const state = tabId === null ? null : stateFor(tabId);
       if (!state?.detection) return fail('no_detection');
 
+      /*
+       * The route takes the page's origin, path and title plus a note (createFormReportSchema).
+       * This used to send `{ page, fields, … }`, which failed validation, so no report from the
+       * extension ever arrived. Field metadata is not sent until the route stores it.
+       */
+      const { page } = state.detection;
       await apiFetch('/api/form-reports', {
         method: 'POST',
         body: JSON.stringify({
-          page: state.detection.page,
-          // Metadata only. No customer values leave the extension in a report (§9.6).
-          fields: state.detection.fields.map((field) => ({
+          pageOrigin: page.origin,
+          ...(page.path ? { pagePath: page.path.slice(0, 300) } : {}),
+          ...(page.title ? { pageTitle: page.title.slice(0, 300) } : {}),
+          ...(message.note.trim() ? { note: message.note.trim() } : {}),
+        }),
+      });
+
+      return ok({ reported: true });
+    }
+
+    case 'TEACH_FIELD': {
+      const tabId = await targetTabId(sender);
+      const state = tabId === null ? null : stateFor(tabId);
+      if (!state?.detection) return fail('no_detection');
+
+      const field = state.detection.fields.find(
+        (candidate) => candidate.signature === message.signature,
+      );
+      if (!field) return fail('field_not_found');
+
+      // Metadata only, the same the mapping request already carries. No value is sent.
+      const result = await apiFetch<{ shared: boolean }>('/api/forms/org-mappings', {
+        method: 'POST',
+        body: JSON.stringify({
+          page: { origin: state.detection.page.origin, path: state.detection.page.path },
+          field: {
             signature: field.signature,
             tagName: field.tagName,
             inputType: field.inputType,
             name: field.name,
             id: field.id,
+            placeholder: field.placeholder,
             labelText: field.labelText,
-            required: field.required,
-          })),
-          note: message.note,
-          fillSessionId: state.fillSessionId,
-          screenshotConsent: message.includeScreenshot,
+            ariaLabel: field.ariaLabel,
+            nearbyText: field.nearbyText,
+            sectionHeading: field.sectionHeading,
+            maxLength: field.maxLength,
+          },
+          customerField: message.customerField,
+          share: message.share,
         }),
       });
-
-      return ok({ reported: true });
+      return ok({ shared: result.shared });
     }
 
     /*

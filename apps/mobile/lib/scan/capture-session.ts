@@ -23,7 +23,8 @@
  * already cropped, flattened and cleaned: it is not searched for a page again, and it starts on
  * the Original filter so that clean-up is not done twice. The citizen can still pick another.
  * A signature is the exception: it starts on its preset's filter, because its ink is found
- * against white paper (`inkBounds`).
+ * against white paper (`inkBounds`). So is a passport photo, which starts on the studio look
+ * when the phone can cut the person out (`studio-photo.ts`).
  * A page of an uploaded PDF (`pdf` source, `pdf-pages.ts`) is the page itself, drawn by the
  * phone's PDF renderer: it is treated the same way, and has no photo quality to warn about.
  *
@@ -51,6 +52,7 @@ import {
   type PhotoAnalysis,
   type RenderedPage,
   renderPage,
+  studioPhotoAvailable,
 } from './document-vision';
 import { nextRotation, type PageRotation, type Quad, sameQuad } from './geometry';
 import type { QualityIssue } from './photo-quality';
@@ -73,7 +75,14 @@ export function arrivesAsPage(source: PageSource): boolean {
 
 /** Whether a new page is shown as it came. Not a signature: its ink is found on white paper. */
 function startsOnOriginal(source: PageSource): boolean {
-  return arrivesAsPage(source) && state.preset !== 'signature';
+  return arrivesAsPage(source) && state.preset !== 'signature' && state.preset !== 'photo';
+}
+
+/** A new page's filter when it does not start on Original. */
+function firstFilter(): PageFilter {
+  return state.preset === 'photo'
+    ? presetDefaultFilter('photo', studioPhotoAvailable())
+    : presetDefaultFilter(state.preset);
 }
 
 export type SessionPage = {
@@ -326,7 +335,7 @@ export function addPhotos(uris: readonly string[], source: SessionPage['source']
     quad: null,
     filter: startsOnOriginal(source)
       ? PLATFORM_FILTER
-      : (state.pages.at(-1)?.filter ?? presetDefaultFilter(state.preset)),
+      : (state.pages.at(-1)?.filter ?? firstFilter()),
     rotation: 0,
     straighten: 0,
     rendered: null,
@@ -444,7 +453,11 @@ export class SessionNotReadyError extends Error {
  * Document screen, then deletes all of the session's temporary files. Returns the new
  * document's id.
  */
-export async function saveSession(details: DocumentDetails = {}): Promise<string> {
+export async function saveSession(
+  details: DocumentDetails = {},
+  /** What the phone read off the pages (`lib/ocr`), sealed with the document for search. */
+  searchText?: string,
+): Promise<string> {
   for (const page of state.pages) {
     if (page.status !== 'ready') await processPage(page.id);
   }
@@ -477,6 +490,8 @@ export async function saveSession(details: DocumentDetails = {}): Promise<string
       (sheet ? [sheet] : rendered).map((page) => ({ uri: page.uri, mimeType: 'image/jpeg' })),
       source,
       details,
+      undefined,
+      searchText,
     );
   } finally {
     if (sheet) discardIncoming([sheet.uri]);

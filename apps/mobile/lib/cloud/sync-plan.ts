@@ -89,8 +89,12 @@ export function planSync(
     const documentType = cloudDocumentType(document);
     const category = cloudCategory(document);
 
+    // A family member's document never leaves the phone (lib/family/family.ts). The index
+    // already marks it phone-only; this holds even for an index that somehow does not.
+    const staysOnPhone = document.phoneOnly === true || document.memberId !== undefined;
+
     if (document.cloud) {
-      if (document.phoneOnly) continue; // withPhoneOnly already queued the delete.
+      if (staysOnPhone) continue; // withPhoneOnly / withDocumentMember queued the delete.
       if (
         document.cloud.title !== title ||
         document.cloud.documentType !== documentType ||
@@ -108,7 +112,7 @@ export function planSync(
       continue;
     }
 
-    if (!options.cloudEnabled || document.phoneOnly) continue;
+    if (!options.cloudEnabled || staysOnPhone) continue;
     actions.push({ kind: 'upload', documentId: document.id, title, documentType, category });
   }
 

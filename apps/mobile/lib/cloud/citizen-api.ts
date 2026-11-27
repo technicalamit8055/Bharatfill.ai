@@ -145,6 +145,8 @@ const cloudDocumentSchema = z.object({
   updatedAt: z.string(),
   /** The centre that added it for the citizen (0047); absent from older servers. */
   addedByCentre: z.string().min(1).max(160).nullable().optional(),
+  /** A centre the citizen approves can use it; false when the server's copy failed. Absent from older servers. */
+  centreReady: z.boolean().optional(),
 });
 export type CloudDocument = z.infer<typeof cloudDocumentSchema>;
 

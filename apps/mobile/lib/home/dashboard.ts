@@ -8,12 +8,14 @@
  * The citizen's name is only ever read for display here: never logged or persisted.
  */
 
+import type { DocumentType } from '@assistigo/core';
 import type { ImageSourcePropType } from 'react-native';
 
 import type { DocumentChecklistItem } from '../checklist/checklist';
 import type { TranslateValues } from '../i18n';
 import { normaliseFullName } from '../profile/profile';
 import { VAULT_CATEGORIES, type VaultCategoryKey } from '../vault/categories';
+import type { EverydayKind, UpcomingReminder } from '../vault/everyday';
 import type { VaultDocument } from '../vault/vault-index';
 
 /**
@@ -50,6 +52,13 @@ export type RecentDocument = {
   readonly thumbnail: ImageSourcePropType;
 };
 
+/** One row of "Coming up": a date that is close, with the document's own name for the screen. */
+export type UpcomingDocument = UpcomingReminder & {
+  readonly title: string;
+  readonly documentType: DocumentType | null;
+  readonly everydayKind: EverydayKind | null;
+};
+
 export type HomeDashboard = {
   /** Null until the citizen has a saved profile. */
   readonly citizenName: string | null;
@@ -57,6 +66,8 @@ export type HomeDashboard = {
   readonly documentCounts: Readonly<Record<VaultCategoryKey, number>>;
   /** The everyday documents, ticked or not. Empty hides the card: the vault is not read yet. */
   readonly checklist: readonly DocumentChecklistItem[];
+  /** Dates inside their reminder window, soonest first. Empty hides the card. */
+  readonly upcoming: readonly UpcomingDocument[];
   /** Newest first. */
   readonly recentDocuments: readonly RecentDocument[];
 };
@@ -67,6 +78,7 @@ export const EMPTY_HOME_DASHBOARD: HomeDashboard = {
   hasUnreadNotifications: false,
   documentCounts: { identity: 0, academic: 0, certificate: 0, form_asset: 0 },
   checklist: [],
+  upcoming: [],
   recentDocuments: [],
 };
 

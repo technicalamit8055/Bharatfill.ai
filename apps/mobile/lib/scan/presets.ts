@@ -7,7 +7,9 @@
  *   A4 page at 300 dpi, as a photocopy would be.
  * - **Photo** — a passport photograph cut to the Indian 35 × 45 mm at 300 dpi, with a gentle
  *   brightness correction only: the document filters would whiten a face and crush its shadows.
- *   The background is left as photographed; replacing it is not built.
+ *   Where the phone can find the person (`lib/vision/on-device-vision.ts`), it starts on the
+ *   studio look: framed around the face, on plain white or light blue (`studio-photo.ts`).
+ *   Otherwise the background is left as photographed.
  * - **Signature** — a signature on plain paper, cleaned like a document and cropped tight to the
  *   ink.
  * - **Document** — the ordinary scanner.
@@ -18,7 +20,7 @@
 
 import type { DocumentType } from '@assistigo/core';
 
-import { PAGE_FILTERS, type PageFilter } from './filters';
+import { PAGE_FILTERS, type PageFilter, PHOTO_FILTERS } from './filters';
 import type { PixelRect, Size } from './geometry';
 import type { GrayImage } from './paper-light';
 import { type CaptureMode, MULTI_PAGE_LIMIT } from './scan-session';
@@ -46,13 +48,19 @@ export function presetPageLimit(preset: ScanPreset): number {
   }
 }
 
-/** The filters offered: a photo keeps its own look, as the others would wreck a face. */
-export function presetFilters(preset: ScanPreset): readonly PageFilter[] {
-  return preset === 'photo' ? ['original'] : PAGE_FILTERS;
+/**
+ * The filters offered. A photo never gets the document looks, which would wreck a face: it gets
+ * the studio backgrounds when `studio` (the phone can cut the person out), else its own look.
+ */
+export function presetFilters(preset: ScanPreset, studio = false): readonly PageFilter[] {
+  if (preset !== 'photo') return PAGE_FILTERS;
+  return studio ? PHOTO_FILTERS : ['original'];
 }
 
-export function presetDefaultFilter(preset: ScanPreset): PageFilter {
-  return preset === 'photo' ? 'original' : 'magic';
+/** The first filter: plain white for a photo when the phone can cut the person out. */
+export function presetDefaultFilter(preset: ScanPreset, studio = false): PageFilter {
+  if (preset !== 'photo') return 'magic';
+  return studio ? 'studioWhite' : 'original';
 }
 
 /** A portrait has no page outline to auto-capture on, so a photo starts on the shutter. */

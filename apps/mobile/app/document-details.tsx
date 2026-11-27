@@ -33,6 +33,9 @@ import {
 import { showActionSheet, showDialog } from '../lib/dialog/dialog-store';
 import type { DocumentPage } from '../components/document-details/DocumentPageViewer';
 import { DEMO_ID_PREFIX, demoVaultItems } from '../components/vault/demo';
+import { memberIdFromValue, memberValue, SELF } from '../lib/family/family';
+import { useFamily } from '../lib/family/use-family';
+import { useReminderCopy } from '../lib/family/use-reminder-copy';
 import { useTranslation } from '../lib/i18n/I18nProvider';
 import type { VaultCategoryKey } from '../lib/vault/categories';
 import {
@@ -57,18 +60,32 @@ import {
 } from '../lib/vault/portal-export';
 import { portalPresetsFor, presetName } from '../lib/vault/portal-presets';
 import { removeTag } from '../lib/vault/save-document';
-import type { DetailsChange, VaultDocument } from '../lib/vault/vault-index';
+import type { ReadField } from '../lib/ocr/document-reading';
+import {
+  centreCopyFailed,
+  type DetailsChange,
+  type StoredQrCheck,
+  type VaultDocument,
+} from '../lib/vault/vault-index';
 import type { VaultItem } from '../lib/vault/vault-screen';
 import {
   deleteDocument,
   documentSizeBytes,
   getDocument,
+  moveDocumentToMember,
   readPageDataUri,
   setPhoneOnly,
+  setQrCheck,
   setStarred,
   updateDetails,
 } from '../lib/vault/vault-storage';
 import { cloudConfig } from '../lib/cloud/config';
+import { summariseQrCheck } from '@assistigo/document-tools/qr';
+import { QrCheckCard, type QrCheckCardState } from '../components/qr-check/QrCheckCard';
+import { openQrLink, qrCardState } from '../lib/scan/qr-card';
+import { storedQrCheckView } from '../lib/scan/qr-check-view';
+import { useQrCheck } from '../lib/scan/use-qr-check';
+import { formatVaultDate } from '../lib/vault/vault-screen';
 
 const documentIdSchema = z.union([
   z.string().uuid(),
@@ -90,11 +107,30 @@ type Shown = {
   /** The document can be exported to a portal preset (a single photo or signature). */
   readonly forPortal: boolean;
   readonly addedByCentre?: string | null;
+  /** Backed up, but cyber cafes cannot see it yet (the server's copy failed). */
+  readonly centreCopyFailed?: boolean;
+  /** Whose document: `SELF` or a family member's id. */
+  readonly owner: string;
+  /** Details the phone read off it (`lib/ocr`). */
+  readonly readFields: readonly ReadField[];
 };
+
+/** "Keep on this phone only" as the menu offers it: never for a family member's document. */
+function phoneOnlyShown(document: VaultDocument): boolean | null {
+  if (!cloudConfig() || document.memberId) return null;
+  return document.phoneOnly === true;
+}
 
 type Load =
   | { readonly status: 'loading' | 'notFound' | 'unreadable' }
   | { readonly status: 'ready'; readonly shown: Shown; readonly pages: readonly DocumentPage[] };
+
+/** A page decrypted for the viewer, as its data URI; null for anything else. */
+function dataUriOf(source: unknown): string | null {
+  if (typeof source !== 'object' || source === null || !('uri' in source)) return null;
+  const { uri } = source;
+  return typeof uri === 'string' && uri.startsWith('data:') ? uri : null;
+}
 
 function sizeOf(document: VaultDocument): number | null {
   try {
@@ -124,8 +160,14 @@ export default function DocumentDetailsRoute() {
 
   const [load, setLoad] = useState<Load>({ status: 'loading' });
   const [busy, setBusy] = useState<ExportAction | null>(null);
+  const family = useFamily();
+  const reminderCopy = useReminderCopy();
   /** The vault entry behind the screen, for exports. Null for sample documents. */
   const record = useRef<VaultDocument | null>(null);
+  /** What the document's QR code proved when last checked (its summary only). */
+  const [storedQr, setStoredQr] = useState<StoredQrCheck | null>(null);
+  const qr = useQrCheck(documentId ?? '');
+  const runQr = qr.run;
 
   useEffect(() => {
     if (!documentId || (isDemo && !__DEV__)) {
@@ -143,6 +185,8 @@ export default function DocumentDetailsRoute() {
                 ...item,
                 phoneOnly: null,
                 forPortal: false,
+                owner: SELF,
+                readFields: [],
                 tags: [
                   ...(item.tag ? [item.tag] : []),
                   ...(item.category ? [t(`home.vault.categories.${item.category}`)] : []),
@@ -169,6 +213,7 @@ export default function DocumentDetailsRoute() {
           return;
         }
         record.current = document;
+        setStoredQr(document.qrCheck ?? null);
 
         const firstPage = document.pages[0];
         const shown: Shown = {
@@ -180,10 +225,13 @@ export default function DocumentDetailsRoute() {
           pageCount: document.pages.length,
           mimeType: firstPage?.mimeType ?? 'image/jpeg',
           sizeBytes: sizeOf(document),
-          phoneOnly: cloudConfig() ? document.phoneOnly === true : null,
+          phoneOnly: phoneOnlyShown(document),
           forPortal:
             portalPresetsFor(document.documentType ?? null, document.pages.length).length > 0,
           addedByCentre: document.addedByCentre ?? null,
+          centreCopyFailed: centreCopyFailed(document),
+          owner: memberValue(document.memberId ?? null),
+          readFields: document.reading?.fields ?? [],
         };
         const pages: DocumentPage[] = document.pages.map(() => ({ kind: 'loading' }));
         setLoad({ status: 'ready', shown, pages: [...pages] });
@@ -239,10 +287,22 @@ export default function DocumentDetailsRoute() {
         phoneOnly: shown.phoneOnly,
         forPortal: shown.forPortal,
         addedByCentre: shown.addedByCentre ?? null,
+        centreCopyFailed: shown.centreCopyFailed === true,
+        owner: shown.owner,
+        ownerLabel: shown.owner === SELF ? null : family.labelOf(shown.owner),
+        readFields: shown.readFields,
         pages,
       },
     };
-  }, [load]);
+  }, [family.labelOf, load]);
+
+  const owners = useMemo(
+    () => [
+      { value: SELF, label: family.labelOf(null) },
+      ...family.members.map((member) => ({ value: member.id, label: family.labelOf(member.id) })),
+    ],
+    [family.labelOf, family.members],
+  );
 
   const shown = load.status === 'ready' ? load.shown : null;
 
@@ -304,6 +364,44 @@ export default function DocumentDetailsRoute() {
       }
     },
     [documentId, isDemo, setShown, showError, shown],
+  );
+
+  /**
+   * Files the document under another person. Handing a document a centre can use to a family
+   * member takes that copy away, so the citizen is asked first.
+   */
+  const changeOwner = useCallback(
+    (owner: string) => {
+      if (!shown || !documentId || isDemo || owner === shown.owner) return;
+      const move = async () => {
+        try {
+          const saved = await moveDocumentToMember(
+            documentId,
+            memberIdFromValue(owner),
+            reminderCopy,
+          );
+          if (!saved) return;
+          record.current = saved;
+          setShown((current) => ({ ...current, owner, phoneOnly: phoneOnlyShown(saved) }));
+        } catch {
+          showError('family.details.moveFailed');
+        }
+      };
+      if (owner !== SELF && shown.owner === SELF && shown.phoneOnly === false) {
+        showDialog(
+          t('family.details.unshareTitle', { name: family.labelOf(owner) }),
+          t('family.details.unshareBody'),
+          [
+            { text: t('documentDetails.menu.cancel'), style: 'cancel' },
+            { text: t('family.details.unshareConfirm'), onPress: () => void move() },
+          ],
+          { tone: 'warning' },
+        );
+        return;
+      }
+      void move();
+    },
+    [documentId, family, isDemo, reminderCopy, setShown, showError, shown, t],
   );
 
   const confirmRemoveTag = useCallback(
@@ -488,10 +586,55 @@ export default function DocumentDetailsRoute() {
     });
   }, [busy, exportForPreset, locale, t]);
 
+  /** Checks the pages already open on screen (decrypted in memory), then keeps the summary. */
+  const checkQr = useCallback(async () => {
+    if (isDemo || !documentId || load.status !== 'ready') return;
+    const sources = load.pages.flatMap((page) => {
+      const uri = page.kind === 'ready' ? dataUriOf(page.source) : null;
+      return uri ? [{ kind: 'base64' as const, read: async () => uri }] : [];
+    });
+    if (sources.length === 0) return;
+    const check = await runQr(sources);
+    if (!check) return;
+    const summary = summariseQrCheck(check, new Date());
+    setStoredQr(summary);
+    try {
+      await setQrCheck(documentId, summary);
+    } catch {
+      // Shown already; keeping the summary is a convenience, not worth an error.
+    }
+  }, [documentId, isDemo, load, runQr]);
+
+  const documentType = record.current?.documentType ?? null;
+  const qrCardView: QrCheckCardState =
+    qr.state.status !== 'idle'
+      ? qrCardState(qr.state, documentType)
+      : storedQr
+        ? {
+            status: 'done',
+            view: storedQrCheckView(storedQr, documentType),
+            checkedOn: formatVaultDate(new Date(storedQr.checkedAt), t),
+          }
+        : { status: 'idle' };
+  const pagesReady =
+    load.status === 'ready' && load.pages.length > 0 && load.pages.every((page) => page.kind !== 'loading');
+  const qrCard =
+    isDemo || load.status !== 'ready' ? null : (
+      <QrCheckCard
+        state={qrCardView}
+        onOpenLink={() => openQrLink(qr.state, t)}
+        {...(pagesReady && qrCardView.status === 'idle' ? { onCheck: () => void checkQr() } : {})}
+        {...(pagesReady && (qrCardView.status === 'done' || qrCardView.status === 'none')
+          ? { onCheckAgain: () => void checkQr() }
+          : {})}
+      />
+    );
+
   return (
     <>
       <StatusBar style="dark" />
       <DocumentDetailsScreen
+        qrCard={qrCard}
         state={state}
         busy={busy}
         onBack={back}
@@ -504,6 +647,8 @@ export default function DocumentDetailsRoute() {
         onRemoveTag={confirmRemoveTag}
         onMove={(category) => void change({ category })}
         onDelete={confirmDelete}
+        owners={isDemo ? [] : owners}
+        onChangeOwner={changeOwner}
       />
     </>
   );

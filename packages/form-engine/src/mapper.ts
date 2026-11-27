@@ -21,6 +21,8 @@ import {
   educationLevelsWithData,
   fallbackEducationLevel,
 } from './education-level';
+import { AI_CONFIDENCE_CAP, type AiFieldMapping } from './ai-mapping';
+import { defaultTransformFor } from './contributions';
 import { bestMatch } from './scorer';
 import { classifyField, isFileInput, isPasswordField, isSupportedInputType } from './safety';
 import { SCRIPT_TWINS, expectedScript, scriptOf } from './script';
@@ -69,6 +71,11 @@ export type MappingInput = {
    * panel picker). Beats the profile guess, never a box that names its own level.
    */
   educationLevel?: EducationLevel | null;
+  /**
+   * The model's picks for boxes steps 1–4 left unmapped (ai-mapping.ts). Used only for those
+   * boxes, capped below the high band, so every one is reviewed.
+   */
+  aiMappings?: readonly AiFieldMapping[];
 };
 
 export type MappingProposal = {
@@ -227,8 +234,22 @@ function resolveMapping(field: DetectedField, input: MappingInput): ResolvedMapp
     };
   }
 
-  // 5. AI-assisted mapping happens in the API layer when enabled, using metadata only.
-  // 6. Manual mapping is the operator's fallback in the review UI.
+  // 5. AI-assisted mapping, from field metadata only (ai-mapping.ts). The API asked the model
+  //    about exactly the boxes that reach this line; the cap keeps every answer in review.
+  const suggestion = input.aiMappings?.find(
+    (candidate) => candidate.fieldSignature === field.signature,
+  );
+  if (suggestion) {
+    const transform = defaultTransformFor(suggestion.customerField, field.inputType);
+    return {
+      customerField: suggestion.customerField,
+      source: 'ai',
+      confidence: Math.min(AI_CONFIDENCE_CAP, suggestion.confidence),
+      ...(transform ? { transform } : {}),
+    };
+  }
+
+  // 6. Manual mapping is the operator's fallback in the review UI (contributions.ts).
   return null;
 }
 
@@ -372,6 +393,7 @@ export function proposeMappings(input: MappingInput): MappingProposal {
      *   - the mapping is not confidently above the medium band,
      *   - the underlying value has not been verified by a human yet,
      *   - the adapter explicitly demands it,
+     *   - the mapping came from the AI model,
      *   - the value may be in a script the portal will not accept,
      *   - the qualification level of a generic education box is only a guess from the profile.
      */
@@ -380,6 +402,7 @@ export function proposeMappings(input: MappingInput): MappingProposal {
       resolved.confidence < CONFIDENCE.high ||
       (input.unverifiedFields?.has(customerField) ?? false) ||
       adapterField?.reviewRequired === true ||
+      resolved.source === 'ai' ||
       scriptReview ||
       resolved.educationLevel?.source === 'profile';
 

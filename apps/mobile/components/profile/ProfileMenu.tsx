@@ -14,6 +14,7 @@ import {
   LockKeyhole,
   Palette,
   UserRound,
+  Users,
   type LucideIcon,
 } from 'lucide-react-native';
 import { Fragment } from 'react';
@@ -26,6 +27,7 @@ const ICON_WELL_SIZE = 50;
 
 const ICONS: Record<ProfileMenuItem, LucideIcon> = {
   personal: UserRound,
+  family: Users,
   security: LockKeyhole,
   centres: Building2,
   notifications: Bell,

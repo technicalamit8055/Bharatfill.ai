@@ -6,6 +6,7 @@ import {
   previewValue,
 } from '@assistigo/core';
 import {
+  aiMappingCandidates,
   detectionPayloadSchema,
   EDUCATION_LEVELS,
   matchDocumentRequirements,
@@ -29,6 +30,7 @@ import {
   type CustomerValues,
 } from '@/lib/customers/values';
 import { loadEntitlementContext } from '@/lib/billing/entitlements';
+import { loadAiMappingDeps, suggestAiMappings } from '@/lib/forms/ai-mapping';
 import type { CustomerRow, DocumentDerivativeRow, DocumentRow } from '@/lib/supabase/database.types';
 
 const MAX_SUGGESTIONS_PER_FIELD = 5;
@@ -337,7 +339,7 @@ export const POST = handler('api.forms.map', async (request) => {
 
   const settings = (context.organization.settings ?? {}) as { overwrite_filled_fields?: boolean };
 
-  const proposal = proposeMappings({
+  const mappingInput = {
     detection,
     customerValues: values,
     unverifiedFields: unverifiedFieldKeys(fieldValueRows),
@@ -345,7 +347,36 @@ export const POST = handler('api.forms.map', async (request) => {
     orgMappings,
     overwriteFilled: settings.overwrite_filled_fields === true,
     educationLevel: educationLevel ?? null,
-  });
+  };
+  let proposal = proposeMappings(mappingInput);
+
+  /*
+   * Step 5 (§14.3): AI-assisted mapping, only for the boxes steps 1–4 left unmapped, from cleaned
+   * field metadata only — no customer value is ever part of the request (FORM_ENGINE.md §6d).
+   * Bounded in time and never fatal: on any failure the proposal above goes back unchanged.
+   */
+  const aiCandidates = aiMappingCandidates(detection.fields, proposal.mappings);
+  let aiOutcome: { asked: number; cached: number; status: string; suggested: number } | null = null;
+  if (aiCandidates.length > 0) {
+    const deps = await loadAiMappingDeps(context.organization.id);
+    if (deps) {
+      const outcome = await suggestAiMappings({
+        candidates: aiCandidates,
+        page: detection.page,
+        complete: deps.complete,
+        cache: deps.cache,
+      });
+      aiOutcome = {
+        asked: outcome.asked,
+        cached: outcome.cached,
+        status: outcome.status,
+        suggested: outcome.mappings.length,
+      };
+      if (outcome.mappings.length > 0) {
+        proposal = proposeMappings({ ...mappingInput, aiMappings: outcome.mappings });
+      }
+    }
+  }
 
   // Open the fill session now, so a fill that is started and abandoned is still visible to the
   // operator and to adapter health (§18.2).
@@ -383,6 +414,8 @@ export const POST = handler('api.forms.map', async (request) => {
       adapterId: persistedAdapterId,
       detected: proposal.summary.detected,
       proposed: proposal.summary.proposed,
+      // Counts only — never which boxes or what they were mapped to.
+      ...(aiOutcome ? { ai: aiOutcome } : {}),
     },
   });
 

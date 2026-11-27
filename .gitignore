@@ -53,3 +53,6 @@ Thumbs.db
 
 # real customer documents must never be committed
 /uploads/
+
+# Claude Code personal settings
+.claude/settings.local.json

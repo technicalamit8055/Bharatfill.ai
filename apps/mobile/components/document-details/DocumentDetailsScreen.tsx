@@ -32,6 +32,8 @@ import {
   Star,
   Tag,
   Trash2,
+  TriangleAlert,
+  Users,
 } from 'lucide-react-native';
 import { type ReactNode, useState } from 'react';
 import {
@@ -57,7 +59,9 @@ import { addTag, normaliseTitle } from '../../lib/vault/save-document';
 import { MAX_TAG_LENGTH, MAX_TAGS, MAX_TITLE_LENGTH } from '../../lib/vault/vault-index';
 import { formatFileSize } from '../../lib/vault/vault-screen';
 import { CONTENT_MAX_WIDTH, PAGE_PADDING } from '../home/layout';
-import { OptionSheet } from '../registration/OptionSheet';
+import { OptionSheet, type SheetOption } from '../registration/OptionSheet';
+import { ReadingCard } from '../save-document/ReadingCard';
+import type { ReadField } from '../../lib/ocr/document-reading';
 import { type DocumentPage, DocumentPageViewer } from './DocumentPageViewer';
 import { MenuSheet, TextEntrySheet } from './DocumentSheets';
 import { documentDetailsPalette as palette } from './palette';
@@ -86,6 +90,14 @@ export type DocumentDetailsView = {
   readonly forPortal: boolean;
   /** The centre that added it for the citizen (0047), or null. */
   readonly addedByCentre?: string | null;
+  /** Backed up, but cyber cafes cannot see it yet: the server's copy failed (it retries). */
+  readonly centreCopyFailed?: boolean;
+  /** Whose document it is: `SELF` or a family member's id (`lib/family`). */
+  readonly owner?: string;
+  /** The family member's label when it is theirs; null for the citizen's own. */
+  readonly ownerLabel?: string | null;
+  /** Details the phone read off the document (`lib/ocr`): name, date of birth, roll number… */
+  readonly readFields?: readonly ReadField[];
   readonly pages: readonly DocumentPage[];
 };
 
@@ -116,9 +128,15 @@ export type DocumentDetailsScreenProps = {
   readonly onRemoveTag: (tag: string) => void;
   readonly onMove: (category: VaultCategoryKey | null) => void;
   readonly onDelete: () => void;
+  /** "You" (`SELF`) and each family member; fewer than two hides "Move to family member". */
+  readonly owners?: readonly SheetOption<string>[];
+  /** Files the document under someone else; the route confirms what that does to sharing. */
+  readonly onChangeOwner?: (owner: string) => void;
+  /** The QR check card, under the details; the route runs the check and stores its summary. */
+  readonly qrCard?: ReactNode;
 };
 
-type Sheet = 'menu' | 'rename' | 'tag' | 'move' | 'shareAs' | 'downloadAs';
+type Sheet = 'menu' | 'rename' | 'tag' | 'move' | 'owner' | 'shareAs' | 'downloadAs';
 type MoveOption = VaultCategoryKey | 'none';
 
 export function DocumentDetailsScreen({
@@ -134,6 +152,9 @@ export function DocumentDetailsScreen({
   onRemoveTag,
   onMove,
   onDelete,
+  owners = [],
+  onChangeOwner,
+  qrCard,
 }: DocumentDetailsScreenProps) {
   const { t } = useTranslation();
   const { width: windowWidth } = useWindowDimensions();
@@ -229,6 +250,16 @@ export function DocumentDetailsScreen({
       icon: FolderInput,
       onPress: () => setSheet('move'),
     },
+    ...(owners.length > 1 && onChangeOwner
+      ? [
+          {
+            key: 'owner',
+            label: t('family.details.move'),
+            icon: Users,
+            onPress: () => setSheet('owner'),
+          },
+        ]
+      : []),
     ...(document.forPortal
       ? [
           {
@@ -419,6 +450,19 @@ export function DocumentDetailsScreen({
           </DetailRow>
         </View>
 
+        {document.readFields && document.readFields.length > 0 ? (
+          <ReadingCard
+            state={{
+              status: 'done',
+              reading: { suggestedType: null, fields: document.readFields, searchText: '' },
+            }}
+            filledType={null}
+          />
+        ) : null}
+
+        {/* What the document's QR code proves (route-owned: `QrCheckCard`). */}
+        {qrCard ?? null}
+
         <View style={styles.secure}>
           <View style={styles.secureBadge}>
             <ShieldCheck
@@ -430,17 +474,38 @@ export function DocumentDetailsScreen({
           </View>
           <View style={styles.secureText}>
             <Text style={styles.secureTitle}>{t('documentDetails.secure.title')}</Text>
-            <Text style={styles.secureBody}>
-              {t(
-                document.phoneOnly === false
-                  ? 'documentDetails.secure.sharedBody'
-                  : 'documentDetails.secure.body',
-              )}
-            </Text>
+            {/* "Ready for a cyber cafe" would contradict the failure note below. */}
+            {document.phoneOnly === false && document.centreCopyFailed ? null : (
+              <Text style={styles.secureBody}>
+                {t(
+                  document.phoneOnly === false
+                    ? 'documentDetails.secure.sharedBody'
+                    : 'documentDetails.secure.body',
+                )}
+              </Text>
+            )}
+            {document.ownerLabel ? (
+              <Text style={styles.secureBody}>
+                {t('family.details.owner', { name: document.ownerLabel })}
+              </Text>
+            ) : null}
             {document.addedByCentre ? (
               <Text style={styles.secureBody}>
                 {t('documentDetails.secure.addedBy', { centre: document.addedByCentre })}
               </Text>
+            ) : null}
+            {document.phoneOnly === false && document.centreCopyFailed ? (
+              <View accessibilityRole="alert" style={styles.centreFailed}>
+                <View style={styles.centreFailedHeading}>
+                  <TriangleAlert color={palette.error} size={16} strokeWidth={2.4} />
+                  <Text style={styles.centreFailedTitle}>
+                    {t('documentDetails.secure.centreFailedTitle')}
+                  </Text>
+                </View>
+                <Text style={styles.secureBody}>
+                  {t('documentDetails.secure.centreFailedBody')}
+                </Text>
+              </View>
             ) : null}
           </View>
         </View>
@@ -520,6 +585,19 @@ export function DocumentDetailsScreen({
           maxLength={MAX_TAG_LENGTH}
           submitLabel={t('documentDetails.tag.save')}
           onSubmit={submitTag}
+          onClose={() => setSheet(null)}
+        />
+      ) : null}
+
+      {sheet === 'owner' && onChangeOwner ? (
+        <OptionSheet
+          title={t('family.details.moveTitle')}
+          closeLabel={t('documentDetails.sheetClose')}
+          options={owners}
+          selected={document.owner ?? null}
+          onSelect={(value) => {
+            if (value !== document.owner) onChangeOwner(value);
+          }}
           onClose={() => setSheet(null)}
         />
       ) : null}
@@ -866,6 +944,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: palette.textSecondary,
+  },
+  centreFailed: {
+    marginTop: 8,
+    gap: 2,
+  },
+  centreFailedHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  centreFailedTitle: {
+    flexShrink: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '700',
+    color: palette.error,
   },
 
   footer: {

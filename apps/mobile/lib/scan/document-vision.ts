@@ -83,9 +83,34 @@ import {
   type ScanPreset,
   snapAspect,
 } from './presets';
+import {
+  alphaCurve,
+  compositeOnBackground,
+  crownRow,
+  type FaceBox,
+  isStudioBackground,
+  largestFace,
+  overhang,
+  PASSPORT_JPEG_QUALITIES,
+  PASSPORT_MAX_BYTES,
+  passportFrame,
+  scaleRect,
+  STUDIO_COLOURS,
+} from './studio-photo';
 import { chromaCurve, contrastStretch, levelsCurve, pageLevels, photoLevels } from './tone-curve';
+import {
+  cutOutPortrait,
+  isOnDeviceVisionAvailable,
+  NoPersonFoundError,
+  OnDeviceVisionUnavailableError,
+} from '../vision/on-device-vision';
 
-export { PAGE_FILTERS, type PageFilter } from './filters';
+export { PAGE_FILTERS, type PageFilter, PHOTO_FILTERS } from './filters';
+
+/** Whether this phone can cut a person out of a photo for the studio passport photo. */
+export function studioPhotoAvailable(): boolean {
+  return isOnDeviceVisionAvailable();
+}
 
 /**
  * Longest side of a saved page: A4 at 300 dpi, what a flatbed scanner gives. Pages the camera
@@ -748,7 +773,8 @@ function magicColor(page: Mat, detailScale: number, keep: Keep): Mat {
 }
 
 function applyFilter(page: Mat, filter: PageFilter, detailScale: number, keep: Keep): Mat {
-  if (filter === 'original') return page;
+  // The studio looks are a passport photo's (`passportPhoto`); on a page they change nothing.
+  if (filter === 'original' || isStudioBackground(filter)) return page;
 
   if (filter === 'magic') return magicColor(page, detailScale, keep);
 
@@ -809,6 +835,11 @@ export type RenderedPage = {
   readonly height: number;
   /** Only when asked for; plaintext in the app cache like `uri`, and deleted with it. */
   readonly previews?: FilterPreviews;
+  /**
+   * A passport photo asked for a studio background that could not be made (no face or person
+   * found, or the phone cannot do it), so it kept the photo's own.
+   */
+  readonly backgroundKept?: boolean;
 };
 
 export type RenderOptions = {
@@ -908,22 +939,122 @@ function cropTo(image: Mat, rect: PixelRect, keep: Keep): Mat {
   return cut;
 }
 
+/** Longest side of the copy the person is found on: plenty for a 413 × 531 photo, and quick. */
+const PORTRAIT_SAMPLE_SIDE = 1600;
+
+/** Where the person is in a passport photo, from the phone's face finder and person mask. */
+type Portrait = {
+  /** The person mask, greyscale, at the working copy's size. */
+  readonly mask: Mat;
+  /** The cut, in the working copy's pixels. It may reach past the edges. */
+  readonly frame: PixelRect;
+  /** The working copy's width over the full photo's. */
+  readonly scale: number;
+};
+
+function deleteQuietly(uri: string | null): void {
+  if (!uri) return;
+  try {
+    const file = new File(uri);
+    if (file.exists) file.delete();
+  } catch {
+    // Best effort: the OS clears the cache on its own when space runs low.
+  }
+}
+
 /**
- * The passport-photo look: the largest centred 35 × 45 mm cut of the (turned) page, at 300 dpi
- * (`PASSPORT_PHOTO`), with a gentle levels stretch on brightness only (`photoLevels`) so a dull
- * print or a dim room is lifted while skin keeps its tones and colour is untouched. None of the
- * document filters' paper whitening, sharpening or ink deepening.
+ * Finds the person in an upright photo: a working copy is written to the cache for the phone's
+ * models (`cutOutPortrait`), the person mask read back, and the cut placed around the biggest
+ * face (`passportFrame`). Both temporary files are deleted however it ends. Null when the phone
+ * cannot do it, or finds no face or no person: the photo then keeps its own background.
  */
-function passportPhoto(page: Mat, keep: Keep): Mat {
-  return stage(keep, (own) => {
-    const cut = cropTo(
-      page,
-      centredCrop({ width: page.cols, height: page.rows }, PASSPORT_PHOTO_ASPECT),
-      own,
+async function findPortrait(photo: Mat, keep: Keep): Promise<Portrait | null> {
+  const small = shrink(photo, PORTRAIT_SAMPLE_SIDE, keep);
+  const sampleUri = saveJpeg(small, 'portrait-sample');
+  let maskUri: string | null = null;
+  try {
+    const cutout = await cutOutPortrait(sampleUri);
+    maskUri = cutout.maskUri;
+    const found = largestFace(cutout.faces);
+    if (!found) return null;
+
+    let mask = keep(Mat.createFromBase64(await new File(maskUri).base64()));
+    const channels = mask.toBuffer('uint8').channels;
+    if (channels !== 1) {
+      const gray = keep(emptyMat());
+      OpenCV.cvtColor(
+        mask,
+        gray,
+        channels === 4 ? ColorConversionCodes.COLOR_BGRA2GRAY : ColorConversionCodes.COLOR_BGR2GRAY,
+      );
+      mask = gray;
+    }
+    // The mask is the size of the image the models read; resize it if that ever differs.
+    if (mask.cols !== small.cols || mask.rows !== small.rows) {
+      mask = resizeTo(mask, small.cols, small.rows, keep);
+    }
+    const factor = small.cols / cutout.width;
+    const face: FaceBox = [
+      found[0] * factor,
+      found[1] * factor,
+      found[2] * factor,
+      found[3] * factor,
+    ];
+    const crown = crownRow(
+      { width: mask.cols, height: mask.rows, pixels: mask.toBuffer('uint8').buffer },
+      face,
     );
-    const sized = resizeTo(cut, PASSPORT_PHOTO.width, PASSPORT_PHOTO.height, own);
+    return {
+      mask,
+      frame: passportFrame({ width: small.cols, height: small.rows }, face, crown),
+      scale: small.cols / photo.cols,
+    };
+  } catch (error) {
+    if (error instanceof OnDeviceVisionUnavailableError || error instanceof NoPersonFoundError) {
+      return null;
+    }
+    throw error;
+  } finally {
+    deleteQuietly(sampleUri);
+    deleteQuietly(maskUri);
+  }
+}
+
+/**
+ * `rect` of `image`, where `rect` may reach past the edges: the overhang is filled by `border`
+ * (`BORDER_REPLICATE` for a photo; `BORDER_CONSTANT` with `value` for a mask).
+ */
+function cropPadded(
+  image: Mat,
+  rect: PixelRect,
+  border: BorderTypes,
+  value: number,
+  keep: Keep,
+): Mat {
+  const pad = overhang(rect, { width: image.cols, height: image.rows });
+  if (pad.top + pad.bottom + pad.left + pad.right === 0) return cropTo(image, rect, keep);
+  const padded = keep(emptyMat());
+  OpenCV.copyMakeBorder(
+    image,
+    padded,
+    pad.top,
+    pad.bottom,
+    pad.left,
+    pad.right,
+    border,
+    keep(Scalar.create(value, value, value)),
+  );
+  return cropTo(padded, { ...rect, x: rect.x + pad.left, y: rect.y + pad.top }, keep);
+}
+
+/**
+ * A gentle levels stretch on brightness only (`photoLevels`), so a dull print or a dim room is
+ * lifted while skin keeps its tones and colour is untouched.
+ */
+function liftBrightness(photo: Mat, keep: Keep): Mat {
+  return stage(keep, (own) => {
     const ycrcb = own(emptyMat());
-    OpenCV.cvtColor(sized, ycrcb, ColorConversionCodes.COLOR_BGR2YCrCb);
+    OpenCV.cvtColor(photo, ycrcb, ColorConversionCodes.COLOR_BGR2YCrCb);
     const planes = own(MatVector.create());
     OpenCV.split(ycrcb, planes);
     const luma = own(planes.get(0));
@@ -938,6 +1069,77 @@ function passportPhoto(page: Mat, keep: Keep): Mat {
     OpenCV.cvtColor(merged, bgr, ColorConversionCodes.COLOR_YCrCb2BGR);
     return bgr;
   });
+}
+
+/**
+ * The passport-photo look: 35 × 45 mm at 300 dpi (`PASSPORT_PHOTO`), brightness gently lifted,
+ * none of the document filters' paper whitening, sharpening or ink deepening.
+ *
+ * With `portrait`, the cut is framed around the face (`passportFrame`), and for a studio filter
+ * the person is laid over plain white or light blue through their mask
+ * (`compositeOnBackground`). Without it, the largest centred cut of the photo as it was taken.
+ */
+function passportPhoto(
+  photo: Mat,
+  portrait: Portrait | null,
+  filter: PageFilter,
+  keep: Keep,
+): Mat {
+  return stage(keep, (own) => {
+    if (!portrait) {
+      const cut = cropTo(
+        photo,
+        centredCrop({ width: photo.cols, height: photo.rows }, PASSPORT_PHOTO_ASPECT),
+        own,
+      );
+      return liftBrightness(resizeTo(cut, PASSPORT_PHOTO.width, PASSPORT_PHOTO.height, own), own);
+    }
+
+    const cut = cropPadded(
+      photo,
+      scaleRect(portrait.frame, 1 / portrait.scale),
+      BorderTypes.BORDER_REPLICATE,
+      0,
+      own,
+    );
+    const person = liftBrightness(
+      resizeTo(cut, PASSPORT_PHOTO.width, PASSPORT_PHOTO.height, own),
+      own,
+    );
+    if (!isStudioBackground(filter)) return person;
+
+    // Beyond the photo's edges is background: the mask is padded with 0.
+    const maskCut = cropPadded(portrait.mask, portrait.frame, BorderTypes.BORDER_CONSTANT, 0, own);
+    const alpha = lookUp(
+      resizeTo(maskCut, PASSPORT_PHOTO.width, PASSPORT_PHOTO.height, own),
+      alphaCurve(),
+      own,
+    );
+    const pixels = compositeOnBackground(
+      person.toBuffer('uint8').buffer,
+      alpha.toBuffer('uint8').buffer,
+      STUDIO_COLOURS[filter],
+    );
+    return own(
+      Mat.createFromBuffer('uint8', PASSPORT_PHOTO.height, PASSPORT_PHOTO.width, 3, pixels),
+    );
+  });
+}
+
+/**
+ * Writes a passport photo as the best-quality JPEG within `PASSPORT_MAX_BYTES`, trying
+ * `PASSPORT_JPEG_QUALITIES` in turn. The last is kept even if a very busy photo is still over.
+ */
+function savePassportJpeg(image: Mat): string {
+  let uri: string | null = null;
+  for (const quality of PASSPORT_JPEG_QUALITIES) {
+    deleteQuietly(uri);
+    const output = new File(Paths.cache, `scan-page-${randomUUID()}.jpg`);
+    image.saveToFile(output.uri, 'jpeg', quality);
+    uri = output.uri;
+    if (output.size <= PASSPORT_MAX_BYTES) break;
+  }
+  return uri as string;
 }
 
 /** Longest side of the copy a signature's ink is found on: plenty to box it, and quick. */
@@ -1011,12 +1213,24 @@ export async function renderPage(
     const { flat, detailScale } = await flattenPhoto(photoUri, quad, preset, keep);
 
     if (preset === 'photo') {
-      const result = passportPhoto(rotate(flat, rotation, keep), keep);
+      const photo = rotate(flat, rotation, keep);
+      // Found once, for the photo and every preview card.
+      const portrait = await findPortrait(photo, keep);
+      const result = passportPhoto(photo, portrait, filter, keep);
+      let photoPreviews: FilterPreviews | undefined;
+      if (previews) {
+        const written: Partial<Record<PageFilter, string>> = {};
+        for (const each of presetFilters(preset, portrait !== null)) {
+          written[each] = savePreview(passportPhoto(photo, portrait, each, keep), keep);
+        }
+        photoPreviews = written;
+      }
       return {
-        uri: saveJpeg(result, 'scan-page'),
+        uri: savePassportJpeg(result),
         width: result.cols,
         height: result.rows,
-        ...(previews ? { previews: { original: savePreview(result, keep) } } : {}),
+        ...(photoPreviews ? { previews: photoPreviews } : {}),
+        ...(isStudioBackground(filter) && !portrait ? { backgroundKept: true } : {}),
       };
     }
 

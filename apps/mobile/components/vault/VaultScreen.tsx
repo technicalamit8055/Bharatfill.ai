@@ -10,7 +10,7 @@
  */
 
 import { ChevronDown, LayoutGrid, List, X } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -32,6 +32,7 @@ import {
   type VaultItem,
   type VaultLayout,
   type VaultQuery,
+  matchedInText,
   type VaultSort,
   visibleItems,
 } from '../../lib/vault/vault-screen';
@@ -63,6 +64,8 @@ export type VaultScreenProps = {
   /** Upload: a photo or PDF already on the phone. */
   readonly onUpload: () => void;
   readonly onRetry: () => void;
+  /** The family member switcher, under the heading (`components/family/MemberSwitcher`). */
+  readonly familyBar?: ReactNode;
 };
 
 export function VaultScreen({
@@ -76,6 +79,7 @@ export function VaultScreen({
   onScan,
   onUpload,
   onRetry,
+  familyBar,
 }: VaultScreenProps) {
   const { t } = useTranslation();
   const { width: windowWidth } = useWindowDimensions();
@@ -120,6 +124,8 @@ export function VaultScreen({
         onCloseSearch={closeSearch}
         onMore={onMore}
       />
+
+      {familyBar}
 
       <VaultFilterChips selected={filter} onSelect={selectFilter} />
 
@@ -243,6 +249,7 @@ export function VaultScreen({
               onOpen={onOpenDocument}
               onToggleStar={onToggleStar}
               onMore={onDocumentActions}
+              foundInText={matchedInText(item, search)}
             />
           </View>
         )}

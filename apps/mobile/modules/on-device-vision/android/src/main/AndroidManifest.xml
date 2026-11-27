@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!--
+      Asks Google Play services to download these ML Kit models when the app is installed, so
+      the first document read or passport photo does not wait for a download.
+    -->
+    <meta-data
+      android:name="com.google.mlkit.vision.DEPENDENCIES"
+      android:value="ocr,ocr_devanagari,face,subject_segment" />
+  </application>
+</manifest>

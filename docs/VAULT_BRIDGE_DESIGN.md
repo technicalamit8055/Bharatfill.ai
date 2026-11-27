@@ -412,6 +412,10 @@ Details came too late: by then the file had already been uploaded and read.
 | Sync, server       | Unchanged. The planner already skips phone-only documents, and the server only reads what it receives.                                                                                                                                                            |
 | Operator           | Unchanged. Everyday scans never reach the customer's Documents tab.                                                                                                                                                                                               |
 
+Everyday papers (2026-11-26; `CITIZEN_MOBILE_APP_SPEC.md` §8 Phase 1) build on this rule:
+a bill, vehicle paper, land record, prescription or warranty card is saved as "Other" with a
+phone-side `everydayKind`, so it stays on the phone with no new rule, and the kind is never synced.
+
 The sign-up consent already reads "the documents I sync", so it is still accurate and the terms
 version is unchanged. Less leaves the phone than before. Open (legal): confirm that wording covers
 the type-based default.

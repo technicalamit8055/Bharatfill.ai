@@ -60,6 +60,52 @@ describe('maskIdentifiersInText', () => {
   it('does not mangle a PAN', () => {
     expect(maskIdentifiersInText('ZZZPD1234Q')).toBe('ZZZPD1234Q');
   });
+
+  // An e-Aadhaar's text puts the date of birth just above the number. A single left-to-right
+  // match took "1990 2000 1111" and left eight of the Aadhaar's digits in the clear.
+  it('masks an Aadhaar on the line after a birth year', () => {
+    const masked = maskIdentifiersInText('DOB : 01/01/1990\n2000 1111 2222');
+    expect(masked).toBe('DOB : 01/01/XXXX\nXXXX XXXX 2222');
+    expect(masked).not.toContain('1111');
+    expect(containsAadhaarLikeNumber(masked)).toBe(false);
+  });
+
+  it('masks an Aadhaar printed right after a year on the same line', () => {
+    const masked = maskIdentifiersInText('DOB 01/01/1990 2000 1111 2222');
+    expect(masked).toBe('DOB 01/01/XXXX XXXX XXXX 2222');
+    expect(containsAadhaarLikeNumber(masked)).toBe(false);
+  });
+
+  it.each([
+    ['2000  1111  2222', 'XXXX XXXX 2222'],
+    ['2000\t1111\t2222', 'XXXX XXXX 2222'],
+    ['2000 - 1111 - 2222', 'XXXX XXXX 2222'],
+    ['2000 1111\n2222', 'XXXX XXXX\n2222'],
+    ['2000\r\n1111\r\n2222', 'XXXX\r\nXXXX\r\n2222'],
+  ])('masks %j however the groups are separated', (input, expected) => {
+    expect(maskIdentifiersInText(input)).toBe(expected);
+    expect(containsAadhaarLikeNumber(maskIdentifiersInText(input))).toBe(false);
+  });
+
+  it('leaves the last four only, even in a longer run of groups', () => {
+    const masked = maskIdentifiersInText('Card 2000 1111 2222 3333');
+    expect(masked).toBe('Card XXXX XXXX XXXX 3333');
+  });
+
+  it('is idempotent', () => {
+    const once = maskIdentifiersInText('DOB 1990\n2000 1111 2222, ID 200011112222');
+    expect(maskIdentifiersInText(once)).toBe(once);
+  });
+});
+
+describe('sanitizeRawText', () => {
+  it('leaves no Aadhaar-like number in multi-line OCR text', () => {
+    const raw = 'Test Person\nDOB : 01/01/1990\nMale\n2000 1111 2222\nVID : 9100 2000 1111 2222';
+    const safe = sanitizeRawText(raw);
+    expect(containsAadhaarLikeNumber(safe)).toBe(false);
+    expect(safe).not.toMatch(/1111|9100/);
+    expect(safe).toContain('Test Person');
+  });
 });
 
 describe('containsAadhaarLikeNumber', () => {
@@ -70,6 +116,11 @@ describe('containsAadhaarLikeNumber', () => {
     expect(containsAadhaarLikeNumber('no numbers here')).toBe(false);
     containsAadhaarLikeNumber('2000 0000 0000');
     expect(aadhaarLikeNumbers('2000 0000 0000')).toEqual(['200000000000']);
+  });
+
+  it('sees an Aadhaar behind a birth year, and every overlapping reading', () => {
+    expect(containsAadhaarLikeNumber('DOB 1990\n2000 1111 2222')).toBe(true);
+    expect(aadhaarLikeNumbers('1990 2000 1111 2222')).toEqual(['199020001111', '200011112222']);
   });
 });
 

@@ -27,6 +27,12 @@
       "@assistigo/form-engine/requirement-checklist": [
         "../../packages/form-engine/src/requirement-checklist.ts"
       ],
+      "@assistigo/ai/on-device": [
+        "../../packages/ai/src/on-device.ts"
+      ],
+      "@assistigo/document-tools/qr": [
+        "../../packages/document-tools/src/qr/index.ts"
+      ],
       "@assistigo/document-tools": [
         "../../packages/document-tools/src/index.ts"
       ]

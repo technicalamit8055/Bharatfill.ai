@@ -251,6 +251,19 @@ export const messageSchema = z.discriminatedUnion('type', [
     includeScreenshot: z.boolean().default(false),
   }),
 
+  /**
+   * side panel → background → server. The operator maps one box the engine did not recognise
+   * (or got wrong) to a customer field. Saved as the centre's override; with `share`, the
+   * portal's side of it — never a value — goes to Bharatfill for review (FORM_ENGINE.md §6c).
+   * The box is named by signature; the worker supplies its metadata from this tab's detection.
+   */
+  z.object({
+    type: z.literal('TEACH_FIELD'),
+    signature: z.string().min(1).max(200),
+    customerField: z.string().regex(/^customer\./).max(120),
+    share: z.boolean(),
+  }),
+
   z.object({ type: z.literal('CREATE_APPLICATION'), title: z.string().max(160) }),
 
   /** Saves a prepared file to disk, for a portal whose upload box cannot be attached to. */
@@ -353,6 +366,12 @@ export const VAULT_MESSAGE_TYPES: ReadonlySet<string> = new Set([
   'VAULT_END_GRANT',
 ]);
 
+/**
+ * Messages only an extension page (the side panel) may send. A content script runs inside a
+ * portal page, and nothing a page can influence may write a centre's mapping overrides.
+ */
+export const PANEL_ONLY_MESSAGE_TYPES: ReadonlySet<string> = new Set(['TEACH_FIELD']);
+
 export type VaultGrantView = { id: string; minutesLeft: number; live: boolean };
 export type VaultDocumentView = {
   id: string;
@@ -384,6 +403,7 @@ export function parseMessage(raw: unknown, sender?: chrome.runtime.MessageSender
   if (!parsed.success) return null;
   // A content script runs in a tab; the vault is opened from the side panel alone.
   if (VAULT_MESSAGE_TYPES.has(parsed.data.type) && sender?.tab) return null;
+  if (PANEL_ONLY_MESSAGE_TYPES.has(parsed.data.type) && sender?.tab) return null;
   return parsed.data;
 }
 

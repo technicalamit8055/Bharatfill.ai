@@ -9,8 +9,10 @@
     ".": "./src/index.ts",
     "./types": "./src/types.ts",
     "./autofit": "./src/autofit.ts",
+    "./qr": "./src/qr/index.ts",
     "./browser/image": "./src/browser/image.ts",
-    "./browser/pdf": "./src/browser/pdf.ts"
+    "./browser/pdf": "./src/browser/pdf.ts",
+    "./browser/qr": "./src/browser/qr.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -18,6 +20,8 @@
   },
   "dependencies": {
     "@assistigo/core": "*",
+    "fflate": "0.8.2",
+    "jsqr": "1.4.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.8.69",
     "zod": "^3.23.8"

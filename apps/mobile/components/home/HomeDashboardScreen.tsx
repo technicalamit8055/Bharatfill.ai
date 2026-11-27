@@ -1,6 +1,7 @@
 /**
  * Home dashboard — the citizen's landing tab: greeting header, the scan hero, scanner
- * shortcuts, the document checklist, the Cyber Cafe / CSC banner, the vault categories and recent documents.
+ * shortcuts, "Coming up" (dates close to expiry or due), the document checklist, the Cyber Cafe /
+ * CSC banner, the vault categories and recent documents.
  *
  * Presentational only: the route decides what the dashboard holds and what each tap does.
  * Light-only branded artwork like registration, so it does not read from `useTheme()`.
@@ -12,7 +13,12 @@ import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { DocumentChecklistItem } from '../../lib/checklist/checklist';
-import type { HomeDashboard, QuickScanMode, RecentDocument } from '../../lib/home/dashboard';
+import type {
+  HomeDashboard,
+  QuickScanMode,
+  RecentDocument,
+  UpcomingDocument,
+} from '../../lib/home/dashboard';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
 import { CscConnectBanner } from './CscConnectBanner';
 import { DocumentChecklistCard } from './DocumentChecklistCard';
@@ -22,6 +28,7 @@ import { homePalette as palette } from './palette';
 import { QuickActions } from './QuickActions';
 import { RecentDocuments } from './RecentDocuments';
 import { ScanHeroCard } from './ScanHeroCard';
+import { UpcomingRemindersCard } from './UpcomingRemindersCard';
 import { VaultCategoryGrid } from './VaultCategoryGrid';
 
 export type HomeDashboardScreenProps = {
@@ -38,6 +45,12 @@ export type HomeDashboardScreenProps = {
   readonly onConnect: () => void;
   readonly onOpenVault: () => void;
   readonly onDocumentActions: (document: RecentDocument) => void;
+  /** A "Coming up" row: open its document. */
+  readonly onOpenUpcoming: (item: UpcomingDocument) => void;
+  /** Renew now / Pay now on a "Coming up" row. */
+  readonly onUpcomingAction: (item: UpcomingDocument) => void;
+  /** The family member switcher, under the greeting (`components/family/MemberSwitcher`). */
+  readonly familyBar?: ReactNode;
 };
 
 export function HomeDashboardScreen({
@@ -52,6 +65,9 @@ export function HomeDashboardScreen({
   onConnect,
   onOpenVault,
   onDocumentActions,
+  onOpenUpcoming,
+  onUpcomingAction,
+  familyBar,
 }: HomeDashboardScreenProps) {
   const { t } = useTranslation();
   const { width: windowWidth } = useWindowDimensions();
@@ -69,9 +85,19 @@ export function HomeDashboardScreen({
             onOpenProfile={onOpenProfile}
           />
 
+          {familyBar}
+
           <ScanHeroCard onScan={() => onScan('document')} />
 
           <QuickActions width={contentWidth} onScan={onScan} onUpload={onUpload} />
+
+          {dashboard.upcoming.length > 0 ? (
+            <UpcomingRemindersCard
+              items={dashboard.upcoming}
+              onOpen={onOpenUpcoming}
+              onAction={onUpcomingAction}
+            />
+          ) : null}
 
           {dashboard.checklist.length > 0 ? (
             <DocumentChecklistCard

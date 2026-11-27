@@ -1,0 +1,31 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'ai.bharatfill'
+version = '0.1.0'
+
+android {
+  namespace "ai.bharatfill.ondevicevision"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+}
+
+dependencies {
+  // Google's on-device ML Kit models, run by Google Play services on the phone: the models are
+  // downloaded by Play services (see the DEPENDENCIES entry in AndroidManifest.xml), so the APK
+  // does not grow. Images are processed on the phone and never uploaded; the libraries do send
+  // Google API usage metrics (docs/CITIZEN_MOBILE_APP_SPEC.md §8), as the document scanner does.
+  // Text in English and in Devanagari (Hindi, Marathi), for reading and filing documents.
+  implementation 'com.google.android.gms:play-services-mlkit-text-recognition:19.0.1'
+  implementation 'com.google.android.gms:play-services-mlkit-text-recognition-devanagari:16.0.1'
+  // The face, for framing a passport photo.
+  implementation 'com.google.android.gms:play-services-mlkit-face-detection:17.1.0'
+  // The person, for replacing a passport photo's background.
+  implementation 'com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1'
+  // For the Play services availability check.
+  implementation 'com.google.android.gms:play-services-base:18.5.0'
+}

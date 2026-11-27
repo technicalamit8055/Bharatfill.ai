@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import en from '../messages/en.json';
 import hi from '../messages/hi.json';
 import { VAULT_CATEGORIES } from '../lib/vault/categories';
+import { DATE_MEANINGS, EVERYDAY_KINDS } from '../lib/vault/everyday';
 import type { ExpiryStatus, ScanStatus } from '../lib/vault/save-document';
 
 const SCAN_STATUSES: readonly ScanStatus[] = ['processing', 'clear', 'uncropped', 'failed'];
@@ -46,10 +47,16 @@ const RENDERED_KEYS = [
   'saveDocument.errors.titleRequired',
   'saveDocument.errors.typeRequired',
   ...EXPIRY_ERRORS.map((error) => `saveDocument.errors.expiry.${error}`),
-  'saveDocument.notification.title',
-  'saveDocument.notification.body',
+  ...DATE_MEANINGS.flatMap((meaning) => [
+    `saveDocument.notification.title.${meaning}`,
+    `saveDocument.notification.${meaning}`,
+  ]),
   'saveDocument.notification.channel',
+  'reminders.when.today',
+  'reminders.when.tomorrow',
+  'reminders.when.days',
   ...DOCUMENT_TYPES.map((type) => `documentTypes.${type}`),
+  ...EVERYDAY_KINDS.map((kind) => `everydayKinds.${kind}`),
   ...VAULT_CATEGORIES.map((category) => `vault.categories.${category}`),
   'scanReview.save',
   'scanReview.saveFailed',
@@ -64,7 +71,10 @@ const PLACEHOLDERS: Record<string, readonly string[]> = {
   'saveDocument.reminder.expiresOn': ['{date}'],
   'saveDocument.reminder.when': ['{date}'],
   'saveDocument.errors.expiry.too_far': ['{years}'],
-  'saveDocument.notification.body': ['{date}'],
+  'saveDocument.notification.expires': ['{when}', '{date}'],
+  'saveDocument.notification.due': ['{when}', '{date}'],
+  'saveDocument.reminder.dueOn': ['{date}'],
+  'reminders.when.days': ['{days}'],
 };
 
 function lookup(dictionary: unknown, key: string): unknown {
@@ -108,15 +118,25 @@ describe('save document copy', () => {
         : [prefix.slice(0, -1)];
     expect(keys(hi.saveDocument).sort()).toEqual(keys(en.saveDocument).sort());
     expect(keys(hi.documentTypes).sort()).toEqual(keys(en.documentTypes).sort());
+    expect(keys(hi.everydayKinds).sort()).toEqual(keys(en.everydayKinds).sort());
+    expect(keys(hi.reminders).sort()).toEqual(keys(en.reminders).sort());
   });
 
   it.each([
     ['en', en],
     ['hi', hi],
   ])('keeps the lock-screen reminder free of document details in %s', (_locale, dictionary) => {
-    for (const key of ['saveDocument.notification.title', 'saveDocument.notification.body']) {
+    for (const meaning of DATE_MEANINGS) {
+      const title = lookup(dictionary, `saveDocument.notification.title.${meaning}`) as string;
+      const body = lookup(dictionary, `saveDocument.notification.${meaning}`) as string;
+      expect(placeholders(title), meaning).toEqual([]);
+      // How far off and the date only: no name, type, kind or tag.
+      expect(placeholders(body).sort(), meaning).toEqual(['{date}', '{when}']);
+    }
+    // The countdown words carry nothing but a number of days.
+    for (const key of ['reminders.when.today', 'reminders.when.tomorrow', 'reminders.when.days']) {
       const value = lookup(dictionary, key) as string;
-      expect(placeholders(value), key).toEqual(key.endsWith('body') ? ['{date}'] : []);
+      expect(placeholders(value), key).toEqual(key.endsWith('days') ? ['{days}'] : []);
     }
   });
 });

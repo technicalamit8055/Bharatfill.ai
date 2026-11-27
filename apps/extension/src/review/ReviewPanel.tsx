@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AUTO_MATCH_REASON_LABELS,
   SKIP_REASON_LABELS,
+  UNTEACHABLE_INPUT_TYPES,
   UPLOAD_SIZE_STATUS_LABELS,
   buildFillInstructions,
   confidenceBand,
@@ -30,6 +31,7 @@ import { RoamingAuthBanner } from '../shared/RoamingAuthBanner';
 import { PortalLoginCard } from './PortalLoginCard';
 import { DocumentPreviewModal, type PreviewTarget } from './DocumentPreviewModal';
 import { AutoFitCard, useAutoFits, type FitTarget } from './AutoFitCard';
+import { TEACH_COPY, TeachFieldCard, teachLocale } from './TeachFieldCard';
 import {
   CustomerDocumentPickerModal,
   DOCUMENT_TYPE_LABEL,
@@ -416,6 +418,9 @@ export function ReviewPanel() {
    */
   const [educationLevel, setEducationLevel] = useState<EducationLevel | null>(null);
   const [remapping, setRemapping] = useState(false);
+  /** The box whose "This box is…" card is open, by signature. One at a time. */
+  const [teaching, setTeaching] = useState<string | null>(null);
+  const [teachNotice, setTeachNotice] = useState<string | null>(null);
   const [results, setResults] = useState<FillResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reported, setReported] = useState(false);
@@ -702,6 +707,37 @@ export function ReviewPanel() {
       ),
     [proposal],
   );
+
+  /**
+   * Boxes nothing recognised, that the operator could teach (FORM_ENGINE.md §6c). Safety classes
+   * are excluded here and again on the server: a CAPTCHA, OTP or payment box is never taught.
+   */
+  const unrecognised = useMemo(
+    () =>
+      (proposal?.mappings ?? []).filter((mapping) => {
+        if (mapping.customerField !== null || mapping.skipReason !== 'no_mapping') return false;
+        if (mapping.safetyClass !== 'normal') return false;
+        const field = fieldBySignature.get(mapping.signature);
+        if (!field || field.visible === false || field.disabled || field.readOnly) return false;
+        return !UNTEACHABLE_INPUT_TYPES.has(field.inputType.toLowerCase());
+      }),
+    [proposal, fieldBySignature],
+  );
+
+  const teachCopy = TEACH_COPY[teachLocale(session?.locale)];
+
+  const onTaught = async (shared: boolean) => {
+    setTeaching(null);
+    setTeachNotice(shared ? teachCopy.savedShared : teachCopy.savedLocal);
+    if (!detection) return;
+    // The new override is priority 2 in the resolution order, so a re-map picks it up at once.
+    setRemapping(true);
+    try {
+      await requestMapping(detection.fields, educationLevel, { seedAttachments: false });
+    } finally {
+      setRemapping(false);
+    }
+  };
 
   const fill = async () => {
     if (!proposal) return;
@@ -1574,14 +1610,102 @@ export function ReviewPanel() {
                           style={{ color: 'var(--warn)', margin: '5px 0 0', gap: 5 }}
                         >
                           <AlertIcon size={12} />
-                          Check this one before filling.
+                          {/* No vendor or model name here (DEVELOPMENT_RULES rule 10). */}
+                          {mapping.source === 'ai'
+                            ? teachCopy.aiSuggested
+                            : 'Check this one before filling.'}
                         </p>
+                      ) : null}
+
+                      {/*
+                        Not offered on an adapter row: the adapter outranks a centre override
+                        (§14.3), so a correction saved there would never take effect. Those are
+                        reported instead.
+                      */}
+                      {mapping.source !== 'adapter' ? (
+                        teaching === mapping.signature ? (
+                          <TeachFieldCard
+                            signature={mapping.signature}
+                            boxLabel={fieldLabel(field)}
+                            current={mapping.customerField}
+                            locale={teachLocale(session?.locale)}
+                            onSaved={onTaught}
+                            onCancel={() => setTeaching(null)}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn-ghost tiny"
+                            style={{ marginTop: 4 }}
+                            disabled={remapping}
+                            onClick={() => {
+                              setTeachNotice(null);
+                              setTeaching(mapping.signature);
+                            }}
+                          >
+                            {teachCopy.wrong}
+                          </button>
+                        )
                       ) : null}
                     </div>
                   );
                 })
               )}
             </div>
+
+            {teachNotice ? (
+              <div className="notice notice-ok">
+                <CheckIcon size={13} />
+                <span>{teachNotice}</span>
+              </div>
+            ) : null}
+
+            {unrecognised.length > 0 ? (
+              <details className="card" open={fillable.length === 0 ? true : undefined}>
+                <summary className="small strong">
+                  {teachCopy.unrecognised(unrecognised.length)}
+                </summary>
+                <p className="tiny muted" style={{ margin: '6px 0' }}>
+                  {teachCopy.unrecognisedHelp}
+                </p>
+                <div className="stack-sm">
+                  {unrecognised.map((mapping) => {
+                    const field = fieldBySignature.get(mapping.signature);
+                    return (
+                      <div key={mapping.signature}>
+                        <div className="spread tiny">
+                          {/* Host-page text, rendered as text — never as markup (§19.6). */}
+                          <span className="truncate">{fieldLabel(field)}</span>
+                          {teaching === mapping.signature ? null : (
+                            <button
+                              type="button"
+                              className="btn-ghost tiny"
+                              disabled={remapping}
+                              onClick={() => {
+                                setTeachNotice(null);
+                                setTeaching(mapping.signature);
+                              }}
+                            >
+                              {teachCopy.teach}
+                            </button>
+                          )}
+                        </div>
+                        {teaching === mapping.signature ? (
+                          <TeachFieldCard
+                            signature={mapping.signature}
+                            boxLabel={fieldLabel(field)}
+                            current={null}
+                            locale={teachLocale(session?.locale)}
+                            onSaved={onTaught}
+                            onCancel={() => setTeaching(null)}
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            ) : null}
 
             {missingFromProfile.length > 0 ? (
               <details className="card">

@@ -43,6 +43,9 @@ export type OrganizationRow = Timestamps & {
   customer_counter: number;
   /** Permanent code printed on the counter standee, if this centre has minted one (0022). */
   counter_drop_code: string | null;
+  /** The centre's own UPI ID for the receipt's scan-to-pay QR (0050). */
+  upi_id?: string | null;
+  bill_counter?: number;
   /**
    * Suspension by platform staff (0030). Optional because a database without that migration has
    * no such columns; absent and null both mean "not suspended".
@@ -264,11 +267,32 @@ export type ApplicationRow = Timestamps & {
   portal_reference_number: string | null;
   deadline_at: string | null;
   amount_charged: number | null;
-  payment_status: 'unpaid' | 'paid' | 'refunded' | null;
+  payment_status: 'unpaid' | 'partial' | 'paid' | 'refunded' | null;
+  /** Counter bill (0050). `amount_charged` is their sum once either is set. */
+  govt_fee: number | null;
+  service_charge: number | null;
+  /** Derived from application_payments by the database; never written by the app. */
+  amount_paid: number;
+  balance_due: number;
+  bill_number: number | null;
   assigned_to: string | null;
   notes: string | null;
   created_by: string | null;
   deleted_at: string | null;
+};
+
+/** One line of the counter khata (0050). Insert-only. */
+export type ApplicationPaymentRow = {
+  id: string;
+  organization_id: string;
+  application_id: string;
+  customer_id: string;
+  kind: 'payment' | 'refund';
+  method: 'cash' | 'upi' | 'other';
+  amount: number;
+  note: string | null;
+  received_by: string | null;
+  created_at: string;
 };
 
 export type ApplicationStatusEventRow = {
@@ -323,6 +347,31 @@ export type OrgFieldMappingRow = Timestamps & {
   field_signature: string;
   customer_field: string;
   transform: string | null;
+  created_by: string | null;
+};
+
+export type MappingContributionStatus = 'pending' | 'approved' | 'rejected';
+
+/** Operator-taught mapping shared for review (migration 0051). Portal metadata only. */
+export type MappingContributionRow = Timestamps & {
+  id: string;
+  organization_id: string;
+  page_origin: string;
+  path_pattern: string;
+  field_signature: string;
+  tag_name: 'input' | 'select' | 'textarea';
+  input_type: string;
+  label_text: string | null;
+  aria_label: string | null;
+  placeholder: string | null;
+  section_heading: string | null;
+  name_attribute: string | null;
+  id_attribute: string | null;
+  customer_field: string;
+  status: MappingContributionStatus;
+  portal_adapter_id: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
   created_by: string | null;
 };
 

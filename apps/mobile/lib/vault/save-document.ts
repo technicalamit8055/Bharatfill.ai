@@ -13,6 +13,16 @@ import { type DocumentType, keepsOnPhoneByDefault } from '@assistigo/core';
 import type { PageStatus } from '../scan/capture-session';
 import { localDateParts, parseIsoDate, toIsoDate } from '../profile/date-of-birth';
 import { categoryOf, documentTypesIn, VAULT_CATEGORIES, type VaultCategoryKey } from './categories';
+import {
+  type DateMeaning,
+  DEFAULT_LEAD_DAYS,
+  EVERYDAY_DOCUMENT_TYPE,
+  EVERYDAY_KINDS,
+  type EverydayKind,
+  everydayKindLabelKey,
+  isEverydayKind,
+  reminderRuleFor,
+} from './everyday';
 import { type DocumentDetails, MAX_TAG_LENGTH, MAX_TAGS, MAX_TITLE_LENGTH } from './vault-index';
 
 /**
@@ -29,11 +39,50 @@ export function documentTypeLabelKey(type: DocumentType): string {
   return `documentTypes.${type}`;
 }
 
+/**
+ * One row of the type picker: a core type, or an everyday paper (a bill, a bike's PUC). The two
+ * vocabularies never share a name, so one string tells them apart.
+ */
+export type TypeChoice = DocumentType | EverydayKind;
+
+/** The picker's rows: form documents first, then everyday papers, then "Other". */
+export const SAVE_TYPE_CHOICES: readonly TypeChoice[] = [
+  ...SAVE_DOCUMENT_TYPES.filter((type) => type !== 'generic'),
+  ...EVERYDAY_KINDS,
+  'generic',
+];
+
+/** What the vault stores for a picked row: an everyday paper is an "Other" document. */
+export function resolveTypeChoice(choice: TypeChoice): {
+  readonly documentType: DocumentType;
+  readonly everydayKind: EverydayKind | null;
+} {
+  return isEverydayKind(choice)
+    ? { documentType: EVERYDAY_DOCUMENT_TYPE, everydayKind: choice }
+    : { documentType: choice, everydayKind: null };
+}
+
+/** The row a saved document's type and kind show as. */
+export function typeChoiceOf(
+  documentType: DocumentType | null,
+  everydayKind: EverydayKind | null | undefined,
+): TypeChoice | null {
+  return everydayKind ?? documentType;
+}
+
+/** Translation key for a picker row's name. */
+export function typeChoiceLabelKey(choice: TypeChoice): string {
+  return isEverydayKind(choice) ? everydayKindLabelKey(choice) : documentTypeLabelKey(choice);
+}
+
 /** How far ahead an expiry date may be, in whole years after this one. */
 export const MAX_EXPIRY_YEARS = 30;
 
-/** Days before expiry the reminder tries, earliest first. */
-export const REMINDER_LEAD_DAYS = [30, 7, 1, 0] as const;
+/**
+ * Days before expiry the reminder tries, earliest first, for a document with no rule of its own.
+ * Everyday papers and certificates have their own (`reminderRuleFor` in `everyday.ts`).
+ */
+export const REMINDER_LEAD_DAYS = DEFAULT_LEAD_DAYS;
 
 /** Local hour the reminder fires at, so it never arrives in the night. */
 export const REMINDER_HOUR = 9;
@@ -140,20 +189,47 @@ export function expiryYearOptions(now: Date): number[] {
 }
 
 /**
- * When the reminder fires, in local time: 30 days before expiry at 9:00, or the latest of 7
- * days, 1 day or the day itself that is still ahead. Null when the date is not a valid expiry.
+ * When the reminder fires, in local time: `leadDays[0]` days before the date at 9:00 (30 by
+ * default), or the next of the later lead days that is still ahead (7 days, 1 day, the day
+ * itself). Null when the date is not a valid expiry.
  */
-export function reminderTime(expiresOn: string, now: Date): Date | null {
+export function reminderTime(
+  expiresOn: string,
+  now: Date,
+  leadDays: readonly number[] = REMINDER_LEAD_DAYS,
+): Date | null {
   if (expiryStatus(expiresOn, now) !== 'valid') return null;
   const parts = parseIsoDate(expiresOn);
   if (!parts) return null;
 
-  for (const lead of REMINDER_LEAD_DAYS) {
+  for (const lead of leadDays) {
     // `Date` rolls a negative day back into the previous month.
     const at = new Date(parts.year, parts.month - 1, parts.day - lead, REMINDER_HOUR, 0, 0, 0);
     if (at.getTime() > now.getTime()) return at;
   }
   return null;
+}
+
+/** When one document's reminder fires and how its notification reads its date. */
+export type ReminderPlan = {
+  readonly at: Date;
+  readonly expiresOn: string;
+  readonly dateMeaning: DateMeaning;
+};
+
+/** The reminder a saved document should have now, by its kind's rule; null when none. */
+export function reminderPlanFor(
+  document: {
+    readonly expiresOn?: string | undefined;
+    readonly everydayKind?: EverydayKind | undefined;
+    readonly documentType?: DocumentType | undefined;
+  },
+  now: Date,
+): ReminderPlan | null {
+  if (!document.expiresOn) return null;
+  const rule = reminderRuleFor(document);
+  const at = reminderTime(document.expiresOn, now, rule.leadDays);
+  return at ? { at, expiresOn: document.expiresOn, dateMeaning: rule.dateMeaning } : null;
 }
 
 // ---- Scan status ----------------------------------------------------------------------------
@@ -181,12 +257,16 @@ export function scanStatus(pages: readonly ScanStatusPage[]): ScanStatus {
 export type SaveDocumentForm = {
   readonly title: string;
   readonly documentType: DocumentType | null;
+  /** An everyday paper's kind; only kept with the "Other" type it is stored as. */
+  readonly everydayKind?: EverydayKind | null;
   readonly category: VaultCategoryKey | null;
   readonly tags: readonly string[];
   /** Null while the reminder is off. */
   readonly expiresOn: string | null;
   /** The citizen's "only on this phone" choice; null follows the type (`phoneOnlyFor`). */
   readonly phoneOnly: boolean | null;
+  /** The family member it is saved for; absent or null for the citizen's own. */
+  readonly memberId?: string | null;
 };
 
 export type SaveDocumentErrors = {
@@ -212,11 +292,32 @@ export function validateSaveDocument(form: SaveDocumentForm, now: Date): SaveDoc
   if (Object.keys(errors).length > 0 || form.documentType === null) return { ok: false, errors };
 
   const tags = form.tags.flatMap((tag) => normaliseTag(tag) ?? []).slice(0, MAX_TAGS);
+  const kind =
+    form.everydayKind && form.documentType === EVERYDAY_DOCUMENT_TYPE
+      ? { everydayKind: form.everydayKind }
+      : {};
+  // A family member's document always stays on this phone (lib/family/family.ts).
+  if (form.memberId) {
+    return {
+      ok: true,
+      details: {
+        title,
+        documentType: form.documentType,
+        ...kind,
+        ...(form.category === null ? {} : { category: form.category }),
+        ...(tags.length === 0 ? {} : { tags }),
+        ...(form.expiresOn === null ? {} : { expiresOn: form.expiresOn }),
+        phoneOnly: true,
+        memberId: form.memberId,
+      },
+    };
+  }
   return {
     ok: true,
     details: {
       title,
       documentType: form.documentType,
+      ...kind,
       ...(form.category === null ? {} : { category: form.category }),
       ...(tags.length === 0 ? {} : { tags }),
       ...(form.expiresOn === null ? {} : { expiresOn: form.expiresOn }),

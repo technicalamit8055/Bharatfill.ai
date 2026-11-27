@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidUpiId } from '@assistigo/core';
 
 export const BUSINESS_TYPES = [
   'cyber_cafe',
@@ -45,4 +46,17 @@ export const organizationProfileSchema = z.object({
   district: optionalText(120),
   state: optionalText(120),
   preferredLocale: z.enum(['en', 'hi']),
+  /**
+   * The centre's own UPI ID, drawn as a scan-to-pay QR on counter receipts (migration 0050).
+   * Lower-cased: UPI handles are case-insensitive and a stray capital would print a second QR
+   * for the same account.
+   */
+  upiId: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .refine((value) => value === '' || isValidUpiId(value), 'settings.org.upiIdInvalid')
+    .transform((value) => value || null)
+    .optional()
+    .default(''),
 });

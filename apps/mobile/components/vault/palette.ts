@@ -21,6 +21,8 @@ export const vaultPalette = {
   textPrimary: homePalette.textPrimary,
   textSecondary: homePalette.textSecondary,
   textMuted: homePalette.textMuted,
+  /** "Cyber cafes can't see this yet" on a card; above 4.5:1 on the white card. */
+  error: '#C2341D',
 
   brandBlue: homePalette.brandBlue,
   onBrand: homePalette.onBrand,

@@ -35,6 +35,7 @@ import {
   Trash2,
   TriangleAlert,
   Undo2,
+  UserRound,
   WandSparkles,
   ZoomIn,
 } from 'lucide-react-native';
@@ -66,6 +67,8 @@ const FILTER_ICONS: Readonly<Record<PageFilter, LucideIcon>> = {
   original: ImageIcon,
   grayscale: Blend,
   blackWhite: Contrast,
+  studioWhite: UserRound,
+  studioBlue: UserRound,
 };
 
 /** The crop in progress, not yet applied to the page. */
@@ -263,6 +266,14 @@ export function ScanReviewScreen(props: ScanReviewScreenProps) {
                     <Text style={styles.warningAction}>{t('scanReview.quality.keep')}</Text>
                   </Pressable>
                 </View>
+              </View>
+            ) : null}
+
+            {/* ---- Studio background could not be made ---- */}
+            {!issue && page?.status === 'ready' && page.rendered?.backgroundKept ? (
+              <View style={styles.warning} accessibilityRole="alert">
+                <TriangleAlert color={palette.warningIcon} size={22} strokeWidth={2.2} />
+                <Text style={styles.warningText}>{t('scanReview.studio.noPerson')}</Text>
               </View>
             ) : null}
 

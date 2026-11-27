@@ -38,7 +38,7 @@ import {
   startRetake,
   useCaptureSession,
 } from '../lib/scan/capture-session';
-import type { PageFilter } from '../lib/scan/document-vision';
+import { type PageFilter, studioPhotoAvailable } from '../lib/scan/document-vision';
 import {
   nextRotation,
   type PageRotation,
@@ -236,7 +236,7 @@ export default function ScanReviewRoute() {
       currentId={current?.id ?? null}
       crop={crop}
       canAddPage={canAddPages()}
-      filters={presetFilters(preset)}
+      filters={presetFilters(preset, preset === 'photo' && studioPhotoAvailable())}
       pageNames={pageNames}
       qualityIssues={current ? pageQualityIssues(current) : []}
       onDismissQuality={onDismissQuality}

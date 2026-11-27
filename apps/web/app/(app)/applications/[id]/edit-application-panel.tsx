@@ -21,7 +21,6 @@ export function EditApplicationPanel({ application }: { application: Application
       const value = String(form.get(key) ?? '').trim();
       return value === '' ? null : value;
     };
-    const fee = optional('amountCharged');
 
     setPending(true);
     setError(null);
@@ -37,8 +36,6 @@ export function EditApplicationPanel({ application }: { application: Application
           portalUrl: optional('portalUrl'),
           portalReferenceNumber: optional('portalReferenceNumber'),
           deadlineAt: optional('deadlineAt'),
-          amountCharged: fee ? Number(fee) : null,
-          paymentStatus: optional('paymentStatus'),
           notes: optional('notes'),
         }),
       });
@@ -113,30 +110,13 @@ export function EditApplicationPanel({ application }: { application: Application
             defaultValue={application.portal_reference_number ?? ''}
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <TextField
-            name="deadlineAt"
-            type="date"
-            label={t('applications.form.deadline')}
-            defaultValue={application.deadline_at?.slice(0, 10) ?? ''}
-          />
-          <TextField
-            name="amountCharged"
-            type="number"
-            min="0"
-            step="0.01"
-            label={t('applications.form.fee')}
-            defaultValue={application.amount_charged ?? ''}
-          />
-          <Field label={t('applications.form.paymentStatus')}>
-            <Select name="paymentStatus" defaultValue={application.payment_status ?? ''}>
-              <option value="">—</option>
-              <option value="unpaid">{t('applications.payment.unpaid')}</option>
-              <option value="paid">{t('applications.payment.paid')}</option>
-              <option value="refunded">{t('applications.payment.refunded')}</option>
-            </Select>
-          </Field>
-        </div>
+        {/* Fees and payments live in the bill card, where the khata keeps them consistent. */}
+        <TextField
+          name="deadlineAt"
+          type="date"
+          label={t('applications.form.deadline')}
+          defaultValue={application.deadline_at?.slice(0, 10) ?? ''}
+        />
         <Field label={t('applications.form.notes')}>
           <Textarea name="notes" defaultValue={application.notes ?? ''} />
         </Field>

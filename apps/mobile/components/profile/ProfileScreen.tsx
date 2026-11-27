@@ -68,6 +68,10 @@ export function ProfileScreen({
         title: t('profile.menu.personal.title'),
         subtitle: t('profile.menu.personal.subtitle'),
       },
+      family: {
+        title: t('profile.menu.family.title'),
+        subtitle: t('profile.menu.family.subtitle'),
+      },
       security: {
         title: t('profile.menu.security.title'),
         subtitle: t('profile.menu.security.subtitle'),

@@ -2,7 +2,11 @@ import { Alert } from '@assistigo/ui';
 import {
   OPEN_STATUSES,
   formatIndianDate,
+  istDayRange,
+  istToday,
+  tallyDay,
   type ApplicationStatus,
+  type LedgerEntry,
 } from '@assistigo/core';
 import { requireSession } from '@/lib/auth/session';
 import { isProduction } from '@/lib/env';
@@ -35,6 +39,7 @@ import { AttentionStrip } from './attention-strip';
 import { PeakHoursHeatmap } from './peak-hours-heatmap';
 import { AlertIcon, ClipboardIcon, DocumentIcon, FormIcon, UsersIcon } from './icons';
 import { ProductivityWidget } from './productivity-widget';
+import { CounterTallyCard } from './counter-tally-card';
 
 export const metadata = { title: 'Home' };
 
@@ -114,6 +119,7 @@ export default async function DashboardPage({
 
   const asOf = new Date();
   const since = new Date(asOf.getTime() - TREND_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const todayRange = istDayRange(istToday(asOf));
 
   const [
     summaryResult,
@@ -125,6 +131,8 @@ export default async function DashboardPage({
     catalog,
     dueSoonResult,
     stageResult,
+    counterTodayResult,
+    udharResult,
   ] = await Promise.all([
     supabase.rpc('dashboard_summary', { p_organization_id: organizationId }),
 
@@ -218,7 +226,39 @@ export default async function DashboardPage({
           .in('status', OPEN_STATUSES)
           .limit(TREND_ROW_LIMIT)
       : Promise.resolve({ data: null }),
+
+    // Today's khata (migration 0050): amounts and methods only, no names.
+    canViewApplications && todayRange
+      ? supabase
+          .from('application_payments')
+          .select('kind, method, amount')
+          .eq('organization_id', organizationId)
+          .gte('created_at', todayRange.start)
+          .lt('created_at', todayRange.end)
+          .limit(TREND_ROW_LIMIT)
+      : Promise.resolve({ data: null }),
+
+    canViewApplications
+      ? supabase
+          .from('applications')
+          .select('balance_due')
+          .eq('organization_id', organizationId)
+          .is('deleted_at', null)
+          .gt('balance_due', 0)
+          .limit(TREND_ROW_LIMIT)
+      : Promise.resolve({ data: null }),
   ]);
+
+  const counterTally = tallyDay(
+    (counterTodayResult.data ?? []) as Pick<LedgerEntry, 'kind' | 'method' | 'amount'>[],
+  );
+  // Both reads fail while migration 0050 is not applied; hide the card rather than show ₹0.
+  const counterReady =
+    !('error' in counterTodayResult && counterTodayResult.error) &&
+    !('error' in udharResult && udharResult.error);
+  const udharRows = (udharResult.data ?? []) as { balance_due: number | string }[];
+  const udharTotal =
+    udharRows.reduce((sum, row) => sum + Math.round(Number(row.balance_due) * 100), 0) / 100;
 
   const summary: DashboardSummary = {
     ...EMPTY_SUMMARY,
@@ -422,6 +462,15 @@ export default async function DashboardPage({
               canDiscard={session.permissions.has('document.delete')}
               canPreview={session.permissions.has('document.download')}
               canPickRoaming={session.permissions.has('customer.roaming_link')}
+            />
+          ) : null}
+
+          {canViewApplications && counterReady ? (
+            <CounterTallyCard
+              tally={counterTally}
+              udharTotal={udharTotal}
+              udharCount={udharRows.length}
+              t={t}
             />
           ) : null}
 

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound as nextNotFound } from 'next/navigation';
-import { Badge, Card, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
+import { Alert, Badge, Card, Table, TBody, TD, TH, THead, TR } from '@assistigo/ui';
 import {
   APPLICATION_STATUS_LABELS,
   APPLICATION_STATUS_TONE,
@@ -21,9 +21,12 @@ import { StatusActions } from './status-actions';
 import { Checklist } from './checklist';
 import { EditApplicationPanel } from './edit-application-panel';
 import { DeleteApplicationButton } from './delete-application-button';
+import { BillCard } from './bill-card';
+import { loadBillIfReady } from '@/lib/khata/service';
 
 const PAYMENT_TONE: Record<string, 'neutral' | 'success' | 'warning'> = {
   unpaid: 'warning',
+  partial: 'warning',
   paid: 'success',
   refunded: 'neutral',
 };
@@ -49,8 +52,13 @@ export default async function ApplicationDetailPage({
   if (!application) nextNotFound();
   const row = application as ApplicationRow;
 
-  const [{ data: customer }, { data: documents }, { data: statusEvents }, { data: fillSessions }] =
-    await Promise.all([
+  const [
+    { data: customer },
+    { data: documents },
+    { data: statusEvents },
+    { data: fillSessions },
+    loaded,
+  ] = await Promise.all([
       supabase
         .from('customers')
         .select('id, full_name, customer_code, mobile')
@@ -74,7 +82,9 @@ export default async function ApplicationDetailPage({
         .eq('organization_id', session.organization.id)
         .eq('application_id', id)
         .order('created_at', { ascending: false }),
+      loadBillIfReady(supabase, session.organization, id),
     ]);
+  const bill = loaded?.bill ?? null;
 
   const canUpdate = session.permissions.has('application.update');
   const canDelete = session.permissions.has('application.delete');
@@ -173,6 +183,18 @@ export default async function ApplicationDetailPage({
           ) : null}
         </Card>
       </div>
+
+      {bill ? (
+        <BillCard
+          initialBill={bill}
+          canUpdate={canUpdate}
+          canRefund={session.permissions.has('payment.refund')}
+          canEditSettings={session.permissions.has('org.settings')}
+          hasMobile={Boolean(customer?.mobile)}
+        />
+      ) : (
+        <Alert tone="info">{t('khata.notReady')}</Alert>
+      )}
 
       {canUpdate ? <EditApplicationPanel application={row} /> : null}
 

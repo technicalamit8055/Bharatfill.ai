@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { Building2, MapPin, Phone } from 'lucide-react';
+import { Building2, IndianRupee, MapPin, Phone } from 'lucide-react';
 import { Alert, Button, Field, Select, TextField } from '@assistigo/ui';
 import { SettingsCard } from '@/components/settings/settings-card';
 import { INDIAN_STATES } from '@/lib/constants/states';
@@ -10,7 +10,15 @@ import { BUSINESS_TYPES } from '@/lib/settings/organization';
 import { updateOrganizationAction, type OrganizationState } from './actions';
 
 type Values = Record<
-  'name' | 'businessType' | 'phone' | 'email' | 'city' | 'district' | 'state' | 'preferredLocale',
+  | 'name'
+  | 'businessType'
+  | 'phone'
+  | 'email'
+  | 'city'
+  | 'district'
+  | 'state'
+  | 'preferredLocale'
+  | 'upiId',
   string
 >;
 
@@ -113,6 +121,21 @@ export function OrganizationForm({ initial }: { initial: Values }) {
             </Select>
           </Field>
         </div>
+      </SettingsCard>
+
+      <SettingsCard
+        icon={<IndianRupee className="h-5 w-5" aria-hidden />}
+        title={t('settings.org.paymentsTitle')}
+      >
+        <TextField
+          label={t('settings.org.upiId')}
+          hint={t('settings.org.upiIdHint')}
+          placeholder="shopname@okaxis"
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={320}
+          {...bind('upiId')}
+        />
       </SettingsCard>
 
       {state.error ? <Alert tone="danger">{t(state.error)}</Alert> : null}

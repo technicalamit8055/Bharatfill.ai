@@ -1,7 +1,11 @@
 /**
- * Upload — add a photo or a PDF that is already on the phone, without opening the camera. Two
- * choices: Photos (the phone's photo picker) and PDF or file (the system file picker: Downloads,
- * WhatsApp documents, Drive). What is picked goes on to scan review like a scan.
+ * Upload — add a photo or a PDF that is already on the phone, without opening the camera. Photos
+ * (the phone's photo picker), PDF or file (the system file picker: Downloads, WhatsApp
+ * documents, Drive), and — where PDFs can be read — DigiLocker or e-Aadhaar: the same picker
+ * for PDFs alone, for a document downloaded from DigiLocker or UIDAI. Such a PDF is unlocked
+ * with the e-Aadhaar rule and its QR code checked on Save. A link opens DigiLocker to download
+ * one first: this app sits on top of DigiLocker, it does not replace it. What is picked goes on
+ * to scan review like a scan.
  *
  * The same screen is where review comes back to: to add more pages, to replace one (Replace,
  * the upload's Retake), or with Back, when it also offers to review the pages already added.
@@ -11,7 +15,15 @@
 
 import { StatusBar } from 'expo-status-bar';
 import type { LucideIcon } from 'lucide-react-native';
-import { ArrowRight, ChevronLeft, FileText, Images, ShieldCheck } from 'lucide-react-native';
+import {
+  ArrowRight,
+  ChevronLeft,
+  ExternalLink,
+  FileText,
+  Images,
+  Landmark,
+  ShieldCheck,
+} from 'lucide-react-native';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -30,6 +42,9 @@ export type ImportScreenProps = {
   readonly replacing: boolean;
   readonly onPickPhotos: () => void;
   readonly onPickFiles: () => void;
+  /** DigiLocker or e-Aadhaar: PDFs only, unlocked and their QR checked on the way in. */
+  readonly onPickOfficial: () => void;
+  readonly onOpenDigiLocker: () => void;
   readonly onReview: () => void;
   readonly onClose: () => void;
 };
@@ -85,6 +100,29 @@ export function ImportScreen(props: ImportScreenProps) {
             disabled={disabled}
             onPress={props.onPickFiles}
           />
+
+          {props.pdfAvailable && !replacing ? (
+            <>
+              <ChoiceCard
+                icon={Landmark}
+                tile={palette.officialTile}
+                iconColor={palette.officialIcon}
+                label={t('importFiles.official.label')}
+                caption={t('importFiles.official.caption')}
+                disabled={disabled}
+                onPress={props.onPickOfficial}
+              />
+              <Pressable
+                accessibilityRole="link"
+                accessibilityHint={t('importFiles.official.openHint')}
+                onPress={props.onOpenDigiLocker}
+                style={({ pressed }) => [styles.openLink, pressed && styles.pressed]}
+              >
+                <Text style={styles.openLinkLabel}>{t('importFiles.official.open')}</Text>
+                <ExternalLink color={palette.brandBlue} size={16} strokeWidth={2.3} />
+              </Pressable>
+            </>
+          ) : null}
 
           <View style={styles.note}>
             <ShieldCheck color={palette.noteIcon} size={20} strokeWidth={2.1} />
@@ -238,6 +276,19 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 19,
     color: palette.textSecondary,
+  },
+  openLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    minHeight: 40,
+    paddingHorizontal: 4,
+  },
+  openLinkLabel: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: palette.brandBlue,
   },
   note: {
     flexDirection: 'row',

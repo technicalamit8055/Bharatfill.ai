@@ -14,6 +14,7 @@ import {
   formatMessage,
   formatVaultDate,
   isRecent,
+  matchedInText,
   metaLine,
   RECENT_DAYS,
   type VaultItem,
@@ -200,5 +201,25 @@ describe('document meta line', () => {
     expect(metaLine({ ...photo, sizeBytes: null, pageCount: 2 }, t)).toBe(
       '2 pages  •  10 Sep 2026',
     );
+  });
+});
+
+describe('searching the text inside documents', () => {
+  const READ = {
+    ...MARKSHEET,
+    id: 'read',
+    searchText: 'SECONDARY SCHOOL EXAMINATION\nRoll No 2112345',
+  };
+
+  it('finds a document by a number printed on it, however it is spaced', () => {
+    expect(ids(visibleItems([READ, PAN], { ...ALL, search: '211 2345' }))).toEqual(['read']);
+    expect(matchedInText(READ, '2112345')).toBe(true);
+  });
+
+  it('says when the match was in the text, not the name', () => {
+    expect(matchedInText(READ, 'school examination')).toBe(true);
+    expect(matchedInText(READ, '10th')).toBe(false);
+    expect(matchedInText(READ, '')).toBe(false);
+    expect(matchedInText(PAN, 'roll')).toBe(false);
   });
 });

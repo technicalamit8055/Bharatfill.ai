@@ -27,14 +27,23 @@ import {
 import { Directory, File, Paths } from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 
+import type { FamilyMember, FamilyRelation, MemberId } from '../family/family';
 import { isDisposableScanFile } from '../scan/scan-session';
-import { cancelExpiryReminder } from './expiry-reminders';
+import { cancelExpiryReminder, type ReminderCopy, scheduleExpiryReminder } from './expiry-reminders';
+import { type ReminderPlan, reminderPlanFor } from './save-document';
 import {
   type DetailsChange,
   type DocumentDetails,
   type DocumentSource,
   EMPTY_VAULT_INDEX,
   findDocument,
+  type MemberChange,
+  membersOf,
+  withDocumentMember,
+  withMemberAdded,
+  withMemberChanged,
+  withoutMember,
+  withReminder,
   INDEX_ASSOCIATED_DATA,
   MAX_PAGES_PER_DOCUMENT,
   pageAssociatedData,
@@ -42,14 +51,22 @@ import {
   type PageMimeType,
   parseVaultIndex,
   phoneOnlyForNewDocument,
+  parseSearchText,
+  serialiseSearchText,
   serialiseVaultIndex,
+  type StoredReading,
+  TEXT_FILE_NAME,
+  textAssociatedData,
   type VaultDocument,
   type VaultIndex,
   withDetails,
+  withReading,
   withDocument,
   withoutDocument,
   withPhoneOnly,
+  withQrCheck,
   withStarred,
+  type StoredQrCheck,
 } from './vault-index';
 
 const KEY_ENTRY = 'bharatfill.vault.key.v1';
@@ -253,6 +270,8 @@ export async function saveDocument(
    * for a cloud copy this vault already holds returns the existing document's id.
    */
   pulled?: { readonly cloud: NonNullable<VaultDocument['cloud']>; readonly addedByCentre: string },
+  /** The text the phone read off the pages (`lib/ocr`), sealed beside them for search. */
+  searchText?: string,
 ): Promise<string> {
   try {
     if (pages.length === 0 || pages.length > MAX_PAGES_PER_DOCUMENT) {
@@ -274,6 +293,7 @@ export async function saveDocument(
           key,
         );
       }
+      if (searchText) await sealText(id, searchText, key);
 
       const document: VaultDocument = {
         id,
@@ -355,6 +375,13 @@ export async function setStarred(id: string, starred: boolean): Promise<void> {
   signalVaultChanged();
 }
 
+/** Records what a document's QR code proved (only the summary: never the code's contents). */
+export async function setQrCheck(id: string, qrCheck: StoredQrCheck | null): Promise<void> {
+  const key = await vaultKey();
+  await exclusive(async () => writeIndex(withQrCheck(await readIndex(key), id, qrCheck), key));
+  signalVaultChanged();
+}
+
 /** Renames, moves or re-tags a document. Returns it as saved; null when it no longer exists. */
 export async function updateDetails(
   id: string,
@@ -381,8 +408,78 @@ export async function deleteDocument(id: string): Promise<void> {
 
   const directory = documentDirectory(id);
   if (directory.exists) directory.delete();
+  textCache.delete(id);
   if (removed?.reminderId) await cancelExpiryReminder(removed.reminderId);
   signalVaultChanged();
+}
+
+// ---- Document text (lib/ocr) --------------------------------------------------------------
+
+/**
+ * Texts already opened this run, by document id, so typing in the search box does not decrypt
+ * every document again on each key. Held in memory only, like the decrypted index.
+ */
+const textCache = new Map<string, string>();
+
+async function sealText(id: string, text: string, key: AESEncryptionKey): Promise<void> {
+  await sealTo(
+    new File(documentDirectory(id), TEXT_FILE_NAME),
+    asciiToBase64(serialiseSearchText(text)),
+    textAssociatedData(id),
+    key,
+  );
+  textCache.set(id, text);
+}
+
+/**
+ * Records what the phone read off a saved document: its details in the index and its text
+ * sealed beside its pages. A document deleted meanwhile is left deleted. Does not signal a
+ * change: the reading is never synced, so there is nothing for sync to do.
+ */
+export async function saveDocumentReading(
+  id: string,
+  reading: StoredReading,
+  searchText: string,
+): Promise<void> {
+  const key = await vaultKey();
+  await exclusive(async () => {
+    const index = await readIndexForUpdate(key);
+    if (!findDocument(index, id) || !documentDirectory(id).exists) return;
+    if (searchText) await sealText(id, searchText, key);
+    await writeIndex(withReading(index, id, reading), key);
+  });
+}
+
+/**
+ * The text of each document that has one, by id, decrypted into memory for search. A document
+ * whose text will not open is left out rather than failing the search.
+ */
+export async function readSearchTexts(
+  documents: readonly VaultDocument[],
+): Promise<ReadonlyMap<string, string>> {
+  const key = await vaultKey();
+  const texts = new Map<string, string>();
+  for (const document of documents) {
+    const cached = textCache.get(document.id);
+    if (cached !== undefined) {
+      texts.set(document.id, cached);
+      continue;
+    }
+    if (!document.reading) continue;
+    const file = new File(documentDirectory(document.id), TEXT_FILE_NAME);
+    if (!file.exists) continue;
+    try {
+      const text = parseSearchText(
+        atob(await openAsBase64(file, textAssociatedData(document.id), key)),
+      );
+      if (text === null) continue;
+      textCache.set(document.id, text);
+      texts.set(document.id, text);
+    } catch {
+      // Unreadable: this document is found by its name and tags only.
+    }
+  }
+  return texts;
 }
 
 /**
@@ -410,6 +507,7 @@ export async function clearVault(options: { keepPendingCloudDeletes: boolean }):
     return index.documents;
   });
 
+  textCache.clear();
   for (const document of removed) {
     const directory = documentDirectory(document.id);
     if (directory.exists) directory.delete();
@@ -432,6 +530,127 @@ export async function setPhoneOnly(id: string, phoneOnly: boolean): Promise<void
   const key = await vaultKey();
   await exclusive(async () => writeIndex(withPhoneOnly(await readIndex(key), id, phoneOnly), key));
   signalVaultChanged();
+}
+
+// ---- Family members (lib/family/family.ts) --------------------------------------------------
+
+/**
+ * What an expiry reminder says for one person's document, already translated. It may name the
+ * relation ("Papa's document…") and how far off the date is, but never the member's own name or
+ * anything about the document.
+ */
+export type ReminderCopyFor = (owner: FamilyMember | null, plan: ReminderPlan) => ReminderCopy;
+
+/** The family members, oldest first. */
+export async function listFamilyMembers(): Promise<readonly FamilyMember[]> {
+  return membersOf(await readIndex(await vaultKey()));
+}
+
+/** Adds a member. Throws a RangeError when the family is already full. */
+export async function addFamilyMember(input: {
+  readonly relation: FamilyRelation;
+  readonly name: string | null;
+}): Promise<FamilyMember> {
+  const member: FamilyMember = {
+    id: randomUUID(),
+    relation: input.relation,
+    ...(input.name ? { name: input.name } : {}),
+    createdAt: new Date().toISOString(),
+  };
+  const key = await vaultKey();
+  await exclusive(async () => writeIndex(withMemberAdded(await readIndex(key), member), key));
+  signalVaultChanged();
+  return member;
+}
+
+/**
+ * Replaces the reminders of `documents` with ones worded for their owner now — after a
+ * document changes hands, or a member's relation changes. Best effort: a reminder that will not
+ * schedule leaves the document without one rather than failing the change.
+ */
+async function rewordReminders(
+  documentIds: readonly string[],
+  copyFor: ReminderCopyFor,
+): Promise<void> {
+  const key = await vaultKey();
+  const index = await readIndex(key);
+  const members = membersOf(index);
+  for (const id of documentIds) {
+    const document = findDocument(index, id);
+    if (!document?.reminderId || !document.expiresOn) continue;
+    await cancelExpiryReminder(document.reminderId);
+    const owner = members.find((member) => member.id === document.memberId) ?? null;
+    const plan = reminderPlanFor(document, new Date());
+    let reminderId: string | null = null;
+    if (plan) {
+      try {
+        reminderId = await scheduleExpiryReminder(plan.at, copyFor(owner, plan));
+      } catch {
+        reminderId = null;
+      }
+    }
+    await exclusive(async () => writeIndex(withReminder(await readIndex(key), id, reminderId), key));
+  }
+}
+
+export async function updateFamilyMember(
+  id: string,
+  change: MemberChange,
+  copyFor: ReminderCopyFor,
+): Promise<void> {
+  const key = await vaultKey();
+  const relationChanged = await exclusive(async () => {
+    const index = await readIndex(key);
+    const before = membersOf(index).find((member) => member.id === id);
+    await writeIndex(withMemberChanged(index, id, change), key);
+    return before !== undefined && change.relation !== undefined && change.relation !== before.relation;
+  });
+  if (relationChanged) {
+    const owned = (await readIndex(key)).documents.filter((document) => document.memberId === id);
+    await rewordReminders(
+      owned.map((document) => document.id),
+      copyFor,
+    );
+  }
+  signalVaultChanged();
+}
+
+/** Removes a member with all their documents: pages, index entries and reminders. */
+export async function removeFamilyMember(id: string): Promise<void> {
+  const key = await vaultKey();
+  const removed = await exclusive(async () => {
+    const result = withoutMember(await readIndex(key), id);
+    await writeIndex(result.index, key);
+    return result.removed;
+  });
+  for (const document of removed) {
+    const directory = documentDirectory(document.id);
+    if (directory.exists) directory.delete();
+    if (document.reminderId) await cancelExpiryReminder(document.reminderId);
+  }
+  signalVaultChanged();
+}
+
+/**
+ * Files a document under a family member, or back under the citizen (`null`); see
+ * `withDocumentMember` for what that does to sharing. Returns the document as saved.
+ */
+export async function moveDocumentToMember(
+  id: string,
+  memberId: MemberId,
+  copyFor: ReminderCopyFor,
+): Promise<VaultDocument | null> {
+  const key = await vaultKey();
+  const moved = await exclusive(async () => {
+    const index = await readIndex(key);
+    const before = findDocument(index, id);
+    const next = withDocumentMember(index, id, memberId);
+    await writeIndex(next, key);
+    return before !== null && (before.memberId ?? null) !== memberId;
+  });
+  if (moved) await rewordReminders([id], copyFor);
+  signalVaultChanged();
+  return findDocument(await readIndex(key), id);
 }
 
 // ---- Cloud sync state (docs/VAULT_BRIDGE_DESIGN.md §3.2) -----------------------------------

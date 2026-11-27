@@ -11,7 +11,9 @@
  * Development builds show the design mockup's sample content (`components/home/demo.tsx`) while
  * the phone's vault is empty, so the layout can be reviewed full. The quick actions open the
  * scanner, or Upload (`app/import.tsx`) for a photo or PDF already on the phone; the document
- * checklist adds one particular document, or opens `/checklist`. Features the dashboard points at
+ * checklist adds one particular document, or opens `/checklist`. "Coming up" lists the dates
+ * close to expiry or due (`upcomingReminders`); a row opens its document, and Renew now / Pay
+ * now opens the nearby-centre finder. Features the dashboard points at
  * that do not exist yet — notifications — say so plainly, and nothing is sent.
  */
 
@@ -28,11 +30,16 @@ import {
   type QuickScanMode,
   quickScanParams,
   type RecentDocument,
+  type UpcomingDocument,
   vaultDashboardSummary,
 } from '../../lib/home/dashboard';
 import { coreChecklist } from '../../lib/checklist/checklist';
 import { useChecklistActions } from '../../lib/checklist/use-checklist-actions';
+import { MemberSwitcher } from '../../components/family/MemberSwitcher';
+import { documentsOf } from '../../lib/family/family';
+import { useMemberSwitcher } from '../../lib/family/use-member-switcher';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
+import { upcomingReminders } from '../../lib/vault/everyday';
 import type { VaultDocument } from '../../lib/vault/vault-index';
 import { listDocuments, readPageDataUri } from '../../lib/vault/vault-storage';
 
@@ -52,6 +59,10 @@ export default function HomeRoute() {
 
   const [now, setNow] = useState(() => new Date());
   const [dashboard, setDashboard] = useState<HomeDashboard>(EMPTY_HOME_DASHBOARD);
+  /** Every person's documents, for the switcher's expiry dots. */
+  const [allDocuments, setAllDocuments] = useState<readonly VaultDocument[]>([]);
+  const switcher = useMemberSwitcher(allDocuments, now);
+  const active = switcher.family.active;
   /** Ids of the real vault documents on screen; anything else is sample content. */
   const vaultIds = useRef<ReadonlySet<string>>(new Set());
   /** Drops the result of a read that a newer one has overtaken. */
@@ -59,17 +70,20 @@ export default function HomeRoute() {
 
   const load = useCallback(async () => {
     const ticket = ++latestLoad.current;
-    let documents: readonly VaultDocument[];
+    let everyone: readonly VaultDocument[];
     let readable = true;
     try {
-      documents = await listDocuments();
+      everyone = await listDocuments();
     } catch {
-      documents = [];
+      everyone = [];
       readable = false;
     }
     const openedAt = new Date();
+    // Home shows one person at a time: the citizen, or the family member picked above.
+    const documents = documentsOf(everyone, active);
+    if (ticket === latestLoad.current) setAllDocuments(everyone);
 
-    if (__DEV__ && documents.length === 0) {
+    if (__DEV__ && everyone.length === 0) {
       if (ticket !== latestLoad.current) return;
       vaultIds.current = new Set();
       setNow(openedAt);
@@ -86,8 +100,25 @@ export default function HomeRoute() {
         thumbnail: await thumbnailOf(document),
       })),
     );
+    const upcoming = upcomingReminders(documents, openedAt).flatMap(
+      (reminder): UpcomingDocument[] => {
+        const document = documents.find((candidate) => candidate.id === reminder.id);
+        if (!document) return [];
+        return [
+          {
+            ...reminder,
+            title: document.title ?? t(`vault.untitled.${document.source}`),
+            documentType: document.documentType ?? null,
+            everydayKind: document.everydayKind ?? null,
+          },
+        ];
+      },
+    );
     if (ticket !== latestLoad.current) return;
-    vaultIds.current = new Set(recent.map((document) => document.id));
+    vaultIds.current = new Set([
+      ...recent.map((document) => document.id),
+      ...upcoming.map((item) => item.id),
+    ]);
     setNow(openedAt);
     setDashboard({
       ...EMPTY_HOME_DASHBOARD,
@@ -95,8 +126,9 @@ export default function HomeRoute() {
       recentDocuments,
       // A vault that cannot be read hides the checklist, rather than calling everything missing.
       checklist: readable ? coreChecklist(documents, openedAt) : [],
+      upcoming,
     });
-  }, [t]);
+  }, [active, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -155,6 +187,21 @@ export default function HomeRoute() {
     [comingSoon, router],
   );
 
+  const handleOpenUpcoming = useCallback(
+    (item: UpcomingDocument) => {
+      if (vaultIds.current.has(item.id)) {
+        router.push({ pathname: '/document-details', params: { id: item.id } });
+      } else {
+        comingSoon('home.recent.actionsUnavailable');
+      }
+    },
+    [comingSoon, router],
+  );
+
+  const handleUpcomingAction = useCallback(() => {
+    router.navigate('/share/nearby');
+  }, [router]);
+
   return (
     <>
       {/* Home is light-only artwork; claim the status bar only while this tab is showing. */}
@@ -171,6 +218,16 @@ export default function HomeRoute() {
         onConnect={handleConnect}
         onOpenVault={handleOpenVault}
         onDocumentActions={handleDocumentActions}
+        onOpenUpcoming={handleOpenUpcoming}
+        onUpcomingAction={handleUpcomingAction}
+        familyBar={
+          <MemberSwitcher
+            chips={switcher.chips}
+            selected={switcher.selected}
+            onSelect={switcher.onSelect}
+            {...(switcher.onAdd ? { onAdd: switcher.onAdd } : {})}
+          />
+        }
       />
     </>
   );

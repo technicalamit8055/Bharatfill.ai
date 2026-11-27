@@ -19,20 +19,33 @@ import { FileUp, Files, ScanLine, Star, StarOff, Trash2 } from 'lucide-react-nat
 import { useCallback, useRef, useState } from 'react';
 
 import { showActionSheet, showDialog } from '../../lib/dialog/dialog-store';
+import { MemberSwitcher } from '../../components/family/MemberSwitcher';
 import { DEMO_ID_PREFIX, demoVaultItems } from '../../components/vault/demo';
+import { documentsOf } from '../../lib/family/family';
+import { useMemberSwitcher } from '../../lib/family/use-member-switcher';
 import { VaultScreen, type VaultScreenState } from '../../components/vault/VaultScreen';
 import type { Translate } from '../../lib/i18n';
 import { useTranslation } from '../../lib/i18n/I18nProvider';
+import { everydayKindLabelKey } from '../../lib/vault/everyday';
 import { documentTypeLabelKey } from '../../lib/vault/save-document';
-import type { VaultDocument } from '../../lib/vault/vault-index';
+import { centreCopyFailed, type VaultDocument } from '../../lib/vault/vault-index';
 import type { VaultItem } from '../../lib/vault/vault-screen';
 import {
   deleteDocument,
   documentSizeBytes,
   listDocuments,
   readPageDataUri,
+  readSearchTexts,
   setStarred,
 } from '../../lib/vault/vault-storage';
+import { readUnreadDocuments } from '../../lib/ocr/read-documents';
+
+/** What search looks through besides the name and tags: the details read off it, and its text. */
+function searchTextOf(document: VaultDocument, text: string | undefined): string | undefined {
+  const parts = [...(document.reading?.fields.map((field) => field.value) ?? []), text ?? ''];
+  const joined = parts.filter((part) => part !== '').join('\n');
+  return joined === '' ? undefined : joined;
+}
 
 function sizeOf(document: VaultDocument): number | null {
   try {
@@ -47,9 +60,12 @@ function toItem(document: VaultDocument, t: Translate): VaultItem {
     id: document.id,
     title: document.title ?? t(`vault.untitled.${document.source}`),
     category: document.category ?? null,
-    tag: document.documentType
-      ? t(documentTypeLabelKey(document.documentType))
-      : t(`vault.source.${document.source}`),
+    tag: document.everydayKind
+      ? t(everydayKindLabelKey(document.everydayKind))
+      : document.documentType
+        ? t(documentTypeLabelKey(document.documentType))
+        : t(`vault.source.${document.source}`),
+    everyday: document.everydayKind !== undefined,
     tags: document.tags ?? [],
     createdAt: new Date(document.createdAt),
     pageCount: document.pages.length,
@@ -57,6 +73,7 @@ function toItem(document: VaultDocument, t: Translate): VaultItem {
     sizeBytes: sizeOf(document),
     starred: document.starred === true,
     thumbnail: { kind: 'vault' },
+    centreCopyFailed: centreCopyFailed(document),
   };
 }
 
@@ -71,6 +88,10 @@ export default function VaultRoute() {
 
   const [state, setState] = useState<VaultScreenState>({ status: 'loading' });
   const [now, setNow] = useState(() => new Date());
+  /** Every person's documents, for the switcher's expiry dots. */
+  const [allDocuments, setAllDocuments] = useState<readonly VaultDocument[]>([]);
+  const switcher = useMemberSwitcher(allDocuments, now);
+  const active = switcher.family.active;
   /** The vault documents behind the items on screen, for decrypting their thumbnails. */
   const documents = useRef<ReadonlyMap<string, VaultDocument>>(new Map());
   /** Drops the result of a read that a newer one has overtaken. */
@@ -79,27 +100,56 @@ export default function VaultRoute() {
   const load = useCallback(async () => {
     const ticket = ++latestLoad.current;
     try {
-      const listed = await listDocuments();
+      const everyone = await listDocuments();
       if (ticket !== latestLoad.current) return;
+      // One person's documents at a time: the citizen, or the family member picked above.
+      const listed = documentsOf(everyone, active);
 
       const openedAt = new Date();
       documents.current = new Map(listed.map((document) => [document.id, document]));
+      setAllDocuments(everyone);
       setNow(openedAt);
       setState({
         status: 'ready',
         items:
-          __DEV__ && listed.length === 0
+          __DEV__ && everyone.length === 0
             ? demoVaultItems(openedAt, t)
             : listed.map((document) => toItem(document, t)),
       });
+
+      // The text read off each document, for search: decrypted into memory after the list shows.
+      const texts = await readSearchTexts(listed).catch(
+        (): ReadonlyMap<string, string> => new Map(),
+      );
+      if (ticket !== latestLoad.current) return;
+      const byId = new Map(listed.map((document) => [document.id, document]));
+      setState((current) =>
+        current.status === 'ready'
+          ? {
+              status: 'ready',
+              items: current.items.map((item) => {
+                const document = byId.get(item.id);
+                const searchText = document ? searchTextOf(document, texts.get(item.id)) : undefined;
+                return searchText ? { ...item, searchText } : item;
+              }),
+            }
+          : current,
+      );
     } catch {
       if (ticket === latestLoad.current) setState({ status: 'error' });
     }
-  }, [t]);
+  }, [active, t]);
 
   useFocusEffect(
     useCallback(() => {
       void load();
+      // Documents saved before the phone could read them are read in the background, then
+      // become searchable by their text.
+      void readUnreadDocuments()
+        .then((read) => {
+          if (read > 0) void load();
+        })
+        .catch(() => undefined);
     }, [load]),
   );
 
@@ -267,6 +317,14 @@ export default function VaultRoute() {
         onScan={() => scan('single')}
         onUpload={upload}
         onRetry={retry}
+        familyBar={
+          <MemberSwitcher
+            chips={switcher.chips}
+            selected={switcher.selected}
+            onSelect={switcher.onSelect}
+            {...(switcher.onAdd ? { onAdd: switcher.onAdd } : {})}
+          />
+        }
       />
     </>
   );

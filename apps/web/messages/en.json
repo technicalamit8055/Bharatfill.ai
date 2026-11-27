@@ -52,7 +52,8 @@
     "sidebarControl": "Sidebar control",
     "sidebarExpanded": "Expanded",
     "sidebarCollapsed": "Collapsed",
-    "sidebarHover": "Expand on hover"
+    "sidebarHover": "Expand on hover",
+    "khata": "Khata"
   },
   "header": {
     "accountMenu": "Account menu",
@@ -686,7 +687,8 @@
       "unpaid": "Unpaid",
       "paid": "Paid",
       "refunded": "Refunded",
-      "none": "—"
+      "none": "—",
+      "partial": "Part paid"
     },
     "form": {
       "customer": "Customer",
@@ -1176,7 +1178,11 @@
       "member.accepted": "Invitation accepted",
       "member.removed": "Member removed",
       "member.role_changed": "Member role changed",
-      "organization.updated": "Centre profile updated"
+      "organization.updated": "Centre profile updated",
+      "application.fees_set": "Bill fees set",
+      "application.payment_recorded": "Payment recorded",
+      "application.refund_recorded": "Refund recorded",
+      "application.bill_sent": "Bill sent on WhatsApp"
     }
   },
   "settings": {
@@ -1283,7 +1289,11 @@
       "languageHint": "Used for messages customers get while sending you documents.",
       "saved": "Your changes are saved.",
       "nameInvalid": "Enter a business name of 2 to 160 characters.",
-      "phoneInvalid": "Enter a valid phone number."
+      "phoneInvalid": "Enter a valid phone number.",
+      "paymentsTitle": "Counter payments",
+      "upiId": "Centre UPI ID",
+      "upiIdHint": "Printed as a scan-to-pay QR on counter receipts, e.g. 9876543210@ybl. Customers pay you directly; Bharatfill never handles the money.",
+      "upiIdInvalid": "Enter a UPI ID like name@bank."
     },
     "securityPage": {
       "subtitle": "Protect your account and check how your data is kept safe.",
@@ -1571,7 +1581,15 @@
       "code_paused": "Too many wrong codes. Code entry is paused for a while — ask the customer to approve from their app.",
       "code_wrong": "That code is not right, or it has expired. Ask the customer for a new code.",
       "pin_same": "The new PIN must be different from your current PIN."
-    }
+    },
+    "khata_no_fees": "Enter the government fee or the service charge first.",
+    "khata_more_than_due": "That is more than the balance due on this bill.",
+    "khata_refund_more_than_paid": "A refund cannot be more than what has been paid.",
+    "khata_fee_below_paid": "The new total is less than what has already been paid. Record a refund first.",
+    "khata_amount_too_large": "That amount is too large for one bill.",
+    "khata_no_mobile": "This customer has no mobile number saved.",
+    "khata_whatsapp_not_configured": "WhatsApp sending is not set up yet. Print the receipt instead.",
+    "khata_whatsapp_failed": "The WhatsApp message did not go out. Try again or print the receipt."
   },
   "privacy": {
     "sensitiveNotice": "Sensitive value. Revealing it is recorded in the audit log.",
@@ -2483,7 +2501,44 @@
       "mappingsNote": "Mappings and URL patterns are managed by the extension tooling.",
       "empty": "No global adapters yet.",
       "emptyHelp": "Adapters ship with the build and are seeded by npm run db:seed:adapters.",
-      "saved": "Adapter updated."
+      "saved": "Adapter updated.",
+      "contributionsLink": "Taught mappings"
+    },
+    "contributions": {
+      "title": "Taught mappings",
+      "subtitle": "Fields operators mapped by hand on portals the extension did not recognise, shared for review. Approving one adds it to the portal's global adapter for every centre.",
+      "pendingCount": "{count} waiting",
+      "coverageCount": "{covered} of {total} top portals have an adapter",
+      "safetyNote": "Portal text only — no customer values are ever shared. An approved field always matches the exact label, is always reviewed by the operator before it fills, and can never replace a hand-written mapping.",
+      "queueTitle": "Waiting for review",
+      "empty": "Nothing waiting.",
+      "emptyHelp": "When an operator maps a field the extension did not recognise and leaves sharing on, it appears here.",
+      "noLabel": "(no label)",
+      "section": "Section: {heading}",
+      "inputType": "Type: {type}",
+      "centres": "{count} centre(s)",
+      "conflict": "Centres disagree about this box. Also taught as: {others}.",
+      "conflictItem": "{field} ({count})",
+      "target": "Approving adds a field to {adapter}.",
+      "targetNew": "No adapter covers this portal yet. Approving creates one, in testing.",
+      "approve": "Approve for every centre",
+      "approving": "Adding…",
+      "reject": "Reject",
+      "approveHint": "Check the label really is this field before approving.",
+      "cannotReview": "Your role can view these but not review them.",
+      "approved": "Added to the adapter. Every centre gets it on their next mapping.",
+      "rejected": "Rejected.",
+      "alreadyReviewed": "Someone has already reviewed this.",
+      "shadowed": "A hand-written field in this adapter already claims this box, so the contribution was not added.",
+      "coverageTitle": "Top portals",
+      "coverageHelp": "Contributions decide which adapter is worth writing next. Hosts marked unverified were not checked against the live portal.",
+      "portal": "Portal",
+      "adapterColumn": "Adapter",
+      "pendingColumn": "Waiting",
+      "approvedColumn": "Approved",
+      "noAdapter": "None yet",
+      "hostsUnverified": "hosts unverified",
+      "untargeted": "{count} waiting contribution(s) are from portals outside this list."
     },
     "scrapers": {
       "title": "Scraper sources",
@@ -2976,7 +3031,41 @@
       "copied": "Copied",
       "newSession": "New code",
       "creating": "Opening…",
-      "createFailed": "Could not open a drop session. Try again."
+      "createFailed": "Could not open a drop session. Try again.",
+      "check": "Check QR code",
+      "checkAgain": "Check again",
+      "checking": "Reading the QR code in this browser…",
+      "none": "No readable QR code on this file. A clearer scan from the customer may help.",
+      "locked": "This PDF is password-locked. Unlock it in Document tools to check its QR code.",
+      "failed": "The file could not be checked. Try again.",
+      "open": "Open {host}",
+      "title": {
+        "aadhaar_verified": "Genuine Aadhaar QR",
+        "aadhaar_unconfirmed": "Aadhaar QR not confirmed",
+        "aadhaar_unsigned": "Old, unsigned Aadhaar QR",
+        "official_link": "Official link: {host}",
+        "other_link": "Not a government link: {host}",
+        "pan_text": "PAN QR code",
+        "unrecognised": "QR code found"
+      },
+      "body": {
+        "aadhaar_verified": "The digital signature matches UIDAI. Compare these details with the printed document: if they differ, the print was edited.",
+        "aadhaar_unconfirmed": "The signature matches no UIDAI key this app knows. The QR may have been changed, or the app needs updating. Verify at uidai.gov.in before relying on it.",
+        "aadhaar_unsigned": "Aadhaar printed before 2019 carries an unsigned QR, which proves nothing. Ask for a fresh e-Aadhaar if authenticity matters.",
+        "official_link": "The QR points to a government site. Open it to see the issuer’s own record of this certificate.",
+        "other_link": "The QR points to a site that is not gov.in or nic.in. Do not accept it as proof.",
+        "pan_text": "This QR is not signed in a way this app can check. Use the Income Tax Department’s PAN QR reader.",
+        "unrecognised": "The code was read but is not one this app can check. Newer PAN QR codes need the Income Tax Department’s reader."
+      },
+      "fields": {
+        "name": "Name",
+        "dateOfBirth": "Date of birth",
+        "gender": "Gender",
+        "careOf": "Care of",
+        "address": "Address",
+        "aadhaar": "Aadhaar",
+        "pan": "PAN"
+      }
     },
     "waiting": {
       "title": "Waiting for the customer",
@@ -3815,6 +3904,97 @@
         "stepTwo": "Merge, split, reorder or rotate the pages.",
         "stepThree": "Compress to the size limit and download."
       }
+    }
+  },
+  "khata": {
+    "title": "Khata",
+    "notReady": "Counter billing is not switched on for this workspace yet. Ask your administrator to finish the database update, then reload this page.",
+    "subtitle": "The day's cash, UPI and refunds, and every bill still owed.",
+    "dashboardTitle": "Today's counter",
+    "open": "Open khata",
+    "cardTitle": "Bill & khata",
+    "billNumber": "Bill {number}",
+    "feesHint": "Enter the government fee and your service charge. The bill number is issued when you save.",
+    "govtFee": "Govt fee",
+    "serviceCharge": "Service charge",
+    "total": "Total",
+    "paid": "Paid",
+    "balanceDue": "Balance due",
+    "editFees": "Change fees",
+    "saveFees": "Save fees",
+    "noFees": "No fees set for this application.",
+    "feesSaved": "Fees saved.",
+    "recordPayment": "Take payment",
+    "recordRefund": "Give a refund",
+    "amount": "Amount (₹)",
+    "methodLabel": "Paid by",
+    "method": {
+      "cash": "Cash",
+      "upi": "UPI",
+      "other": "Other"
+    },
+    "note": "Note (optional)",
+    "notePlaceholder": "e.g. Advance, rest on admit card",
+    "refundNotePlaceholder": "Why the money was returned",
+    "savePayment": "Record payment",
+    "saveRefund": "Record refund",
+    "paymentRecorded": "Payment recorded.",
+    "refundRecorded": "Refund recorded.",
+    "printReceipt": "Print receipt",
+    "paperWidth": "Receipt paper width",
+    "sendWhatsapp": "Send on WhatsApp",
+    "whatsappSent": "Receipt sent to the customer's WhatsApp.",
+    "showUpiQr": "Show UPI QR",
+    "hideUpiQr": "Hide UPI QR",
+    "upiQrTitle": "UPI payment QR",
+    "scanToPay": "Scan to pay {amount}",
+    "qrHint": "The customer pays from their own UPI app. Check it has arrived, then record it here as UPI.",
+    "noUpiId": "Add your UPI ID to print a scan-to-pay QR on receipts.",
+    "addUpiId": "Add UPI ID",
+    "payment": "Payment",
+    "refund": "Refund",
+    "ledger": "Khata entries",
+    "ledgerEmpty": "No money recorded yet.",
+    "receipt": {
+      "phone": "Ph: {phone}",
+      "billNumber": "Bill no: {number}",
+      "customer": "Name: {name}",
+      "application": "Service: {title}",
+      "reference": "Application no: {reference}",
+      "payByUpi": "Pay the balance by UPI to {upiId}",
+      "fullyPaid": "Fully paid. Thank you!",
+      "thanks": "Thank you for visiting."
+    },
+    "dayNav": "Choose a day",
+    "previousDay": "Previous day",
+    "nextDay": "Next day",
+    "pickDay": "Day",
+    "go": "Show",
+    "today": "Today, {date}",
+    "dayEntries": "Entries on this day",
+    "dayEmpty": "No money recorded on this day.",
+    "dayEmptyHint": "Payments are recorded on each application's bill.",
+    "col": {
+      "time": "Time",
+      "customer": "Customer",
+      "application": "Application",
+      "method": "Method",
+      "amount": "Amount",
+      "since": "Since"
+    },
+    "outstandingTitle": "Udhar — still to collect",
+    "outstandingHint": "Bills with a balance due, oldest first.",
+    "outstandingTruncated": "Showing the 500 oldest bills with a balance due.",
+    "outstandingEmpty": "Nothing owed. Every bill is settled.",
+    "tally": {
+      "cash": "Cash",
+      "upi": "UPI",
+      "other": "Other",
+      "net": "Collected",
+      "refunds": "Refunds",
+      "udhar": "Udhar due",
+      "entries": "{payments} payments · {refunds} refunds",
+      "udharCount": "{count} bills with udhar"
     }
   }
 }

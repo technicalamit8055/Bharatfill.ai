@@ -586,6 +586,26 @@ describe('testConnection', () => {
   });
 });
 
+describe('completeText', () => {
+  it('sends the system prompt and the text, and returns the reply as-is', async () => {
+    const { impl, calls } = stubFetch('{"mappings":[]}');
+    const provider = new AiVisionOcrProvider({ apiKey: 'k', fetchImpl: impl });
+
+    const reply = await provider.completeText('SYSTEM', '{"boxes":[]}');
+
+    expect(reply.text).toBe('{"mappings":[]}');
+    const messages = calls[0]?.body.messages as { role: string; content: unknown }[];
+    expect(messages[0]).toMatchObject({ role: 'system', content: 'SYSTEM' });
+    expect(JSON.stringify(messages[1])).toContain('{\\"boxes\\":[]}');
+  });
+
+  it('throws a typed provider error on a failed request', async () => {
+    const { impl } = stubFetch('', { status: 500 });
+    const provider = new AiVisionOcrProvider({ apiKey: 'k', fetchImpl: impl });
+    await expect(provider.completeText('S', 'U')).rejects.toMatchObject({ code: expect.any(String) });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Dynamic-schema mode
 // ---------------------------------------------------------------------------

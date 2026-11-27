@@ -25,10 +25,15 @@ export async function updateOrganizationAction(
     };
   }
 
-  const { businessType, preferredLocale, ...rest } = parsed.data;
-  const patch = { ...rest, business_type: businessType, preferred_locale: preferredLocale };
+  const { businessType, preferredLocale, upiId, ...rest } = parsed.data;
+  const patch = {
+    ...rest,
+    business_type: businessType,
+    preferred_locale: preferredLocale,
+    upi_id: upiId ?? null,
+  };
   const fields = (Object.keys(patch) as (keyof typeof patch)[]).filter(
-    (key) => patch[key] !== session.organization[key],
+    (key) => patch[key] !== (session.organization[key] ?? null),
   );
   if (fields.length === 0) return { notice: 'settings.org.saved' };
 

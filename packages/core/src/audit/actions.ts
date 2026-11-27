@@ -396,6 +396,14 @@ export const AUDIT_ACTIONS = define([
     sensitivity: 'normal',
     description: 'Portal adapter changed',
   },
+  {
+    // An operator mapped a box the engine did not recognise (org override, §14.3 priority 2).
+    // Metadata is the portal origin and customer field key only — never a value.
+    action: 'field_mapping.taught',
+    entityType: 'org_field_mapping',
+    sensitivity: 'normal',
+    description: 'Field mapping taught for this centre',
+  },
 
   // --- applications --------------------------------------------------------
   {
@@ -427,6 +435,32 @@ export const AUDIT_ACTIONS = define([
     entityType: 'application_document',
     sensitivity: 'normal',
     description: 'Application document checklist updated',
+  },
+  {
+    // Which fee lines changed, never the customer.
+    action: 'application.fees_set',
+    entityType: 'application',
+    sensitivity: 'normal',
+    description: 'Counter bill fees set',
+  },
+  {
+    action: 'application.payment_recorded',
+    entityType: 'application',
+    sensitivity: 'normal',
+    description: 'Counter payment recorded in the khata',
+  },
+  {
+    // Money going back out of the drawer is what an owner reviews first.
+    action: 'application.refund_recorded',
+    entityType: 'application',
+    sensitivity: 'sensitive',
+    description: 'Counter refund recorded in the khata',
+  },
+  {
+    action: 'application.bill_sent',
+    entityType: 'application',
+    sensitivity: 'normal',
+    description: 'Counter bill sent to the customer on WhatsApp',
   },
 
   // --- billing -------------------------------------------------------------
@@ -575,6 +609,19 @@ export const AUDIT_ACTIONS = define([
     entityType: 'portal_adapter',
     sensitivity: 'sensitive',
     description: 'Global portal adapter changed',
+  },
+  {
+    // A centre's taught mapping promoted into a global adapter — it now reaches every centre.
+    action: 'platform.mapping_contribution_approved',
+    entityType: 'mapping_contribution',
+    sensitivity: 'critical',
+    description: 'Operator mapping approved into a global portal adapter',
+  },
+  {
+    action: 'platform.mapping_contribution_rejected',
+    entityType: 'mapping_contribution',
+    sensitivity: 'sensitive',
+    description: 'Operator mapping contribution rejected',
   },
   {
     action: 'platform.scraper_source_updated',

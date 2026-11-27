@@ -32,6 +32,8 @@ export * from './document-drop';
 
 export * from './applications/status';
 
+export * from './khata';
+
 export * from './billing/plans';
 export * from './billing/entitlements';
 export * from './billing/provider';

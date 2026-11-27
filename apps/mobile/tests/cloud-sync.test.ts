@@ -13,12 +13,14 @@ import {
   syncFileKind,
 } from '../lib/cloud/sync-plan';
 import {
+  centreCopyFailed,
   EMPTY_VAULT_INDEX,
   parseVaultIndex,
   phoneOnlyForNewDocument,
   serialiseVaultIndex,
   type VaultDocument,
   type VaultIndex,
+  withCentreReadiness,
   withCloudDeleteDone,
   withCloudForgotten,
   withCloudSynced,
@@ -377,3 +379,40 @@ describe('pulling in what a centre added (0047)', () => {
     expect(details.title).toHaveLength(80);
   });
 });
+
+describe('cyber cafe copy', () => {
+  const synced = { id: CLOUD_A, title: 'Scanned document', documentType: 'generic' as const };
+
+  it('records what the server listed, and writes nothing when it is unchanged', () => {
+    const index = indexOf(doc(A, { cloud: synced }), doc(B));
+    const failed = withCentreReadiness(index, new Map([[CLOUD_A, false]]));
+    expect(centreCopyFailed(findIn(failed, A))).toBe(true);
+    expect(centreCopyFailed(findIn(failed, B))).toBe(false);
+    expect(withCentreReadiness(failed, new Map([[CLOUD_A, false]]))).toBe(failed);
+
+    const ready = withCentreReadiness(failed, new Map([[CLOUD_A, true]]));
+    expect(centreCopyFailed(findIn(ready, A))).toBe(false);
+    expect(parseVaultIndex(serialiseVaultIndex(failed))?.documents.find((d) => d.id === A)?.cloud)
+      .toEqual({ ...synced, centreReady: false });
+  });
+
+  it('keeps the known state through a rename, and takes a new one when given', () => {
+    const index = indexOf(doc(A, { cloud: { ...synced, centreReady: false } }));
+    const renamed = withCloudSynced(index, A, { ...synced, title: 'Renamed' });
+    expect(findIn(renamed, A).cloud?.centreReady).toBe(false);
+    const confirmed = withCloudSynced(index, A, { ...synced, centreReady: true });
+    expect(findIn(confirmed, A).cloud?.centreReady).toBe(true);
+  });
+
+  it('is not an error for a server that does not report it, or a phone-only document', () => {
+    expect(centreCopyFailed(doc(A, { cloud: synced }))).toBe(false);
+    expect(centreCopyFailed(doc(A, { phoneOnly: true, cloud: { ...synced, centreReady: false } })))
+      .toBe(false);
+  });
+});
+
+function findIn(index: VaultIndex, id: string): VaultDocument {
+  const found = index.documents.find((document) => document.id === id);
+  if (!found) throw new Error('missing fixture document');
+  return found;
+}

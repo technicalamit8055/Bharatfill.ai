@@ -72,6 +72,21 @@ export const adapterFieldSchema = z.object({
     } satisfies Record<EducationLevel, z.ZodTypeAny>)
     .strict()
     .optional(),
+  /**
+   * How `labelPatterns` are compared. `contains` (the default) is what hand-written adapters use,
+   * with `negativePatterns` to stop nested labels. `exact` means a pattern must equal one of the
+   * box's own texts — its label, aria-label, placeholder, name or id — after normalising.
+   *
+   * Fields promoted from operator contributions are always `exact` (contributions.ts): they
+   * carry the one label an operator saw, with no negatives. Under `contains`, a contributed
+   * "Name" would also claim "Father's Name" on the same portal.
+   */
+  labelMatch: z.enum(['contains', 'exact']).optional(),
+  /**
+   * Where this field came from, when it was not written by hand. Display only: the mapper does
+   * not read it, but the admin panel uses it to show which fields came from centres.
+   */
+  origin: z.enum(['contribution']).optional(),
 });
 
 /** The levels an adapter field declares a customer field for, in `EDUCATION_LEVELS` order. */
@@ -201,7 +216,7 @@ export type AdapterMatchable = {
   sectionHeading?: string | null;
 };
 
-function normaliseForMatch(text: string): string {
+export function normaliseForMatch(text: string): string {
   /*
    * Collapse whitespace and drop the punctuation portals sprinkle through labels — "पिता का
    * नाम *", "Father's Name :" and "Father Name" must all reduce to the same thing, or an
@@ -279,6 +294,26 @@ export function adapterFieldMatchScore(
       // adapter a thrown SyntaxError on a live portal.
       if (` ${tokens} `.includes(` ${key} `)) return 800;
     }
+  }
+
+  /*
+   * An exact pattern must equal one whole text of this box. It is a stronger claim than a
+   * substring, so it outranks every `contains` match (scores are lengths, well under 500), and
+   * stays below the name/id key match.
+   */
+  if (adapterField.labelMatch === 'exact') {
+    const ownTexts = new Set(
+      [field.labelText, field.ariaLabel, field.placeholder, field.name, field.id]
+        .filter((part): part is string => typeof part === 'string' && part.length > 0)
+        .map(normaliseForMatch)
+        .filter((text) => text.length > 0),
+    );
+    let exact: number | null = null;
+    for (const pattern of adapterField.labelPatterns ?? []) {
+      const needle = normaliseForMatch(pattern);
+      if (needle && ownTexts.has(needle)) exact = Math.max(exact ?? 0, 500 + needle.length);
+    }
+    return exact;
   }
 
   // Otherwise the longest matching label pattern wins, measured in normalised characters.

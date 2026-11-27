@@ -7,13 +7,13 @@ import { describe, expect, it } from 'vitest';
 
 import en from '../messages/en.json';
 import hi from '../messages/hi.json';
-import { PAGE_FILTERS } from '../lib/scan/filters';
+import { PAGE_FILTERS, PHOTO_FILTERS } from '../lib/scan/filters';
 import { QUALITY_ISSUES } from '../lib/scan/photo-quality';
 import { CAPTURE_MODES } from '../lib/scan/scan-session';
 
 /** Mirrors `ScannerStatus` in `components/scanner/ScannerScreen.tsx`. */
 const STATUSES = ['starting', 'searching', 'hold', 'tap', 'capturing'];
-const FILTERS = PAGE_FILTERS;
+const FILTERS = [...new Set([...PAGE_FILTERS, ...PHOTO_FILTERS])];
 const CORNERS = ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'];
 
 const RENDERED_KEYS = [
@@ -110,6 +110,7 @@ const RENDERED_KEYS = [
     'quality.keepHint',
   ].map((key) => `scanReview.${key}`),
   ...QUALITY_ISSUES.map((issue) => `scanReview.quality.${issue}`),
+  'scanReview.studio.noPerson',
   ...CORNERS.map((corner) => `scanReview.corners.${corner}`),
   'scanResult.title',
   'scanResult.subtitle',

@@ -95,6 +95,9 @@ export const POST = handler('api.applications.create', async (request) => {
       deadline_at: input.deadlineAt || null,
       amount_charged: input.amountCharged ?? null,
       payment_status: input.paymentStatus ?? null,
+      // The insert trigger sums these into amount_charged and issues the bill number (0050).
+      govt_fee: input.govtFee ?? null,
+      service_charge: input.serviceCharge ?? null,
       assigned_to: input.assignedTo ?? null,
       notes: input.notes ?? null,
       created_by: context.userId,

@@ -45,6 +45,9 @@ export const PERMISSIONS = [
   'application.create',
   'application.update',
   'application.delete',
+  // counter khata (migration 0050). Recording a payment is `application.update`; a refund takes
+  // money back out of the drawer, so it is a separate, manager-level act.
+  'payment.refund',
   // organization
   'member.view',
   'member.invite',
@@ -93,6 +96,7 @@ const MANAGER_PERMISSIONS: readonly Permission[] = [
   'customer.export',
   'document.delete',
   'application.delete',
+  'payment.refund',
   'member.invite',
   'member.remove',
   'member.change_role',

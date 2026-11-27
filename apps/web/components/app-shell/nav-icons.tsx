@@ -14,6 +14,7 @@ import {
   FolderOpen,
   Home,
   Library,
+  NotebookTabs,
   Settings,
   Users,
   Wand2,
@@ -40,6 +41,7 @@ export const DocumentsIcon = icon(FolderOpen);
 export const ToolsIcon = icon(Wrench);
 export const ApplicationsIcon = icon(FileStack);
 export const LibraryIcon = icon(Library);
+export const KhataIcon = icon(NotebookTabs);
 /** Fill sessions: the wand is the autofill run itself, not the form it ran against. */
 export const FillSessionsIcon = icon(Wand2);
 export const BillingIcon = icon(CreditCard);
